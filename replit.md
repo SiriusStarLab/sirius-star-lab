@@ -18,18 +18,44 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 
 ## Artifacts
 
-### `artifacts/ai-chat` — AI Chat App
-React + Vite frontend served at `/`. Full-featured AI chat interface with:
-- Conversation sidebar (create, switch, delete)
-- Streaming chat responses via SSE
-- Dark mode professional design
-- Powered by OpenAI gpt-5.2 via Replit AI Integrations
+### `artifacts/ai-chat` — Nexus AI Companion App
+React + Vite frontend served at `/`. A full companion AI app, not just a chat tool:
+
+**Core experience**
+- Companion-first design: the AI is a friend, not a tool
+- Mood check-in on welcome screen (8 emotional states → personalised opener)
+- Daily Wisdom card: rotating quotes from all world religions & philosophies
+- Topic hub: Religion & Faith, Meditation, Philosophy, History, Health, Music, Mechanics, Just Talk
+- Spotify "Now Playing" widget: shows current/recent tracks, lets you ask the AI about them
+- Chat input: "Talk to me — I'm here..." / "You are not alone — I'm here for all of it"
+
+**Personalisation & Memory**
+- Each browser gets a UUID (`nexus_user_id` in localStorage)
+- User profiles stored in `user_profiles` DB table (ai name, ai personality, memories)
+- After each conversation turn, AI extracts key facts and saves them as memories
+- Settings panel in sidebar: name your AI, shape its personality, see what it remembers
+- AI name appears everywhere (welcome screen, sidebar header)
+
+**AI Capabilities**
+- Real-time web search via OpenAI Responses API `web_search_preview` tool
+- Rich companion system prompt: emotional intelligence, accessibility, no restrictions
+- Covers: all religions/spirituality, meditation/mindfulness, philosophy, history, medicine, music, mechanics
+- Fallback to `gpt-4o` chat completions if Responses API unavailable
+- Memory extraction runs async after each message (non-blocking)
+
+**Spotify Integration**
+- Connected via Replit OAuth connector (`conn_spotify_01KKW2ZR1Q51QT871RHEDRVYPP`)
+- Routes: `GET /api/openai/spotify/now-playing`, `/recently-played`, `/top-tracks`
+- Spotify client: `artifacts/api-server/src/lib/spotify.ts`
+- Widget gracefully hides when Spotify is not active or unavailable
+- Note: Requires Spotify Premium + app registered in development mode on Spotify dashboard
 
 ### OpenAI Integration
 Uses `@workspace/integrations-openai-ai-server` and `@workspace/integrations-openai-ai-react`.
 API routes in `artifacts/api-server/src/routes/openai/index.ts`.
-DB tables: `conversations`, `messages` (Drizzle + Postgres).
+DB tables: `conversations`, `messages`, `user_profiles` (Drizzle + Postgres).
 AI keys auto-provisioned via `AI_INTEGRATIONS_OPENAI_BASE_URL` and `AI_INTEGRATIONS_OPENAI_API_KEY`.
+Model used: `gpt-4o` (Responses API for web search, chat completions as fallback).
 
 ## Structure
 
