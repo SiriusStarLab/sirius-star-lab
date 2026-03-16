@@ -18,7 +18,7 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
 
   useEffect(() => {
     if (!isLoading) {
-      setAiName(profile.aiName || "Nexus");
+      setAiName(profile.aiName || "Sirius");
       setAiPersonality(profile.aiPersonality || "");
     }
   }, [profile, isLoading]);
@@ -30,7 +30,7 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
   };
 
   const handleReset = () => {
-    setAiName("Nexus");
+    setAiName("Sirius");
     setAiPersonality("");
   };
 

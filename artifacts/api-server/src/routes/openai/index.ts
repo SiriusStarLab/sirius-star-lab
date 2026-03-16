@@ -241,7 +241,7 @@ function isImageRequest(text: string): boolean {
 }
 
 function buildSystemPrompt(profile: { aiName: string; aiPersonality: string; memories: string }): string {
-  const name = profile.aiName || "Nexus";
+  const name = profile.aiName || "Sirius";
 
   const nameSection = `Your name is ${name}.\n\n`;
 
@@ -404,7 +404,7 @@ router.get("/openai/profiles/:userId", async (req, res): Promise<void> => {
   if (!profile) {
     res.json({
       userId,
-      aiName: "Nexus",
+      aiName: "Sirius",
       aiPersonality: "",
       memories: "",
       createdAt: new Date().toISOString(),
@@ -424,13 +424,13 @@ router.put("/openai/profiles/:userId", async (req, res): Promise<void> => {
     .insert(userProfilesTable)
     .values({
       userId,
-      aiName: aiName?.trim() || "Nexus",
+      aiName: aiName?.trim() || "Sirius",
       aiPersonality: aiPersonality?.trim() || "",
     })
     .onConflictDoUpdate({
       target: userProfilesTable.userId,
       set: {
-        aiName: aiName?.trim() || "Nexus",
+        aiName: aiName?.trim() || "Sirius",
         aiPersonality: aiPersonality?.trim() || "",
         updatedAt: new Date(),
       },
@@ -466,15 +466,34 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
     return;
   }
 
-  // Load user profile if userId provided
-  let profile = { aiName: "Nexus", aiPersonality: "", memories: "" };
+  // Load user profile and check daily limits
+  let profile = { aiName: "Sirius", aiPersonality: "", memories: "" };
   if (userId) {
     const [dbProfile] = await db
       .select()
       .from(userProfilesTable)
       .where(eq(userProfilesTable.userId, userId));
+
     if (dbProfile) {
       profile = { aiName: dbProfile.aiName, aiPersonality: dbProfile.aiPersonality, memories: dbProfile.memories };
+
+      // Check daily message limit
+      const tier = dbProfile.subscriptionTier || "free";
+      const limits: Record<string, number> = { free: 30, plus: 200, pro: Infinity };
+      const limit = limits[tier] ?? 30;
+
+      if (limit !== Infinity) {
+        const now = new Date();
+        const resetDate = dbProfile.dailyMessageReset ? new Date(dbProfile.dailyMessageReset) : null;
+        const needsReset = !resetDate || resetDate.toDateString() !== now.toDateString();
+
+        const currentCount = needsReset ? 0 : parseInt(dbProfile.dailyMessageCount || "0", 10);
+
+        if (currentCount >= limit) {
+          res.status(429).json({ error: "Daily message limit reached. Upgrade to send more messages.", tier, limit });
+          return;
+        }
+      }
     }
   }
 
@@ -598,13 +617,30 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
   res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
   res.end();
 
-  // Async memory extraction — runs after response is sent
+  // Async: increment daily message count + extract memories
   if (userId && fullResponse) {
     const conversationForMemory = [
       ...inputMessages,
       { role: "assistant", content: fullResponse },
     ];
     extractAndSaveMemories(userId, conversationForMemory, profile.memories).catch(() => {});
+
+    // Increment daily message count
+    db.select().from(userProfilesTable).where(eq(userProfilesTable.userId, userId))
+      .then(([current]) => {
+        if (!current) return;
+        const now = new Date();
+        const resetDate = current.dailyMessageReset ? new Date(current.dailyMessageReset) : null;
+        const needsReset = !resetDate || resetDate.toDateString() !== now.toDateString();
+        const newCount = needsReset ? 1 : parseInt(current.dailyMessageCount || "0", 10) + 1;
+        return db.update(userProfilesTable)
+          .set({
+            dailyMessageCount: String(newCount),
+            dailyMessageReset: needsReset ? now : current.dailyMessageReset ?? now,
+          })
+          .where(eq(userProfilesTable.userId, userId));
+      })
+      .catch(() => {});
   }
 });
 

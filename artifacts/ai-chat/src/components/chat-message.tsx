@@ -21,7 +21,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
     if (!message.imageB64) return;
     const link = document.createElement("a");
     link.href = `data:image/png;base64,${message.imageB64}`;
-    link.download = "nexus-creation.png";
+    link.download = "sirius-creation.png";
     link.click();
   };
 
@@ -213,4 +213,4 @@ export function ChatMessage({ message }: ChatMessageProps) {
   );
 }
 
-const aiName = "Nexus";
+const aiName = "Sirius";

@@ -22,7 +22,7 @@ export function ChatPage() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { profile } = useProfile();
-  const aiName = profile.aiName || "Nexus";
+  const aiName = profile.aiName || "Sirius";
 
   const {
     data: dbConversation,

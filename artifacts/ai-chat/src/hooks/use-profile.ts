@@ -10,7 +10,7 @@ export type UserProfile = {
 
 const DEFAULT_PROFILE: UserProfile = {
   userId: "",
-  aiName: "Nexus",
+  aiName: "Sirius",
   aiPersonality: "",
   memories: "",
 };

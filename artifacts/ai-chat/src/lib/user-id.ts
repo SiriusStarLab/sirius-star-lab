@@ -1,4 +1,4 @@
-const USER_ID_KEY = "nexus_user_id";
+const USER_ID_KEY = "sirius_user_id";
 
 export function getUserId(): string {
   let id = localStorage.getItem(USER_ID_KEY);

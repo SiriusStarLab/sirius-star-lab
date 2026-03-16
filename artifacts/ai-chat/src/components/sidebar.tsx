@@ -1,13 +1,15 @@
 import React, { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { PlusCircle, MessageSquare, Trash2, X, Settings } from "lucide-react";
+import { PlusCircle, MessageSquare, Trash2, X, Settings, Zap } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { SettingsPanel } from "@/components/settings-panel";
+import { PricingModal } from "@/components/pricing-modal";
 import { useProfile } from "@/hooks/use-profile";
+import { useSubscription } from "@/hooks/use-subscription";
 import {
   useListOpenaiConversations,
   useDeleteOpenaiConversation,
@@ -23,13 +25,15 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const [location, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isPricingOpen, setIsPricingOpen] = useState(false);
   const { profile } = useProfile();
+  const { status, usagePercent, isPremium } = useSubscription();
 
   const { data: conversations, isLoading } = useListOpenaiConversations();
   const { mutate: deleteConversation, isPending: isDeleting } = useDeleteOpenaiConversation();
 
   const currentId = location.startsWith("/c/") ? parseInt(location.split("/c/")[1]) : null;
-  const aiName = profile.aiName || "Nexus";
+  const aiName = profile.aiName || "Sirius";
 
   const handleDelete = (e: React.MouseEvent, id: number) => {
     e.preventDefault();
@@ -70,7 +74,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               border: "1px solid hsl(193 100% 52% / 0.3)",
               boxShadow: "0 0 10px hsl(193 100% 52% / 0.15)"
             }}>
-            <span className="text-primary font-bold text-sm">N</span>
+            <span className="text-primary font-bold text-sm">S</span>
           </div>
           <span className="font-semibold text-sm tracking-wide text-sidebar-foreground">{aiName}</span>
         </Link>
@@ -173,7 +177,56 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         )}
       </div>
 
-      <div className="p-4" style={{ borderTop: "1px solid hsl(193 100% 52% / 0.08)" }}>
+      <div className="p-4 space-y-2" style={{ borderTop: "1px solid hsl(193 100% 52% / 0.08)" }}>
+        {/* Upgrade button for free users */}
+        {!isPremium && (
+          <button
+            onClick={() => setIsPricingOpen(true)}
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg transition-all duration-200 group"
+            style={{
+              background: "linear-gradient(135deg, hsl(193 100% 52% / 0.1), hsl(224 28% 10%))",
+              border: "1px solid hsl(193 100% 52% / 0.25)",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 0 16px hsl(193 100% 52% / 0.15)"; }}
+            onMouseLeave={e => { e.currentTarget.style.boxShadow = "none"; }}
+          >
+            <Zap size={14} className="text-primary" fill="currentColor" />
+            <div className="flex-1 text-left">
+              <p className="text-[12px] font-medium text-primary">Upgrade to Plus</p>
+              <p className="text-[10px] text-muted-foreground/60">
+                {status.dailyMessageCount}/{status.dailyLimit ?? 30} messages today
+              </p>
+            </div>
+            <div className="w-12 h-1.5 rounded-full overflow-hidden" style={{ background: "hsl(224 24% 14%)" }}>
+              <div className="h-full rounded-full transition-all duration-500"
+                style={{
+                  width: `${usagePercent}%`,
+                  background: usagePercent > 80 ? "hsl(0 80% 60%)" : "hsl(193 100% 52%)"
+                }} />
+            </div>
+          </button>
+        )}
+
+        {/* Premium badge */}
+        {isPremium && (
+          <button
+            onClick={() => setIsPricingOpen(true)}
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg transition-all duration-200"
+            style={{
+              background: "hsl(45 95% 58% / 0.07)",
+              border: "1px solid hsl(45 95% 58% / 0.2)",
+            }}
+          >
+            <Zap size={14} className="text-amber-400" fill="currentColor" />
+            <div className="flex-1 text-left">
+              <p className="text-[12px] font-medium text-amber-400 capitalize">{status.tier} member</p>
+              <p className="text-[10px] text-muted-foreground/50">
+                {status.dailyLimit ? `${status.dailyMessageCount}/${status.dailyLimit} today` : "Unlimited messages"}
+              </p>
+            </div>
+          </button>
+        )}
+
         <button
           onClick={() => setIsSettingsOpen(true)}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-all duration-200 text-sm"
@@ -215,6 +268,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       </motion.div>
 
       <SettingsPanel isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+      <PricingModal isOpen={isPricingOpen} onClose={() => setIsPricingOpen(false)} currentTier={status.tier} />
     </>
   );
 }
