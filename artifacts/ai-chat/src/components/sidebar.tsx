@@ -109,8 +109,9 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             ))}
           </div>
         ) : sortedConversations.length === 0 ? (
-          <div className="px-3 py-6 text-sm text-sidebar-foreground/50 text-center">
-            No history yet. Start a new chat!
+          <div className="px-3 py-8 text-center space-y-1">
+            <p className="text-sm text-sidebar-foreground/50">Your story starts here.</p>
+            <p className="text-xs text-sidebar-foreground/30">Every conversation begins somewhere.</p>
           </div>
         ) : (
           sortedConversations.map((convo) => {

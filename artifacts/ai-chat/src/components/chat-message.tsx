@@ -32,7 +32,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
       transition={{ duration: 0.3, ease: "easeOut" }}
       className={cn(
         "flex w-full px-4 py-6 md:px-8",
-        isUser ? "justify-end" : "justify-start bg-muted/20 border-y border-border/30"
+        isUser ? "justify-end" : "justify-start bg-gradient-to-r from-primary/[0.03] via-transparent to-transparent border-y border-primary/[0.06]"
       )}
     >
       <div className={cn(

@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { RefreshCw, MessageCircle, ChevronDown, ChevronUp } from "lucide-react";
 
 type WisdomQuote = {
@@ -50,6 +50,9 @@ const WISDOM_QUOTES: WisdomQuote[] = [
   { text: "Darkness cannot drive out darkness; only light can do that. Hate cannot drive out hate; only love can do that.", source: "Martin Luther King Jr.", tradition: "Universal", emoji: "⭐" },
   { text: "When I let go of what I am, I become what I might be.", source: "Lao Tzu", tradition: "Taoism", emoji: "☯️" },
   { text: "The soul that sees beauty may sometimes walk alone.", source: "Johann Wolfgang von Goethe", tradition: "Philosophy", emoji: "🦉" },
+  { text: "Not all those who wander are lost.", source: "J.R.R. Tolkien", tradition: "Universal", emoji: "⭐" },
+  { text: "He who has a why to live can bear almost any how.", source: "Friedrich Nietzsche", tradition: "Philosophy", emoji: "🦉" },
+  { text: "The most courageous act is still to think for yourself. Aloud.", source: "Coco Chanel", tradition: "Universal", emoji: "✨" },
 ];
 
 function getDailyQuoteIndex(offset = 0): number {
@@ -71,62 +74,65 @@ export function DailyWisdom({ onReflect }: DailyWisdomProps) {
 
   const quote = useMemo(() => WISDOM_QUOTES[getDailyQuoteIndex(offset)], [offset]);
 
-  const handleNext = () => setOffset((o) => o + 1);
-
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.15, duration: 0.4 }}
-      className="w-full rounded-2xl bg-gradient-to-br from-primary/5 to-accent/30 border border-border/60 overflow-hidden"
+      transition={{ delay: 0.12, duration: 0.4 }}
+      className="w-full rounded-2xl bg-gradient-to-br from-primary/8 via-primary/4 to-transparent border border-primary/15 overflow-hidden shadow-lg shadow-primary/5"
     >
       <button
         onClick={() => setExpanded((e) => !e)}
-        className="w-full flex items-center justify-between px-5 py-3.5 text-left hover:bg-white/5 transition-colors"
+        className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-primary/5 transition-colors duration-200"
       >
-        <div className="flex items-center gap-2.5">
-          <span className="text-lg">{quote.emoji}</span>
+        <div className="flex items-center gap-3">
+          <span className="text-xl leading-none">{quote.emoji}</span>
           <div>
-            <p className="text-xs font-semibold text-primary/80 uppercase tracking-wider">A word for today</p>
-            <p className="text-xs text-muted-foreground">{quote.tradition}</p>
+            <p className="text-[11px] font-semibold text-primary/70 uppercase tracking-[0.15em]">A word for today</p>
+            <p className="text-[11px] text-muted-foreground/60 mt-0.5">{quote.tradition}</p>
           </div>
         </div>
-        {expanded ? (
-          <ChevronUp className="w-4 h-4 text-muted-foreground" />
-        ) : (
-          <ChevronDown className="w-4 h-4 text-muted-foreground" />
-        )}
+        <motion.div animate={{ rotate: expanded ? 180 : 0 }} transition={{ duration: 0.2 }}>
+          <ChevronDown className="w-4 h-4 text-muted-foreground/50" />
+        </motion.div>
       </button>
 
-      <motion.div
-        initial={false}
-        animate={{ height: expanded ? "auto" : 0, opacity: expanded ? 1 : 0 }}
-        transition={{ duration: 0.25 }}
-        style={{ overflow: "hidden" }}
-      >
-        <div className="px-5 pb-4 space-y-4">
-          <blockquote className="text-sm text-foreground/90 leading-relaxed italic">
-            "{quote.text}"
-          </blockquote>
-          <p className="text-xs text-muted-foreground">— {quote.source}</p>
-          <div className="flex gap-2 pt-1">
-            <button
-              onClick={() => onReflect(`I want to sit with this teaching from ${quote.tradition}: "${quote.text}" — ${quote.source}. Help me understand it deeply — what it's really saying, where it came from, and how someone might carry it into their life today.`)}
-              className="flex-1 flex items-center justify-center gap-1.5 text-xs font-medium bg-primary/10 hover:bg-primary/20 text-primary rounded-lg py-2 transition-colors"
-            >
-              <MessageCircle className="w-3.5 h-3.5" />
-              Sit with this
-            </button>
-            <button
-              onClick={handleNext}
-              className="flex items-center justify-center gap-1.5 text-xs font-medium bg-accent/60 hover:bg-accent text-muted-foreground hover:text-foreground rounded-lg px-3 py-2 transition-colors"
-              title="Another word"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
-      </motion.div>
+      <AnimatePresence initial={false}>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25, ease: "easeInOut" }}
+            style={{ overflow: "hidden" }}
+          >
+            <div className="px-5 pb-5 space-y-4">
+              <div className="pt-1 border-t border-primary/10">
+                <blockquote className="text-sm text-foreground/85 leading-[1.85] italic mt-3 font-light">
+                  "{quote.text}"
+                </blockquote>
+                <p className="text-xs text-muted-foreground/60 mt-2">— {quote.source}</p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => onReflect(`I want to sit with this teaching from ${quote.tradition}: "${quote.text}" — ${quote.source}. Help me understand it deeply — what it's really saying, where it came from, and how someone might carry it into their life today.`)}
+                  className="flex-1 flex items-center justify-center gap-2 text-xs font-medium bg-primary/10 hover:bg-primary/20 text-primary rounded-xl py-2.5 transition-all duration-200 hover:shadow-sm"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  Sit with this
+                </button>
+                <button
+                  onClick={() => setOffset((o) => o + 1)}
+                  className="flex items-center justify-center gap-1.5 text-xs font-medium bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground rounded-xl px-3.5 py-2.5 transition-all duration-200"
+                  title="Another word"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
