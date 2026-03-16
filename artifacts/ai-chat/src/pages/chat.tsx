@@ -106,7 +106,7 @@ export function ChatPage() {
                 transition={{ delay: 0.2, duration: 0.4 }}
                 className="text-muted-foreground max-w-md mb-12"
               >
-                I can write code, analyze data, brainstorm ideas, or just chat. Get started below.
+                I can search the web in real time, write code, analyze anything, brainstorm, and have a real conversation on any subject — ask me anything.
               </motion.p>
               
               <motion.div 
@@ -116,10 +116,10 @@ export function ChatPage() {
                 className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full"
               >
                 {[
-                  "Write a Python script to...",
-                  "Explain quantum computing",
-                  "Help me debug an error",
-                  "Draft an email to my boss"
+                  "What's happening in the world today?",
+                  "Explain quantum computing simply",
+                  "Help me write a cover letter",
+                  "What should I learn to become a developer?"
                 ].map((suggestion, i) => (
                   <button
                     key={i}

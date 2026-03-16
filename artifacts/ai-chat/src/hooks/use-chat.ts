@@ -9,12 +9,19 @@ import {
 } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 
+export type ChatSource = {
+  url: string;
+  title: string;
+};
+
 export type ChatMessage = {
   id: string | number;
   role: "user" | "assistant" | "system";
   content: string;
   createdAt?: string;
   isStreaming?: boolean;
+  isSearching?: boolean;
+  sources?: ChatSource[];
 };
 
 export function useChat(conversationId?: number) {
@@ -27,7 +34,6 @@ export function useChat(conversationId?: number) {
   const { mutateAsync: createConversation } = useCreateOpenaiConversation();
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Sync initial messages if they come from the DB query
   const setInitialMessages = useCallback((dbMessages: OpenaiMessage[]) => {
     setMessages(dbMessages.map(m => ({
       ...m,
@@ -51,27 +57,28 @@ export function useChat(conversationId?: number) {
     
     let activeId = conversationId;
     
-    // Add user message optimistically
     const userMsgId = Date.now();
     setMessages(prev => [...prev, { id: userMsgId, role: "user", content }]);
     
     try {
-      // If no conversation exists, create one using the first 30 chars of the message
       if (!activeId) {
-        const title = content.length > 30 ? content.slice(0, 30) + "..." : content;
+        const title = content.length > 40 ? content.slice(0, 40) + "..." : content;
         const newConvo = await createConversation({ data: { title } });
         activeId = newConvo.id;
         
-        // Optimistically update conversation list cache
         queryClient.invalidateQueries({ queryKey: getListOpenaiConversationsQueryKey() });
-        
-        // Navigate to the new conversation without reloading
         setLocation(`/c/${activeId}`, { replace: true });
       }
 
-      // Add empty assistant message placeholder for streaming
       const assistantMsgId = Date.now() + 1;
-      setMessages(prev => [...prev, { id: assistantMsgId, role: "assistant", content: "", isStreaming: true }]);
+      setMessages(prev => [...prev, {
+        id: assistantMsgId,
+        role: "assistant",
+        content: "",
+        isStreaming: true,
+        isSearching: false,
+        sources: [],
+      }]);
       setIsTyping(true);
 
       abortControllerRef.current = new AbortController();
@@ -100,7 +107,7 @@ export function useChat(conversationId?: number) {
 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
-        buffer = lines.pop() || ""; // Keep the last incomplete line in the buffer
+        buffer = lines.pop() || "";
 
         for (const line of lines) {
           if (line.startsWith("data: ")) {
@@ -111,17 +118,30 @@ export function useChat(conversationId?: number) {
               const data = JSON.parse(dataStr);
               
               if (data.done) {
-                // Stream complete
                 setMessages(prev => prev.map(m => 
-                  m.id === assistantMsgId ? { ...m, isStreaming: false } : m
+                  m.id === assistantMsgId
+                    ? { ...m, isStreaming: false, isSearching: false }
+                    : m
                 ));
-                // Invalidate get query to sync accurate DB IDs
                 queryClient.invalidateQueries({ queryKey: getGetOpenaiConversationQueryKey(activeId) });
                 setIsTyping(false);
+              } else if (data.type === "searching") {
+                setMessages(prev => prev.map(m =>
+                  m.id === assistantMsgId
+                    ? { ...m, isSearching: true }
+                    : m
+                ));
+              } else if (data.sources) {
+                setMessages(prev => prev.map(m =>
+                  m.id === assistantMsgId
+                    ? { ...m, sources: data.sources }
+                    : m
+                ));
               } else if (data.content) {
-                // Append text chunk to the assistant's message
                 setMessages(prev => prev.map(m => 
-                  m.id === assistantMsgId ? { ...m, content: m.content + data.content } : m
+                  m.id === assistantMsgId
+                    ? { ...m, isSearching: false, content: m.content + data.content }
+                    : m
                 ));
               }
             } catch (err) {
@@ -138,8 +158,6 @@ export function useChat(conversationId?: number) {
           title: "Connection Error",
           description: "Failed to communicate with the AI assistant. Please try again.",
         });
-        
-        // Remove the placeholder if it failed completely before starting
         setMessages(prev => prev.filter(m => !(m.isStreaming && m.content === "")));
       }
     } finally {
@@ -148,7 +166,6 @@ export function useChat(conversationId?: number) {
     }
   };
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => stopStream();
   }, [stopStream]);
