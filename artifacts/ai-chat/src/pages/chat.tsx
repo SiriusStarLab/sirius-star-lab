@@ -7,6 +7,7 @@ import { Sidebar } from "@/components/sidebar";
 import { ChatMessage } from "@/components/chat-message";
 import { ChatInput } from "@/components/chat-input";
 import { useChat } from "@/hooks/use-chat";
+import { useProfile } from "@/hooks/use-profile";
 import { useGetOpenaiConversation } from "@workspace/api-client-react";
 
 export function ChatPage() {
@@ -16,6 +17,8 @@ export function ChatPage() {
   
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { profile } = useProfile();
+  const aiName = profile.aiName || "Nexus";
 
   const { 
     data: dbConversation, 
@@ -98,7 +101,7 @@ export function ChatPage() {
                 transition={{ delay: 0.1, duration: 0.4 }}
                 className="text-3xl font-bold tracking-tight mb-3 bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/60"
               >
-                Hello — I'm so glad you're here 👋
+                Hi, I'm {aiName} — so glad you're here 👋
               </motion.h1>
               <motion.p 
                 initial={{ y: 10, opacity: 0 }}

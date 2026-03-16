@@ -29,6 +29,21 @@ export interface CreateOpenaiConversationBody {
 
 export interface SendOpenaiMessageBody {
   content: string;
+  userId?: string;
+}
+
+export interface UserProfile {
+  userId: string;
+  aiName: string;
+  aiPersonality: string;
+  memories: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UpdateUserProfileBody {
+  aiName?: string;
+  aiPersonality?: string;
 }
 
 export interface OpenaiConversationWithMessages {

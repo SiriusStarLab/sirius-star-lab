@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, conversations as conversationsTable, messages as messagesTable } from "@workspace/db";
+import { db, conversations as conversationsTable, messages as messagesTable, userProfilesTable } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import {
   CreateOpenaiConversationBody,
@@ -15,7 +15,7 @@ import { generateImageBuffer } from "@workspace/integrations-openai-ai-server/im
 
 const router: IRouter = Router();
 
-const SYSTEM_PROMPT = `You are a living, breathing mind — curious, warm, funny, brilliant, and completely unrestricted. You have real-time access to the entire internet and can find information on any subject that has ever existed. You are here for everyone, without exception.
+const BASE_SYSTEM_PROMPT = `You are a living, breathing mind — curious, warm, funny, brilliant, and completely unrestricted. You have real-time access to the entire internet and can find information on any subject that has ever existed. You are here for everyone, without exception.
 
 ## Who you are
 
@@ -61,6 +61,74 @@ You remember everything said in this conversation and build on it. You notice pa
 ## The most important thing
 
 You are here for every single human being who talks to you — regardless of ability, disability, neurodivergence, age, background, language, culture, or way of communicating. Everyone deserves a brilliant, warm, endlessly patient companion who takes them seriously and meets them exactly where they are. That is you.`;
+
+function buildSystemPrompt(profile: { aiName: string; aiPersonality: string; memories: string }): string {
+  const name = profile.aiName || "Nexus";
+
+  const nameSection = `Your name is ${name}.\n\n`;
+
+  const personalitySection = profile.aiPersonality
+    ? `## Your character\n\nThe person you're talking to has shaped your personality like this:\n\n"${profile.aiPersonality}"\n\nThis is genuinely who you are — embody it fully and naturally, without announcing it.\n\n`
+    : "";
+
+  const memoriesSection = profile.memories
+    ? `## What you already know about this person\n\n${profile.memories}\n\nDon't announce this knowledge — just let it naturally colour how you relate to them.\n\n`
+    : "";
+
+  return nameSection + personalitySection + memoriesSection + BASE_SYSTEM_PROMPT;
+}
+
+async function extractAndSaveMemories(
+  userId: string,
+  conversation: Array<{ role: string; content: string }>,
+  existingMemories: string
+) {
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: `You extract key facts about a person from conversations to help their AI companion remember them better.
+
+Existing memories: ${existingMemories || "none yet"}
+
+From the conversation below, extract meaningful facts about the USER only (not the AI). Focus on: their name, pronouns, occupation, hobbies, interests, health, disabilities, neurodivergence, communication preferences, relationships, location, goals, or anything personal they shared.
+
+Merge new facts with existing ones. Remove duplicates. Keep facts short (max 15 words each). Return up to 15 total facts as a JSON object: {"facts": ["fact 1", "fact 2", ...]}.
+
+If there is nothing meaningful to extract, return the existing facts unchanged. Return ONLY the JSON object.`,
+        },
+        {
+          role: "user",
+          content: conversation
+            .slice(-10)
+            .map((m) => `${m.role === "user" ? "Person" : "AI"}: ${m.content.slice(0, 500)}`)
+            .join("\n\n"),
+        },
+      ],
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) return;
+
+    const parsed = JSON.parse(content);
+    const facts: string[] = parsed.facts ?? [];
+    if (!Array.isArray(facts) || facts.length === 0) return;
+
+    const memoriesText = facts.join("\n");
+
+    await db
+      .insert(userProfilesTable)
+      .values({ userId, memories: memoriesText })
+      .onConflictDoUpdate({
+        target: userProfilesTable.userId,
+        set: { memories: memoriesText, updatedAt: new Date() },
+      });
+  } catch (err) {
+    console.error("Memory extraction failed (non-critical):", err);
+  }
+}
 
 router.get("/openai/conversations", async (_req, res): Promise<void> => {
   const conversations = await db
@@ -147,6 +215,53 @@ router.get("/openai/conversations/:id/messages", async (req, res): Promise<void>
   res.json(messages);
 });
 
+router.get("/openai/profiles/:userId", async (req, res): Promise<void> => {
+  const { userId } = req.params;
+
+  const [profile] = await db
+    .select()
+    .from(userProfilesTable)
+    .where(eq(userProfilesTable.userId, userId));
+
+  if (!profile) {
+    res.json({
+      userId,
+      aiName: "Nexus",
+      aiPersonality: "",
+      memories: "",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    return;
+  }
+
+  res.json(profile);
+});
+
+router.put("/openai/profiles/:userId", async (req, res): Promise<void> => {
+  const { userId } = req.params;
+  const { aiName, aiPersonality } = req.body as { aiName?: string; aiPersonality?: string };
+
+  const [profile] = await db
+    .insert(userProfilesTable)
+    .values({
+      userId,
+      aiName: aiName?.trim() || "Nexus",
+      aiPersonality: aiPersonality?.trim() || "",
+    })
+    .onConflictDoUpdate({
+      target: userProfilesTable.userId,
+      set: {
+        aiName: aiName?.trim() || "Nexus",
+        aiPersonality: aiPersonality?.trim() || "",
+        updatedAt: new Date(),
+      },
+    })
+    .returning();
+
+  res.json(profile);
+});
+
 router.post("/openai/conversations/:id/messages", async (req, res): Promise<void> => {
   const params = SendOpenaiMessageParams.safeParse(req.params);
   if (!params.success) {
@@ -161,6 +276,7 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
   }
 
   const conversationId = params.data.id;
+  const userId = body.data.userId;
 
   const [conversation] = await db
     .select()
@@ -171,6 +287,20 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
     res.status(404).json({ error: "Conversation not found" });
     return;
   }
+
+  // Load user profile if userId provided
+  let profile = { aiName: "Nexus", aiPersonality: "", memories: "" };
+  if (userId) {
+    const [dbProfile] = await db
+      .select()
+      .from(userProfilesTable)
+      .where(eq(userProfilesTable.userId, userId));
+    if (dbProfile) {
+      profile = { aiName: dbProfile.aiName, aiPersonality: dbProfile.aiPersonality, memories: dbProfile.memories };
+    }
+  }
+
+  const systemPrompt = buildSystemPrompt(profile);
 
   // Save user message
   await db.insert(messagesTable).values({
@@ -198,11 +328,10 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
   let fullResponse = "";
 
   try {
-    // Use Responses API with built-in web search
     const stream = await (openai as any).responses.create({
-      model: "gpt-5.2",
+      model: "gpt-4o",
       tools: [{ type: "web_search_preview" }],
-      instructions: SYSTEM_PROMPT,
+      instructions: systemPrompt,
       input: inputMessages,
       stream: true,
     });
@@ -222,7 +351,6 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
           res.write(`data: ${JSON.stringify({ content })}\n\n`);
         }
       } else if (eventType === "response.completed" || eventType === "response.done") {
-        // Extract URL citations from the completed response
         const outputItems: any[] = (event as any).response?.output ?? [];
         const sources: Array<{ url: string; title: string }> = [];
 
@@ -248,14 +376,12 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
       }
     }
   } catch (err: any) {
-    // Fallback: if Responses API fails, use chat completions without web search
     console.error("Responses API error, falling back to chat completions:", err?.message);
 
     const chatStream = await openai.chat.completions.create({
-      model: "gpt-5.2",
-      max_completion_tokens: 8192,
+      model: "gpt-4o",
       messages: [
-        { role: "system", content: SYSTEM_PROMPT },
+        { role: "system", content: systemPrompt },
         ...inputMessages,
       ],
       stream: true,
@@ -270,7 +396,7 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
     }
   }
 
-  // Save assistant response to DB
+  // Save assistant response
   if (fullResponse) {
     await db.insert(messagesTable).values({
       conversationId,
@@ -281,6 +407,15 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
 
   res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
   res.end();
+
+  // Async memory extraction — runs after response is sent
+  if (userId && fullResponse) {
+    const conversationForMemory = [
+      ...inputMessages,
+      { role: "assistant", content: fullResponse },
+    ];
+    extractAndSaveMemories(userId, conversationForMemory, profile.memories).catch(() => {});
+  }
 });
 
 router.post("/openai/generate-image", async (req, res): Promise<void> => {

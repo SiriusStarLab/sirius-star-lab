@@ -8,6 +8,7 @@ import {
   type OpenaiMessage 
 } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
+import { getUserId } from "@/lib/user-id";
 
 export type ChatSource = {
   url: string;
@@ -86,7 +87,7 @@ export function useChat(conversationId?: number) {
       const response = await fetch(`/api/openai/conversations/${activeId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({ content, userId: getUserId() }),
         signal: abortControllerRef.current.signal,
       });
 

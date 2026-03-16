@@ -26,6 +26,8 @@ import type {
   OpenaiError,
   OpenaiMessage,
   SendOpenaiMessageBody,
+  UpdateUserProfileBody,
+  UserProfile,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -623,6 +625,181 @@ export const useSendOpenaiMessage = <
   TContext
 > => {
   return useMutation(getSendOpenaiMessageMutationOptions(options));
+};
+
+/**
+ * @summary Get a user profile
+ */
+export const getGetOpenaiProfileUrl = (userId: string) => {
+  return `/api/openai/profiles/${userId}`;
+};
+
+export const getOpenaiProfile = async (
+  userId: string,
+  options?: RequestInit,
+): Promise<UserProfile> => {
+  return customFetch<UserProfile>(getGetOpenaiProfileUrl(userId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetOpenaiProfileQueryKey = (userId: string) => {
+  return [`/api/openai/profiles/${userId}`] as const;
+};
+
+export const getGetOpenaiProfileQueryOptions = <
+  TData = Awaited<ReturnType<typeof getOpenaiProfile>>,
+  TError = ErrorType<unknown>,
+>(
+  userId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getOpenaiProfile>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetOpenaiProfileQueryKey(userId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getOpenaiProfile>>
+  > = ({ signal }) => getOpenaiProfile(userId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!userId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getOpenaiProfile>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetOpenaiProfileQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getOpenaiProfile>>
+>;
+export type GetOpenaiProfileQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get a user profile
+ */
+
+export function useGetOpenaiProfile<
+  TData = Awaited<ReturnType<typeof getOpenaiProfile>>,
+  TError = ErrorType<unknown>,
+>(
+  userId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getOpenaiProfile>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetOpenaiProfileQueryOptions(userId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Update a user profile
+ */
+export const getUpdateOpenaiProfileUrl = (userId: string) => {
+  return `/api/openai/profiles/${userId}`;
+};
+
+export const updateOpenaiProfile = async (
+  userId: string,
+  updateUserProfileBody: UpdateUserProfileBody,
+  options?: RequestInit,
+): Promise<UserProfile> => {
+  return customFetch<UserProfile>(getUpdateOpenaiProfileUrl(userId), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateUserProfileBody),
+  });
+};
+
+export const getUpdateOpenaiProfileMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateOpenaiProfile>>,
+    TError,
+    { userId: string; data: BodyType<UpdateUserProfileBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateOpenaiProfile>>,
+  TError,
+  { userId: string; data: BodyType<UpdateUserProfileBody> },
+  TContext
+> => {
+  const mutationKey = ["updateOpenaiProfile"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateOpenaiProfile>>,
+    { userId: string; data: BodyType<UpdateUserProfileBody> }
+  > = (props) => {
+    const { userId, data } = props ?? {};
+
+    return updateOpenaiProfile(userId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateOpenaiProfileMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateOpenaiProfile>>
+>;
+export type UpdateOpenaiProfileMutationBody = BodyType<UpdateUserProfileBody>;
+export type UpdateOpenaiProfileMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update a user profile
+ */
+export const useUpdateOpenaiProfile = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateOpenaiProfile>>,
+    TError,
+    { userId: string; data: BodyType<UpdateUserProfileBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateOpenaiProfile>>,
+  TError,
+  { userId: string; data: BodyType<UpdateUserProfileBody> },
+  TContext
+> => {
+  return useMutation(getUpdateOpenaiProfileMutationOptions(options));
 };
 
 /**

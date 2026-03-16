@@ -141,6 +141,47 @@ paths:
           description: SSE stream of assistant text chunks
           content:
             text/event-stream: {}
+  /openai/profiles/{userId}:
+    get:
+      operationId: getOpenaiProfile
+      tags: [openai]
+      summary: Get a user profile
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+    put:
+      operationId: updateOpenaiProfile
+      tags: [openai]
+      summary: Update a user profile
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserProfileBody"
+      responses:
+        "200":
+          description: Updated user profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
   /openai/generate-image:
     post:
       operationId: generateOpenaiImage
@@ -214,8 +255,41 @@ components:
       properties:
         content:
           type: string
+        userId:
+          type: string
       required:
         - content
+    UserProfile:
+      type: object
+      properties:
+        userId:
+          type: string
+        aiName:
+          type: string
+        aiPersonality:
+          type: string
+        memories:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - userId
+        - aiName
+        - aiPersonality
+        - memories
+        - createdAt
+        - updatedAt
+    UpdateUserProfileBody:
+      type: object
+      properties:
+        aiName:
+          type: string
+        aiPersonality:
+          type: string
     OpenaiConversationWithMessages:
       type: object
       properties:

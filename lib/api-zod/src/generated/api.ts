@@ -90,6 +90,44 @@ export const SendOpenaiMessageParams = zod.object({
 
 export const SendOpenaiMessageBody = zod.object({
   content: zod.string(),
+  userId: zod.string().optional(),
+});
+
+/**
+ * @summary Get a user profile
+ */
+export const GetOpenaiProfileParams = zod.object({
+  userId: zod.coerce.string(),
+});
+
+export const GetOpenaiProfileResponse = zod.object({
+  userId: zod.string(),
+  aiName: zod.string(),
+  aiPersonality: zod.string(),
+  memories: zod.string(),
+  createdAt: zod.date(),
+  updatedAt: zod.date(),
+});
+
+/**
+ * @summary Update a user profile
+ */
+export const UpdateOpenaiProfileParams = zod.object({
+  userId: zod.coerce.string(),
+});
+
+export const UpdateOpenaiProfileBody = zod.object({
+  aiName: zod.string().optional(),
+  aiPersonality: zod.string().optional(),
+});
+
+export const UpdateOpenaiProfileResponse = zod.object({
+  userId: zod.string(),
+  aiName: zod.string(),
+  aiPersonality: zod.string(),
+  memories: zod.string(),
+  createdAt: zod.date(),
+  updatedAt: zod.date(),
 });
 
 /**

@@ -16,3 +16,5 @@ export * from "./openaiConversationWithMessages";
 export * from "./openaiError";
 export * from "./openaiMessage";
 export * from "./sendOpenaiMessageBody";
+export * from "./updateUserProfileBody";
+export * from "./userProfile";
