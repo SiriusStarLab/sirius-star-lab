@@ -98,15 +98,15 @@ export function ChatPage() {
                 transition={{ delay: 0.1, duration: 0.4 }}
                 className="text-3xl font-bold tracking-tight mb-3 bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/60"
               >
-                How can I help you today?
+                Hello — I'm so glad you're here 👋
               </motion.h1>
               <motion.p 
                 initial={{ y: 10, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ delay: 0.2, duration: 0.4 }}
-                className="text-muted-foreground max-w-md mb-12"
+                className="text-muted-foreground max-w-lg mb-12"
               >
-                I can search the web in real time, write code, analyze anything, brainstorm, and have a real conversation on any subject — ask me anything.
+                I'm here for everyone. Talk to me however feels natural — short words, long thoughts, any language. I'll search the whole internet and meet you exactly where you are.
               </motion.p>
               
               <motion.div 
@@ -116,10 +116,10 @@ export function ChatPage() {
                 className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full"
               >
                 {[
-                  "What's happening in the world today?",
-                  "Explain quantum computing simply",
-                  "Help me write a cover letter",
-                  "What should I learn to become a developer?"
+                  "What's in the news right now?",
+                  "Explain something to me simply",
+                  "I'm struggling and need to talk",
+                  "Teach me something wonderful today"
                 ].map((suggestion, i) => (
                   <button
                     key={i}

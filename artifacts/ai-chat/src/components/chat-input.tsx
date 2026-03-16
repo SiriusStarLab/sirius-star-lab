@@ -80,8 +80,8 @@ export function ChatInput({ onSend, isTyping, onStop }: ChatInputProps) {
         </div>
       </div>
       <div className="text-center mt-3">
-        <p className="text-[11px] text-muted-foreground/60 font-medium tracking-wide">
-          AI can make mistakes. Consider verifying important information.
+        <p className="text-[11px] text-muted-foreground/50 font-medium tracking-wide">
+          Ask anything — no topic is too big, too small, or too sensitive
         </p>
       </div>
     </div>
