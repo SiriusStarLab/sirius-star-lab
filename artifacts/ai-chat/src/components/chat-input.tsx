@@ -51,7 +51,7 @@ export function ChatInput({ onSend, isTyping, onStop }: ChatInputProps) {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Ask anything..."
+          placeholder="Talk to me — I'm here..."
           className="min-h-[56px] max-h-[200px] w-full resize-none border-0 bg-transparent px-5 py-4 focus-visible:ring-0 focus-visible:ring-offset-0 text-base"
           rows={1}
         />
@@ -81,7 +81,7 @@ export function ChatInput({ onSend, isTyping, onStop }: ChatInputProps) {
       </div>
       <div className="text-center mt-3">
         <p className="text-[11px] text-muted-foreground/50 font-medium tracking-wide">
-          Ask anything — no topic is too big, too small, or too sensitive
+          You are not alone — I'm here for all of it
         </p>
       </div>
     </div>

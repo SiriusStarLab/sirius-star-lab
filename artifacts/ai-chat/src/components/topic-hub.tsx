@@ -76,7 +76,7 @@ export function TopicHub({ onSelect }: TopicHubProps) {
   return (
     <div className="w-full">
       <p className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-widest mb-3 text-center">
-        Explore anything
+        What would you like to explore?
       </p>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
         {TOPICS.map((topic, i) => (
