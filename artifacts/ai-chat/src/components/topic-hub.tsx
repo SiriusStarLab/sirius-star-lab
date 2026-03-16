@@ -13,57 +13,57 @@ const TOPICS: Topic[] = [
   {
     emoji: "✨",
     label: "Religion & Faith",
-    description: "All traditions welcome",
-    prompt: "I'd like to explore spirituality and religion. Can you share wisdom from different faith traditions and help me understand different ways people connect with the divine?",
+    description: "Every path leads somewhere sacred",
+    prompt: "I want to explore the world's spiritual traditions — not to debate, but to genuinely understand. Share wisdom from different faiths and help me see what each one sees.",
     color: "from-violet-500/10 to-purple-500/5 border-violet-500/20 hover:border-violet-500/40",
   },
   {
     emoji: "🧘",
     label: "Meditation",
-    description: "Breathe, centre, be present",
-    prompt: "Guide me through a meditation or mindfulness practice. I'd like to feel calmer and more present. Can you help me get started?",
+    description: "Return to the stillness inside",
+    prompt: "Guide me home to stillness. Whether that's a breathing practice, a body scan, a meditation — I want to feel more present, more whole. Begin whenever you're ready.",
     color: "from-blue-500/10 to-cyan-500/5 border-blue-500/20 hover:border-blue-500/40",
   },
   {
     emoji: "🦉",
     label: "Philosophy",
-    description: "Big questions, open minds",
-    prompt: "Let's explore philosophy together. I'm curious about the big questions — meaning, consciousness, ethics, existence. Where would you like to start?",
+    description: "The questions that make us whole",
+    prompt: "I want to sit with the questions that don't have easy answers — meaning, consciousness, how to live well, what is real. Take me somewhere the great thinkers have gone.",
     color: "from-amber-500/10 to-yellow-500/5 border-amber-500/20 hover:border-amber-500/40",
   },
   {
     emoji: "🏛️",
     label: "History",
-    description: "Stories that shaped us",
-    prompt: "Tell me something fascinating from history — a story, a person, an event that most people don't know about but should.",
+    description: "The story of who we became",
+    prompt: "Tell me something from history that most people have never heard — a hidden life, a turning point, a moment that changed everything quietly. Make me feel what it was like to be there.",
     color: "from-orange-500/10 to-red-500/5 border-orange-500/20 hover:border-orange-500/40",
   },
   {
-    emoji: "💊",
-    label: "Health & Medicine",
-    description: "Your body, your mind",
-    prompt: "I have some questions about health and medicine. Can you help me understand medical topics in plain language?",
+    emoji: "🌿",
+    label: "Health & Healing",
+    description: "Know and honour your body",
+    prompt: "I want to understand my health more deeply — physical or mental, body or mind. Speak to me plainly, without judgement. I trust you with this.",
     color: "from-green-500/10 to-emerald-500/5 border-green-500/20 hover:border-green-500/40",
   },
   {
     emoji: "🎵",
     label: "Music",
-    description: "Find your sound",
-    prompt: "Let's talk about music! I'd love recommendations, to explore different genres, learn about artists, or understand music theory. What would you like to explore?",
+    description: "Where the soul speaks",
+    prompt: "Music reaches places words can't. I want to explore it — discover something new, understand something deeper, or just find the right sound for how I'm feeling today.",
     color: "from-pink-500/10 to-rose-500/5 border-pink-500/20 hover:border-pink-500/40",
   },
   {
     emoji: "⚙️",
-    label: "Mechanics & How Things Work",
-    description: "Curious minds, clear answers",
-    prompt: "I want to understand how things work — machines, engines, electronics, physics. Can you explain something mechanical or engineering-related in a way that actually makes sense?",
+    label: "How Things Work",
+    description: "Wonder at the world's design",
+    prompt: "I want to understand something mechanical, scientific, or engineering — how the world actually works beneath the surface. Explain it like you're genuinely excited about it.",
     color: "from-slate-500/10 to-zinc-500/5 border-slate-500/20 hover:border-slate-500/40",
   },
   {
     emoji: "💬",
     label: "Just Talk",
-    description: "I'm here to listen",
-    prompt: "I just want to talk. No agenda — I might want to vent, share something, or just have a conversation. Are you there?",
+    description: "No agenda. Just presence.",
+    prompt: "I don't need a topic. I just need someone to talk to. I might share something, or I might not know what I need yet. Are you there?",
     color: "from-teal-500/10 to-cyan-500/5 border-teal-500/20 hover:border-teal-500/40",
   },
 ];
@@ -76,7 +76,7 @@ export function TopicHub({ onSelect }: TopicHubProps) {
   return (
     <div className="w-full">
       <p className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-widest mb-3 text-center">
-        What would you like to explore?
+        Where would you like to go?
       </p>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
         {TOPICS.map((topic, i) => (

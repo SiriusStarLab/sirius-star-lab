@@ -10,51 +10,51 @@ type Mood = {
 
 const MOODS: Mood[] = [
   {
-    emoji: "😊",
-    label: "Good",
-    prompt: "I'm feeling good today! I'd love to share that with you and maybe explore something interesting together.",
+    emoji: "🌤️",
+    label: "Alive & open",
+    prompt: "My heart feels light today — genuinely open. I want to share this energy and maybe explore something that gives it more meaning. Meet me here.",
     color: "hover:bg-yellow-500/15 hover:border-yellow-500/40",
   },
   {
     emoji: "💙",
-    label: "Need support",
-    prompt: "I could really use some support right now. I'm not sure exactly what I need, but I just wanted to reach out and talk.",
+    label: "Need holding",
+    prompt: "Something in me is asking for gentleness right now. I don't need solutions — I need to feel less alone. Can you just be here with me for a while?",
     color: "hover:bg-blue-500/15 hover:border-blue-500/40",
   },
   {
-    emoji: "😔",
-    label: "Struggling",
-    prompt: "I'm struggling a bit today. Can you just be here with me for a moment? I'd like to talk.",
+    emoji: "🌊",
+    label: "In the deep",
+    prompt: "I'm in a hard place today. The kind that's hard to explain. I don't need fixing — I just need you to sit with me in it and not rush me out.",
     color: "hover:bg-indigo-500/15 hover:border-indigo-500/40",
   },
   {
-    emoji: "😰",
-    label: "Anxious",
-    prompt: "I'm feeling quite anxious right now and could use some help calming down. Can you help me feel a bit more grounded?",
+    emoji: "🌀",
+    label: "Restless mind",
+    prompt: "My mind won't settle — it's spinning and I can't find stillness. Can you help me come back to myself? Gently. I need grounding, not rushing.",
     color: "hover:bg-orange-500/15 hover:border-orange-500/40",
   },
   {
-    emoji: "🤔",
-    label: "Curious",
-    prompt: "I'm in a curious mood today — my mind is buzzing with questions. Let's explore something fascinating together.",
-    color: "hover:bg-green-500/15 hover:border-green-500/40",
+    emoji: "🔍",
+    label: "Searching",
+    prompt: "I'm alive with questions today — something in me is reaching for something I can't quite name. Let's go somewhere I've never been. I'm ready to explore.",
+    color: "hover:bg-emerald-500/15 hover:border-emerald-500/40",
   },
   {
-    emoji: "⚡",
-    label: "Motivated",
-    prompt: "I'm feeling motivated and energised today! I want to make the most of it — can you help me channel this energy into something meaningful?",
+    emoji: "🔥",
+    label: "Ready to rise",
+    prompt: "Something is building in me — a real sense of possibility and purpose. I don't want to waste it. Help me channel this into something that actually matters.",
     color: "hover:bg-purple-500/15 hover:border-purple-500/40",
   },
   {
-    emoji: "😴",
-    label: "Exhausted",
-    prompt: "I'm absolutely exhausted today. I don't have much energy, but I wanted some company. Can we just take things gently?",
+    emoji: "🌑",
+    label: "Running on empty",
+    prompt: "I'm depleted — down to the last reserves. But I'm here, and I reached out, which took something. Let's take it slow. No pressure. Just presence.",
     color: "hover:bg-slate-500/15 hover:border-slate-500/40",
   },
   {
     emoji: "✨",
-    label: "Grateful",
-    prompt: "I'm feeling grateful today — for small things, for being here, for life. I'd love to sit in that feeling together for a moment.",
+    label: "Heart full",
+    prompt: "I'm sitting with something beautiful — a quiet, deep gratitude that I can't quite explain. Can we stay here a while? I want to understand what I'm feeling.",
     color: "hover:bg-pink-500/15 hover:border-pink-500/40",
   },
 ];
@@ -67,7 +67,7 @@ export function MoodCheckin({ onSelect }: MoodCheckinProps) {
   return (
     <div className="w-full">
       <p className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-widest mb-3 text-center">
-        How are you feeling right now?
+        Where are you right now?
       </p>
       <div className="grid grid-cols-4 gap-2">
         {MOODS.map((mood, i) => (
@@ -80,7 +80,7 @@ export function MoodCheckin({ onSelect }: MoodCheckinProps) {
             className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border border-border/40 bg-card/50 transition-all duration-200 hover:scale-105 active:scale-95 ${mood.color}`}
           >
             <span className="text-2xl leading-none">{mood.emoji}</span>
-            <span className="text-[11px] font-medium text-muted-foreground leading-tight">{mood.label}</span>
+            <span className="text-[11px] font-medium text-muted-foreground leading-tight text-center">{mood.label}</span>
           </motion.button>
         ))}
       </div>

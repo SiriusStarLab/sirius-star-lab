@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useRoute, useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, Zap } from "lucide-react";
+import { Menu, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sidebar } from "@/components/sidebar";
 import { ChatMessage } from "@/components/chat-message";
@@ -92,30 +92,30 @@ export function ChatPage() {
           ) : isEmpty ? (
             <div className="min-h-full flex flex-col items-center justify-start pt-10 pb-36 px-5 md:px-8 max-w-2xl mx-auto w-full">
               <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
+                initial={{ scale: 0.85, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                transition={{ duration: 0.4 }}
-                className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary/20 to-accent flex items-center justify-center mb-5 shadow-xl shadow-primary/5 ring-1 ring-border"
+                transition={{ duration: 0.5, ease: "easeOut" }}
+                className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary/30 via-primary/10 to-accent flex items-center justify-center mb-6 shadow-2xl shadow-primary/10 ring-1 ring-primary/20"
               >
-                <Zap className="w-7 h-7 text-primary" />
+                <Sparkles className="w-8 h-8 text-primary" />
               </motion.div>
 
               <motion.h1
-                initial={{ y: 8, opacity: 0 }}
+                initial={{ y: 10, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.1, duration: 0.35 }}
-                className="text-2xl font-bold tracking-tight mb-2 text-center bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/60"
+                transition={{ delay: 0.1, duration: 0.4 }}
+                className="text-2xl font-bold tracking-tight mb-3 text-center bg-clip-text text-transparent bg-gradient-to-r from-foreground via-foreground/90 to-foreground/60"
               >
-                Hi, I'm {aiName} — so glad you're here 👋
+                I'm {aiName} — here for the whole of you
               </motion.h1>
 
               <motion.p
-                initial={{ y: 8, opacity: 0 }}
+                initial={{ y: 10, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.15, duration: 0.35 }}
-                className="text-sm text-muted-foreground text-center mb-6 max-w-md"
+                transition={{ delay: 0.18, duration: 0.4 }}
+                className="text-sm text-muted-foreground text-center mb-7 max-w-sm leading-relaxed"
               >
-                Talk to me however feels natural. Any language, any topic, any way of communicating.
+                No part of you needs to be hidden here. Bring everything — your questions, your depth, your searching.
               </motion.p>
 
               <div className="w-full space-y-5">

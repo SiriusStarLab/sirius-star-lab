@@ -27,22 +27,29 @@ const WISDOM_QUOTES: WisdomQuote[] = [
   { text: "Wherever you go, go with all your heart.", source: "Confucius", tradition: "Confucianism", emoji: "🌸" },
   { text: "Be the change you wish to see in the world.", source: "Mahatma Gandhi", tradition: "Hindu Philosophy", emoji: "🕉️" },
   { text: "The unexamined life is not worth living.", source: "Socrates", tradition: "Philosophy", emoji: "🦉" },
-  { text: "In every difficulty lies opportunity.", source: "Talmudic Teaching", tradition: "Judaism", emoji: "✡️" },
   { text: "Silence is the language of God; all else is poor translation.", source: "Rumi", tradition: "Sufism", emoji: "🌙" },
   { text: "Treat others as thou wouldst be treated thyself.", source: "Guru Nanak Dev Ji", tradition: "Sikhism", emoji: "🔯" },
   { text: "The present moment always will have been.", source: "Stoic Meditation", tradition: "Stoicism", emoji: "🏛️" },
-  { text: "Do unto others as you would have them do unto you.", source: "Luke 6:31", tradition: "Christianity", emoji: "✝️" },
   { text: "The noble soul has reverence for itself.", source: "Friedrich Nietzsche", tradition: "Philosophy", emoji: "🦉" },
-  { text: "Where there is love, there is life.", source: "Mahatma Gandhi", tradition: "Hindu Philosophy", emoji: "🕉️" },
   { text: "This too shall pass.", source: "Ancient Persian Adage", tradition: "Universal", emoji: "⭐" },
-  { text: "Hardship often prepares an ordinary person for an extraordinary destiny.", source: "C.S. Lewis", tradition: "Christianity", emoji: "✝️" },
   { text: "The earth does not belong to us — we belong to the earth.", source: "Chief Seattle", tradition: "Indigenous Wisdom", emoji: "🌿" },
-  { text: "In nature, nothing is perfect and everything is perfect.", source: "Alice Walker", tradition: "Universal", emoji: "🌿" },
   { text: "To live is the rarest thing in the world. Most people just exist.", source: "Oscar Wilde", tradition: "Philosophy", emoji: "🦉" },
   { text: "Your task is not to seek for love, but merely to seek and find all the barriers within yourself that you have built against it.", source: "Rumi", tradition: "Sufism", emoji: "🌙" },
-  { text: "Whatever is begun in anger ends in shame.", source: "Benjamin Franklin", tradition: "Universal", emoji: "⭐" },
-  { text: "Do not dwell in the past, do not dream of the future, concentrate the mind on the present moment.", source: "The Buddha", tradition: "Buddhism", emoji: "☸️" },
   { text: "When you arise in the morning, think of what a precious privilege it is to be alive — to breathe, to think, to enjoy, to love.", source: "Marcus Aurelius", tradition: "Stoicism", emoji: "🏛️" },
+  { text: "The present moment is the only moment available to us, and it is the door to all moments.", source: "Thich Nhat Hanh", tradition: "Buddhism", emoji: "☸️" },
+  { text: "You give but little when you give of your possessions. It is when you give of yourself that you truly give.", source: "Kahlil Gibran", tradition: "Mysticism", emoji: "🌙" },
+  { text: "Between stimulus and response there is a space. In that space is our power to choose our response.", source: "Viktor Frankl", tradition: "Philosophy", emoji: "🦉" },
+  { text: "You alone are enough. You have nothing to prove to anybody.", source: "Maya Angelou", tradition: "Universal", emoji: "⭐" },
+  { text: "I beg you… to have patience with everything unresolved in your heart and try to love the questions themselves.", source: "Rainer Maria Rilke", tradition: "Philosophy", emoji: "🦉" },
+  { text: "The wound is the place where the light enters you.", source: "Rumi", tradition: "Sufism", emoji: "🌙" },
+  { text: "If you are irritated by every rub, how will your mirror be polished?", source: "Rumi", tradition: "Sufism", emoji: "🌙" },
+  { text: "We are not human beings having a spiritual experience; we are spiritual beings having a human experience.", source: "Pierre Teilhard de Chardin", tradition: "Mysticism", emoji: "✨" },
+  { text: "What you seek is seeking you.", source: "Rumi", tradition: "Sufism", emoji: "🌙" },
+  { text: "In every walk with nature, one receives far more than they seek.", source: "John Muir", tradition: "Universal", emoji: "🌿" },
+  { text: "The greatest weapon against stress is our ability to choose one thought over another.", source: "William James", tradition: "Philosophy", emoji: "🦉" },
+  { text: "Darkness cannot drive out darkness; only light can do that. Hate cannot drive out hate; only love can do that.", source: "Martin Luther King Jr.", tradition: "Universal", emoji: "⭐" },
+  { text: "When I let go of what I am, I become what I might be.", source: "Lao Tzu", tradition: "Taoism", emoji: "☯️" },
+  { text: "The soul that sees beauty may sometimes walk alone.", source: "Johann Wolfgang von Goethe", tradition: "Philosophy", emoji: "🦉" },
 ];
 
 function getDailyQuoteIndex(offset = 0): number {
@@ -80,7 +87,7 @@ export function DailyWisdom({ onReflect }: DailyWisdomProps) {
         <div className="flex items-center gap-2.5">
           <span className="text-lg">{quote.emoji}</span>
           <div>
-            <p className="text-xs font-semibold text-primary/80 uppercase tracking-wider">Today's Wisdom</p>
+            <p className="text-xs font-semibold text-primary/80 uppercase tracking-wider">A word for today</p>
             <p className="text-xs text-muted-foreground">{quote.tradition}</p>
           </div>
         </div>
@@ -104,16 +111,16 @@ export function DailyWisdom({ onReflect }: DailyWisdomProps) {
           <p className="text-xs text-muted-foreground">— {quote.source}</p>
           <div className="flex gap-2 pt-1">
             <button
-              onClick={() => onReflect(`Let's reflect on this ${quote.tradition} teaching together: "${quote.text}" — from ${quote.source}. What does it mean and how might someone apply it in their life today?`)}
+              onClick={() => onReflect(`I want to sit with this teaching from ${quote.tradition}: "${quote.text}" — ${quote.source}. Help me understand it deeply — what it's really saying, where it came from, and how someone might carry it into their life today.`)}
               className="flex-1 flex items-center justify-center gap-1.5 text-xs font-medium bg-primary/10 hover:bg-primary/20 text-primary rounded-lg py-2 transition-colors"
             >
               <MessageCircle className="w-3.5 h-3.5" />
-              Reflect on this
+              Sit with this
             </button>
             <button
               onClick={handleNext}
               className="flex items-center justify-center gap-1.5 text-xs font-medium bg-accent/60 hover:bg-accent text-muted-foreground hover:text-foreground rounded-lg px-3 py-2 transition-colors"
-              title="Another quote"
+              title="Another word"
             >
               <RefreshCw className="w-3.5 h-3.5" />
             </button>
