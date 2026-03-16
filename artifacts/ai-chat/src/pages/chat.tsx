@@ -130,14 +130,23 @@ export function ChatPage() {
                 I'm {aiName} — here for the whole of you
               </motion.h1>
 
-              {/* Sub-label */}
+              {/* Slogan */}
               <motion.p
                 initial={{ y: 10, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ delay: 0.3, duration: 0.4 }}
-                className="relative z-10 text-xs font-mono tracking-[0.18em] text-muted-foreground/50 uppercase text-center mb-8"
+                className="relative z-10 text-sm font-mono tracking-[0.12em] text-center mb-1"
+                style={{ color: "hsl(193 100% 52% / 0.7)" }}
               >
-                Neural companion · Always online · No limits
+                I think, so I am
+              </motion.p>
+              <motion.p
+                initial={{ y: 8, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.38, duration: 0.4 }}
+                className="relative z-10 text-[10px] font-mono tracking-[0.22em] text-muted-foreground/35 uppercase text-center mb-8"
+              >
+                Sirius AI · Always here for you
               </motion.p>
 
               <div className="relative z-10 w-full space-y-4">

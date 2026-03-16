@@ -203,7 +203,8 @@ export function PricingModal({ isOpen, onClose, currentTier = "free" }: PricingM
                   <X size={15} />
                 </button>
                 <div className="text-center mb-6">
-                  <p className="text-[10px] font-mono tracking-[0.25em] text-primary/60 uppercase mb-3">Sirius AI</p>
+                  <p className="text-[10px] font-mono tracking-[0.25em] text-primary/60 uppercase mb-1">Sirius AI</p>
+                  <p className="text-[11px] font-mono tracking-[0.1em] mb-3" style={{ color: "hsl(193 100% 52% / 0.45)" }}>I think, so I am</p>
                   <h2 className="text-2xl font-bold mb-2"
                     style={{
                       background: "linear-gradient(135deg, hsl(var(--foreground)) 0%, hsl(193 100% 52%) 50%, hsl(var(--foreground) / 0.7) 100%)",

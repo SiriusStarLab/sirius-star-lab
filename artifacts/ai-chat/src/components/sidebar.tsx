@@ -76,7 +76,10 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             }}>
             <span className="text-primary font-bold text-sm">S</span>
           </div>
-          <span className="font-semibold text-sm tracking-wide text-sidebar-foreground">{aiName}</span>
+          <div>
+            <span className="font-semibold text-sm tracking-wide text-sidebar-foreground block">{aiName}</span>
+            <span className="text-[9px] font-mono tracking-[0.12em] block" style={{ color: "hsl(193 100% 52% / 0.5)" }}>I think, so I am</span>
+          </div>
         </Link>
         <Button
           variant="ghost"
