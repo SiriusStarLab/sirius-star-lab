@@ -53,11 +53,11 @@ const TOPICS: Topic[] = [
     color: "from-pink-500/10 to-rose-500/5 border-pink-500/20 hover:border-pink-500/40",
   },
   {
-    emoji: "⚙️",
-    label: "How Things Work",
-    description: "Wonder at the world's design",
-    prompt: "I want to understand something mechanical, scientific, or engineering — how the world actually works beneath the surface. Explain it like you're genuinely excited about it.",
-    color: "from-slate-500/10 to-zinc-500/5 border-slate-500/20 hover:border-slate-500/40",
+    emoji: "🌌",
+    label: "Science & the Cosmos",
+    description: "From quarks to galaxies",
+    prompt: "I want to explore science — astronomy, biology, physics, astrology, chemistry, the nature of life, the structure of the universe. Take me somewhere I haven't been. Make me feel the wonder of it.",
+    color: "from-slate-500/10 to-indigo-500/5 border-slate-500/20 hover:border-indigo-500/40",
   },
   {
     emoji: "💬",
