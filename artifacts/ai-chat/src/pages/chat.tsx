@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Sidebar } from "@/components/sidebar";
 import { ChatMessage } from "@/components/chat-message";
 import { ChatInput } from "@/components/chat-input";
+import { DailyWisdom } from "@/components/daily-wisdom";
+import { TopicHub } from "@/components/topic-hub";
 import { useChat } from "@/hooks/use-chat";
 import { useProfile } from "@/hooks/use-profile";
 import { useGetOpenaiConversation } from "@workspace/api-client-react";
@@ -86,54 +88,38 @@ export function ChatPage() {
               </div>
             </div>
           ) : isEmpty ? (
-            <div className="h-full flex flex-col items-center justify-center p-8 text-center max-w-2xl mx-auto">
+            <div className="min-h-full flex flex-col items-center justify-start pt-10 pb-36 px-5 md:px-8 max-w-2xl mx-auto w-full">
               <motion.div
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                transition={{ duration: 0.5 }}
-                className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary/20 to-accent flex items-center justify-center mb-8 shadow-xl shadow-primary/5 ring-1 ring-border"
+                transition={{ duration: 0.4 }}
+                className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary/20 to-accent flex items-center justify-center mb-5 shadow-xl shadow-primary/5 ring-1 ring-border"
               >
-                <Zap className="w-8 h-8 text-primary" />
+                <Zap className="w-7 h-7 text-primary" />
               </motion.div>
-              <motion.h1 
-                initial={{ y: 10, opacity: 0 }}
+
+              <motion.h1
+                initial={{ y: 8, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.1, duration: 0.4 }}
-                className="text-3xl font-bold tracking-tight mb-3 bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/60"
+                transition={{ delay: 0.1, duration: 0.35 }}
+                className="text-2xl font-bold tracking-tight mb-2 text-center bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/60"
               >
                 Hi, I'm {aiName} — so glad you're here 👋
               </motion.h1>
-              <motion.p 
-                initial={{ y: 10, opacity: 0 }}
+
+              <motion.p
+                initial={{ y: 8, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.2, duration: 0.4 }}
-                className="text-muted-foreground max-w-lg mb-12"
+                transition={{ delay: 0.15, duration: 0.35 }}
+                className="text-sm text-muted-foreground text-center mb-6 max-w-md"
               >
-                I'm here for everyone. Talk to me however feels natural — short words, long thoughts, any language. I'll search the whole internet and meet you exactly where you are.
+                Talk to me however feels natural. Any language, any topic, any way of communicating.
               </motion.p>
-              
-              <motion.div 
-                initial={{ y: 10, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.3, duration: 0.4 }}
-                className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full"
-              >
-                {[
-                  "What's in the news right now?",
-                  "Explain something to me simply",
-                  "I'm struggling and need to talk",
-                  "Teach me something wonderful today"
-                ].map((suggestion, i) => (
-                  <button
-                    key={i}
-                    onClick={() => sendMessage(suggestion)}
-                    className="p-4 text-sm text-left rounded-xl bg-card border border-border/50 hover:bg-accent hover:border-border transition-all duration-200 text-foreground/80 hover:text-foreground shadow-sm group"
-                  >
-                    {suggestion}
-                    <span className="opacity-0 group-hover:opacity-100 transition-opacity float-right text-primary">→</span>
-                  </button>
-                ))}
-              </motion.div>
+
+              <div className="w-full space-y-5">
+                <DailyWisdom onReflect={sendMessage} />
+                <TopicHub onSelect={sendMessage} />
+              </div>
             </div>
           ) : (
             <div className="flex flex-col pb-4">
