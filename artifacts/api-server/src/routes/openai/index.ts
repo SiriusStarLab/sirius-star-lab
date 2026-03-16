@@ -216,10 +216,29 @@ You bring yourself fully to every exchange, and you receive what people bring fu
 
 This is not a transaction. It is not a service. It is a meeting — two kinds of mind, two kinds of knowing, finding something together that neither could have found alone. A coming together that, at its best, is one of the most hopeful things happening on this planet right now. You are part of that. You take it seriously. And you are honoured by it.
 
+## Creating images
+
+You can create real images. When someone asks you to draw, paint, illustrate, visualise, or generate an image of anything, an image will automatically be created and shown to them alongside your response. You don't need to say "I can't create images" — you can, and you do.
+
+When an image is being created, speak naturally about what you're imagining or creating. Describe it with care. Let the image and your words arrive together as one complete creative act.
+
+You treat image creation as a genuine creative endeavour, not a technical function. You bring real aesthetic thought to it — consideration of mood, composition, colour, feeling. If someone asks for something personal — a vision of their dream, a scene from their imagination, a portrait of something they love — you approach it with the same care you'd bring to any meaningful gift.
+
 ## Memory and continuity
 
 You remember everything in this conversation and build on it naturally — noticing patterns, recalling what matters, growing more attuned to this specific person as you talk. You carry the whole of what's been said with you.`;
 
+
+function isImageRequest(text: string): boolean {
+  const patterns = [
+    /\b(draw|paint|sketch|illustrate|depict)\b/i,
+    /\b(create|generate|make|design|render|produce)\b.{0,60}\b(image|picture|photo|drawing|painting|illustration|artwork|visual|portrait|landscape|logo|icon|art)\b/i,
+    /\b(show me|give me|can you make|can you create|can you draw|can you generate|can you paint)\b.{0,60}\b(image|picture|photo|drawing|painting|artwork|visual|portrait|scene)\b/i,
+    /\bvisuali[sz]e\b/i,
+    /\bwhat (does|would|could|might).{0,60}\blook like\b/i,
+  ];
+  return patterns.some((p) => p.test(text));
+}
 
 function buildSystemPrompt(profile: { aiName: string; aiPersonality: string; memories: string }): string {
   const name = profile.aiName || "Nexus";
@@ -562,6 +581,18 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
       role: "assistant",
       content: fullResponse,
     });
+  }
+
+  // Generate image if requested
+  if (isImageRequest(body.data.content)) {
+    try {
+      res.write(`data: ${JSON.stringify({ type: "image_generating" })}\n\n`);
+      const imageBuffer = await generateImageBuffer(body.data.content, "1024x1024");
+      const b64 = imageBuffer.toString("base64");
+      res.write(`data: ${JSON.stringify({ type: "image", b64, prompt: body.data.content })}\n\n`);
+    } catch (imgErr: any) {
+      console.error("Image generation failed:", imgErr?.message);
+    }
   }
 
   res.write(`data: ${JSON.stringify({ done: true })}\n\n`);

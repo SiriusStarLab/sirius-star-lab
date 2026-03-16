@@ -22,6 +22,9 @@ export type ChatMessage = {
   createdAt?: string;
   isStreaming?: boolean;
   isSearching?: boolean;
+  isGeneratingImage?: boolean;
+  imageB64?: string;
+  imagePrompt?: string;
   sources?: ChatSource[];
 };
 
@@ -121,11 +124,23 @@ export function useChat(conversationId?: number) {
               if (data.done) {
                 setMessages(prev => prev.map(m => 
                   m.id === assistantMsgId
-                    ? { ...m, isStreaming: false, isSearching: false }
+                    ? { ...m, isStreaming: false, isSearching: false, isGeneratingImage: false }
                     : m
                 ));
                 queryClient.invalidateQueries({ queryKey: getGetOpenaiConversationQueryKey(activeId) });
                 setIsTyping(false);
+              } else if (data.type === "image_generating") {
+                setMessages(prev => prev.map(m =>
+                  m.id === assistantMsgId
+                    ? { ...m, isGeneratingImage: true }
+                    : m
+                ));
+              } else if (data.type === "image") {
+                setMessages(prev => prev.map(m =>
+                  m.id === assistantMsgId
+                    ? { ...m, isGeneratingImage: false, imageB64: data.b64, imagePrompt: data.prompt }
+                    : m
+                ));
               } else if (data.type === "searching") {
                 setMessages(prev => prev.map(m =>
                   m.id === assistantMsgId

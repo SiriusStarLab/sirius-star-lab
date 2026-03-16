@@ -1,7 +1,7 @@
-import React from "react";
+import React, { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Bot, User, Globe, ExternalLink } from "lucide-react";
+import { Bot, User, Globe, ExternalLink, Download, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { type ChatMessage as ChatMessageType } from "@/hooks/use-chat";
 import { motion, AnimatePresence } from "framer-motion";
@@ -14,6 +14,16 @@ export function ChatMessage({ message }: ChatMessageProps) {
   const isUser = message.role === "user";
   const isSearching = !isUser && message.isSearching && !message.content;
   const hasSources = !isUser && (message.sources?.length ?? 0) > 0;
+  const hasImage = !isUser && !!message.imageB64;
+  const isGeneratingImage = !isUser && !!message.isGeneratingImage;
+
+  const handleDownload = () => {
+    if (!message.imageB64) return;
+    const link = document.createElement("a");
+    link.href = `data:image/png;base64,${message.imageB64}`;
+    link.download = "nexus-creation.png";
+    link.click();
+  };
 
   return (
     <motion.div
@@ -101,6 +111,48 @@ export function ChatMessage({ message }: ChatMessageProps) {
                     <span className="w-1.5 h-1.5 bg-foreground/40 rounded-full animate-pulse" style={{ animationDelay: "300ms" }} />
                   </div>
                 ) : null}
+
+                {/* Generating image indicator */}
+                <AnimatePresence>
+                  {isGeneratingImage && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -4 }}
+                      className="flex items-center gap-2 mt-3 text-xs text-muted-foreground"
+                    >
+                      <Sparkles size={13} className="text-primary animate-pulse" />
+                      <span className="text-primary/80 font-medium">Creating your image...</span>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Generated image */}
+                <AnimatePresence>
+                  {hasImage && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.97, y: 8 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      transition={{ duration: 0.4, ease: "easeOut" }}
+                      className="mt-4 rounded-2xl overflow-hidden border border-border/40 shadow-xl shadow-black/20 relative group max-w-lg"
+                    >
+                      <img
+                        src={`data:image/png;base64,${message.imageB64}`}
+                        alt={message.imagePrompt || "Generated image"}
+                        className="w-full h-auto block"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-3">
+                        <button
+                          onClick={handleDownload}
+                          className="flex items-center gap-1.5 text-xs font-medium text-white bg-black/40 hover:bg-black/60 backdrop-blur-sm rounded-lg px-3 py-1.5 transition-colors ml-auto"
+                        >
+                          <Download size={12} />
+                          Save
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 {/* Sources */}
                 {hasSources && (
