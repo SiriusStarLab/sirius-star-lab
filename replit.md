@@ -16,6 +16,21 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - **API codegen**: Orval (from OpenAPI spec)
 - **Build**: esbuild (CJS bundle)
 
+## Artifacts
+
+### `artifacts/ai-chat` — AI Chat App
+React + Vite frontend served at `/`. Full-featured AI chat interface with:
+- Conversation sidebar (create, switch, delete)
+- Streaming chat responses via SSE
+- Dark mode professional design
+- Powered by OpenAI gpt-5.2 via Replit AI Integrations
+
+### OpenAI Integration
+Uses `@workspace/integrations-openai-ai-server` and `@workspace/integrations-openai-ai-react`.
+API routes in `artifacts/api-server/src/routes/openai/index.ts`.
+DB tables: `conversations`, `messages` (Drizzle + Postgres).
+AI keys auto-provisioned via `AI_INTEGRATIONS_OPENAI_BASE_URL` and `AI_INTEGRATIONS_OPENAI_API_KEY`.
+
 ## Structure
 
 ```text

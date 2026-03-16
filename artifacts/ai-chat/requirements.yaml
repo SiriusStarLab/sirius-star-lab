@@ -1,0 +1,17 @@
+packages:
+  "framer-motion": "For smooth page transitions and chat bubble animations"
+  "react-markdown": "To safely render markdown formatting in AI responses"
+  "remark-gfm": "For GitHub flavored markdown support (tables, lists, etc) in chat"
+  "date-fns": "For elegant timestamp formatting in the conversation history"
+  "clsx": "Utility for conditionally merging Tailwind classes"
+  "tailwind-merge": "Utility for merging Tailwind classes without style conflicts"
+  "lucide-react": "Beautiful, consistent iconography for the professional interface"
+
+images:
+  - path: "artifacts/ai-chat/public/images/logo.png"
+    description: "Minimalist, luxury abstract geometric logo mark in pristine white on a pure black background. Sleek, professional tech aesthetic."
+    aspect_ratio: "1:1"
+
+notes:
+  - "The application uses a custom SSE hook to consume streaming AI responses manually via fetch, bypassing the generated OpenAPI hooks for the messaging endpoint."
+  - "Strict dark mode aesthetic enforced via CSS variables to guarantee the requested professional, clean minimal style."
