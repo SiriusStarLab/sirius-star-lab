@@ -86,10 +86,26 @@ export function ChatPage() {
             <div className="relative min-h-full flex flex-col items-center justify-start pt-10 pb-36 px-5 md:px-8 max-w-2xl mx-auto w-full">
 
               {/* Tech grid on welcome screen */}
-              <div className="absolute inset-0 tech-grid-bg opacity-60 pointer-events-none" />
-              {/* Radial fade over grid */}
+              <div className="absolute inset-0 tech-grid-bg opacity-40 pointer-events-none" />
+
+              {/* Sirius star background image */}
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[520px] h-[520px] pointer-events-none select-none"
+                style={{ opacity: 0.55 }}>
+                <img
+                  src="/sirius-star.png"
+                  alt="The star Sirius"
+                  className="w-full h-full object-cover"
+                  style={{
+                    maskImage: "radial-gradient(ellipse 60% 60% at 50% 40%, black 0%, transparent 75%)",
+                    WebkitMaskImage: "radial-gradient(ellipse 60% 60% at 50% 40%, black 0%, transparent 75%)",
+                    mixBlendMode: "screen",
+                  }}
+                />
+              </div>
+
+              {/* Radial fade over everything */}
               <div className="absolute inset-0 pointer-events-none"
-                style={{ background: "radial-gradient(ellipse 70% 50% at 50% 20%, transparent 0%, hsl(var(--background)) 80%)" }} />
+                style={{ background: "radial-gradient(ellipse 80% 55% at 50% 20%, transparent 0%, hsl(var(--background)) 85%)" }} />
 
               {/* AI Orb Avatar */}
               <motion.div
