@@ -28,3 +28,8 @@ timeoutMs = 20000
 
 [nix]
 channel = "stable-25_05"
+
+[userenv]
+
+[userenv.shared]
+STRIPE_PLUS_LINK = "https://buy.stripe.com/test_9B64gA2NYfNYcti0fm2cg00"
