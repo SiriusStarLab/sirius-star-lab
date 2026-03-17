@@ -1,10 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
 @theme inline {
-  --font-sans: 'Space Grotesk', sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
+  --font-sans: 'Outfit', sans-serif;
+  --font-mono: 'Space Mono', monospace;
 
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
@@ -39,12 +39,12 @@
 :root {
   /* Deep tech space — near-black with blue undertone */
   --background: 224 28% 5%;
-  --foreground: 200 20% 94%;
+  --foreground: 0 0% 98%;
 
   --card: 224 24% 8%;
-  --card-foreground: 200 20% 94%;
+  --card-foreground: 0 0% 98%;
   --popover: 224 24% 8%;
-  --popover-foreground: 200 20% 94%;
+  --popover-foreground: 0 0% 98%;
 
   /* Electric cyan — the signature AI/tech accent */
   --primary: 193 100% 52%;
@@ -53,7 +53,7 @@
   --secondary: 224 18% 13%;
   --secondary-foreground: 200 20% 94%;
   --muted: 224 18% 11%;
-  --muted-foreground: 220 14% 50%;
+  --muted-foreground: 220 14% 68%;
   --accent: 224 18% 13%;
   --accent-foreground: 200 20% 94%;
 
@@ -65,7 +65,7 @@
   --ring: 193 100% 52%;
 
   --sidebar: 224 30% 4%;
-  --sidebar-foreground: 220 16% 72%;
+  --sidebar-foreground: 220 16% 88%;
   --sidebar-border: 224 20% 10%;
   --sidebar-accent: 224 20% 10%;
   --sidebar-accent-foreground: 200 20% 94%;
