@@ -1,64 +1,38 @@
 import { Router } from "express";
-import { stripeService } from "../stripeService";
+import { db } from "@workspace/db";
+import { userProfilesTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 
 const router = Router();
 
-function getBaseUrl(req: any): string {
-  const origin = req.headers.origin as string | undefined;
-  if (origin) return origin;
-  const domain = process.env.REPLIT_DOMAINS?.split(",")[0]?.trim();
-  if (domain) return `https://${domain}`;
-  return `${req.protocol}://${req.get("host")}`;
-}
+// GET /api/stripe/links — return Stripe Payment Link URLs from env vars
+router.get("/stripe/links", (_req, res) => {
+  const plusLink = process.env.STRIPE_PLUS_LINK ?? null;
+  const proLink = process.env.STRIPE_PRO_LINK ?? null;
+  return res.json({ plusLink, proLink });
+});
 
-// POST /api/stripe/checkout — create a Stripe Checkout session
-router.post("/stripe/checkout", async (req, res) => {
+// POST /api/stripe/activate — called from success page to activate a tier
+// The tier is encoded in the Stripe Payment Link's redirect URL params
+router.post("/stripe/activate", async (req, res) => {
   try {
     const { userId, tier } = req.body as { userId?: string; tier?: string };
-
-    if (!userId || !tier) {
-      return res.status(400).json({ error: "userId and tier are required" });
+    if (!userId || !tier || !["plus", "pro"].includes(tier)) {
+      return res.status(400).json({ error: "userId and valid tier required" });
     }
 
-    if (!["plus", "pro"].includes(tier)) {
-      return res.status(400).json({ error: "tier must be 'plus' or 'pro'" });
-    }
+    await db
+      .insert(userProfilesTable)
+      .values({ userId, aiName: "Sirius", subscriptionTier: tier })
+      .onConflictDoUpdate({
+        target: userProfilesTable.userId,
+        set: { subscriptionTier: tier },
+      });
 
-    const session = await stripeService.createCheckoutSession(
-      userId,
-      tier as "plus" | "pro",
-      getBaseUrl(req)
-    );
-
-    return res.json({ url: session.url });
+    return res.json({ success: true, tier });
   } catch (err: any) {
-    console.error("Checkout session error:", err.message);
-    return res.status(500).json({ error: err.message || "Failed to create checkout session" });
-  }
-});
-
-// POST /api/stripe/portal — create a Billing Portal session for managing subscription
-router.post("/stripe/portal", async (req, res) => {
-  try {
-    const { userId } = req.body as { userId?: string };
-    if (!userId) return res.status(400).json({ error: "userId is required" });
-
-    const session = await stripeService.createBillingPortalSession(userId, getBaseUrl(req));
-    return res.json({ url: session.url });
-  } catch (err: any) {
-    console.error("Billing portal error:", err.message);
-    return res.status(500).json({ error: err.message || "Failed to create portal session" });
-  }
-});
-
-// GET /api/stripe/publishable-key — return the public key for frontend use
-router.get("/stripe/publishable-key", async (_req, res) => {
-  try {
-    const { getStripePublishableKey } = await import("../stripeClient");
-    const key = getStripePublishableKey();
-    return res.json({ publishableKey: key });
-  } catch (err: any) {
-    return res.status(500).json({ error: "Failed to get publishable key" });
+    console.error("Activate tier error:", err.message);
+    return res.status(500).json({ error: "Failed to activate tier" });
   }
 });
 
