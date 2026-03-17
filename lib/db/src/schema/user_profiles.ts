@@ -11,6 +11,7 @@ export const userProfilesTable = pgTable("user_profiles", {
   paypalSubscriptionId: text("paypal_subscription_id"),
   dailyMessageCount: text("daily_message_count").notNull().default("0"),
   dailyMessageReset: timestamp("daily_message_reset", { withTimezone: true }),
+  preferredLanguage: text("preferred_language").notNull().default("auto"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull().$onUpdate(() => new Date()),
 });

@@ -6,6 +6,7 @@ export type UserProfile = {
   aiName: string;
   aiPersonality: string;
   memories: string;
+  preferredLanguage: string;
 };
 
 const DEFAULT_PROFILE: UserProfile = {
@@ -13,6 +14,7 @@ const DEFAULT_PROFILE: UserProfile = {
   aiName: "Sirius",
   aiPersonality: "",
   memories: "",
+  preferredLanguage: "auto",
 };
 
 export function useProfile() {
@@ -40,7 +42,7 @@ export function useProfile() {
     fetchProfile();
   }, [fetchProfile]);
 
-  const saveProfile = useCallback(async (updates: { aiName?: string; aiPersonality?: string }) => {
+  const saveProfile = useCallback(async (updates: { aiName?: string; aiPersonality?: string; preferredLanguage?: string }) => {
     setIsSaving(true);
     try {
       const res = await fetch(`/api/openai/profiles/${userId}`, {

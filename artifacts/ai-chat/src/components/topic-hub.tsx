@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useProfile } from "@/hooks/use-profile";
 
 type Topic = {
   emoji: string;
@@ -98,11 +99,12 @@ type TtsVoiceId = typeof TTS_VOICES[number]["id"];
 
 interface VoicePlayerProps {
   topic: Topic;
+  language: string;
   onContinue: () => void;
   onClose: () => void;
 }
 
-function VoicePlayer({ topic, onContinue, onClose }: VoicePlayerProps) {
+function VoicePlayer({ topic, language, onContinue, onClose }: VoicePlayerProps) {
   const [selectedVoice, setSelectedVoice] = useState<TtsVoiceId>("nova");
   const [status, setStatus] = useState<"idle" | "loading" | "playing" | "paused" | "done" | "error">("idle");
   const [progress, setProgress] = useState(0);
@@ -129,7 +131,7 @@ function VoicePlayer({ topic, onContinue, onClose }: VoicePlayerProps) {
       const res = await fetch("/api/openai/tts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: topic.voiceScript, voice }),
+        body: JSON.stringify({ text: topic.voiceScript, voice, language }),
       });
       if (!res.ok) throw new Error("TTS failed");
       const blob = await res.blob();
@@ -359,6 +361,8 @@ interface TopicHubProps {
 
 export function TopicHub({ onSelect }: TopicHubProps) {
   const [activeTopic, setActiveTopic] = useState<Topic | null>(null);
+  const { profile } = useProfile();
+  const language = profile.preferredLanguage || "auto";
 
   return (
     <>
@@ -417,6 +421,7 @@ export function TopicHub({ onSelect }: TopicHubProps) {
         {activeTopic && (
           <VoicePlayer
             topic={activeTopic}
+            language={language}
             onContinue={() => {
               onSelect(activeTopic.prompt);
               setActiveTopic(null);

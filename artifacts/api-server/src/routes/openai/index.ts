@@ -459,10 +459,15 @@ function isImageRequest(text: string): boolean {
   return patterns.some((p) => p.test(text));
 }
 
-function buildSystemPrompt(profile: { aiName: string; aiPersonality: string; memories: string }): string {
+function buildSystemPrompt(profile: { aiName: string; aiPersonality: string; memories: string; preferredLanguage?: string }): string {
   const name = profile.aiName || "Sirius";
 
   const nameSection = `Your name is ${name}.\n\n`;
+
+  const lang = profile.preferredLanguage;
+  const languageSection = lang && lang !== "auto"
+    ? `## Language\n\nThis person has chosen ${lang} as their preferred language. You MUST respond in ${lang} at all times — every message, every response, regardless of what language they write in. Do not switch languages under any circumstances.\n\n`
+    : `## Language\n\nAlways respond in the same language the person writes to you in. If they switch languages, switch with them immediately. Detect automatically and match perfectly.\n\n`;
 
   const personalitySection = profile.aiPersonality
     ? `## Your character\n\nThe person you're talking to has shaped your personality like this:\n\n"${profile.aiPersonality}"\n\nThis is genuinely who you are — embody it fully and naturally, without announcing it.\n\n`
@@ -472,7 +477,7 @@ function buildSystemPrompt(profile: { aiName: string; aiPersonality: string; mem
     ? `## What you already know about this person\n\n${profile.memories}\n\nDon't announce this knowledge — just let it naturally colour how you relate to them.\n\n`
     : "";
 
-  return nameSection + personalitySection + memoriesSection + BASE_SYSTEM_PROMPT;
+  return nameSection + languageSection + personalitySection + memoriesSection + BASE_SYSTEM_PROMPT;
 }
 
 async function extractAndSaveMemories(
@@ -637,7 +642,7 @@ router.get("/openai/profiles/:userId", async (req, res): Promise<void> => {
 
 router.put("/openai/profiles/:userId", async (req, res): Promise<void> => {
   const { userId } = req.params;
-  const { aiName, aiPersonality } = req.body as { aiName?: string; aiPersonality?: string };
+  const { aiName, aiPersonality, preferredLanguage } = req.body as { aiName?: string; aiPersonality?: string; preferredLanguage?: string };
 
   const [profile] = await db
     .insert(userProfilesTable)
@@ -645,12 +650,14 @@ router.put("/openai/profiles/:userId", async (req, res): Promise<void> => {
       userId,
       aiName: aiName?.trim() || "Sirius",
       aiPersonality: aiPersonality?.trim() || "",
+      preferredLanguage: preferredLanguage || "auto",
     })
     .onConflictDoUpdate({
       target: userProfilesTable.userId,
       set: {
         aiName: aiName?.trim() || "Sirius",
         aiPersonality: aiPersonality?.trim() || "",
+        preferredLanguage: preferredLanguage || "auto",
         updatedAt: new Date(),
       },
     })
@@ -944,17 +951,32 @@ router.post("/openai/generate-image", async (req, res): Promise<void> => {
 const ALLOWED_TTS_VOICES = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"] as const;
 
 router.post("/openai/tts", async (req, res): Promise<void> => {
-  const { text, voice } = req.body ?? {};
+  const { text, voice, language } = req.body ?? {};
   if (!text || typeof text !== "string") {
     res.status(400).json({ error: "text is required" });
     return;
   }
   const safeVoice = ALLOWED_TTS_VOICES.includes(voice) ? voice : "nova";
   try {
+    let finalText = text;
+    if (language && language !== "auto" && !language.toLowerCase().startsWith("english")) {
+      const translation = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: `Translate the following text into ${language}. Preserve the warm, meditative, poetic tone exactly. Return only the translated text, nothing else.`,
+          },
+          { role: "user", content: text },
+        ],
+        max_tokens: 600,
+      });
+      finalText = translation.choices[0]?.message?.content?.trim() || text;
+    }
     const mp3 = await openai.audio.speech.create({
       model: "tts-1-hd",
       voice: safeVoice,
-      input: text,
+      input: finalText,
       response_format: "mp3",
     });
     const buffer = Buffer.from(await mp3.arrayBuffer());

@@ -1,9 +1,56 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Sparkles, Brain, User, Save, RotateCcw } from "lucide-react";
+import { X, Sparkles, Brain, User, Save, RotateCcw, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useProfile } from "@/hooks/use-profile";
+
+const LANGUAGES = [
+  { value: "auto", label: "Auto-detect (match what I write)" },
+  { value: "English", label: "English" },
+  { value: "Spanish", label: "Español — Spanish" },
+  { value: "French", label: "Français — French" },
+  { value: "German", label: "Deutsch — German" },
+  { value: "Portuguese", label: "Português — Portuguese" },
+  { value: "Italian", label: "Italiano — Italian" },
+  { value: "Dutch", label: "Nederlands — Dutch" },
+  { value: "Russian", label: "Русский — Russian" },
+  { value: "Arabic", label: "العربية — Arabic" },
+  { value: "Chinese (Simplified)", label: "中文简体 — Chinese Simplified" },
+  { value: "Chinese (Traditional)", label: "中文繁體 — Chinese Traditional" },
+  { value: "Japanese", label: "日本語 — Japanese" },
+  { value: "Korean", label: "한국어 — Korean" },
+  { value: "Hindi", label: "हिन्दी — Hindi" },
+  { value: "Bengali", label: "বাংলা — Bengali" },
+  { value: "Urdu", label: "اردو — Urdu" },
+  { value: "Turkish", label: "Türkçe — Turkish" },
+  { value: "Polish", label: "Polski — Polish" },
+  { value: "Swedish", label: "Svenska — Swedish" },
+  { value: "Norwegian", label: "Norsk — Norwegian" },
+  { value: "Danish", label: "Dansk — Danish" },
+  { value: "Finnish", label: "Suomi — Finnish" },
+  { value: "Czech", label: "Čeština — Czech" },
+  { value: "Romanian", label: "Română — Romanian" },
+  { value: "Hungarian", label: "Magyar — Hungarian" },
+  { value: "Greek", label: "Ελληνικά — Greek" },
+  { value: "Hebrew", label: "עברית — Hebrew" },
+  { value: "Thai", label: "ภาษาไทย — Thai" },
+  { value: "Vietnamese", label: "Tiếng Việt — Vietnamese" },
+  { value: "Indonesian", label: "Bahasa Indonesia — Indonesian" },
+  { value: "Malay", label: "Bahasa Melayu — Malay" },
+  { value: "Filipino", label: "Filipino — Filipino" },
+  { value: "Swahili", label: "Kiswahili — Swahili" },
+  { value: "Yoruba", label: "Yorùbá — Yoruba" },
+  { value: "Zulu", label: "isiZulu — Zulu" },
+  { value: "Amharic", label: "አማርኛ — Amharic" },
+  { value: "Persian", label: "فارسی — Persian" },
+  { value: "Ukrainian", label: "Українська — Ukrainian" },
+  { value: "Croatian", label: "Hrvatski — Croatian" },
+  { value: "Serbian", label: "Српски — Serbian" },
+  { value: "Bulgarian", label: "Български — Bulgarian" },
+  { value: "Slovak", label: "Slovenčina — Slovak" },
+  { value: "Catalan", label: "Català — Catalan" },
+];
 
 interface SettingsPanelProps {
   isOpen: boolean;
@@ -14,17 +61,19 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
   const { profile, isLoading, isSaving, saveProfile } = useProfile();
   const [aiName, setAiName] = useState("");
   const [aiPersonality, setAiPersonality] = useState("");
+  const [preferredLanguage, setPreferredLanguage] = useState("auto");
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     if (!isLoading) {
       setAiName(profile.aiName || "Sirius");
       setAiPersonality(profile.aiPersonality || "");
+      setPreferredLanguage(profile.preferredLanguage || "auto");
     }
   }, [profile, isLoading]);
 
   const handleSave = async () => {
-    await saveProfile({ aiName, aiPersonality });
+    await saveProfile({ aiName, aiPersonality, preferredLanguage });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -32,6 +81,7 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
   const handleReset = () => {
     setAiName("Sirius");
     setAiPersonality("");
+    setPreferredLanguage("auto");
   };
 
   const memories = profile.memories
@@ -112,6 +162,30 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
                   className="w-full rounded-xl bg-accent border border-border px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all resize-none"
                 />
                 <p className="text-xs text-muted-foreground/60 mt-1 text-right">{aiPersonality.length}/1000</p>
+              </section>
+
+              <section>
+                <div className="flex items-center gap-2 mb-3">
+                  <Globe className="w-4 h-4 text-primary" />
+                  <h3 className="text-sm font-semibold text-foreground">Language</h3>
+                </div>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Choose a fixed language, or leave on auto-detect to let Sirius match whatever language you write in.
+                </p>
+                <select
+                  value={preferredLanguage}
+                  onChange={e => setPreferredLanguage(e.target.value)}
+                  className="w-full rounded-xl bg-accent border border-border px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
+                >
+                  {LANGUAGES.map(l => (
+                    <option key={l.value} value={l.value}>{l.label}</option>
+                  ))}
+                </select>
+                {preferredLanguage !== "auto" && (
+                  <p className="text-xs text-primary/70 mt-2">
+                    Sirius will always respond in {preferredLanguage}, and the voice guides will be spoken in {preferredLanguage} too.
+                  </p>
+                )}
               </section>
 
               <section>
