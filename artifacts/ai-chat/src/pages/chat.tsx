@@ -9,6 +9,7 @@ import { ChatInput } from "@/components/chat-input";
 import { DailyWisdom } from "@/components/daily-wisdom";
 import { TopicHub } from "@/components/topic-hub";
 import { MoodCheckin } from "@/components/mood-checkin";
+import { SurpriseMe } from "@/components/surprise-me";
 import { SpotifyWidget } from "@/components/spotify-widget";
 import { useChat } from "@/hooks/use-chat";
 import { useProfile } from "@/hooks/use-profile";
@@ -166,6 +167,7 @@ export function ChatPage() {
               </motion.p>
 
               <div className="relative z-10 w-full space-y-4">
+                <SurpriseMe onSelect={sendMessage} />
                 <MoodCheckin onSelect={sendMessage} />
                 <DailyWisdom onReflect={sendMessage} />
                 <SpotifyWidget onAskAbout={sendMessage} />

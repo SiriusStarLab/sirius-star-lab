@@ -178,29 +178,62 @@ export function ChatMessage({ message }: ChatMessageProps) {
                 {/* Sources */}
                 {hasSources && (
                   <motion.div
-                    initial={{ opacity: 0, y: 4 }}
+                    initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.2 }}
-                    className="mt-4 pt-3"
-                    style={{ borderTop: "1px solid hsl(193 100% 52% / 0.12)" }}
+                    transition={{ delay: 0.25 }}
+                    className="mt-5 pt-4"
+                    style={{ borderTop: "1px solid hsl(193 100% 52% / 0.14)" }}
                   >
-                    <div className="flex items-center gap-1.5 text-[10px] font-mono text-primary/50 mb-2 uppercase tracking-widest">
-                      <Globe size={10} />
-                      Sources
+                    {/* Verified badge */}
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full"
+                        style={{ background: "hsl(193 100% 52% / 0.1)", border: "1px solid hsl(193 100% 52% / 0.25)" }}>
+                        <Globe size={9} className="text-primary" />
+                        <span className="text-[9px] font-mono font-semibold text-primary uppercase tracking-widest">Verified · Live web search</span>
+                      </div>
+                      <span className="text-[9px] font-mono text-muted-foreground/40">{message.sources!.length} source{message.sources!.length !== 1 ? "s" : ""}</span>
                     </div>
-                    <div className="flex flex-col gap-1.5">
-                      {message.sources!.slice(0, 5).map((source, i) => (
-                        <a
-                          key={i}
-                          href={source.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-2 text-xs text-primary/60 hover:text-primary transition-colors group"
-                        >
-                          <ExternalLink size={10} className="shrink-0 opacity-50 group-hover:opacity-100" />
-                          <span className="truncate">{source.title || source.url}</span>
-                        </a>
-                      ))}
+
+                    {/* Citation cards */}
+                    <div className="flex flex-col gap-2">
+                      {message.sources!.slice(0, 5).map((source, i) => {
+                        let domain = source.url;
+                        try { domain = new URL(source.url).hostname.replace(/^www\./, ""); } catch {}
+                        const title = source.title || domain;
+                        return (
+                          <a
+                            key={i}
+                            href={source.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="group flex items-start gap-3 p-2.5 rounded-xl transition-all duration-150"
+                            style={{
+                              background: "hsl(193 100% 52% / 0.04)",
+                              border: "1px solid hsl(193 100% 52% / 0.1)",
+                            }}
+                            onMouseEnter={e => {
+                              (e.currentTarget as HTMLElement).style.background = "hsl(193 100% 52% / 0.09)";
+                              (e.currentTarget as HTMLElement).style.border = "1px solid hsl(193 100% 52% / 0.28)";
+                            }}
+                            onMouseLeave={e => {
+                              (e.currentTarget as HTMLElement).style.background = "hsl(193 100% 52% / 0.04)";
+                              (e.currentTarget as HTMLElement).style.border = "1px solid hsl(193 100% 52% / 0.1)";
+                            }}
+                          >
+                            <span className="flex items-center justify-center w-4 h-4 rounded-full shrink-0 mt-0.5 text-[8px] font-mono font-bold text-primary/60"
+                              style={{ background: "hsl(193 100% 52% / 0.12)" }}>
+                              {i + 1}
+                            </span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[11px] font-medium text-foreground/80 leading-snug line-clamp-2 group-hover:text-primary transition-colors">{title}</p>
+                              <p className="text-[9px] font-mono text-muted-foreground/45 mt-0.5 flex items-center gap-1">
+                                <ExternalLink size={7} className="shrink-0" />
+                                {domain}
+                              </p>
+                            </div>
+                          </a>
+                        );
+                      })}
                     </div>
                   </motion.div>
                 )}
