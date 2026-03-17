@@ -16,6 +16,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
   const hasSources = !isUser && (message.sources?.length ?? 0) > 0;
   const hasImage = !isUser && !!message.imageB64;
   const isGeneratingImage = !isUser && !!message.isGeneratingImage;
+  const wasSearched = !isUser && !!message.wasSearched;
 
   const handleDownload = () => {
     if (!message.imageB64) return;
@@ -174,6 +175,22 @@ export function ChatMessage({ message }: ChatMessageProps) {
                     </motion.div>
                   )}
                 </AnimatePresence>
+
+                {/* Searched-but-no-citations badge */}
+                {wasSearched && !hasSources && !message.isStreaming && message.content && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.3 }}
+                    className="mt-4 flex items-center gap-1.5"
+                  >
+                    <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full"
+                      style={{ background: "hsl(193 100% 52% / 0.07)", border: "1px solid hsl(193 100% 52% / 0.18)" }}>
+                      <Globe size={8} className="text-primary/70" />
+                      <span className="text-[8px] font-mono text-primary/60 uppercase tracking-widest">Live intelligence · Searched in real time</span>
+                    </div>
+                  </motion.div>
+                )}
 
                 {/* Sources */}
                 {hasSources && (

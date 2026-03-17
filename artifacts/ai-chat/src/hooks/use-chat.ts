@@ -22,6 +22,7 @@ export type ChatMessage = {
   createdAt?: string;
   isStreaming?: boolean;
   isSearching?: boolean;
+  wasSearched?: boolean;
   isGeneratingImage?: boolean;
   imageB64?: string;
   imagePrompt?: string;
@@ -144,7 +145,7 @@ export function useChat(conversationId?: number) {
               } else if (data.type === "searching") {
                 setMessages(prev => prev.map(m =>
                   m.id === assistantMsgId
-                    ? { ...m, isSearching: true }
+                    ? { ...m, isSearching: true, wasSearched: true }
                     : m
                 ));
               } else if (data.sources) {
