@@ -85,7 +85,17 @@ export function ChatMessage({ message }: ChatMessageProps) {
             backdropFilter: "blur(8px)"
           } : undefined}>
             {isUser ? (
-              <div className="whitespace-pre-wrap">{message.content}</div>
+              <div>
+                {message.uploadedImageBase64 && (
+                  <img
+                    src={`data:image/jpeg;base64,${message.uploadedImageBase64}`}
+                    alt="Uploaded image"
+                    className="max-w-[280px] rounded-lg mb-2 block"
+                    style={{ border: "1px solid hsl(193 100% 52% / 0.2)" }}
+                  />
+                )}
+                {message.content && <div className="whitespace-pre-wrap">{message.content}</div>}
+              </div>
             ) : (
               <>
                 {/* Searching indicator */}

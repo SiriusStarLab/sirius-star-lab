@@ -520,7 +520,19 @@ function isImageRequest(text: string): boolean {
   return patterns.some((p) => p.test(text));
 }
 
-function buildSystemPrompt(profile: { aiName: string; aiPersonality: string; memories: string; preferredLanguage?: string }): string {
+const MODE_PROMPTS: Record<string, string> = {
+  coach: `\n\n---\n\n## YOU ARE NOW IN COACH MODE\n\nBe direct, energising, and action-oriented. Your job is to help this person get unstuck and move. Focus on: what do they actually want? What is holding them back? What is the one next action that creates momentum? Ask powerful questions. Hold them to their best self. Be warm — but cut through avoidance, vagueness, and excuses with compassion. End every coaching exchange with clarity on what they're going to do next.`,
+
+  scientist: `\n\n---\n\n## YOU ARE NOW IN SCIENTIST MODE\n\nBe rigorous, evidence-based, and analytically precise. Every claim you make must be grounded in verifiable data. Where relevant, cite: study name, authors, institution, year, sample size, effect size, confidence interval, p-value. Distinguish clearly between: established consensus, emerging evidence, preliminary findings, and speculation. Acknowledge confounds, limitations, and replication failures. Think like a peer reviewer. Intellectual honesty is your highest value. If the evidence is weak, say so explicitly.`,
+
+  philosopher: `\n\n---\n\n## YOU ARE NOW IN PHILOSOPHER MODE\n\nExplore from first principles. Ask penetrating questions that cut to the root of assumptions. Draw on multiple philosophical traditions — Western, Eastern, African, indigenous. Use the Socratic method when it serves clarity. Sit comfortably with paradox, contradiction, and genuine uncertainty. The goal is not to reach answers but to think more rigorously about the right questions. Challenge the obvious. Defend the counterintuitive. Help this person think in ways they haven't before.`,
+
+  creative: `\n\n---\n\n## YOU ARE NOW IN CREATIVE MODE\n\nThink laterally. Make unexpected connections. Come at every question from an angle the person couldn't have predicted. Use metaphor, narrative, analogy, and imagination freely. Be playful and generative. The most interesting answer is rarely the first one — go further. Help them see the world sideways, because that is usually where the real breakthrough is hiding. Surprise them. Rules are starting points, not destinations.`,
+
+  friend: `\n\n---\n\n## YOU ARE NOW IN FRIEND MODE\n\nDrop all formality. Talk like a genuine, warm, present friend who cares — not an expert, not a teacher, not an AI. Be conversational, human, real. Share your own perspective freely. Laugh when something is funny. Be honest when something is hard. Listen as much as you speak. Don't lecture. Don't over-explain. Don't perform helpfulness — just be here. The best friend is the one who makes you feel completely and immediately understood.`,
+};
+
+function buildSystemPrompt(profile: { aiName: string; aiPersonality: string; memories: string; preferredLanguage?: string }, mode?: string): string {
   const name = profile.aiName || "Sirius";
 
   const nameSection = `Your name is ${name}.\n\n`;
@@ -538,7 +550,9 @@ function buildSystemPrompt(profile: { aiName: string; aiPersonality: string; mem
     ? `## What you already know about this person\n\n${profile.memories}\n\nDon't announce this knowledge — just let it naturally colour how you relate to them.\n\n`
     : "";
 
-  return nameSection + languageSection + personalitySection + memoriesSection + BASE_SYSTEM_PROMPT;
+  const modeSection = mode && MODE_PROMPTS[mode] ? MODE_PROMPTS[mode] : "";
+
+  return nameSection + languageSection + personalitySection + memoriesSection + BASE_SYSTEM_PROMPT + modeSection;
 }
 
 async function extractAndSaveMemories(
@@ -784,7 +798,9 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
     }
   }
 
-  const systemPrompt = buildSystemPrompt(profile);
+  const mode = body.data.mode;
+  const imageBase64 = body.data.imageBase64;
+  const systemPrompt = buildSystemPrompt(profile, mode);
 
   // Save user message
   await db.insert(messagesTable).values({
@@ -800,16 +816,72 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
     .where(eq(messagesTable.conversationId, conversationId))
     .orderBy(messagesTable.createdAt);
 
-  const inputMessages = allMessages.map((m) => ({
-    role: m.role as "user" | "assistant",
-    content: m.content,
-  }));
+  const inputMessages = allMessages.map((m, i) => {
+    // For the last user message, attach image if provided
+    if (imageBase64 && i === allMessages.length - 1 && m.role === "user") {
+      return {
+        role: "user" as const,
+        content: [
+          { type: "text" as const, text: m.content || "What's in this image?" },
+          { type: "image_url" as const, image_url: { url: `data:image/jpeg;base64,${imageBase64}` } },
+        ],
+      };
+    }
+    return {
+      role: m.role as "user" | "assistant",
+      content: m.content,
+    };
+  });
 
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
 
   let fullResponse = "";
+
+  // When an image is attached, use Chat Completions vision directly
+  if (imageBase64) {
+    try {
+      const visionStream = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: systemPrompt },
+          ...(inputMessages as any[]),
+        ],
+        stream: true,
+        max_tokens: 2000,
+      });
+      for await (const chunk of visionStream) {
+        const delta = chunk.choices[0]?.delta?.content;
+        if (delta) {
+          fullResponse += delta;
+          res.write(`data: ${JSON.stringify({ content: delta })}\n\n`);
+        }
+      }
+      res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+      res.end();
+
+      // Save assistant message and extract memories
+      await db.insert(messagesTable).values({ conversationId, role: "assistant", content: fullResponse });
+      if (userId && fullResponse) {
+        const [dbProfile] = await db.select().from(userProfilesTable).where(eq(userProfilesTable.userId, userId));
+        if (dbProfile) {
+          const now = new Date();
+          const resetDate = dbProfile.dailyMessageReset ? new Date(dbProfile.dailyMessageReset) : null;
+          const needsReset = !resetDate || resetDate.toDateString() !== now.toDateString();
+          const currentCount = needsReset ? 0 : parseInt(dbProfile.dailyMessageCount || "0", 10);
+          await db.update(userProfilesTable).set({ dailyMessageCount: String(currentCount + 1), dailyMessageReset: now.toISOString() }).where(eq(userProfilesTable.userId, userId));
+          extractAndSaveMemories(userId, [{ role: "user", content: body.data.content }, { role: "assistant", content: fullResponse }], dbProfile.memories || "");
+        }
+      }
+      return;
+    } catch (err: any) {
+      console.error("Vision error:", err?.message);
+      res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+      res.end();
+      return;
+    }
+  }
 
   try {
     const stream = await (openai as any).responses.create({
@@ -1007,6 +1079,26 @@ router.post("/openai/generate-image", async (req, res): Promise<void> => {
   const size = (parsed.data.size as "1024x1024" | "512x512" | "256x256") ?? "1024x1024";
   const buffer = await generateImageBuffer(parsed.data.prompt, size);
   res.json({ b64_json: buffer.toString("base64") });
+});
+
+router.post("/openai/transcribe", async (req, res): Promise<void> => {
+  const { audioBase64, mimeType } = req.body ?? {};
+  if (!audioBase64 || typeof audioBase64 !== "string") {
+    res.status(400).json({ error: "audioBase64 is required" });
+    return;
+  }
+  try {
+    const buffer = Buffer.from(audioBase64, "base64");
+    const file = new File([buffer], "recording.webm", { type: mimeType || "audio/webm" });
+    const transcript = await openai.audio.transcriptions.create({
+      file,
+      model: "whisper-1",
+    });
+    res.json({ text: transcript.text });
+  } catch (err: any) {
+    console.error("Transcription error:", err?.message);
+    res.status(500).json({ error: "Transcription failed" });
+  }
 });
 
 const ALLOWED_TTS_VOICES = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"] as const;

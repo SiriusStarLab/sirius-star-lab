@@ -26,6 +26,7 @@ export type ChatMessage = {
   isGeneratingImage?: boolean;
   imageB64?: string;
   imagePrompt?: string;
+  uploadedImageBase64?: string;
   sources?: ChatSource[];
 };
 
@@ -55,15 +56,15 @@ export function useChat(conversationId?: number) {
     }
   }, []);
 
-  const sendMessage = async (content: string) => {
-    if (!content.trim()) return;
+  const sendMessage = async (content: string, imageBase64?: string, mode?: string) => {
+    if (!content.trim() && !imageBase64) return;
     
     stopStream();
     
     let activeId = conversationId;
     
     const userMsgId = Date.now();
-    setMessages(prev => [...prev, { id: userMsgId, role: "user", content }]);
+    setMessages(prev => [...prev, { id: userMsgId, role: "user", content, uploadedImageBase64: imageBase64 }]);
     
     try {
       if (!activeId) {
@@ -91,7 +92,7 @@ export function useChat(conversationId?: number) {
       const response = await fetch(`/api/openai/conversations/${activeId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content, userId: getUserId() }),
+        body: JSON.stringify({ content, userId: getUserId(), imageBase64, mode }),
         signal: abortControllerRef.current.signal,
       });
 
