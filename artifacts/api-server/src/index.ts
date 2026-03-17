@@ -14,7 +14,7 @@ async function initStripe() {
     await runMigrations({ databaseUrl });
     console.log("Stripe schema ready");
 
-    const stripeSync = await getStripeSync();
+    const stripeSync = getStripeSync();
 
     const domain = process.env.REPLIT_DOMAINS?.split(",")[0]?.trim();
     if (domain) {

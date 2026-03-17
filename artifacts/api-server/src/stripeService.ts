@@ -9,7 +9,7 @@ export class StripeService {
       return profile.stripeCustomerId;
     }
 
-    const stripe = await getUncachableStripeClient();
+    const stripe = getUncachableStripeClient();
     const customer = await stripe.customers.create({
       metadata: { userId },
       description: `Sirius AI user: ${userId}`,
@@ -30,7 +30,7 @@ export class StripeService {
     }
 
     const customerId = await this.getOrCreateCustomer(userId);
-    const stripe = await getUncachableStripeClient();
+    const stripe = getUncachableStripeClient();
 
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
@@ -54,7 +54,7 @@ export class StripeService {
       throw new Error("No Stripe customer found for this user.");
     }
 
-    const stripe = await getUncachableStripeClient();
+    const stripe = getUncachableStripeClient();
     const session = await stripe.billingPortal.sessions.create({
       customer: profile.stripeCustomerId,
       return_url: `${baseUrl}/`,

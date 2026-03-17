@@ -55,7 +55,7 @@ router.post("/stripe/portal", async (req, res) => {
 router.get("/stripe/publishable-key", async (_req, res) => {
   try {
     const { getStripePublishableKey } = await import("../stripeClient");
-    const key = await getStripePublishableKey();
+    const key = getStripePublishableKey();
     return res.json({ publishableKey: key });
   } catch (err: any) {
     return res.status(500).json({ error: "Failed to get publishable key" });

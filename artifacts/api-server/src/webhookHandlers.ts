@@ -10,7 +10,7 @@ export class WebhookHandlers {
       );
     }
 
-    const sync = await getStripeSync();
+    const sync = getStripeSync();
     await sync.processWebhook(payload, signature);
   }
 }
