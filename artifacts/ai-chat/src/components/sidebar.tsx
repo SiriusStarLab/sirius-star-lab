@@ -243,6 +243,14 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             </span>
           )}
         </button>
+
+        {/* Legal links */}
+        <div className="flex items-center gap-3 px-3 pt-2 pb-1">
+          <Link href="/terms" className="text-[10px] font-mono text-muted-foreground/30 hover:text-primary/60 transition-colors">Terms</Link>
+          <span className="text-muted-foreground/20 text-[10px]">·</span>
+          <Link href="/privacy" className="text-[10px] font-mono text-muted-foreground/30 hover:text-primary/60 transition-colors">Privacy</Link>
+          <span className="text-muted-foreground/20 text-[10px] ml-auto">© {new Date().getFullYear()} Sirius AI</span>
+        </div>
       </div>
     </div>
   );
