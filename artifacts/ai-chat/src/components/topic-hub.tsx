@@ -12,7 +12,7 @@ type Topic = {
 const TOPICS: Topic[] = [
   {
     emoji: "✨",
-    label: "Religion & Faith",
+    label: "Have Faith",
     tag: "SPIRITUAL",
     prompt: "I want to explore the world's spiritual traditions — not to debate, but to genuinely understand. Share wisdom from different faiths and help me see what each one sees.",
     accent: "260 80% 68%",
