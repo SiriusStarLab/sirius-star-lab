@@ -2,7 +2,7 @@ import Stripe from "stripe";
 import { StripeSync } from "stripe-replit-sync";
 
 function getStripeSecretKey(): string {
-  const key = process.env.STRIPE_SECRET_KEY;
+  const key = (process.env.STRIPE_SECRET_KEY ?? "").trim();
   if (!key) {
     throw new Error(
       "STRIPE_SECRET_KEY environment variable is not set. " +
