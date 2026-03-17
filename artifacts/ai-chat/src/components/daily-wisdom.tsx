@@ -79,7 +79,12 @@ export function DailyWisdom({ onReflect }: DailyWisdomProps) {
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.12, duration: 0.4 }}
-      className="w-full rounded-2xl bg-gradient-to-br from-primary/8 via-primary/4 to-transparent border border-primary/15 overflow-hidden shadow-lg shadow-primary/5"
+      className="w-full rounded-2xl overflow-hidden"
+      style={{
+        background: "linear-gradient(135deg, hsl(193 100% 52% / 0.13), hsl(193 100% 52% / 0.05))",
+        border: "1px solid hsl(193 100% 52% / 0.35)",
+        boxShadow: "0 0 24px hsl(193 100% 52% / 0.08)"
+      }}
     >
       <button
         onClick={() => setExpanded((e) => !e)}
@@ -88,8 +93,8 @@ export function DailyWisdom({ onReflect }: DailyWisdomProps) {
         <div className="flex items-center gap-3">
           <span className="text-xl leading-none">{quote.emoji}</span>
           <div>
-            <p className="text-[11px] font-semibold text-primary/70 uppercase tracking-[0.15em]">A word for today</p>
-            <p className="text-[11px] text-muted-foreground/60 mt-0.5">{quote.tradition}</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.15em]" style={{ color: "hsl(193 100% 52%)" }}>A word for today</p>
+            <p className="text-[11px] mt-0.5" style={{ color: "hsl(193 100% 52% / 0.6)" }}>{quote.tradition}</p>
           </div>
         </div>
         <motion.div animate={{ rotate: expanded ? 180 : 0 }} transition={{ duration: 0.2 }}>
@@ -107,11 +112,11 @@ export function DailyWisdom({ onReflect }: DailyWisdomProps) {
             style={{ overflow: "hidden" }}
           >
             <div className="px-5 pb-5 space-y-4">
-              <div className="pt-1 border-t border-primary/10">
-                <blockquote className="text-sm text-foreground/85 leading-[1.85] italic mt-3 font-light">
+              <div className="pt-1 border-t border-primary/20">
+                <blockquote className="text-sm leading-[1.85] italic mt-3 font-light" style={{ color: "hsl(var(--foreground) / 0.95)" }}>
                   "{quote.text}"
                 </blockquote>
-                <p className="text-xs text-muted-foreground/60 mt-2">— {quote.source}</p>
+                <p className="text-xs mt-2" style={{ color: "hsl(193 100% 52% / 0.6)" }}>— {quote.source}</p>
               </div>
               <div className="flex gap-2">
                 <button

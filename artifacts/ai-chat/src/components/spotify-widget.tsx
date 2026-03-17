@@ -83,7 +83,12 @@ export function SpotifyWidget({ onAskAbout }: SpotifyWidgetProps) {
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
-      className="w-full rounded-2xl bg-gradient-to-br from-green-500/5 to-card border border-green-500/20 overflow-hidden"
+      className="w-full rounded-2xl overflow-hidden"
+      style={{
+        background: "linear-gradient(135deg, hsl(142 70% 45% / 0.14), hsl(142 70% 45% / 0.05))",
+        border: "1px solid hsl(142 70% 45% / 0.38)",
+        boxShadow: "0 0 24px hsl(142 70% 45% / 0.08)"
+      }}
     >
       <div className="p-4">
         <div className="flex items-center gap-2 mb-3">

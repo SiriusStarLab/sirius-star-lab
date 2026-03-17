@@ -49,7 +49,7 @@ const MOODS: Mood[] = [
     emoji: "🌑",
     label: "Running on empty",
     prompt: "I'm depleted — down to the last reserves. But I'm here, and I reached out, which took something. Let's take it slow. No pressure. Just presence.",
-    accent: "220 15% 45%",
+    accent: "220 50% 65%",
   },
   {
     emoji: "✨",
@@ -66,7 +66,7 @@ interface MoodCheckinProps {
 export function MoodCheckin({ onSelect }: MoodCheckinProps) {
   return (
     <div className="w-full">
-      <p className="text-[10px] font-mono font-medium text-primary/50 uppercase tracking-[0.25em] mb-3 text-center">
+      <p className="text-[10px] font-mono font-medium text-primary/60 uppercase tracking-[0.25em] mb-3 text-center">
         Where are you right now?
       </p>
       <div className="grid grid-cols-4 gap-2">
@@ -77,28 +77,28 @@ export function MoodCheckin({ onSelect }: MoodCheckinProps) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             transition={{ delay: 0.04 * i, duration: 0.3, ease: "easeOut" }}
             onClick={() => onSelect(mood.prompt)}
-            className="group flex flex-col items-center gap-2 p-3 rounded-lg transition-all duration-250 active:scale-95"
+            className="group flex flex-col items-center gap-2 p-3 rounded-xl transition-all duration-200 active:scale-95"
             style={{
-              background: "hsl(224 24% 8% / 0.7)",
+              background: `linear-gradient(135deg, hsl(${mood.accent} / 0.14), hsl(${mood.accent} / 0.06))`,
               backdropFilter: "blur(10px)",
-              border: `1px solid hsl(${mood.accent} / 0.18)`,
+              border: `1px solid hsl(${mood.accent} / 0.35)`,
             }}
             onMouseEnter={e => {
               const el = e.currentTarget;
-              el.style.border = `1px solid hsl(${mood.accent} / 0.55)`;
-              el.style.boxShadow = `0 0 14px hsl(${mood.accent} / 0.18), inset 0 0 14px hsl(${mood.accent} / 0.05)`;
-              el.style.background = `hsl(224 24% 10% / 0.9)`;
+              el.style.border = `1px solid hsl(${mood.accent} / 0.7)`;
+              el.style.boxShadow = `0 0 18px hsl(${mood.accent} / 0.25), inset 0 0 16px hsl(${mood.accent} / 0.08)`;
+              el.style.background = `linear-gradient(135deg, hsl(${mood.accent} / 0.22), hsl(${mood.accent} / 0.1))`;
             }}
             onMouseLeave={e => {
               const el = e.currentTarget;
-              el.style.border = `1px solid hsl(${mood.accent} / 0.18)`;
+              el.style.border = `1px solid hsl(${mood.accent} / 0.35)`;
               el.style.boxShadow = "none";
-              el.style.background = "hsl(224 24% 8% / 0.7)";
+              el.style.background = `linear-gradient(135deg, hsl(${mood.accent} / 0.14), hsl(${mood.accent} / 0.06))`;
             }}
           >
             <span className="text-xl leading-none">{mood.emoji}</span>
-            <span className="text-[10px] font-medium leading-tight text-center"
-              style={{ color: `hsl(${mood.accent} / 0.75)` }}>
+            <span className="text-[10px] font-semibold leading-tight text-center"
+              style={{ color: `hsl(${mood.accent})` }}>
               {mood.label}
             </span>
           </motion.button>

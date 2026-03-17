@@ -75,7 +75,7 @@ interface TopicHubProps {
 export function TopicHub({ onSelect }: TopicHubProps) {
   return (
     <div className="w-full">
-      <p className="text-[10px] font-mono font-medium text-primary/50 uppercase tracking-[0.25em] mb-3 text-center">
+      <p className="text-[10px] font-mono font-medium text-primary/60 uppercase tracking-[0.25em] mb-3 text-center">
         Select a domain
       </p>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
@@ -86,32 +86,33 @@ export function TopicHub({ onSelect }: TopicHubProps) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             transition={{ delay: 0.04 * i, duration: 0.3, ease: "easeOut" }}
             onClick={() => onSelect(topic.prompt)}
-            className="group flex flex-col items-start gap-2 p-3.5 rounded-lg text-left transition-all duration-200 active:scale-[0.97]"
+            className="group flex flex-col items-start gap-2 p-4 rounded-xl text-left transition-all duration-200 active:scale-[0.97]"
             style={{
-              background: "hsl(224 24% 8% / 0.7)",
+              background: `linear-gradient(135deg, hsl(${topic.accent} / 0.14), hsl(${topic.accent} / 0.05))`,
               backdropFilter: "blur(10px)",
-              border: `1px solid hsl(${topic.accent} / 0.15)`,
+              border: `1px solid hsl(${topic.accent} / 0.32)`,
             }}
             onMouseEnter={e => {
               const el = e.currentTarget;
-              el.style.border = `1px solid hsl(${topic.accent} / 0.5)`;
-              el.style.boxShadow = `0 0 16px hsl(${topic.accent} / 0.15), inset 0 0 20px hsl(${topic.accent} / 0.04)`;
-              el.style.background = "hsl(224 24% 10% / 0.9)";
+              el.style.border = `1px solid hsl(${topic.accent} / 0.65)`;
+              el.style.boxShadow = `0 0 20px hsl(${topic.accent} / 0.2), inset 0 0 20px hsl(${topic.accent} / 0.06)`;
+              el.style.background = `linear-gradient(135deg, hsl(${topic.accent} / 0.22), hsl(${topic.accent} / 0.09))`;
             }}
             onMouseLeave={e => {
               const el = e.currentTarget;
-              el.style.border = `1px solid hsl(${topic.accent} / 0.15)`;
+              el.style.border = `1px solid hsl(${topic.accent} / 0.32)`;
               el.style.boxShadow = "none";
-              el.style.background = "hsl(224 24% 8% / 0.7)";
+              el.style.background = `linear-gradient(135deg, hsl(${topic.accent} / 0.14), hsl(${topic.accent} / 0.05))`;
             }}
           >
             <span className="text-xl leading-none">{topic.emoji}</span>
             <div>
-              <p className="text-[11px] font-mono tracking-widest uppercase mb-0.5"
-                style={{ color: `hsl(${topic.accent} / 0.6)`, fontSize: "9px" }}>
+              <p className="font-mono uppercase tracking-widest mb-0.5"
+                style={{ color: `hsl(${topic.accent})`, fontSize: "9px" }}>
                 {topic.tag}
               </p>
-              <p className="text-[13px] font-semibold text-foreground/90 leading-tight">
+              <p className="text-[13px] font-semibold leading-tight"
+                style={{ color: `hsl(${topic.accent} / 0.95)` }}>
                 {topic.label}
               </p>
             </div>
