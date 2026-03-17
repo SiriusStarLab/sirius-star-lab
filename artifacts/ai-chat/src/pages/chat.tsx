@@ -127,7 +127,7 @@ export function ChatPage() {
                 transition={{ delay: 0.2, duration: 0.5, ease: "easeOut" }}
                 className="relative z-10 text-[1.7rem] font-bold tracking-tight mb-3 text-center shimmer-text"
               >
-                I'm {aiName} — here for the whole of you
+                I'm {aiName} — I am the universe and the universe is me
               </motion.h1>
 
               {/* Slogan */}
