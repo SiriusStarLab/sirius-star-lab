@@ -1,0 +1,110 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
+
+import { PROFILE_KEY, USER_ID_KEY, fetchSubscription } from "@/lib/api";
+
+export interface AppProfile {
+  aiName: string;
+  userName: string;
+  subscriptionTier: "free" | "plus" | "pro";
+  dailyMessageCount: number;
+  dailyLimit: number | null;
+  canSendMessage: boolean;
+}
+
+interface AppContextValue {
+  userId: string | null;
+  profile: AppProfile;
+  loading: boolean;
+  refreshProfile: () => Promise<void>;
+  updateLocalProfile: (updates: Partial<Pick<AppProfile, "aiName" | "userName">>) => Promise<void>;
+}
+
+const defaultProfile: AppProfile = {
+  aiName: "Sirius",
+  userName: "",
+  subscriptionTier: "free",
+  dailyMessageCount: 0,
+  dailyLimit: 30,
+  canSendMessage: true,
+};
+
+const AppContext = createContext<AppContextValue>({
+  userId: null,
+  profile: defaultProfile,
+  loading: true,
+  refreshProfile: async () => {},
+  updateLocalProfile: async () => {},
+});
+
+export function AppProvider({ children }: { children: React.ReactNode }) {
+  const [userId, setUserId] = useState<string | null>(null);
+  const [profile, setProfile] = useState<AppProfile>(defaultProfile);
+  const [loading, setLoading] = useState(true);
+
+  const initUser = useCallback(async () => {
+    let id = await AsyncStorage.getItem(USER_ID_KEY);
+    if (!id) {
+      id = `mobile-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      await AsyncStorage.setItem(USER_ID_KEY, id);
+    }
+    setUserId(id);
+    return id;
+  }, []);
+
+  const refreshProfile = useCallback(async () => {
+    const id = userId || (await initUser());
+    try {
+      const data = await fetchSubscription(id);
+      setProfile(data);
+    } catch {
+      const saved = await AsyncStorage.getItem(PROFILE_KEY);
+      if (saved) {
+        const local = JSON.parse(saved);
+        setProfile(prev => ({ ...prev, aiName: local.aiName ?? prev.aiName, userName: local.userName ?? prev.userName }));
+      }
+    }
+  }, [userId, initUser]);
+
+  const updateLocalProfile = useCallback(async (updates: Partial<Pick<AppProfile, "aiName" | "userName">>) => {
+    setProfile(prev => ({ ...prev, ...updates }));
+    const saved = await AsyncStorage.getItem(PROFILE_KEY);
+    const current = saved ? JSON.parse(saved) : {};
+    await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify({ ...current, ...updates }));
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      const id = await initUser();
+      try {
+        const data = await fetchSubscription(id);
+        setProfile(data);
+      } catch {
+        const saved = await AsyncStorage.getItem(PROFILE_KEY);
+        if (saved) {
+          const local = JSON.parse(saved);
+          setProfile(prev => ({ ...prev, ...local }));
+        }
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [initUser]);
+
+  return (
+    <AppContext.Provider value={{ userId, profile, loading, refreshProfile, updateLocalProfile }}>
+      {children}
+    </AppContext.Provider>
+  );
+}
+
+export function useApp() {
+  return useContext(AppContext);
+}
