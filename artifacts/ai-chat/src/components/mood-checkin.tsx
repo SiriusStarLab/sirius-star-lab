@@ -79,21 +79,22 @@ export function MoodCheckin({ onSelect }: MoodCheckinProps) {
             onClick={() => onSelect(mood.prompt)}
             className="group flex flex-col items-center gap-2 p-3 rounded-xl transition-all duration-200 active:scale-95"
             style={{
-              background: `linear-gradient(135deg, hsl(${mood.accent} / 0.14), hsl(${mood.accent} / 0.06))`,
+              background: `linear-gradient(145deg, hsl(${mood.accent} / 0.32) 0%, hsl(${mood.accent} / 0.14) 100%)`,
               backdropFilter: "blur(10px)",
-              border: `1px solid hsl(${mood.accent} / 0.35)`,
+              border: `1px solid hsl(${mood.accent} / 0.6)`,
+              boxShadow: `0 2px 12px hsl(${mood.accent} / 0.15)`,
             }}
             onMouseEnter={e => {
               const el = e.currentTarget;
-              el.style.border = `1px solid hsl(${mood.accent} / 0.7)`;
-              el.style.boxShadow = `0 0 18px hsl(${mood.accent} / 0.25), inset 0 0 16px hsl(${mood.accent} / 0.08)`;
-              el.style.background = `linear-gradient(135deg, hsl(${mood.accent} / 0.22), hsl(${mood.accent} / 0.1))`;
+              el.style.border = `1px solid hsl(${mood.accent} / 0.9)`;
+              el.style.boxShadow = `0 0 22px hsl(${mood.accent} / 0.4), inset 0 0 16px hsl(${mood.accent} / 0.12)`;
+              el.style.background = `linear-gradient(145deg, hsl(${mood.accent} / 0.48) 0%, hsl(${mood.accent} / 0.22) 100%)`;
             }}
             onMouseLeave={e => {
               const el = e.currentTarget;
-              el.style.border = `1px solid hsl(${mood.accent} / 0.35)`;
-              el.style.boxShadow = "none";
-              el.style.background = `linear-gradient(135deg, hsl(${mood.accent} / 0.14), hsl(${mood.accent} / 0.06))`;
+              el.style.border = `1px solid hsl(${mood.accent} / 0.6)`;
+              el.style.boxShadow = `0 2px 12px hsl(${mood.accent} / 0.15)`;
+              el.style.background = `linear-gradient(145deg, hsl(${mood.accent} / 0.32) 0%, hsl(${mood.accent} / 0.14) 100%)`;
             }}
           >
             <span className="text-xl leading-none">{mood.emoji}</span>

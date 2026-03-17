@@ -95,21 +95,22 @@ export function TopicHub({ onSelect }: TopicHubProps) {
             onClick={() => onSelect(topic.prompt)}
             className="group flex flex-col items-start gap-2 p-4 rounded-xl text-left transition-all duration-200 active:scale-[0.97]"
             style={{
-              background: `linear-gradient(135deg, hsl(${topic.accent} / 0.14), hsl(${topic.accent} / 0.05))`,
+              background: `linear-gradient(145deg, hsl(${topic.accent} / 0.30) 0%, hsl(${topic.accent} / 0.12) 100%)`,
               backdropFilter: "blur(10px)",
-              border: `1px solid hsl(${topic.accent} / 0.32)`,
+              border: `1px solid hsl(${topic.accent} / 0.58)`,
+              boxShadow: `0 2px 14px hsl(${topic.accent} / 0.15)`,
             }}
             onMouseEnter={e => {
               const el = e.currentTarget;
-              el.style.border = `1px solid hsl(${topic.accent} / 0.65)`;
-              el.style.boxShadow = `0 0 20px hsl(${topic.accent} / 0.2), inset 0 0 20px hsl(${topic.accent} / 0.06)`;
-              el.style.background = `linear-gradient(135deg, hsl(${topic.accent} / 0.22), hsl(${topic.accent} / 0.09))`;
+              el.style.border = `1px solid hsl(${topic.accent} / 0.9)`;
+              el.style.boxShadow = `0 0 24px hsl(${topic.accent} / 0.38), inset 0 0 20px hsl(${topic.accent} / 0.1)`;
+              el.style.background = `linear-gradient(145deg, hsl(${topic.accent} / 0.46) 0%, hsl(${topic.accent} / 0.22) 100%)`;
             }}
             onMouseLeave={e => {
               const el = e.currentTarget;
-              el.style.border = `1px solid hsl(${topic.accent} / 0.32)`;
-              el.style.boxShadow = "none";
-              el.style.background = `linear-gradient(135deg, hsl(${topic.accent} / 0.14), hsl(${topic.accent} / 0.05))`;
+              el.style.border = `1px solid hsl(${topic.accent} / 0.58)`;
+              el.style.boxShadow = `0 2px 14px hsl(${topic.accent} / 0.15)`;
+              el.style.background = `linear-gradient(145deg, hsl(${topic.accent} / 0.30) 0%, hsl(${topic.accent} / 0.12) 100%)`;
             }}
           >
             <span className="text-xl leading-none">{topic.emoji}</span>
