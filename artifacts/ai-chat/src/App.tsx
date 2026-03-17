@@ -5,6 +5,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ChatPage } from "@/pages/chat";
 import { TermsPage } from "@/pages/terms";
 import { PrivacyPage } from "@/pages/privacy";
+import { CheckoutSuccessPage } from "@/pages/checkout-success";
+import { CheckoutCancelPage } from "@/pages/checkout-cancel";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -12,7 +14,7 @@ const queryClient = new QueryClient({
     queries: {
       refetchOnWindowFocus: false,
       retry: false,
-      staleTime: 1000 * 60 * 5, // 5 minutes
+      staleTime: 1000 * 60 * 5,
     }
   }
 });
@@ -24,6 +26,8 @@ function Router() {
       <Route path="/c/:id" component={ChatPage} />
       <Route path="/terms" component={TermsPage} />
       <Route path="/privacy" component={PrivacyPage} />
+      <Route path="/checkout/success" component={CheckoutSuccessPage} />
+      <Route path="/checkout/cancel" component={CheckoutCancelPage} />
       <Route component={NotFound} />
     </Switch>
   );

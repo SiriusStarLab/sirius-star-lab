@@ -8,7 +8,7 @@ export const userProfilesTable = pgTable("user_profiles", {
   aiPersonality: text("ai_personality").notNull().default(""),
   memories: text("memories").notNull().default(""),
   subscriptionTier: text("subscription_tier").notNull().default("free"),
-  paypalSubscriptionId: text("paypal_subscription_id"),
+  stripeCustomerId: text("stripe_customer_id"),
   dailyMessageCount: text("daily_message_count").notNull().default("0"),
   dailyMessageReset: timestamp("daily_message_reset", { withTimezone: true }),
   preferredLanguage: text("preferred_language").notNull().default("auto"),

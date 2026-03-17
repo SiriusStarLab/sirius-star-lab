@@ -8,6 +8,7 @@ export type SubscriptionStatus = {
   dailyMessageCount: number;
   dailyLimit: number | null;
   canSendMessage: boolean;
+  hasStripeCustomer: boolean;
 };
 
 const DEFAULT: SubscriptionStatus = {
@@ -15,6 +16,7 @@ const DEFAULT: SubscriptionStatus = {
   dailyMessageCount: 0,
   dailyLimit: 30,
   canSendMessage: true,
+  hasStripeCustomer: false,
 };
 
 export function useSubscription() {

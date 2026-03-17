@@ -279,7 +279,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       </motion.div>
 
       <SettingsPanel isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
-      <PricingModal isOpen={isPricingOpen} onClose={() => setIsPricingOpen(false)} currentTier={status.tier} />
+      <PricingModal isOpen={isPricingOpen} onClose={() => setIsPricingOpen(false)} currentTier={status.tier} hasStripeCustomer={status.hasStripeCustomer} />
     </>
   );
 }
