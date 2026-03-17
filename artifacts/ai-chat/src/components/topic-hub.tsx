@@ -60,6 +60,13 @@ const TOPICS: Topic[] = [
     accent: "210 90% 62%",
   },
   {
+    emoji: "🎶",
+    label: "Vibration & Frequencies",
+    tag: "RESONANCE",
+    prompt: "I want to explore the science and wisdom of vibration and frequency — from quantum physics and cymatics to sound healing, Schumann resonance, solfeggio frequencies, binaural beats, and the latest research. Bring me everything — the physics, the biology, the spirituality, and what's being discovered right now. Use the latest research.",
+    accent: "280 85% 70%",
+  },
+  {
     emoji: "💬",
     label: "Just Talk",
     tag: "OPEN SESSION",
