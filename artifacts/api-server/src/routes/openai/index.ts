@@ -941,4 +941,30 @@ router.post("/openai/generate-image", async (req, res): Promise<void> => {
   res.json({ b64_json: buffer.toString("base64") });
 });
 
+const ALLOWED_TTS_VOICES = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"] as const;
+
+router.post("/openai/tts", async (req, res): Promise<void> => {
+  const { text, voice } = req.body ?? {};
+  if (!text || typeof text !== "string") {
+    res.status(400).json({ error: "text is required" });
+    return;
+  }
+  const safeVoice = ALLOWED_TTS_VOICES.includes(voice) ? voice : "nova";
+  try {
+    const mp3 = await openai.audio.speech.create({
+      model: "tts-1-hd",
+      voice: safeVoice,
+      input: text,
+      response_format: "mp3",
+    });
+    const buffer = Buffer.from(await mp3.arrayBuffer());
+    res.set("Content-Type", "audio/mpeg");
+    res.set("Content-Length", String(buffer.length));
+    res.set("Cache-Control", "no-cache");
+    res.send(buffer);
+  } catch (err: any) {
+    res.status(500).json({ error: "TTS generation failed", detail: err?.message });
+  }
+});
+
 export default router;

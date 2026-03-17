@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 type Topic = {
@@ -85,6 +85,17 @@ const TOPICS: Topic[] = [
   },
 ];
 
+const TTS_VOICES = [
+  { id: "nova",    label: "Nova",    desc: "Warm · Female" },
+  { id: "shimmer", label: "Shimmer", desc: "Gentle · Female" },
+  { id: "alloy",   label: "Alloy",   desc: "Balanced · Neutral" },
+  { id: "fable",   label: "Fable",   desc: "Expressive · British" },
+  { id: "echo",    label: "Echo",    desc: "Clear · Male" },
+  { id: "onyx",    label: "Onyx",    desc: "Deep · Male" },
+] as const;
+
+type TtsVoiceId = typeof TTS_VOICES[number]["id"];
+
 interface VoicePlayerProps {
   topic: Topic;
   onContinue: () => void;
@@ -92,114 +103,94 @@ interface VoicePlayerProps {
 }
 
 function VoicePlayer({ topic, onContinue, onClose }: VoicePlayerProps) {
-  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
-  const [selectedVoice, setSelectedVoice] = useState<string>("");
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [hasPlayed, setHasPlayed] = useState(false);
+  const [selectedVoice, setSelectedVoice] = useState<TtsVoiceId>("nova");
+  const [status, setStatus] = useState<"idle" | "loading" | "playing" | "paused" | "done" | "error">("idle");
   const [progress, setProgress] = useState(0);
-  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
-  const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const startTimeRef = useRef<number>(0);
-  const estimatedDurationRef = useRef<number>(0);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioBlobRef = useRef<string | null>(null);
 
-  useEffect(() => {
-    const loadVoices = () => {
-      const available = window.speechSynthesis.getVoices();
-      const english = available.filter(v => v.lang.startsWith("en"));
-      const sorted = [
-        ...english.filter(v => v.localService),
-        ...english.filter(v => !v.localService),
-      ];
-      setVoices(sorted.length > 0 ? sorted : available);
-      if (sorted.length > 0 && !selectedVoice) {
-        const preferred =
-          sorted.find(v => /samantha|karen|daniel|moira|tessa/i.test(v.name)) ||
-          sorted[0];
-        setSelectedVoice(preferred.name);
-      }
-    };
-    loadVoices();
-    window.speechSynthesis.onvoiceschanged = loadVoices;
-    return () => { window.speechSynthesis.onvoiceschanged = null; };
-  }, []);
-
-  const stopSpeech = useCallback(() => {
-    window.speechSynthesis.cancel();
-    if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
-    setIsPlaying(false);
-  }, []);
-
-  const startSpeech = useCallback(() => {
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(topic.voiceScript);
-    const voice = voices.find(v => v.name === selectedVoice);
-    if (voice) utterance.voice = voice;
-    utterance.rate = 0.88;
-    utterance.pitch = 1.0;
-    utterance.volume = 1.0;
-
-    const wordCount = topic.voiceScript.split(" ").length;
-    estimatedDurationRef.current = (wordCount / utterance.rate / 2.5) * 1000;
-    startTimeRef.current = Date.now();
-
-    utterance.onstart = () => {
-      setIsPlaying(true);
-      setHasPlayed(true);
-      setProgress(0);
-      progressIntervalRef.current = setInterval(() => {
-        const elapsed = Date.now() - startTimeRef.current;
-        const pct = Math.min((elapsed / estimatedDurationRef.current) * 100, 98);
-        setProgress(pct);
-      }, 200);
-    };
-    utterance.onend = () => {
-      setIsPlaying(false);
-      setProgress(100);
-      if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
-    };
-    utterance.onerror = () => {
-      setIsPlaying(false);
-      if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
-    };
-
-    utteranceRef.current = utterance;
-    window.speechSynthesis.speak(utterance);
-  }, [topic, voices, selectedVoice]);
-
-  useEffect(() => {
-    if (voices.length > 0 && selectedVoice) {
-      setTimeout(() => startSpeech(), 400);
+  const destroyAudio = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = "";
+      audioRef.current = null;
     }
-    return () => stopSpeech();
-  }, [voices.length > 0, selectedVoice]);
+    if (audioBlobRef.current) {
+      URL.revokeObjectURL(audioBlobRef.current);
+      audioBlobRef.current = null;
+    }
+  }, []);
+
+  const fetchAndPlay = useCallback(async (voice: TtsVoiceId) => {
+    destroyAudio();
+    setStatus("loading");
+    setProgress(0);
+    try {
+      const res = await fetch("/api/openai/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: topic.voiceScript, voice }),
+      });
+      if (!res.ok) throw new Error("TTS failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      audioBlobRef.current = url;
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.ontimeupdate = () => {
+        if (audio.duration) setProgress((audio.currentTime / audio.duration) * 100);
+      };
+      audio.onended = () => { setStatus("done"); setProgress(100); };
+      audio.onerror = () => setStatus("error");
+      await audio.play();
+      setStatus("playing");
+    } catch {
+      setStatus("error");
+    }
+  }, [topic, destroyAudio]);
 
   const handlePlayPause = () => {
-    if (isPlaying) {
-      window.speechSynthesis.pause();
-      setIsPlaying(false);
-      if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
-    } else if (window.speechSynthesis.paused) {
-      window.speechSynthesis.resume();
-      setIsPlaying(true);
-      startTimeRef.current = Date.now() - (progress / 100) * estimatedDurationRef.current;
-      progressIntervalRef.current = setInterval(() => {
-        const elapsed = Date.now() - startTimeRef.current + (progress / 100) * estimatedDurationRef.current;
-        const pct = Math.min((elapsed / estimatedDurationRef.current) * 100, 98);
-        setProgress(pct);
-      }, 200);
-    } else {
-      startSpeech();
+    if (status === "idle" || status === "error") {
+      fetchAndPlay(selectedVoice);
+    } else if (status === "playing") {
+      audioRef.current?.pause();
+      setStatus("paused");
+    } else if (status === "paused") {
+      audioRef.current?.play();
+      setStatus("playing");
+    } else if (status === "done") {
+      fetchAndPlay(selectedVoice);
     }
   };
 
-  const handleVoiceChange = (name: string) => {
-    setSelectedVoice(name);
-    stopSpeech();
+  const handleStop = () => {
+    destroyAudio();
+    setStatus("idle");
     setProgress(0);
-    setHasPlayed(false);
   };
 
+  const handleVoiceChange = (v: TtsVoiceId) => {
+    setSelectedVoice(v);
+    destroyAudio();
+    setStatus("idle");
+    setProgress(0);
+  };
+
+  const handleClose = () => { destroyAudio(); onClose(); };
+  const handleContinue = () => { destroyAudio(); onContinue(); };
+
+  const isPlaying = status === "playing";
+  const isLoading = status === "loading";
   const accentHsl = `hsl(${topic.accent})`;
+
+  const statusLabel = {
+    idle: "Choose a voice and press play",
+    loading: "Generating audio…",
+    playing: "Speaking…",
+    paused: "Paused",
+    done: "Finished",
+    error: "Something went wrong — try again",
+  }[status];
 
   return (
     <motion.div
@@ -208,7 +199,7 @@ function VoicePlayer({ topic, onContinue, onClose }: VoicePlayerProps) {
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ background: "rgba(5, 8, 18, 0.88)", backdropFilter: "blur(16px)" }}
-      onClick={e => { if (e.target === e.currentTarget) { stopSpeech(); onClose(); } }}
+      onClick={e => { if (e.target === e.currentTarget) handleClose(); }}
     >
       <motion.div
         initial={{ scale: 0.92, opacity: 0, y: 16 }}
@@ -234,18 +225,36 @@ function VoicePlayer({ topic, onContinue, onClose }: VoicePlayerProps) {
                 <h2 className="text-lg font-semibold text-white">{topic.label}</h2>
               </div>
             </div>
-            <button
-              onClick={() => { stopSpeech(); onClose(); }}
-              className="text-white/40 hover:text-white/70 transition-colors text-lg leading-none p-1"
-            >
-              ✕
-            </button>
+            <button onClick={handleClose} className="text-white/40 hover:text-white/70 transition-colors text-lg leading-none p-1">✕</button>
           </div>
-
-          {/* Script preview */}
-          <p className="text-sm leading-relaxed text-white/55 italic line-clamp-3">
-            "{topic.voiceScript.slice(0, 120)}..."
+          <p className="text-sm leading-relaxed text-white/50 italic line-clamp-2">
+            "{topic.voiceScript.slice(0, 110)}…"
           </p>
+        </div>
+
+        {/* Voice picker */}
+        <div className="px-6 pb-4">
+          <p className="text-[9px] font-mono uppercase tracking-[0.22em] text-white/35 mb-2">Choose a voice</p>
+          <div className="grid grid-cols-3 gap-2">
+            {TTS_VOICES.map(v => {
+              const active = selectedVoice === v.id;
+              return (
+                <button
+                  key={v.id}
+                  onClick={() => handleVoiceChange(v.id)}
+                  className="flex flex-col items-start px-3 py-2 rounded-xl text-left transition-all duration-150 active:scale-95"
+                  style={{
+                    background: active ? `hsl(${topic.accent} / 0.22)` : "rgba(255,255,255,0.04)",
+                    border: `1px solid ${active ? `hsl(${topic.accent} / 0.7)` : "rgba(255,255,255,0.1)"}`,
+                    boxShadow: active ? `0 0 12px hsl(${topic.accent} / 0.25)` : "none",
+                  }}
+                >
+                  <span className="text-[12px] font-semibold text-white leading-tight">{v.label}</span>
+                  <span className="text-[9px] font-mono text-white/40 leading-tight">{v.desc}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Progress bar */}
@@ -253,25 +262,32 @@ function VoicePlayer({ topic, onContinue, onClose }: VoicePlayerProps) {
           <div className="h-1 rounded-full bg-white/8 overflow-hidden">
             <motion.div
               className="h-full rounded-full"
-              style={{ background: `linear-gradient(90deg, hsl(${topic.accent}), hsl(${topic.accent} / 0.6))` }}
+              style={{ background: `linear-gradient(90deg, hsl(${topic.accent}), hsl(${topic.accent} / 0.5))` }}
               animate={{ width: `${progress}%` }}
-              transition={{ duration: 0.2, ease: "linear" }}
+              transition={{ duration: 0.3, ease: "linear" }}
             />
           </div>
         </div>
 
-        {/* Controls */}
+        {/* Playback controls */}
         <div className="px-6 pb-5 flex items-center gap-3">
-          {/* Play / Pause */}
+          {/* Play / Pause button */}
           <button
             onClick={handlePlayPause}
-            className="flex items-center justify-center w-12 h-12 rounded-full transition-all duration-200 active:scale-95 shrink-0"
+            disabled={isLoading}
+            className="flex items-center justify-center w-12 h-12 rounded-full transition-all duration-200 active:scale-95 shrink-0 disabled:opacity-60"
             style={{
               background: `linear-gradient(135deg, hsl(${topic.accent}), hsl(${topic.accent} / 0.7))`,
               boxShadow: `0 0 20px hsl(${topic.accent} / 0.4)`,
             }}
           >
-            {isPlaying ? (
+            {isLoading ? (
+              <motion.div
+                className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white"
+                animate={{ rotate: 360 }}
+                transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
+              />
+            ) : isPlaying ? (
               <svg width="16" height="16" viewBox="0 0 16 16" fill="white">
                 <rect x="3" y="2" width="4" height="12" rx="1"/>
                 <rect x="9" y="2" width="4" height="12" rx="1"/>
@@ -283,64 +299,45 @@ function VoicePlayer({ topic, onContinue, onClose }: VoicePlayerProps) {
             )}
           </button>
 
-          {/* Stop / Replay */}
+          {/* Stop button */}
           <button
-            onClick={() => { stopSpeech(); setProgress(0); setHasPlayed(false); }}
+            onClick={handleStop}
             className="flex items-center justify-center w-9 h-9 rounded-full transition-all duration-200 active:scale-95 shrink-0"
-            style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)" }}
+            style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)" }}
           >
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="white" opacity="0.7">
-              <rect x="1" y="1" width="10" height="10" rx="2"/>
+            <svg width="11" height="11" viewBox="0 0 11 11" fill="white" opacity="0.6">
+              <rect x="1" y="1" width="9" height="9" rx="2"/>
             </svg>
           </button>
 
-          {/* Voice selector */}
-          <div className="flex-1 min-w-0">
-            <select
-              value={selectedVoice}
-              onChange={e => handleVoiceChange(e.target.value)}
-              className="w-full text-xs rounded-lg px-3 py-2 font-mono outline-none truncate"
-              style={{
-                background: "rgba(255,255,255,0.06)",
-                border: "1px solid rgba(255,255,255,0.12)",
-                color: "rgba(255,255,255,0.75)",
-              }}
-            >
-              {voices.map(v => (
-                <option key={v.name} value={v.name} style={{ background: "#0d1117" }}>
-                  {v.name.replace(/\s*\(.*\)/, "")}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* Status + Continue */}
-        <div
-          className="px-6 py-4 flex items-center justify-between gap-3"
-          style={{ borderTop: `1px solid hsl(${topic.accent} / 0.15)` }}
-        >
-          <div className="flex items-center gap-2">
+          {/* Status */}
+          <div className="flex items-center gap-2 flex-1">
             {isPlaying && (
-              <motion.div className="flex gap-0.5 items-end h-4">
-                {[0, 1, 2].map(i => (
+              <div className="flex gap-0.5 items-end h-4 shrink-0">
+                {[0, 1, 2, 3].map(i => (
                   <motion.span
                     key={i}
                     className="w-0.5 rounded-full"
                     style={{ background: accentHsl }}
-                    animate={{ height: ["4px", "14px", "4px"] }}
-                    transition={{ duration: 0.8, repeat: Infinity, delay: i * 0.15 }}
+                    animate={{ height: ["3px", "13px", "3px"] }}
+                    transition={{ duration: 0.7, repeat: Infinity, delay: i * 0.12, ease: "easeInOut" }}
                   />
                 ))}
-              </motion.div>
+              </div>
             )}
-            <span className="text-xs font-mono" style={{ color: `hsl(${topic.accent} / 0.7)` }}>
-              {isPlaying ? "Speaking..." : hasPlayed ? "Ready" : "Press play"}
+            <span className="text-[11px] font-mono" style={{ color: `hsl(${topic.accent} / 0.65)` }}>
+              {statusLabel}
             </span>
           </div>
+        </div>
 
+        {/* Footer */}
+        <div
+          className="px-6 py-4 flex justify-end"
+          style={{ borderTop: `1px solid hsl(${topic.accent} / 0.12)` }}
+        >
           <button
-            onClick={() => { stopSpeech(); onContinue(); }}
+            onClick={handleContinue}
             className="text-sm font-semibold px-5 py-2 rounded-xl transition-all duration-200 active:scale-95"
             style={{
               background: `linear-gradient(135deg, hsl(${topic.accent} / 0.28), hsl(${topic.accent} / 0.12))`,
