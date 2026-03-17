@@ -1,3 +1,4 @@
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { fetch } from "expo/fetch";
 import { useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -44,8 +45,9 @@ export default function ChatScreen() {
   const promptHandledRef = useRef<string | undefined>(undefined);
   const convoHandledRef = useRef<string | undefined>(undefined);
 
+  const tabBarHeight = useBottomTabBarHeight();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
-  const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
+  const bottomPad = Platform.OS === "web" ? 34 : tabBarHeight;
 
   const handleSend = useCallback(async (text: string) => {
     if (isStreaming) return;
