@@ -35,11 +35,11 @@ export function ChatMessage({ message }: ChatMessageProps) {
         "flex w-full px-4 py-5 md:px-8",
         isUser
           ? "justify-end"
-          : "justify-start border-b border-primary/[0.06]"
+          : "justify-start border-b border-border/60"
       )}
       style={!isUser ? {
-        background: "linear-gradient(90deg, hsl(193 100% 52% / 0.04) 0%, transparent 40%)",
-        borderLeft: "2px solid hsl(193 100% 52% / 0.2)"
+        background: "linear-gradient(90deg, hsl(193 100% 52% / 0.05) 0%, transparent 50%)",
+        borderLeft: "2px solid hsl(193 100% 52% / 0.35)"
       } : undefined}
     >
       <div className={cn(
@@ -54,13 +54,13 @@ export function ChatMessage({ message }: ChatMessageProps) {
             : "ring-primary/30"
           )}
           style={!isUser ? {
-            background: "linear-gradient(135deg, hsl(193 100% 52% / 0.2), hsl(224 28% 12%))",
-            boxShadow: "0 0 10px hsl(193 100% 52% / 0.15)"
+            background: "linear-gradient(135deg, hsl(193 100% 52%), hsl(193 100% 35%))",
+            boxShadow: "0 0 14px hsl(193 100% 52% / 0.4)"
           } : undefined}
         >
           {isUser
             ? <User size={14} />
-            : <Zap size={13} className="text-primary" fill="currentColor" />}
+            : <Zap size={13} className="text-white" fill="currentColor" />}
         </div>
 
         {/* Content */}
@@ -76,13 +76,13 @@ export function ChatMessage({ message }: ChatMessageProps) {
           <div className={cn(
             "text-sm md:text-[15px] leading-relaxed break-words",
             isUser
-              ? "px-4 py-3 rounded-xl rounded-tr-sm text-foreground/90"
-              : "text-foreground prose prose-invert max-w-full"
+              ? "px-4 py-3 rounded-xl rounded-tr-sm text-white"
+              : "text-foreground prose max-w-full"
           )}
           style={isUser ? {
-            background: "hsl(224 24% 11% / 0.8)",
-            border: "1px solid hsl(224 20% 18%)",
-            backdropFilter: "blur(8px)"
+            background: "linear-gradient(135deg, hsl(193 100% 52%), hsl(193 100% 35%))",
+            border: "none",
+            boxShadow: "0 2px 16px hsl(193 100% 52% / 0.3)"
           } : undefined}>
             {isUser ? (
               <div>

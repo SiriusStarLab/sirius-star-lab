@@ -227,10 +227,10 @@ export function ChatInput({ onSend, isTyping, onStop }: ChatInputProps) {
               onClick={() => setMode(m.id)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium whitespace-nowrap transition-all duration-200 shrink-0"
               style={{
-                background: active ? "hsl(193 100% 52% / 0.16)" : "hsl(224 20% 10%)",
-                border: active ? "1px solid hsl(193 100% 52% / 0.5)" : "1px solid hsl(224 20% 18%)",
-                color: active ? "hsl(193 100% 52%)" : "hsl(220 14% 48%)",
-                boxShadow: active ? "0 0 10px hsl(193 100% 52% / 0.12)" : "none",
+                background: active ? "hsl(193 100% 52% / 0.12)" : "hsl(210 30% 95%)",
+                border: active ? "1px solid hsl(193 100% 52% / 0.5)" : "1px solid hsl(210 25% 87%)",
+                color: active ? "hsl(193 100% 35%)" : "hsl(220 20% 52%)",
+                boxShadow: active ? "0 0 12px hsl(193 100% 52% / 0.15)" : "none",
               }}
             >
               <span>{m.emoji}</span>
@@ -253,7 +253,7 @@ export function ChatInput({ onSend, isTyping, onStop }: ChatInputProps) {
             <button
               onClick={removeImage}
               className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full flex items-center justify-center"
-              style={{ background: "hsl(224 28% 5%)", border: "1px solid hsl(193 100% 52% / 0.4)" }}
+              style={{ background: "hsl(210 30% 95%)", border: "1px solid hsl(193 100% 52% / 0.3)" }}
             >
               <X size={9} className="text-primary" />
             </button>
@@ -266,14 +266,14 @@ export function ChatInput({ onSend, isTyping, onStop }: ChatInputProps) {
       <div
         className="relative flex items-end w-full rounded-xl overflow-hidden transition-all duration-300"
         style={{
-          background: "hsl(224 24% 8% / 0.85)",
+          background: "hsl(0 0% 100% / 0.95)",
           backdropFilter: "blur(20px)",
           border: (input || imageBase64)
-            ? "1px solid hsl(193 100% 52% / 0.45)"
-            : "1px solid hsl(224 20% 16%)",
+            ? "1px solid hsl(193 100% 52% / 0.5)"
+            : "1px solid hsl(210 25% 86%)",
           boxShadow: (input || imageBase64)
-            ? "0 0 0 1px hsl(193 100% 52% / 0.1), 0 0 24px hsl(193 100% 52% / 0.1)"
-            : "none",
+            ? "0 0 0 3px hsl(193 100% 52% / 0.08), 0 4px 24px hsl(193 100% 52% / 0.12)"
+            : "0 2px 16px hsl(210 30% 88% / 0.7)",
         }}
       >
         {/* Neon top line */}
@@ -315,8 +315,8 @@ export function ChatInput({ onSend, isTyping, onStop }: ChatInputProps) {
             disabled={isTranscribing}
             className="h-8 w-8 rounded-lg flex items-center justify-center transition-all duration-200"
             style={{
-              background: isRecording ? "hsl(0 85% 55% / 0.18)" : "hsl(224 18% 12%)",
-              border: isRecording ? "1px solid hsl(0 85% 55% / 0.45)" : "1px solid hsl(224 20% 20%)",
+              background: isRecording ? "hsl(0 85% 55% / 0.12)" : "hsl(210 30% 95%)",
+              border: isRecording ? "1px solid hsl(0 85% 55% / 0.4)" : "1px solid hsl(210 25% 87%)",
             }}
             title={isRecording ? "Stop recording" : "Voice input"}
           >
@@ -347,8 +347,8 @@ export function ChatInput({ onSend, isTyping, onStop }: ChatInputProps) {
               style={{
                 background: canSend
                   ? "linear-gradient(135deg, hsl(193 100% 52% / 0.9), hsl(193 100% 45%))"
-                  : "hsl(224 18% 13%)",
-                boxShadow: canSend ? "0 0 16px hsl(193 100% 52% / 0.35)" : "none",
+                  : "hsl(210 30% 92%)",
+                boxShadow: canSend ? "0 0 20px hsl(193 100% 52% / 0.4)" : "none",
                 border: "1px solid hsl(193 100% 52% / 0.3)"
               }}
             >

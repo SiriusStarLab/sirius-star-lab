@@ -89,24 +89,18 @@ export function ChatPage() {
               {/* Tech grid on welcome screen */}
               <div className="absolute inset-0 tech-grid-bg opacity-40 pointer-events-none" />
 
-              {/* Sirius star background image */}
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[520px] h-[520px] pointer-events-none select-none"
-                style={{ opacity: 0.55 }}>
-                <img
-                  src="/sirius-star.png"
-                  alt="The star Sirius"
-                  className="w-full h-full object-cover"
-                  style={{
-                    maskImage: "radial-gradient(ellipse 60% 60% at 50% 40%, black 0%, transparent 75%)",
-                    WebkitMaskImage: "radial-gradient(ellipse 60% 60% at 50% 40%, black 0%, transparent 75%)",
-                    mixBlendMode: "screen",
-                  }}
-                />
-              </div>
-
-              {/* Radial fade over everything */}
-              <div className="absolute inset-0 pointer-events-none"
-                style={{ background: "radial-gradient(ellipse 80% 55% at 50% 20%, transparent 0%, hsl(var(--background)) 85%)" }} />
+              {/* Starlight radiance — CSS-based, works on bright bg */}
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[480px] pointer-events-none select-none"
+                style={{
+                  background: "radial-gradient(ellipse 55% 70% at 50% 20%, hsl(193 100% 52% / 0.18) 0%, hsl(210 100% 80% / 0.1) 45%, transparent 75%)",
+                  filter: "blur(24px)",
+                }} />
+              {/* Secondary warm corona */}
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[400px] h-[300px] pointer-events-none select-none"
+                style={{
+                  background: "radial-gradient(ellipse 60% 60% at 50% 15%, hsl(193 100% 80% / 0.25) 0%, transparent 65%)",
+                  filter: "blur(12px)",
+                }} />
 
               {/* AI Orb Avatar */}
               <motion.div
@@ -127,14 +121,15 @@ export function ChatPage() {
                 {/* Core */}
                 <div className="relative z-10 w-12 h-12 rounded-full flex items-center justify-center neon-glow"
                   style={{
-                    background: "linear-gradient(135deg, hsl(193 100% 52% / 0.25), hsl(224 28% 12%))",
-                    border: "1px solid hsl(193 100% 52% / 0.4)"
+                    background: "linear-gradient(135deg, hsl(193 100% 52%), hsl(193 100% 35%))",
+                    border: "1px solid hsl(193 100% 52% / 0.6)",
+                    boxShadow: "0 0 20px hsl(193 100% 52% / 0.5)"
                   }}>
-                  <Zap className="w-5 h-5 text-primary" fill="currentColor" />
+                  <Zap className="w-5 h-5 text-white" fill="currentColor" />
                 </div>
                 {/* Ambient corona */}
                 <div className="absolute inset-0 rounded-full"
-                  style={{ background: "radial-gradient(circle, hsl(193 100% 52% / 0.08) 0%, transparent 70%)" }} />
+                  style={{ background: "radial-gradient(circle, hsl(193 100% 52% / 0.15) 0%, transparent 70%)" }} />
               </motion.div>
 
               {/* Headline */}
