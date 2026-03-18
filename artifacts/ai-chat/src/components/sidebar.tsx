@@ -1,15 +1,16 @@
 import React, { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { PlusCircle, MessageSquare, Trash2, X, Settings, Zap } from "lucide-react";
+import { PlusCircle, MessageSquare, Trash2, X, Settings, Zap, Loader2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { SettingsPanel } from "@/components/settings-panel";
-import { PricingModal } from "@/components/pricing-modal";
+import { PricingModal, startCheckout } from "@/components/pricing-modal";
 import { useProfile } from "@/hooks/use-profile";
 import { useSubscription } from "@/hooks/use-subscription";
+import { getUserId } from "@/lib/user-id";
 import {
   useListOpenaiConversations,
   useDeleteOpenaiConversation,
@@ -26,8 +27,21 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const queryClient = useQueryClient();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPricingOpen, setIsPricingOpen] = useState(false);
+  const [checkingOut, setCheckingOut] = useState(false);
   const { profile } = useProfile();
   const { status, usagePercent, isPremium } = useSubscription();
+  const userId = getUserId();
+
+  const handleDirectUpgrade = async () => {
+    setCheckingOut(true);
+    try {
+      const url = await startCheckout(userId, "plus");
+      window.location.href = url;
+    } catch {
+      setCheckingOut(false);
+      setIsPricingOpen(true);
+    }
+  };
 
   const { data: conversations, isLoading } = useListOpenaiConversations();
   const { mutate: deleteConversation, isPending: isDeleting } = useDeleteOpenaiConversation();
@@ -184,29 +198,41 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         {/* Upgrade button for free users */}
         {!isPremium && (
           <button
-            onClick={() => setIsPricingOpen(true)}
+            onClick={handleDirectUpgrade}
+            disabled={checkingOut}
             className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg transition-all duration-200 group"
             style={{
-              background: "linear-gradient(135deg, hsl(193 100% 52% / 0.1), hsl(224 28% 10%))",
-              border: "1px solid hsl(193 100% 52% / 0.25)",
+              background: checkingOut
+                ? "hsl(193 100% 52% / 0.06)"
+                : "linear-gradient(135deg, hsl(193 100% 52% / 0.12), hsl(224 28% 10%))",
+              border: "1px solid hsl(193 100% 52% / 0.28)",
+              opacity: checkingOut ? 0.9 : 1,
             }}
-            onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 0 16px hsl(193 100% 52% / 0.15)"; }}
+            onMouseEnter={e => { if (!checkingOut) e.currentTarget.style.boxShadow = "0 0 16px hsl(193 100% 52% / 0.15)"; }}
             onMouseLeave={e => { e.currentTarget.style.boxShadow = "none"; }}
           >
-            <Zap size={14} className="text-primary" fill="currentColor" />
+            {checkingOut
+              ? <Loader2 size={14} className="text-primary animate-spin" />
+              : <Zap size={14} className="text-primary" fill="currentColor" />}
             <div className="flex-1 text-left">
-              <p className="text-[12px] font-medium text-primary">Upgrade to Plus</p>
-              <p className="text-[10px] text-muted-foreground/60">
-                {status.dailyMessageCount}/{status.dailyLimit ?? 30} messages today
+              <p className="text-[12px] font-medium text-primary">
+                {checkingOut ? "Preparing checkout…" : "Get Plus — £5/month"}
               </p>
+              {!checkingOut && (
+                <p className="text-[10px] text-muted-foreground/60">
+                  {status.dailyMessageCount}/{status.dailyLimit ?? 30} messages today
+                </p>
+              )}
             </div>
-            <div className="w-12 h-1.5 rounded-full overflow-hidden" style={{ background: "hsl(224 24% 14%)" }}>
-              <div className="h-full rounded-full transition-all duration-500"
-                style={{
-                  width: `${usagePercent}%`,
-                  background: usagePercent > 80 ? "hsl(0 80% 60%)" : "hsl(193 100% 52%)"
-                }} />
-            </div>
+            {!checkingOut && (
+              <div className="w-12 h-1.5 rounded-full overflow-hidden" style={{ background: "hsl(224 24% 14%)" }}>
+                <div className="h-full rounded-full transition-all duration-500"
+                  style={{
+                    width: `${usagePercent}%`,
+                    background: usagePercent > 80 ? "hsl(0 80% 60%)" : "hsl(193 100% 52%)"
+                  }} />
+              </div>
+            )}
           </button>
         )}
 

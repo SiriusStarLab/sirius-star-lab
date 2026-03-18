@@ -288,27 +288,41 @@ export default function SettingsScreen() {
       </View>
 
       {isFree && (
-        <View style={styles.card}>
-          <SectionHeader title="UPGRADE" />
+        <View style={styles.upgradeSection}>
+          <Text style={styles.upgradeHeading}>Get more from Sirius</Text>
+          <Text style={styles.upgradeSubheading}>
+            Less than a coffee a month. Cancel any time.
+          </Text>
+
+          {/* Plus — primary CTA */}
           <Pressable
             onPress={() => handleUpgrade("plus")}
-            style={({ pressed }) => [styles.upgradeBtn, styles.plusBtn, { opacity: pressed ? 0.85 : 1 }]}
+            style={({ pressed }) => [styles.plusCard, { opacity: pressed ? 0.9 : 1 }]}
           >
-            <View>
-              <Text style={styles.upgradeBtnTitle}>Sirius Plus</Text>
-              <Text style={styles.upgradeBtnDesc}>200 messages/day · £5/month</Text>
+            <View style={styles.plusCardInner}>
+              <View style={styles.plusIconWrap}>
+                <Feather name="zap" size={22} color={Colors.background} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.plusCardTitle}>Start Plus — £5/month</Text>
+                <Text style={styles.plusCardDesc}>200 messages/day · Image gen · Sirius remembers you</Text>
+              </View>
+              <Feather name="arrow-right" size={18} color={Colors.background} />
             </View>
-            <Feather name="arrow-right" size={18} color="#f59e0b" />
+            <Text style={styles.plusCardNote}>Secured by Stripe · Cancel any time, no questions asked</Text>
           </Pressable>
+
+          {/* Pro — secondary */}
           <Pressable
             onPress={() => handleUpgrade("pro")}
-            style={({ pressed }) => [styles.upgradeBtn, styles.proBtn, { opacity: pressed ? 0.85 : 1 }]}
+            style={({ pressed }) => [styles.proCard, { opacity: pressed ? 0.9 : 1 }]}
           >
-            <View>
-              <Text style={styles.upgradeBtnTitle}>Sirius Pro</Text>
-              <Text style={styles.upgradeBtnDesc}>Unlimited · £12/month</Text>
+            <Feather name="award" size={18} color="#f59e0b" />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.proCardTitle}>Go Pro — £12/month</Text>
+              <Text style={styles.proCardDesc}>Unlimited everything · Deep memory · Priority speed</Text>
             </View>
-            <Feather name="arrow-right" size={18} color={Colors.primary} />
+            <Feather name="chevron-right" size={16} color="rgba(245,158,11,0.5)" />
           </Pressable>
         </View>
       )}
@@ -518,25 +532,80 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_600SemiBold",
     fontSize: 14,
   },
-  upgradeBtn: {
+  upgradeSection: {
+    marginBottom: 16,
+  },
+  upgradeHeading: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: Colors.text,
+    fontFamily: "Inter_700Bold",
+    marginBottom: 4,
+  },
+  upgradeSubheading: {
+    fontSize: 13,
+    color: Colors.textMuted,
+    fontFamily: "Inter_400Regular",
+    marginBottom: 16,
+    lineHeight: 18,
+  },
+  plusCard: {
+    borderRadius: 16,
+    backgroundColor: Colors.primary,
+    padding: 18,
+    marginBottom: 10,
+  },
+  plusCardInner: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    gap: 14,
+    marginBottom: 10,
   },
-  plusBtn: {},
-  proBtn: {},
-  upgradeBtnTitle: {
+  plusIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: "rgba(0,0,0,0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  plusCardTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: Colors.background,
+    fontFamily: "Inter_700Bold",
+    marginBottom: 3,
+  },
+  plusCardDesc: {
+    fontSize: 12,
+    color: "rgba(8,12,26,0.7)",
+    fontFamily: "Inter_400Regular",
+    lineHeight: 16,
+  },
+  plusCardNote: {
+    fontSize: 11,
+    color: "rgba(8,12,26,0.5)",
+    fontFamily: "Inter_400Regular",
+    textAlign: "center",
+  },
+  proCard: {
+    borderRadius: 14,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: "rgba(245,158,11,0.25)",
+    padding: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  proCardTitle: {
     fontSize: 15,
     fontWeight: "600",
-    color: Colors.text,
+    color: "#f59e0b",
     fontFamily: "Inter_600SemiBold",
     marginBottom: 2,
   },
-  upgradeBtnDesc: {
+  proCardDesc: {
     fontSize: 12,
     color: Colors.textMuted,
     fontFamily: "Inter_400Regular",

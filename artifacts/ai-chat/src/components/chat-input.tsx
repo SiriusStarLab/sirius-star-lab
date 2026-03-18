@@ -1,7 +1,10 @@
 import React, { useRef, useEffect, KeyboardEvent, useState, useCallback } from "react";
-import { Send, Square, Mic, MicOff, Paperclip, X, Loader2 } from "lucide-react";
+import { Send, Square, Mic, MicOff, Paperclip, X, Loader2, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { useSubscription } from "@/hooks/use-subscription";
+import { getUserId } from "@/lib/user-id";
+import { startCheckout } from "@/components/pricing-modal";
 
 const PLACEHOLDERS = [
   "Initialise session — I'm ready...",
@@ -38,6 +41,19 @@ export function ChatInput({ onSend, isTyping, onStop }: ChatInputProps) {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
+  const [upgradingFromLimit, setUpgradingFromLimit] = useState(false);
+  const { status } = useSubscription();
+  const userId = getUserId();
+
+  const handleLimitUpgrade = async () => {
+    setUpgradingFromLimit(true);
+    try {
+      const url = await startCheckout(userId, "plus");
+      window.location.href = url;
+    } catch {
+      setUpgradingFromLimit(false);
+    }
+  };
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -150,6 +166,53 @@ export function ChatInput({ onSend, isTyping, onStop }: ChatInputProps) {
   };
 
   const canSend = !!(input.trim() || imageBase64) && !isTyping;
+
+  // Show upgrade wall when daily limit is hit
+  if (status.dailyLimit !== null && !status.canSendMessage) {
+    return (
+      <div className="relative w-full max-w-3xl mx-auto">
+        <div
+          style={{
+            borderRadius: 18,
+            background: "linear-gradient(135deg, rgba(0,212,255,0.08), rgba(0,212,255,0.03))",
+            border: "1.5px solid rgba(0,212,255,0.25)",
+            padding: "24px 24px 20px",
+            textAlign: "center",
+            boxShadow: "0 0 40px rgba(0,212,255,0.06)",
+          }}
+        >
+          <div style={{ fontSize: 28, marginBottom: 8 }}>✨</div>
+          <p style={{ fontSize: 16, fontWeight: 700, color: "#fff", marginBottom: 6 }}>
+            You've used all {status.dailyLimit} messages today
+          </p>
+          <p style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", marginBottom: 20, lineHeight: 1.5 }}>
+            Your free messages reset at midnight. Upgrade to Plus for 200 a day — or go Pro for unlimited.
+          </p>
+          <button
+            onClick={handleLimitUpgrade}
+            disabled={upgradingFromLimit}
+            style={{
+              padding: "14px 32px",
+              borderRadius: 12, border: "none",
+              background: upgradingFromLimit ? "rgba(0,212,255,0.2)" : "#00d4ff",
+              color: upgradingFromLimit ? "#00d4ff" : "#080c1a",
+              fontSize: 15, fontWeight: 700, cursor: "pointer",
+              display: "inline-flex", alignItems: "center", gap: 8,
+              transition: "all 0.2s",
+            }}
+          >
+            {upgradingFromLimit
+              ? <><Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> Getting checkout ready…</>
+              : <><Zap size={15} fill="currentColor" /> Get Plus for £5/month</>}
+          </button>
+          <p style={{ fontSize: 11, color: "rgba(255,255,255,0.2)", marginTop: 12 }}>
+            Secured by Stripe · Cancel any time
+          </p>
+        </div>
+        <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
 
   return (
     <div className="relative w-full max-w-3xl mx-auto">
