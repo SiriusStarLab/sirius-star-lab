@@ -2,13 +2,13 @@ import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Linking,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   TextInput,
   View,
@@ -17,7 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
-import { getApiBase } from "@/lib/api";
+import { generatePortrait, getApiBase } from "@/lib/api";
 
 const TIER_LABELS: Record<string, string> = {
   free: "Free",
@@ -84,6 +84,24 @@ export default function SettingsScreen() {
   const [editingAiName, setEditingAiName] = useState(false);
   const [nameValue, setNameValue] = useState(profile.userName);
   const [aiNameValue, setAiNameValue] = useState(profile.aiName);
+
+  const [portrait, setPortrait] = useState<string | null>(null);
+  const [portraitLoading, setPortraitLoading] = useState(false);
+  const [portraitVisible, setPortraitVisible] = useState(false);
+
+  const handleGeneratePortrait = async () => {
+    if (!userId) return;
+    setPortraitLoading(true);
+    setPortraitVisible(true);
+    setPortrait(null);
+    try {
+      const result = await generatePortrait(userId);
+      setPortrait(result.portrait ?? result.message ?? null);
+    } catch {
+      setPortrait("Unable to generate your portrait right now.");
+    }
+    setPortraitLoading(false);
+  };
 
   useEffect(() => {
     setNameValue(profile.userName);
@@ -226,6 +244,42 @@ export default function SettingsScreen() {
             value={profile.aiName}
             onPress={() => setEditingAiName(true)}
           />
+        )}
+      </View>
+
+      {/* Memory Portrait */}
+      <View style={styles.card}>
+        <SectionHeader title="YOUR PORTRAIT" />
+        <View style={styles.portraitDesc}>
+          <Text style={styles.portraitDescText}>
+            After enough conversations, {profile.aiName} synthesises everything it knows about you into a personal portrait — who you are, what drives you, what lights you up.
+          </Text>
+        </View>
+        {!portraitVisible ? (
+          <Pressable
+            onPress={handleGeneratePortrait}
+            style={({ pressed }) => [styles.portraitBtn, { opacity: pressed ? 0.85 : 1 }]}
+          >
+            <Feather name="eye" size={16} color={Colors.primary} />
+            <Text style={styles.portraitBtnText}>Generate my portrait</Text>
+          </Pressable>
+        ) : (
+          <View style={styles.portraitResult}>
+            {portraitLoading ? (
+              <View style={styles.portraitLoading}>
+                <ActivityIndicator color={Colors.primary} />
+                <Text style={styles.portraitLoadingText}>Seeing you clearly…</Text>
+              </View>
+            ) : (
+              <>
+                <Text style={styles.portraitText}>{portrait}</Text>
+                <Pressable onPress={handleGeneratePortrait} style={styles.refreshRow}>
+                  <Feather name="refresh-cw" size={12} color={Colors.primary} />
+                  <Text style={styles.refreshText}>Regenerate</Text>
+                </Pressable>
+              </>
+            )}
+          </View>
         )}
       </View>
 
@@ -489,5 +543,68 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     textAlign: "center",
     marginTop: 8,
+  },
+  portraitDesc: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  portraitDescText: {
+    fontSize: 13,
+    color: Colors.textDim,
+    fontFamily: "Inter_400Regular",
+    lineHeight: 19,
+    paddingTop: 12,
+  },
+  portraitBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  portraitBtnText: {
+    fontSize: 14,
+    color: Colors.primary,
+    fontFamily: "Inter_500Medium",
+  },
+  portraitResult: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  portraitLoading: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 8,
+  },
+  portraitLoadingText: {
+    fontSize: 13,
+    color: Colors.textDim,
+    fontFamily: "Inter_400Regular",
+    fontStyle: "italic",
+  },
+  portraitText: {
+    fontSize: 14,
+    color: Colors.text,
+    fontFamily: "Inter_400Regular",
+    lineHeight: 22,
+    fontStyle: "italic",
+    marginBottom: 12,
+  },
+  refreshRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  refreshText: {
+    fontSize: 12,
+    color: Colors.primary,
+    fontFamily: "Inter_500Medium",
   },
 });

@@ -87,3 +87,95 @@ export function generateId(): string {
   messageCounter++;
   return `msg-${Date.now()}-${messageCounter}-${Math.random().toString(36).substr(2, 9)}`;
 }
+
+export interface MoodCheckin {
+  id: number;
+  userId: string;
+  mood: string;
+  note: string;
+  createdAt: string;
+}
+
+export async function logMood(userId: string, mood: string, note?: string): Promise<MoodCheckin> {
+  const base = getApiBase();
+  const res = await fetch(`${base}intelligence/mood`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ userId, mood, note: note ?? "" }),
+  });
+  if (!res.ok) throw new Error("Failed to log mood");
+  return res.json();
+}
+
+export async function fetchMoodHistory(userId: string): Promise<MoodCheckin[]> {
+  const base = getApiBase();
+  const res = await fetch(`${base}intelligence/mood/${userId}`);
+  if (!res.ok) throw new Error("Failed to fetch mood history");
+  return res.json();
+}
+
+export async function fetchEmotionalArc(userId: string): Promise<{ insight: string | null; message?: string; checkinCount?: number }> {
+  const base = getApiBase();
+  const res = await fetch(`${base}intelligence/arc/${userId}`);
+  if (!res.ok) throw new Error("Failed to fetch arc");
+  return res.json();
+}
+
+export async function generatePortrait(userId: string): Promise<{ portrait: string | null; message?: string; generatedAt?: string }> {
+  const base = getApiBase();
+  const res = await fetch(`${base}intelligence/portrait/${userId}`, { method: "POST" });
+  if (!res.ok) throw new Error("Failed to generate portrait");
+  return res.json();
+}
+
+export async function generateBriefing(userId: string): Promise<{ briefing: string | null; date?: string }> {
+  const base = getApiBase();
+  const res = await fetch(`${base}intelligence/briefing/${userId}`, { method: "POST" });
+  if (!res.ok) throw new Error("Failed to generate briefing");
+  return res.json();
+}
+
+export async function streamResearch(
+  topic: string,
+  userId: string,
+  onChunk: (text: string) => void,
+  onDone: () => void,
+  onError: (e: string) => void
+): Promise<void> {
+  const base = getApiBase();
+  const { fetch: expoFetch } = await import("expo/fetch");
+
+  const response = await expoFetch(`${base}intelligence/research`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ topic, userId }),
+  } as any);
+
+  if (!response.ok) {
+    onError("Research failed");
+    return;
+  }
+
+  const reader = (response.body as any).getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    for (const line of lines) {
+      if (line.startsWith("data: ")) {
+        try {
+          const data = JSON.parse(line.slice(6));
+          if (data.content) onChunk(data.content);
+          if (data.done) { onDone(); return; }
+          if (data.error) { onError(data.error); return; }
+        } catch {}
+      }
+    }
+  }
+  onDone();
+}
