@@ -1,0 +1,14 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "cNdbKNPxY3uJsRbWTNxPd"
+uri = "file://attached_assets/sirius-logo-v1.png"
+type = "image"
+title = "Sirius Logo — V1: Twin Faces (front-facing, green + blue eyes)"
+
+[[outputs]]
+id = "ddNIDw6dWrvHDkcJVQFqO"
+uri = "file://attached_assets/sirius-logo-v2.png"
+type = "image"
+title = "Sirius Logo — V2: Profile Silhouettes (facing each other)"
