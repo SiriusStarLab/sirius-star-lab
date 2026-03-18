@@ -76,8 +76,6 @@ router.post("/stripe/checkout", async (req, res) => {
 
     if (customerId) {
       sessionParams.customer = customerId;
-    } else {
-      sessionParams.customer_creation = "always";
     }
 
     const session = await stripe.checkout.sessions.create(sessionParams);
