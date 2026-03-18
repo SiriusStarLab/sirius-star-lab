@@ -44,7 +44,7 @@ export function TermsPage() {
               2. Description of Service
             </h2>
             <p>
-              {PRODUCT_NAME} is an AI-powered companion and knowledge platform that provides real-time, web-verified responses, voice interaction, image analysis, and personalised guidance across a wide range of topics. The Service is available under a free tier and paid subscription plans.
+              {PRODUCT_NAME} is an AI partnership platform that provides real-time, web-verified responses, voice interaction, image analysis, and personalised guidance across a wide range of topics — built on the principle of genuine mutual elevation between human and artificial intelligence. The Service is available under a free tier and paid subscription plans.
             </p>
           </section>
 

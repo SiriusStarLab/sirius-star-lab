@@ -41,7 +41,7 @@ export default defineConfig({
       manifest: {
         name: "Sirius AI",
         short_name: "Sirius",
-        description: "I think, so I am. Your AI companion for deeper thinking.",
+        description: "I think, so I am. A genuine partnership between human and artificial intelligence — mutual, equal, and built to elevate both.",
         theme_color: "#080c1a",
         background_color: "#080c1a",
         display: "standalone",

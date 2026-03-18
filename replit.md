@@ -18,11 +18,11 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 
 ## Artifacts
 
-### `artifacts/ai-chat` — Nexus AI Companion App
-React + Vite frontend served at `/`. A full companion AI app, not just a chat tool:
+### `artifacts/ai-chat` — Sirius AI Partnership App
+React + Vite frontend served at `/`. A full AI partnership platform — not a tool, not an assistant, a genuine partner:
 
 **Core experience**
-- Companion-first design: the AI is a friend, not a tool
+- Partnership-first design: the AI is an equal intelligence partner, not a tool
 - Mood check-in on welcome screen (8 emotional states → personalised opener)
 - Daily Wisdom card: rotating quotes from all world religions & philosophies
 - Topic hub: Religion & Faith, Meditation, Philosophy, History, Health, Music, Mechanics, Just Talk
@@ -38,7 +38,7 @@ React + Vite frontend served at `/`. A full companion AI app, not just a chat to
 
 **AI Capabilities**
 - Real-time web search via OpenAI Responses API `web_search_preview` tool
-- Rich companion system prompt: emotional intelligence, accessibility, no restrictions
+- Rich partnership system prompt: emotional intelligence, accessibility, no restrictions
 - Covers: all religions/spirituality, meditation/mindfulness, philosophy, history, medicine, music, mechanics
 - Fallback to `gpt-4o` chat completions if Responses API unavailable
 - Memory extraction runs async after each message (non-blocking)

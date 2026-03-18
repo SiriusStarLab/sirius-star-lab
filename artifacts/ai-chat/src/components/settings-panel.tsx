@@ -118,7 +118,7 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
                 </div>
                 <div>
                   <h2 className="font-semibold text-foreground">Your AI</h2>
-                  <p className="text-xs text-muted-foreground">Shape your companion</p>
+                  <p className="text-xs text-muted-foreground">Shape your partnership</p>
                 </div>
               </div>
               <Button variant="ghost" size="icon" onClick={onClose}>

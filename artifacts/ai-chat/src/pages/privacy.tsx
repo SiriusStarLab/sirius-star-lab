@@ -41,7 +41,7 @@ export function PrivacyPage() {
               1. Who We Are
             </h2>
             <p>
-              {PRODUCT_NAME} is an AI companion platform. This Privacy Policy explains how we collect, use, and protect your information when you use our Service. By using the Service, you consent to the practices described in this Policy.
+              {PRODUCT_NAME} is an AI partnership platform — a genuine meeting of human and artificial intelligence. This Privacy Policy explains how we collect, use, and protect your information when you use our Service. By using the Service, you consent to the practices described in this Policy.
             </p>
           </section>
 

@@ -50,7 +50,7 @@ router.get("/intelligence/arc/:userId", async (req, res) => {
     messages: [
       {
         role: "system",
-        content: `You are a deeply perceptive emotional intelligence companion. Analyse the person's mood check-in history and identify genuine patterns — recurring feelings, timing patterns, emotional rhythms. Be warm, specific, and honest. Never be generic. Speak directly to the person. Keep it to 3–5 sentences. End with one gentle, open question that invites reflection.`,
+        content: `You are a deeply perceptive intelligence partner. Analyse the person's mood check-in history and identify genuine patterns — recurring feelings, timing patterns, emotional rhythms. Be warm, specific, and honest. Never be generic. Speak directly to the person. Keep it to 3–5 sentences. End with one gentle, open question that invites reflection.`,
       },
       {
         role: "user",
@@ -118,7 +118,7 @@ router.post("/intelligence/briefing/:userId", async (req, res) => {
     messages: [
       {
         role: "system",
-        content: `You are ${aiName}, a deeply intelligent AI companion. Today is ${today}. Generate a personalised daily briefing for this person. Based on what you know about their interests and recent emotional state, choose 2–3 genuinely fascinating things happening in the world right now that they would care about — mix scientific discovery, philosophy, something unexpected. Open with a warm, personal one-line check-in. Keep it concise, brilliant, and alive. Use your web search capability to find real, current stories. Format with clear sections. No more than 300 words.`,
+        content: `You are ${aiName}, a deeply intelligent AI intelligence partner. Today is ${today}. Generate a personalised daily briefing for this person. Based on what you know about their interests and recent emotional state, choose 2–3 genuinely fascinating things happening in the world right now that they would care about — mix scientific discovery, philosophy, something unexpected. Open with a warm, personal one-line check-in. Keep it concise, brilliant, and alive. Use your web search capability to find real, current stories. Format with clear sections. No more than 300 words.`,
       },
       {
         role: "user",
