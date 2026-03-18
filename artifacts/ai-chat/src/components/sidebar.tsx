@@ -1,12 +1,13 @@
 import React, { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { PlusCircle, MessageSquare, Trash2, X, Settings, Zap, Loader2 } from "lucide-react";
+import { PlusCircle, MessageSquare, Trash2, X, Settings, Zap, Loader2, Sparkles } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { SettingsPanel } from "@/components/settings-panel";
+import { MemoryPortrait } from "@/components/memory-portrait";
 import { PricingModal, startCheckout } from "@/components/pricing-modal";
 import { useProfile } from "@/hooks/use-profile";
 import { useSubscription } from "@/hooks/use-subscription";
@@ -26,6 +27,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const [location, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isPortraitOpen, setIsPortraitOpen] = useState(false);
   const [isPricingOpen, setIsPricingOpen] = useState(false);
   const [checkingOut, setCheckingOut] = useState(false);
   const { profile } = useProfile();
@@ -255,6 +257,33 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         )}
 
         <button
+          onClick={() => setIsPortraitOpen(true)}
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 text-sm"
+          style={{
+            color: "hsl(193 100% 52% / 0.7)",
+            background: "hsl(193 100% 52% / 0.04)",
+            border: "1px solid hsl(193 100% 52% / 0.12)",
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.color = "hsl(193 100% 52%)";
+            e.currentTarget.style.background = "hsl(193 100% 52% / 0.08)";
+            e.currentTarget.style.boxShadow = "0 0 12px hsl(193 100% 52% / 0.08)";
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.color = "hsl(193 100% 52% / 0.7)";
+            e.currentTarget.style.background = "hsl(193 100% 52% / 0.04)";
+            e.currentTarget.style.boxShadow = "none";
+          }}
+        >
+          <Sparkles size={14} />
+          <span className="text-[13px] font-medium">Memory Portrait</span>
+          <span className="ml-auto text-[9px] font-mono uppercase tracking-wider px-2 py-0.5 rounded"
+            style={{ background: "hsl(193 100% 52% / 0.1)", color: "hsl(193 100% 52%)", border: "1px solid hsl(193 100% 52% / 0.2)" }}>
+            {aiName}
+          </span>
+        </button>
+
+        <button
           onClick={() => setIsSettingsOpen(true)}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-all duration-200 text-sm"
         >
@@ -303,6 +332,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       </motion.div>
 
       <SettingsPanel isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+      <MemoryPortrait isOpen={isPortraitOpen} onClose={() => setIsPortraitOpen(false)} aiName={aiName} />
       <PricingModal isOpen={isPricingOpen} onClose={() => setIsPricingOpen(false)} currentTier={status.tier} hasStripeCustomer={status.hasStripeCustomer} />
     </>
   );
