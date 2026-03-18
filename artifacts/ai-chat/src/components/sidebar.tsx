@@ -82,13 +82,11 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           onClick={() => onClose()}
           className="flex items-center gap-3 hover:opacity-80 transition-opacity"
         >
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center"
+          <div className="w-9 h-9 rounded-xl overflow-hidden flex-shrink-0"
             style={{
-              background: "linear-gradient(135deg, hsl(193 100% 52% / 0.2), hsl(224 28% 12%))",
-              border: "1px solid hsl(193 100% 52% / 0.3)",
-              boxShadow: "0 0 10px hsl(193 100% 52% / 0.15)"
+              boxShadow: "0 0 12px hsl(193 100% 52% / 0.25), 0 0 4px hsl(193 100% 52% / 0.15)"
             }}>
-            <span className="text-primary font-bold text-sm">S</span>
+            <img src="/logo.png" alt="Sirius" className="w-full h-full object-cover" />
           </div>
           <div>
             <span className="font-semibold text-sm tracking-wide text-sidebar-foreground block">{aiName}</span>
