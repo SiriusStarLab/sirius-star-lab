@@ -22,6 +22,9 @@ app.use(cors({
   allowedHeaders: ["Content-Type", "Authorization"],
 }));
 
+// Raw body for Stripe webhook signature verification — must come before JSON parser
+app.use("/api/stripe/webhook", express.raw({ type: "application/json" }));
+
 app.use(express.json({ limit: "20mb" }));
 app.use(express.urlencoded({ extended: true, limit: "20mb" }));
 

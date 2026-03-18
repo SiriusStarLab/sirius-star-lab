@@ -121,16 +121,20 @@ export default function SettingsScreen() {
   const handleUpgrade = async (tier: "plus" | "pro") => {
     try {
       const base = getApiBase();
-      const res = await fetch(`${base}stripe/links`);
-      const { plusLink, proLink } = await res.json();
-      const link = tier === "plus" ? plusLink : proLink;
-      if (link) {
-        await Linking.openURL(link);
+      const res = await fetch(`${base}stripe/checkout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, tier }),
+      });
+      if (!res.ok) throw new Error("Failed to start checkout");
+      const { url } = await res.json();
+      if (url) {
+        await Linking.openURL(url);
       } else {
-        Alert.alert("Not Available", "Payment links are not configured yet.");
+        Alert.alert("Error", "Could not start checkout. Please try again.");
       }
     } catch {
-      Alert.alert("Error", "Could not load payment links.");
+      Alert.alert("Error", "Could not start checkout. Please check your connection.");
     }
   };
 

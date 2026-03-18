@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Zap, Check, Sparkles, Crown, Loader2, ExternalLink } from "lucide-react";
+import { X, Zap, Check, Sparkles, Crown, Loader2, Shield, RotateCcw } from "lucide-react";
 import { getUserId } from "@/lib/user-id";
+import { getApiBase } from "@/lib/api-base";
 
 const PLANS = [
   {
@@ -10,34 +11,35 @@ const PLANS = [
     price: "Free",
     period: "",
     tag: "ALWAYS FREE",
-    tagColor: "text-muted-foreground",
-    glowColor: "",
-    icon: <Sparkles className="w-5 h-5" />,
-    iconBg: "bg-muted/60",
-    iconColor: "text-muted-foreground",
+    tagColor: "rgba(255,255,255,0.3)",
+    borderColor: "rgba(255,255,255,0.08)",
+    icon: <Sparkles style={{ width: 18, height: 18 }} />,
+    iconBg: "rgba(255,255,255,0.06)",
+    iconColor: "rgba(255,255,255,0.4)",
     features: [
       "30 messages per day",
-      "Web search included",
+      "Real-time web search",
       "All topics & moods",
       "Daily wisdom",
-      "Basic conversation history",
+      "Conversation history",
     ],
-    missing: ["Image generation", "Unlimited messages", "Saved memories"],
+    missing: ["Image generation", "Unlimited messages", "Sirius remembers you"],
   },
   {
     id: "plus",
     name: "Plus",
-    price: "$5",
+    price: "£5",
     period: "/month",
     tag: "MOST POPULAR",
-    tagColor: "text-primary",
-    glowColor: "shadow-[0_0_30px_hsl(193_100%_52%/0.12)]",
-    icon: <Zap className="w-5 h-5" fill="currentColor" />,
-    iconBg: "bg-primary/15",
-    iconColor: "text-primary",
+    tagColor: "#00d4ff",
+    borderColor: "rgba(0,212,255,0.3)",
+    glow: "0 0 30px rgba(0,212,255,0.12)",
+    icon: <Zap style={{ width: 18, height: 18 }} fill="currentColor" />,
+    iconBg: "rgba(0,212,255,0.12)",
+    iconColor: "#00d4ff",
     features: [
       "200 messages per day",
-      "Web search included",
+      "Real-time web search",
       "10 image generations/day",
       "Full conversation history",
       "Sirius remembers you",
@@ -48,18 +50,19 @@ const PLANS = [
   {
     id: "pro",
     name: "Pro",
-    price: "$12",
+    price: "£12",
     period: "/month",
     tag: "UNLIMITED",
-    tagColor: "text-amber-400",
-    glowColor: "shadow-[0_0_30px_hsl(45_95%_58%/0.1)]",
-    icon: <Crown className="w-5 h-5" />,
-    iconBg: "bg-amber-400/10",
-    iconColor: "text-amber-400",
+    tagColor: "#f59e0b",
+    borderColor: "rgba(245,158,11,0.25)",
+    glow: "0 0 30px rgba(245,158,11,0.1)",
+    icon: <Crown style={{ width: 18, height: 18 }} />,
+    iconBg: "rgba(245,158,11,0.1)",
+    iconColor: "#f59e0b",
     features: [
       "Unlimited messages",
       "Unlimited image generation",
-      "Web search included",
+      "Real-time web search",
       "Full conversation history",
       "Deep memory & personalisation",
       "Priority response speed",
@@ -69,39 +72,48 @@ const PLANS = [
   },
 ];
 
-interface PaymentLinks {
-  plusLink: string | null;
-  proLink: string | null;
-}
-
 interface PricingModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentTier?: string;
-  hasStripeCustomer?: boolean;
 }
 
 export function PricingModal({ isOpen, onClose, currentTier = "free" }: PricingModalProps) {
-  const [links, setLinks] = useState<PaymentLinks>({ plusLink: null, proLink: null });
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const userId = getUserId();
 
   useEffect(() => {
-    if (!isOpen) return;
-    fetch("/api/stripe/links")
-      .then(r => r.json())
-      .then((data: PaymentLinks) => setLinks(data))
-      .catch(() => {});
+    if (!isOpen) {
+      setError(null);
+      setLoadingPlan(null);
+    }
   }, [isOpen]);
 
-  function handleUpgrade(tier: "plus" | "pro") {
-    const link = tier === "plus" ? links.plusLink : links.proLink;
-    if (!link) return;
+  async function handleUpgrade(tier: "plus" | "pro") {
     setLoadingPlan(tier);
-    // Append userId as reference so Stripe records which user paid
-    const url = new URL(link);
-    url.searchParams.set("client_reference_id", userId);
-    window.location.href = url.toString();
+    setError(null);
+    try {
+      const base = getApiBase();
+      const res = await fetch(`${base}stripe/checkout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, tier }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to start checkout");
+      }
+      const { url } = await res.json();
+      if (url) {
+        window.location.href = url;
+      } else {
+        throw new Error("No checkout URL returned");
+      }
+    } catch (err: any) {
+      setError(err.message || "Something went wrong. Please try again.");
+      setLoadingPlan(null);
+    }
   }
 
   const isPremium = currentTier !== "free";
@@ -115,7 +127,11 @@ export function PricingModal({ isOpen, onClose, currentTier = "free" }: PricingM
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 z-50 bg-background/80 backdrop-blur-md"
+            style={{
+              position: "fixed", inset: 0, zIndex: 50,
+              background: "rgba(8,12,26,0.85)",
+              backdropFilter: "blur(12px)",
+            }}
           />
         )}
       </AnimatePresence>
@@ -123,157 +139,267 @@ export function PricingModal({ isOpen, onClose, currentTier = "free" }: PricingM
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            initial={{ opacity: 0, scale: 0.96, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            exit={{ opacity: 0, scale: 0.96, y: 20 }}
             transition={{ type: "spring", damping: 28, stiffness: 300 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
+            style={{
+              position: "fixed", inset: 0, zIndex: 51,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              padding: "16px",
+              pointerEvents: "none",
+            }}
           >
             <div
-              className="pointer-events-auto w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-2xl"
               style={{
-                background: "hsl(224 28% 6%)",
-                border: "1px solid hsl(193 100% 52% / 0.15)",
-                boxShadow: "0 0 60px hsl(193 100% 52% / 0.08), 0 40px 80px hsl(0 0% 0% / 0.5)"
-              }}>
-
+                pointerEvents: "auto",
+                width: "100%",
+                maxWidth: 880,
+                maxHeight: "92vh",
+                overflowY: "auto",
+                borderRadius: 20,
+                background: "#080c1a",
+                border: "1px solid rgba(0,212,255,0.15)",
+                boxShadow: "0 0 60px rgba(0,212,255,0.08), 0 40px 80px rgba(0,0,0,0.6)",
+              }}
+            >
               {/* Header */}
-              <div className="relative p-6 pb-0">
+              <div style={{ position: "relative", padding: "28px 24px 0" }}>
                 <button
                   onClick={onClose}
-                  className="absolute top-5 right-5 w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
-                  style={{ background: "hsl(224 24% 11%)", border: "1px solid hsl(224 20% 16%)" }}>
+                  style={{
+                    position: "absolute", top: 20, right: 20,
+                    width: 32, height: 32, borderRadius: 10,
+                    background: "rgba(255,255,255,0.05)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    cursor: "pointer", color: "rgba(255,255,255,0.4)",
+                  }}
+                >
                   <X size={15} />
                 </button>
-                <div className="text-center mb-6">
-                  <p className="text-[10px] font-mono tracking-[0.25em] text-primary/60 uppercase mb-1">Sirius AI</p>
-                  <p className="text-[11px] font-mono tracking-[0.1em] mb-3" style={{ color: "hsl(193 100% 52% / 0.45)" }}>
+
+                <div style={{ textAlign: "center", marginBottom: 24 }}>
+                  <p style={{ fontFamily: "Space Mono, monospace", fontSize: 10, letterSpacing: "0.25em", color: "rgba(0,212,255,0.5)", textTransform: "uppercase", marginBottom: 6 }}>
+                    Sirius AI
+                  </p>
+                  <p style={{ fontFamily: "Space Mono, monospace", fontSize: 11, letterSpacing: "0.1em", color: "rgba(0,212,255,0.3)", marginBottom: 12 }}>
                     I think, so I am
                   </p>
-                  <h2
-                    className="text-2xl font-bold mb-2"
-                    style={{
-                      background: "linear-gradient(135deg, hsl(var(--foreground)) 0%, hsl(193 100% 52%) 50%, hsl(var(--foreground) / 0.7) 100%)",
-                      WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text"
-                    }}>
-                    Choose your plan
+                  <h2 style={{
+                    fontSize: "clamp(20px, 4vw, 26px)", fontWeight: 700, marginBottom: 8,
+                    background: "linear-gradient(135deg, #ffffff 0%, #00d4ff 50%, rgba(255,255,255,0.6) 100%)",
+                    WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
+                  }}>
+                    Choose your partnership level
                   </h2>
-                  <p className="text-sm text-muted-foreground/70 max-w-sm mx-auto">
+                  <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", maxWidth: 320, margin: "0 auto" }}>
                     Less than a coffee a month. Cancel any time.
                   </p>
                 </div>
               </div>
 
-              {/* Plans */}
-              <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Plans grid */}
+              <div style={{
+                padding: "0 20px 20px",
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+                gap: 14,
+              }}>
                 {PLANS.map((plan) => {
                   const isCurrentPlan = plan.id === currentTier;
                   const isLoading = loadingPlan === plan.id;
-                  const link = plan.id === "plus" ? links.plusLink : plan.id === "pro" ? links.proLink : null;
-                  const linksReady = links.plusLink !== null || links.proLink !== null;
 
                   return (
                     <div
                       key={plan.id}
-                      className={`relative flex flex-col rounded-xl p-5 transition-all duration-200 ${plan.glowColor}`}
                       style={{
-                        background: isCurrentPlan ? "hsl(224 24% 10%)" : "hsl(224 24% 8% / 0.8)",
-                        border: `1px solid ${isCurrentPlan ? "hsl(193 100% 52% / 0.35)" : "hsl(var(--border) / 0.6)"}`,
-                      }}>
+                        position: "relative",
+                        display: "flex",
+                        flexDirection: "column",
+                        borderRadius: 16,
+                        padding: "20px 18px",
+                        background: isCurrentPlan ? "rgba(0,212,255,0.04)" : "rgba(15,20,37,0.8)",
+                        border: `1px solid ${isCurrentPlan ? plan.borderColor : "rgba(255,255,255,0.07)"}`,
+                        boxShadow: isCurrentPlan ? (plan as any).glow || "none" : "none",
+                        transition: "all 0.2s ease",
+                      }}
+                    >
+                      <p style={{ fontSize: 9, fontFamily: "Space Mono, monospace", letterSpacing: "0.2em", marginBottom: 14, color: plan.tagColor, textTransform: "uppercase" }}>
+                        {plan.tag}
+                      </p>
 
-                      <p className={`text-[9px] font-mono tracking-[0.2em] mb-3 ${plan.tagColor}`}>{plan.tag}</p>
-
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${plan.iconBg} ${plan.iconColor}`}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+                        <div style={{
+                          width: 40, height: 40, borderRadius: 10,
+                          background: plan.iconBg, color: plan.iconColor,
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                        }}>
                           {plan.icon}
                         </div>
                         <div>
-                          <p className="font-bold text-foreground">{plan.name}</p>
-                          <p className="text-xs text-muted-foreground/60">Sirius AI</p>
+                          <p style={{ fontWeight: 700, color: "#fff", fontSize: 15 }}>{plan.name}</p>
+                          <p style={{ fontSize: 11, color: "rgba(255,255,255,0.3)" }}>Sirius AI</p>
                         </div>
                       </div>
 
-                      <div className="mb-5">
-                        <span className="text-3xl font-bold text-foreground">{plan.price}</span>
-                        <span className="text-sm text-muted-foreground">{plan.period}</span>
+                      <div style={{ marginBottom: 18 }}>
+                        <span style={{ fontSize: 32, fontWeight: 800, color: "#fff" }}>{plan.price}</span>
+                        <span style={{ fontSize: 13, color: "rgba(255,255,255,0.4)" }}>{plan.period}</span>
                         {plan.id !== "free" && (
-                          <p className="text-[10px] text-muted-foreground/50 mt-0.5">billed monthly · cancel any time</p>
+                          <p style={{ fontSize: 10, color: "rgba(255,255,255,0.25)", marginTop: 4 }}>
+                            billed monthly · cancel any time
+                          </p>
                         )}
                       </div>
 
-                      <ul className="space-y-2 mb-5 flex-1">
+                      <ul style={{ listStyle: "none", padding: 0, margin: "0 0 18px", flex: 1 }}>
                         {plan.features.map((f) => (
-                          <li key={f} className="flex items-start gap-2 text-xs text-foreground/80">
-                            <Check size={12} className="text-primary mt-0.5 shrink-0" />
-                            {f}
+                          <li key={f} style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>
+                            <Check size={12} style={{ color: "#00d4ff", marginTop: 2, flexShrink: 0 }} />
+                            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.75)" }}>{f}</span>
                           </li>
                         ))}
                         {plan.missing.map((f) => (
-                          <li key={f} className="flex items-start gap-2 text-xs text-muted-foreground/35 line-through">
-                            <span className="w-3 h-3 mt-0.5 shrink-0" />
-                            {f}
+                          <li key={f} style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 8, opacity: 0.3 }}>
+                            <span style={{ width: 12, flexShrink: 0 }} />
+                            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", textDecoration: "line-through" }}>{f}</span>
                           </li>
                         ))}
                       </ul>
 
                       {/* CTA */}
                       {isCurrentPlan ? (
-                        <div
-                          className="w-full py-2.5 rounded-lg text-center text-xs font-mono tracking-wider text-primary/60 uppercase"
-                          style={{ background: "hsl(193 100% 52% / 0.07)", border: "1px solid hsl(193 100% 52% / 0.2)" }}>
+                        <div style={{
+                          padding: "10px 0", textAlign: "center",
+                          fontSize: 11, fontFamily: "Space Mono, monospace",
+                          letterSpacing: "0.15em", textTransform: "uppercase",
+                          color: "rgba(0,212,255,0.5)",
+                          background: "rgba(0,212,255,0.06)",
+                          borderRadius: 10,
+                          border: "1px solid rgba(0,212,255,0.15)",
+                        }}>
                           Current plan
                         </div>
                       ) : plan.id === "free" ? (
-                        <div
-                          className="w-full py-2.5 rounded-lg text-center text-xs font-mono tracking-wider text-muted-foreground/30 uppercase"
-                          style={{ background: "hsl(224 24% 9%)", border: "1px solid hsl(224 20% 14%)" }}>
+                        <div style={{
+                          padding: "10px 0", textAlign: "center",
+                          fontSize: 11, fontFamily: "Space Mono, monospace",
+                          letterSpacing: "0.15em", textTransform: "uppercase",
+                          color: "rgba(255,255,255,0.2)",
+                          background: "rgba(255,255,255,0.03)",
+                          borderRadius: 10,
+                          border: "1px solid rgba(255,255,255,0.06)",
+                        }}>
                           Included
                         </div>
-                      ) : link ? (
+                      ) : (
                         <button
                           onClick={() => handleUpgrade(plan.id as "plus" | "pro")}
                           disabled={!!loadingPlan}
-                          className="w-full py-3 rounded-lg flex items-center justify-center gap-2 text-sm font-semibold transition-all duration-200 disabled:opacity-60"
-                          style={plan.id === "plus" ? {
-                            background: isLoading ? "hsl(193 100% 52% / 0.15)" : "hsl(193 100% 52%)",
-                            color: isLoading ? "hsl(193 100% 52%)" : "hsl(224 28% 5%)",
-                            border: "1px solid hsl(193 100% 52%)",
-                          } : {
-                            background: isLoading ? "hsl(45 95% 58% / 0.15)" : "hsl(45 95% 58%)",
-                            color: isLoading ? "hsl(45 95% 58%)" : "hsl(224 28% 5%)",
-                            border: "1px solid hsl(45 95% 58%)",
-                          }}>
+                          style={{
+                            width: "100%",
+                            padding: "12px 0",
+                            borderRadius: 10,
+                            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                            fontSize: 14, fontWeight: 700,
+                            cursor: loadingPlan ? "not-allowed" : "pointer",
+                            opacity: loadingPlan && !isLoading ? 0.5 : 1,
+                            transition: "all 0.2s",
+                            border: "none",
+                            background: plan.id === "plus"
+                              ? (isLoading ? "rgba(0,212,255,0.15)" : "#00d4ff")
+                              : (isLoading ? "rgba(245,158,11,0.15)" : "#f59e0b"),
+                            color: isLoading
+                              ? (plan.id === "plus" ? "#00d4ff" : "#f59e0b")
+                              : "#080c1a",
+                          }}
+                        >
                           {isLoading ? (
-                            <><Loader2 size={14} className="animate-spin" /> Redirecting...</>
+                            <><Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> Taking you to payment…</>
                           ) : (
-                            <>{plan.id === "plus" ? <Zap size={14} fill="currentColor" /> : <Crown size={14} />} Upgrade to {plan.name} <ExternalLink size={12} /></>
+                            <>
+                              {plan.id === "plus" ? <Zap size={14} fill="currentColor" /> : <Crown size={14} />}
+                              Upgrade to {plan.name}
+                            </>
                           )}
                         </button>
-                      ) : (
-                        <div
-                          className="w-full py-2.5 rounded-lg text-center text-xs font-mono tracking-wider text-muted-foreground/40 uppercase"
-                          style={{ background: "hsl(224 24% 9%)", border: "1px solid hsl(224 20% 14%)" }}>
-                          {linksReady ? "Coming soon" : "Loading..."}
-                        </div>
                       )}
                     </div>
                   );
                 })}
               </div>
 
+              {/* Error */}
+              {error && (
+                <div style={{
+                  margin: "0 20px 16px",
+                  padding: "12px 16px",
+                  borderRadius: 10,
+                  background: "rgba(239,68,68,0.08)",
+                  border: "1px solid rgba(239,68,68,0.2)",
+                  color: "#ef4444",
+                  fontSize: 13,
+                  textAlign: "center",
+                }}>
+                  {error}
+                </div>
+              )}
+
+              {/* Already subscribed — manage billing */}
+              {isPremium && (
+                <div style={{ padding: "0 20px 16px" }}>
+                  <button
+                    onClick={async () => {
+                      try {
+                        const base = getApiBase();
+                        const res = await fetch(`${base}stripe/portal`, {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ userId }),
+                        });
+                        const { url } = await res.json();
+                        if (url) window.location.href = url;
+                      } catch {}
+                    }}
+                    style={{
+                      width: "100%", padding: "12px", borderRadius: 10,
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                      fontSize: 13, color: "rgba(255,255,255,0.5)",
+                      background: "rgba(255,255,255,0.03)",
+                      border: "1px solid rgba(255,255,255,0.07)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <RotateCcw size={13} />
+                    Manage billing & subscription
+                  </button>
+                </div>
+              )}
+
               {/* Footer */}
-              <div className="px-6 pb-6 text-center">
-                <p className="text-[11px] text-muted-foreground/40 leading-relaxed">
-                  Payments processed securely by Stripe · Your data is never sold or shared ·{" "}
-                  <a href="mailto:support@siriusai.app" className="text-primary/50 hover:text-primary transition-colors">
-                    Contact support
-                  </a>
-                </p>
+              <div style={{ padding: "0 20px 24px", textAlign: "center" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginBottom: 6 }}>
+                  <Shield size={11} style={{ color: "rgba(255,255,255,0.2)" }} />
+                  <p style={{ fontSize: 11, color: "rgba(255,255,255,0.2)" }}>
+                    Payments processed securely by Stripe · Your data is never sold
+                  </p>
+                </div>
+                <a
+                  href="mailto:support@siriusai.app"
+                  style={{ fontSize: 11, color: "rgba(0,212,255,0.35)" }}
+                >
+                  Contact support
+                </a>
               </div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
+
+      <style>{`
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+      `}</style>
     </>
   );
 }
