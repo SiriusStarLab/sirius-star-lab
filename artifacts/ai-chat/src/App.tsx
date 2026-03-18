@@ -8,6 +8,7 @@ import { PrivacyPage } from "@/pages/privacy";
 import { CheckoutSuccessPage } from "@/pages/checkout-success";
 import { CheckoutCancelPage } from "@/pages/checkout-cancel";
 import NotFound from "@/pages/not-found";
+import { PWAInstallPrompt } from "@/components/pwa-install-prompt";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -41,6 +42,7 @@ function App() {
           <Router />
         </WouterRouter>
         <Toaster />
+        <PWAInstallPrompt />
       </TooltipProvider>
     </QueryClientProvider>
   );
