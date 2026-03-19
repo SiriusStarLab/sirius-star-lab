@@ -4,13 +4,17 @@ import { useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   FlatList,
+  Image,
   Platform,
+  Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Feather } from "@expo/vector-icons";
 
 import { ChatInput } from "@/components/ChatInput";
 import { MessageBubble } from "@/components/MessageBubble";
@@ -31,6 +35,39 @@ interface DBMessage {
   content: string;
   createdAt: string;
 }
+
+const MOODS = [
+  { label: "Alive & open",   emoji: "🌟", color: "#f59e0b" },
+  { label: "Need holding",   emoji: "💙", color: "#60a5fa" },
+  { label: "In the deep",    emoji: "🌊", color: "#38bdf8" },
+  { label: "Restless mind",  emoji: "🌀", color: "#a78bfa" },
+  { label: "Searching",      emoji: "🔍", color: "#94a3b8" },
+  { label: "Ready to rise",  emoji: "🔥", color: "#f97316" },
+  { label: "Running empty",  emoji: "🖤", color: "#475569" },
+  { label: "Heart full",     emoji: "✨", color: "#ec4899" },
+];
+
+const TOPICS = [
+  { label: "Philosophy",    icon: "book" as const },
+  { label: "Cosmos",        icon: "globe" as const },
+  { label: "Consciousness", icon: "cpu" as const },
+  { label: "Psychology",    icon: "user" as const },
+  { label: "Quantum",       icon: "zap" as const },
+  { label: "Spirituality",  icon: "feather" as const },
+  { label: "Health",        icon: "heart" as const },
+  { label: "Music",         icon: "music" as const },
+];
+
+const SURPRISE_PROMPTS = [
+  "What is the most mind-bending fact in physics right now?",
+  "Tell me something beautiful that happened in science this week.",
+  "What ancient wisdom is being confirmed by modern neuroscience?",
+  "What's the most fascinating thing happening in space exploration?",
+  "What would Stoic philosophers say about social media?",
+  "How does sound actually affect the human nervous system?",
+  "What's the strangest thing discovered in the deep ocean recently?",
+  "What does quantum entanglement really mean for our understanding of reality?",
+];
 
 export default function ChatScreen() {
   const insets = useSafeAreaInsets();
@@ -202,6 +239,20 @@ export default function ChatScreen() {
   }, [params.conversationId]);
 
   const reversed = [...messages].reverse();
+  const aiName = profile.aiName || "Sirius";
+
+  const handleMood = (mood: string) => {
+    handleSend(`I'm feeling ${mood.toLowerCase()} right now. How can we explore that together?`);
+  };
+
+  const handleTopic = (topic: string) => {
+    handleSend(`Let's explore ${topic}. What's the most fascinating angle on this right now?`);
+  };
+
+  const handleSurprise = () => {
+    const pick = SURPRISE_PROMPTS[Math.floor(Math.random() * SURPRISE_PROMPTS.length)];
+    handleSend(pick);
+  };
 
   return (
     <KeyboardAvoidingView
@@ -209,36 +260,98 @@ export default function ChatScreen() {
       behavior="padding"
       keyboardVerticalOffset={0}
     >
-      {messages.length === 0 && (
-        <View style={[styles.emptyState, { paddingTop: topPad }]}>
-          <Text style={styles.emptyTitle}>{profile.aiName}</Text>
-          <Text style={styles.emptySlogan}>I think, so I am</Text>
-          <Text style={styles.emptyHint}>Ask me anything</Text>
-        </View>
-      )}
+      {messages.length === 0 ? (
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={[styles.landing, { paddingTop: topPad + 16, paddingBottom: bottomPad + 24 }]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Logo + branding */}
+          <View style={styles.brandRow}>
+            <Image
+              source={require("@/assets/images/icon.png")}
+              style={styles.logoImage}
+            />
+            <Text style={styles.brandName}>{aiName}</Text>
+            <Text style={styles.brandSlogan}>I think, so I am</Text>
+          </View>
 
-      <FlatList
-        data={reversed}
-        keyExtractor={item => item.id}
-        renderItem={({ item }) => <MessageBubble message={item} />}
-        inverted={messages.length > 0}
-        ListHeaderComponent={showTyping ? <TypingIndicator /> : null}
-        keyboardDismissMode="interactive"
-        keyboardShouldPersistTaps="handled"
-        scrollEnabled={!!reversed.length}
-        contentContainerStyle={
-          messages.length === 0
-            ? { flex: 1 }
-            : { paddingTop: topPad + 8, paddingBottom: 12 }
-        }
-        showsVerticalScrollIndicator={false}
-      />
+          {/* Mood tiles */}
+          <View style={styles.sectionHeader}>
+            <Feather name="activity" size={13} color={Colors.primary} />
+            <Text style={styles.sectionLabel}>WHERE ARE YOU RIGHT NOW?</Text>
+          </View>
+          <View style={styles.moodGrid}>
+            {MOODS.map(mood => (
+              <Pressable
+                key={mood.label}
+                onPress={() => handleMood(mood.label)}
+                style={({ pressed }) => [
+                  styles.moodTile,
+                  { borderColor: mood.color + "40", backgroundColor: mood.color + "18" },
+                  pressed && { opacity: 0.75, transform: [{ scale: 0.95 }] },
+                ]}
+              >
+                <Text style={styles.moodEmoji}>{mood.emoji}</Text>
+                <Text style={[styles.moodLabel, { color: mood.color }]}>{mood.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          {/* Topics */}
+          <View style={styles.sectionHeader}>
+            <Feather name="compass" size={13} color={Colors.primary} />
+            <Text style={styles.sectionLabel}>EXPLORE A DOMAIN</Text>
+          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.topicsRow}
+          >
+            {TOPICS.map(topic => (
+              <Pressable
+                key={topic.label}
+                onPress={() => handleTopic(topic.label)}
+                style={({ pressed }) => [
+                  styles.topicChip,
+                  pressed && { opacity: 0.75, transform: [{ scale: 0.95 }] },
+                ]}
+              >
+                <Feather name={topic.icon} size={14} color={Colors.primary} />
+                <Text style={styles.topicLabel}>{topic.label}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+
+          {/* Surprise me */}
+          <Pressable
+            onPress={handleSurprise}
+            style={({ pressed }) => [styles.surpriseBtn, pressed && { opacity: 0.8 }]}
+          >
+            <Feather name="shuffle" size={16} color={Colors.background} />
+            <Text style={styles.surpriseBtnText}>Surprise me</Text>
+          </Pressable>
+        </ScrollView>
+      ) : (
+        <FlatList
+          data={reversed}
+          keyExtractor={item => item.id}
+          renderItem={({ item }) => <MessageBubble message={item} />}
+          inverted
+          ListHeaderComponent={showTyping ? <TypingIndicator /> : null}
+          keyboardDismissMode="interactive"
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ paddingTop: topPad + 8, paddingBottom: 12 }}
+          showsVerticalScrollIndicator={false}
+        />
+      )}
 
       <View style={{ paddingBottom: bottomPad }}>
         <ChatInput
           onSend={handleSend}
           disabled={isStreaming}
-          placeholder={`Message ${profile.aiName}...`}
+          placeholder={`Message ${aiName}...`}
         />
       </View>
     </KeyboardAvoidingView>
@@ -249,37 +362,118 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
   },
-  emptyState: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 120,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 32,
-    zIndex: 0,
+
+  /* ── Landing screen ── */
+  landing: {
+    paddingHorizontal: 20,
+    alignItems: "stretch",
   },
-  emptyTitle: {
-    fontSize: 42,
+  brandRow: {
+    alignItems: "center",
+    marginBottom: 36,
+  },
+  logoImage: {
+    width: 120,
+    height: 120,
+    borderRadius: 28,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "rgba(0,212,255,0.25)",
+  },
+  brandName: {
+    fontSize: 38,
     fontWeight: "700",
     color: Colors.primary,
     fontFamily: "Inter_700Bold",
     letterSpacing: -1,
     marginBottom: 6,
   },
-  emptySlogan: {
-    fontSize: 16,
+  brandSlogan: {
+    fontSize: 15,
     color: Colors.textMuted,
     fontFamily: "Inter_400Regular",
     fontStyle: "italic",
     letterSpacing: 0.5,
-    marginBottom: 24,
   },
-  emptyHint: {
-    fontSize: 13,
+
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    marginBottom: 12,
+  },
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: "600",
     color: Colors.textDim,
-    fontFamily: "Inter_400Regular",
-    letterSpacing: 0.3,
+    fontFamily: "Inter_600SemiBold",
+    letterSpacing: 0.9,
+  },
+
+  /* Mood tiles */
+  moodGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginBottom: 28,
+  },
+  moodTile: {
+    width: "47%",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    borderWidth: 1,
+  },
+  moodEmoji: {
+    fontSize: 20,
+  },
+  moodLabel: {
+    fontSize: 14,
+    fontFamily: "Inter_500Medium",
+    fontWeight: "500",
+    flexShrink: 1,
+  },
+
+  /* Topic row */
+  topicsRow: {
+    gap: 10,
+    paddingRight: 4,
+    marginBottom: 28,
+  },
+  topicChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  topicLabel: {
+    fontSize: 13,
+    color: Colors.text,
+    fontFamily: "Inter_500Medium",
+  },
+
+  /* Surprise */
+  surpriseBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    backgroundColor: Colors.primary,
+    borderRadius: 16,
+    paddingVertical: 16,
+  },
+  surpriseBtnText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: Colors.background,
+    fontFamily: "Inter_600SemiBold",
   },
 });
