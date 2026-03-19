@@ -88,7 +88,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             style={{
               boxShadow: "0 0 12px hsl(193 100% 52% / 0.25), 0 0 4px hsl(193 100% 52% / 0.15)"
             }}>
-            <img src="/logo.png" alt="Sirius" className="w-full h-full object-cover" />
+            <img src="/logo.png" alt="Sirius" className="w-full h-full object-cover" style={{ filter: "brightness(1.5) contrast(1.1) saturate(1.4)" }} />
           </div>
           <div>
             <span className="font-semibold text-sm tracking-wide text-sidebar-foreground block">{aiName}</span>

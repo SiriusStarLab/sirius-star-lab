@@ -167,6 +167,26 @@ export function ChatPage() {
                 <DailyWisdom onReflect={sendMessage} />
                 <SpotifyWidget onAskAbout={sendMessage} />
                 <TopicHub onSelect={sendMessage} />
+
+                {/* Sirius star — the brightest star in the night sky */}
+                <div className="relative w-full rounded-2xl overflow-hidden" style={{ height: 260 }}>
+                  <img
+                    src="/sirius-star.png"
+                    alt="Sirius — the brightest star"
+                    className="w-full h-full object-cover"
+                    style={{ opacity: 0.88, filter: "brightness(0.82) contrast(1.1)" }}
+                  />
+                  {/* Top fade so it blends into the content above */}
+                  <div className="absolute inset-x-0 top-0 h-16 pointer-events-none"
+                    style={{ background: "linear-gradient(to bottom, hsl(210 55% 97%), transparent)" }} />
+                  {/* Bottom fade */}
+                  <div className="absolute inset-x-0 bottom-0 h-20 pointer-events-none"
+                    style={{ background: "linear-gradient(to top, hsl(210 55% 97%), transparent)" }} />
+                  {/* Centred label */}
+                  <div className="absolute inset-0 flex flex-col items-center justify-end pb-6 pointer-events-none">
+                    <p className="text-[10px] font-mono tracking-[0.3em] uppercase text-white/50">Sirius · α Canis Majoris · −1.46 mag</p>
+                  </div>
+                </div>
               </div>
             </div>
           ) : (
