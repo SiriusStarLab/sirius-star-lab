@@ -56,8 +56,8 @@ export function useChat(conversationId?: number) {
     }
   }, []);
 
-  const sendMessage = async (content: string, imageBase64?: string, mode?: string) => {
-    if (!content.trim() && !imageBase64) return;
+  const sendMessage = async (content: string, imageBase64?: string, mode?: string, documentBase64?: string, documentName?: string) => {
+    if (!content.trim() && !imageBase64 && !documentBase64) return;
     
     stopStream();
     
@@ -92,7 +92,7 @@ export function useChat(conversationId?: number) {
       const response = await fetch(`/api/openai/conversations/${activeId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content, userId: getUserId(), imageBase64, mode }),
+        body: JSON.stringify({ content, userId: getUserId(), imageBase64, mode, documentBase64, documentName }),
         signal: abortControllerRef.current.signal,
       });
 

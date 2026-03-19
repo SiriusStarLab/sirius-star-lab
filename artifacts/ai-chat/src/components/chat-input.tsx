@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, KeyboardEvent, useState, useCallback } from "react";
-import { Send, Square, Mic, MicOff, Paperclip, X, Loader2, Zap } from "lucide-react";
+import { Send, Square, Mic, MicOff, Paperclip, X, Loader2, Zap, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useSubscription } from "@/hooks/use-subscription";
@@ -27,7 +27,7 @@ const MODES = [
 ];
 
 interface ChatInputProps {
-  onSend: (message: string, imageBase64?: string, mode?: string) => void;
+  onSend: (message: string, imageBase64?: string, mode?: string, documentBase64?: string, documentName?: string) => void;
   isTyping: boolean;
   onStop: () => void;
 }
@@ -39,6 +39,8 @@ export function ChatInput({ onSend, isTyping, onStop }: ChatInputProps) {
   const [mode, setMode] = useState("guru");
   const [imageBase64, setImageBase64] = useState<string | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [documentBase64, setDocumentBase64] = useState<string | null>(null);
+  const [documentName, setDocumentName] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [upgradingFromLimit, setUpgradingFromLimit] = useState(false);
@@ -83,34 +85,55 @@ export function ChatInput({ onSend, isTyping, onStop }: ChatInputProps) {
   };
 
   const handleSend = () => {
-    if ((!input.trim() && !imageBase64) || isTyping) return;
-    onSend(input, imageBase64 || undefined, mode !== "guru" ? mode : undefined);
+    if ((!input.trim() && !imageBase64 && !documentBase64) || isTyping) return;
+    onSend(input, imageBase64 || undefined, mode !== "guru" ? mode : undefined, documentBase64 || undefined, documentName || undefined);
     setInput("");
     setImageBase64(null);
     setImagePreview(null);
+    setDocumentBase64(null);
+    setDocumentName(null);
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
       textareaRef.current.focus();
     }
   };
 
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (ev) => {
-      const result = ev.target?.result as string;
-      const base64 = result.split(",")[1];
-      setImageBase64(base64);
-      setImagePreview(result);
-    };
-    reader.readAsDataURL(file);
+    if (file.type === "application/pdf" || file.name.endsWith(".pdf")) {
+      reader.onload = (ev) => {
+        const result = ev.target?.result as string;
+        const base64 = result.split(",")[1];
+        setDocumentBase64(base64);
+        setDocumentName(file.name);
+        setImageBase64(null);
+        setImagePreview(null);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      reader.onload = (ev) => {
+        const result = ev.target?.result as string;
+        const base64 = result.split(",")[1];
+        setImageBase64(base64);
+        setImagePreview(result);
+        setDocumentBase64(null);
+        setDocumentName(null);
+      };
+      reader.readAsDataURL(file);
+    }
     e.target.value = "";
   };
 
   const removeImage = () => {
     setImageBase64(null);
     setImagePreview(null);
+  };
+
+  const removeDocument = () => {
+    setDocumentBase64(null);
+    setDocumentName(null);
   };
 
   const startRecording = useCallback(async () => {
@@ -165,7 +188,7 @@ export function ChatInput({ onSend, isTyping, onStop }: ChatInputProps) {
     else startRecording();
   };
 
-  const canSend = !!(input.trim() || imageBase64) && !isTyping;
+  const canSend = !!(input.trim() || imageBase64 || documentBase64) && !isTyping;
 
   // Show upgrade wall when daily limit is hit
   if (status.dailyLimit !== null && !status.canSendMessage) {
@@ -258,7 +281,26 @@ export function ChatInput({ onSend, isTyping, onStop }: ChatInputProps) {
               <X size={9} className="text-primary" />
             </button>
           </div>
-          <span className="text-[10px] font-mono text-muted-foreground/40">Image ready · Sirius will analyse it</span>
+          <span className="text-xs text-muted-foreground/50">Image ready · Sirius will analyse it</span>
+        </div>
+      )}
+
+      {/* Document preview strip */}
+      {documentName && (
+        <div className="mb-2 flex items-center gap-2">
+          <div className="relative flex items-center gap-2 px-3 py-2 rounded-lg"
+            style={{ background: "hsl(193 100% 52% / 0.07)", border: "1px solid hsl(193 100% 52% / 0.25)" }}>
+            <FileText size={14} className="text-primary shrink-0" />
+            <span className="text-xs font-medium text-foreground/80 max-w-[180px] truncate">{documentName}</span>
+            <button
+              onClick={removeDocument}
+              className="ml-1 w-4 h-4 rounded-full flex items-center justify-center shrink-0"
+              style={{ background: "hsl(210 30% 90%)" }}
+            >
+              <X size={8} className="text-primary" />
+            </button>
+          </div>
+          <span className="text-xs text-muted-foreground/50">Document ready · Sirius will read and analyse it</span>
         </div>
       )}
 
@@ -288,14 +330,14 @@ export function ChatInput({ onSend, isTyping, onStop }: ChatInputProps) {
           onClick={() => fileInputRef.current?.click()}
           className="flex-shrink-0 self-end mb-3 ml-3 flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200"
           style={{
-            background: imageBase64 ? "hsl(193 100% 52% / 0.15)" : "transparent",
-            color: imageBase64 ? "hsl(193 100% 52%)" : "hsl(220 14% 38%)",
+            background: (imageBase64 || documentBase64) ? "hsl(193 100% 52% / 0.15)" : "transparent",
+            color: (imageBase64 || documentBase64) ? "hsl(193 100% 52%)" : "hsl(220 14% 38%)",
           }}
-          title="Attach image"
+          title="Attach image or PDF document"
         >
           <Paperclip size={16} />
         </button>
-        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageSelect} />
+        <input ref={fileInputRef} type="file" accept="image/*,.pdf,application/pdf" className="hidden" onChange={handleFileSelect} />
 
         <Textarea
           ref={textareaRef}
@@ -303,8 +345,8 @@ export function ChatInput({ onSend, isTyping, onStop }: ChatInputProps) {
           onChange={e => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={PLACEHOLDERS[placeholderIndex]}
-          style={{ opacity: phVisible || input ? 1 : 0.3, transition: "opacity 0.3s" }}
-          className="min-h-[58px] max-h-[200px] flex-1 resize-none border-0 bg-transparent px-3 py-4 pr-2 focus-visible:ring-0 focus-visible:ring-offset-0 text-[15px] leading-relaxed placeholder:text-muted-foreground/30 placeholder:font-mono placeholder:text-sm placeholder:tracking-wide"
+          style={{ opacity: phVisible || input ? 1 : 0.35, transition: "opacity 0.3s" }}
+          className="min-h-[64px] max-h-[240px] flex-1 resize-none border-0 bg-transparent px-4 py-4 pr-2 focus-visible:ring-0 focus-visible:ring-offset-0 text-[16px] leading-relaxed placeholder:text-muted-foreground/35 placeholder:text-[15px]"
           rows={1}
         />
 

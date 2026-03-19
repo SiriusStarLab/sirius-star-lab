@@ -69,15 +69,15 @@ export function ChatMessage({ message }: ChatMessageProps) {
           isUser ? "items-end" : "items-start w-full"
         )}>
           {/* Role label */}
-          <span className="text-[10px] font-mono tracking-widest text-muted-foreground/40 uppercase mb-1.5">
+          <span className="text-[11px] font-mono tracking-widest text-muted-foreground/55 uppercase mb-2">
             {isUser ? "You" : aiName}
           </span>
 
           <div className={cn(
-            "text-sm md:text-[15px] leading-relaxed break-words",
+            "text-[15px] md:text-[16px] leading-[1.75] break-words",
             isUser
               ? "px-4 py-3 rounded-xl rounded-tr-sm text-white"
-              : "text-foreground prose max-w-full"
+              : "text-foreground prose prose-base max-w-full"
           )}
           style={isUser ? {
             background: "linear-gradient(135deg, hsl(193 100% 52%), hsl(193 100% 35%))",

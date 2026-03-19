@@ -819,7 +819,22 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
 
   const mode = body.data.mode;
   const imageBase64 = body.data.imageBase64;
+  const documentBase64 = body.data.documentBase64 as string | undefined;
+  const documentName = body.data.documentName as string | undefined;
   const systemPrompt = buildSystemPrompt(profile, mode);
+
+  // Extract text from PDF document if provided
+  let extractedDocumentText: string | null = null;
+  if (documentBase64) {
+    try {
+      const pdfParse = (await import("pdf-parse")).default;
+      const buffer = Buffer.from(documentBase64, "base64");
+      const parsed = await pdfParse(buffer);
+      extractedDocumentText = parsed.text?.trim() || null;
+    } catch (err: any) {
+      console.error("PDF parse error:", err?.message);
+    }
+  }
 
   // Save user message
   await db.insert(messagesTable).values({
@@ -836,8 +851,9 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
     .orderBy(messagesTable.createdAt);
 
   const inputMessages = allMessages.map((m, i) => {
+    const isLastUserMsg = i === allMessages.length - 1 && m.role === "user";
     // For the last user message, attach image if provided
-    if (imageBase64 && i === allMessages.length - 1 && m.role === "user") {
+    if (imageBase64 && isLastUserMsg) {
       return {
         role: "user" as const,
         content: [
@@ -845,6 +861,12 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
           { type: "image_url" as const, image_url: { url: `data:image/jpeg;base64,${imageBase64}` } },
         ],
       };
+    }
+    // For the last user message, attach document text if provided
+    if (extractedDocumentText && isLastUserMsg) {
+      const docLabel = documentName ? `"${documentName}"` : "the uploaded document";
+      const enrichedContent = `The user has shared a document titled ${docLabel}. Here is the full text content of the document:\n\n---\n${extractedDocumentText}\n---\n\nThe user's message: ${m.content || "Please analyse this document and give me your thoughts."}`;
+      return { role: "user" as const, content: enrichedContent };
     }
     return {
       role: m.role as "user" | "assistant",

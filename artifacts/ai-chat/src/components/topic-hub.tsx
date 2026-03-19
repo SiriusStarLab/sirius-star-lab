@@ -111,12 +111,17 @@ function VoicePlayer({ topic, language, onContinue, onClose }: VoicePlayerProps)
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioBlobRef = useRef<string | null>(null);
 
-  const destroyAudio = useCallback(() => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.src = "";
-      audioRef.current = null;
-    }
+  // Pre-create a persistent Audio element so iOS considers it "user-gesture unlocked"
+  useEffect(() => {
+    const audio = new Audio();
+    audioRef.current = audio;
+    return () => {
+      audio.pause();
+      audio.src = "";
+    };
+  }, []);
+
+  const destroyBlob = useCallback(() => {
     if (audioBlobRef.current) {
       URL.revokeObjectURL(audioBlobRef.current);
       audioBlobRef.current = null;
@@ -124,9 +129,19 @@ function VoicePlayer({ topic, language, onContinue, onClose }: VoicePlayerProps)
   }, []);
 
   const fetchAndPlay = useCallback(async (voice: TtsVoiceId) => {
-    destroyAudio();
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    // iOS CRITICAL: call play() synchronously within the user gesture
+    // before any await — this "unlocks" audio playback for this element
+    audio.pause();
+    audio.src = "";
+    audio.play().catch(() => {});
+
+    destroyBlob();
     setStatus("loading");
     setProgress(0);
+
     try {
       const res = await fetch("/api/openai/tts", {
         method: "POST",
@@ -137,19 +152,20 @@ function VoicePlayer({ topic, language, onContinue, onClose }: VoicePlayerProps)
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       audioBlobRef.current = url;
-      const audio = new Audio(url);
-      audioRef.current = audio;
+
       audio.ontimeupdate = () => {
         if (audio.duration) setProgress((audio.currentTime / audio.duration) * 100);
       };
       audio.onended = () => { setStatus("done"); setProgress(100); };
       audio.onerror = () => setStatus("error");
+      audio.src = url;
+      audio.load();
       await audio.play();
       setStatus("playing");
     } catch {
       setStatus("error");
     }
-  }, [topic, destroyAudio]);
+  }, [topic, language, destroyBlob]);
 
   const handlePlayPause = () => {
     if (status === "idle" || status === "error") {
@@ -166,20 +182,22 @@ function VoicePlayer({ topic, language, onContinue, onClose }: VoicePlayerProps)
   };
 
   const handleStop = () => {
-    destroyAudio();
+    audioRef.current?.pause();
+    destroyBlob();
     setStatus("idle");
     setProgress(0);
   };
 
   const handleVoiceChange = (v: TtsVoiceId) => {
     setSelectedVoice(v);
-    destroyAudio();
+    audioRef.current?.pause();
+    destroyBlob();
     setStatus("idle");
     setProgress(0);
   };
 
-  const handleClose = () => { destroyAudio(); onClose(); };
-  const handleContinue = () => { destroyAudio(); onContinue(); };
+  const handleClose = () => { audioRef.current?.pause(); destroyBlob(); onClose(); };
+  const handleContinue = () => { audioRef.current?.pause(); destroyBlob(); onContinue(); };
 
   const isPlaying = status === "playing";
   const isLoading = status === "loading";
