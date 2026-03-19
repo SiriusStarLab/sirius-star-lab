@@ -87,7 +87,7 @@ export function SurpriseMe({ onSelect }: SurpriseMeProps) {
           <span className="text-2xl leading-none select-none">🎲</span>
           <div>
             <p className="text-sm font-semibold text-foreground leading-tight">Surprise me</p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">Something mind-blowing, verified, and totally unexpected</p>
+            <p className="text-xs font-medium text-muted-foreground mt-0.5">Something mind-blowing, verified, and totally unexpected</p>
           </div>
         </div>
         <Shuffle

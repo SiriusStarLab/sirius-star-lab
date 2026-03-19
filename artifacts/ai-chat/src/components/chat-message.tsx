@@ -69,12 +69,12 @@ export function ChatMessage({ message }: ChatMessageProps) {
           isUser ? "items-end" : "items-start w-full"
         )}>
           {/* Role label */}
-          <span className="text-[11px] font-mono tracking-widest text-muted-foreground/55 uppercase mb-2">
+          <span className="text-[11px] font-mono tracking-widest text-muted-foreground/70 uppercase mb-2">
             {isUser ? "You" : aiName}
           </span>
 
           <div className={cn(
-            "text-[15px] md:text-[16px] leading-[1.75] break-words",
+            "text-[15px] md:text-[16px] leading-[1.75] break-words font-[430]",
             isUser
               ? "px-4 py-3 rounded-xl rounded-tr-sm text-white"
               : "text-foreground prose prose-base max-w-full"

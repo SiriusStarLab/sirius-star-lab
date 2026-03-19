@@ -215,7 +215,7 @@
 
 /* ---- PROSE / MARKDOWN — dark text on bright bg ---- */
 .prose {
-  --tw-prose-body: hsl(var(--foreground) / 0.85);
+  --tw-prose-body: hsl(var(--foreground) / 1.0);
   --tw-prose-headings: hsl(var(--foreground));
   --tw-prose-links: hsl(193 100% 35%);
   --tw-prose-bold: hsl(var(--foreground));

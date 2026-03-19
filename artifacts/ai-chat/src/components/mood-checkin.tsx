@@ -66,7 +66,7 @@ interface MoodCheckinProps {
 export function MoodCheckin({ onSelect }: MoodCheckinProps) {
   return (
     <div className="w-full">
-      <p className="text-[10px] font-mono font-medium text-primary/60 uppercase tracking-[0.25em] mb-3 text-center">
+      <p className="text-[11px] font-mono font-semibold text-primary/75 uppercase tracking-[0.22em] mb-3 text-center">
         Where are you right now?
       </p>
       <div className="grid grid-cols-4 gap-2">
@@ -98,7 +98,7 @@ export function MoodCheckin({ onSelect }: MoodCheckinProps) {
             }}
           >
             <span className="text-xl leading-none">{mood.emoji}</span>
-            <span className="text-[10px] font-semibold leading-tight text-center"
+            <span className="text-[12px] font-semibold leading-tight text-center"
               style={{ color: `hsl(${mood.accent})` }}>
               {mood.label}
             </span>

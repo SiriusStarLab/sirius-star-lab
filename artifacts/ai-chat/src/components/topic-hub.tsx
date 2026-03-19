@@ -385,7 +385,7 @@ export function TopicHub({ onSelect }: TopicHubProps) {
   return (
     <>
       <div className="w-full">
-        <p className="text-[10px] font-mono font-medium text-primary/60 uppercase tracking-[0.25em] mb-3 text-center">
+        <p className="text-[11px] font-mono font-semibold text-primary/75 uppercase tracking-[0.22em] mb-3 text-center">
           Select a domain
         </p>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
