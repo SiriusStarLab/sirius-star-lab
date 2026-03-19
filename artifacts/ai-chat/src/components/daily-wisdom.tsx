@@ -120,13 +120,15 @@ export function DailyWisdom({ onReflect }: DailyWisdomProps) {
               </div>
               <div className="flex gap-2">
                 <button
+                  aria-label="Reflect on this teaching with Sirius"
                   onClick={() => onReflect(`I want to sit with this teaching from ${quote.tradition}: "${quote.text}" — ${quote.source}. Help me understand it deeply — what it's really saying, where it came from, and how someone might carry it into their life today.`)}
                   className="flex-1 flex items-center justify-center gap-2 text-xs font-medium bg-primary/10 hover:bg-primary/20 text-primary rounded-xl py-2.5 transition-all duration-200 hover:shadow-sm"
                 >
                   <MessageCircle className="w-3.5 h-3.5" />
-                  Sit with this
+                  Reflect on this
                 </button>
                 <button
+                  aria-label="Show another word for today"
                   onClick={() => setOffset((o) => o + 1)}
                   className="flex items-center justify-center gap-1.5 text-xs font-medium bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground rounded-xl px-3.5 py-2.5 transition-all duration-200"
                   title="Another word"
