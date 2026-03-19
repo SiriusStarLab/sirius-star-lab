@@ -12,3 +12,9 @@ id = "ddNIDw6dWrvHDkcJVQFqO"
 uri = "file://attached_assets/sirius-logo-v2.png"
 type = "image"
 title = "Sirius Logo — V2: Profile Silhouettes (facing each other)"
+
+[[outputs]]
+id = "ScKwcO4nBbAQvutiEn3Nx"
+uri = "file://artifacts/ai-chat/public/logo.png"
+type = "image"
+title = "Sirius AI — The Twins"
