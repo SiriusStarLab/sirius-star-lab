@@ -118,7 +118,13 @@ export default function SettingsScreen() {
     setEditingAiName(false);
   };
 
+  const WEB_URL = "https://ai-companion-huttongarry4.replit.app";
+
   const handleUpgrade = async (tier: "plus" | "pro") => {
+    if (Platform.OS === "ios") {
+      await Linking.openURL(`${WEB_URL}/?upgrade=${tier}`);
+      return;
+    }
     try {
       const base = getApiBase();
       const res = await fetch(`${base}stripe/checkout`, {
@@ -309,7 +315,11 @@ export default function SettingsScreen() {
               </View>
               <Feather name="arrow-right" size={18} color={Colors.background} />
             </View>
-            <Text style={styles.plusCardNote}>Secured by Stripe · Cancel any time, no questions asked</Text>
+            <Text style={styles.plusCardNote}>
+              {Platform.OS === "ios"
+                ? "Opens siriusai.app · Cancel any time"
+                : "Secured by Stripe · Cancel any time, no questions asked"}
+            </Text>
           </Pressable>
 
           {/* Pro — secondary */}
