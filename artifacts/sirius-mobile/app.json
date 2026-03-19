@@ -14,10 +14,21 @@
       "backgroundColor": "#080c1a"
     },
     "ios": {
-      "supportsTablet": false
+      "supportsTablet": false,
+      "bundleIdentifier": "com.siriusai.app",
+      "buildNumber": "1",
+      "privacyManifests": {
+        "NSPrivacyAccessedAPITypes": []
+      }
     },
     "android": {
-      "backgroundColor": "#080c1a"
+      "backgroundColor": "#080c1a",
+      "package": "com.siriusai.app",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/icon.png",
+        "backgroundColor": "#080c1a"
+      }
     },
     "web": {
       "favicon": "./assets/images/icon.png"
@@ -35,6 +46,10 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "privacyPolicyUrl": "https://ai-companion-huttongarry4.replit.app/privacy",
+      "termsUrl": "https://ai-companion-huttongarry4.replit.app/terms"
     }
   }
 }

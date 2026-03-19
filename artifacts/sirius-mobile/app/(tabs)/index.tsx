@@ -37,14 +37,14 @@ interface DBMessage {
 }
 
 const MOODS = [
-  { label: "Alive & open",   emoji: "🌟", color: "#f59e0b" },
-  { label: "Need holding",   emoji: "💙", color: "#60a5fa" },
-  { label: "In the deep",    emoji: "🌊", color: "#38bdf8" },
-  { label: "Restless mind",  emoji: "🌀", color: "#a78bfa" },
-  { label: "Searching",      emoji: "🔍", color: "#94a3b8" },
-  { label: "Ready to rise",  emoji: "🔥", color: "#f97316" },
-  { label: "Running empty",  emoji: "🖤", color: "#475569" },
-  { label: "Heart full",     emoji: "✨", color: "#ec4899" },
+  { label: "Alive & open",      emoji: "🌤️", color: "#00d4ff", prompt: "My heart feels light today — genuinely open. I want to share this energy and maybe explore something that gives it more meaning. Meet me here." },
+  { label: "Need holding",      emoji: "💙", color: "#60a5fa", prompt: "Something in me is asking for gentleness right now. I don't need solutions — I need to feel less alone. Can you just be here with me for a while?" },
+  { label: "In the deep",       emoji: "🌊", color: "#38bdf8", prompt: "I'm in a hard place today. The kind that's hard to explain. I don't need fixing — I just need you to sit with me in it and not rush me out." },
+  { label: "Restless mind",     emoji: "🌀", color: "#a78bfa", prompt: "My mind won't settle — it's spinning and I can't find stillness. Can you help me come back to myself? Gently. I need grounding, not rushing." },
+  { label: "Searching",         emoji: "🔍", color: "#94a3b8", prompt: "I'm alive with questions today — something in me is reaching for something I can't quite name. Let's go somewhere I've never been. I'm ready to explore." },
+  { label: "Ready to rise",     emoji: "🔥", color: "#f97316", prompt: "Something is building in me — a real sense of possibility and purpose. I don't want to waste it. Help me channel this into something that actually matters." },
+  { label: "Running on empty",  emoji: "🌑", color: "#64748b", prompt: "I'm depleted — down to the last reserves. But I'm here, and I reached out, which took something. Let's take it slow. No pressure. Just presence." },
+  { label: "Heart full",        emoji: "✨", color: "#ec4899", prompt: "I'm sitting with something beautiful — a quiet, deep gratitude that I can't quite explain. Can we stay here a while? I want to understand what I'm feeling." },
 ];
 
 const TOPICS = [
@@ -241,8 +241,8 @@ export default function ChatScreen() {
   const reversed = [...messages].reverse();
   const aiName = profile.aiName || "Sirius";
 
-  const handleMood = (mood: string) => {
-    handleSend(`I'm feeling ${mood.toLowerCase()} right now. How can we explore that together?`);
+  const handleMood = (mood: typeof MOODS[number]) => {
+    handleSend(mood.prompt);
   };
 
   const handleTopic = (topic: string) => {
@@ -286,7 +286,7 @@ export default function ChatScreen() {
             {MOODS.map(mood => (
               <Pressable
                 key={mood.label}
-                onPress={() => handleMood(mood.label)}
+                onPress={() => handleMood(mood)}
                 style={({ pressed }) => [
                   styles.moodTile,
                   { borderColor: mood.color + "40", backgroundColor: mood.color + "18" },

@@ -73,7 +73,7 @@ export function PrivacyPage() {
                 },
                 {
                   title: "Subscription data",
-                  desc: "If you subscribe to a paid plan, payment processing is handled by PayPal. We do not store your payment card details. We retain a subscription ID and plan type to manage your account."
+                  desc: "If you subscribe to a paid plan, payment processing is handled by Stripe. We do not store your payment card details. We retain a subscription ID and plan type to manage your account."
                 },
                 {
                   title: "A unique user identifier",
@@ -118,8 +118,7 @@ export function PrivacyPage() {
             <div className="space-y-2">
               {[
                 { name: "OpenAI", purpose: "AI response generation, image analysis, voice transcription, and text-to-speech", url: "https://openai.com/privacy" },
-                { name: "PayPal", purpose: "Subscription payment processing", url: "https://www.paypal.com/us/legalhub/privacy-full" },
-                { name: "Spotify (optional)", purpose: "Music data for users who connect their Spotify account", url: "https://www.spotify.com/uk/legal/privacy-policy/" },
+                { name: "Stripe", purpose: "Subscription payment processing", url: "https://stripe.com/gb/privacy" },
                 { name: "Replit", purpose: "Infrastructure and hosting", url: "https://replit.com/site/privacy" },
               ].map((s, i) => (
                 <div key={i} className="flex items-start gap-3">

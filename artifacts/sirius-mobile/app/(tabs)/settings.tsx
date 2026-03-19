@@ -355,16 +355,16 @@ export default function SettingsScreen() {
         <SettingRow
           icon="shield"
           label="Privacy Policy"
-          onPress={() => Alert.alert("Privacy Policy", "Available on the web app.")}
+          onPress={() => Linking.openURL("https://ai-companion-huttongarry4.replit.app/privacy")}
         />
         <SettingRow
           icon="file-text"
           label="Terms of Service"
-          onPress={() => Alert.alert("Terms", "Available on the web app.")}
+          onPress={() => Linking.openURL("https://ai-companion-huttongarry4.replit.app/terms")}
         />
       </View>
 
-      <Text style={styles.userId}>ID: {userId?.slice(0, 20)}...</Text>
+      <Text style={styles.versionText}>Sirius AI · v1.0</Text>
     </ScrollView>
   );
 }
@@ -610,12 +610,13 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     fontFamily: "Inter_400Regular",
   },
-  userId: {
-    fontSize: 11,
+  versionText: {
+    fontSize: 12,
     color: Colors.textDim,
     fontFamily: "Inter_400Regular",
     textAlign: "center",
     marginTop: 8,
+    letterSpacing: 0.3,
   },
   portraitDesc: {
     paddingHorizontal: 16,
