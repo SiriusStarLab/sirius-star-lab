@@ -1,5 +1,6 @@
 import express, { type Express } from "express";
 import cors from "cors";
+import path from "path";
 import router from "./routes";
 
 const app: Express = express();
@@ -27,6 +28,13 @@ app.use("/api/stripe/webhook", express.raw({ type: "application/json" }));
 
 app.use(express.json({ limit: "20mb" }));
 app.use(express.urlencoded({ extended: true, limit: "20mb" }));
+
+app.get("/api/download/sirius-mobile", (req, res) => {
+  const file = path.join("/home/runner/workspace/artifacts/sirius-mobile.tar.gz");
+  res.setHeader("Content-Type", "application/gzip");
+  res.setHeader("Content-Disposition", "attachment; filename=sirius-mobile.tar.gz");
+  res.download(file, "sirius-mobile.tar.gz");
+});
 
 app.use("/api", router);
 
