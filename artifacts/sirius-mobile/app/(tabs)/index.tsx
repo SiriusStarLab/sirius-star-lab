@@ -347,6 +347,43 @@ export default function ChatScreen() {
         />
       )}
 
+      {messages.length > 0 && !isStreaming && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.quickChipsRow}
+          keyboardShouldPersistTaps="handled"
+        >
+          <Pressable
+            onPress={() => handleSend("Can you visualise this for me?")}
+            style={({ pressed }) => [styles.quickChip, pressed && { opacity: 0.7 }]}
+          >
+            <Feather name="image" size={13} color={Colors.primary} />
+            <Text style={styles.quickChipText}>Visualise this</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => handleSend("Can you summarise what we've discussed so far?")}
+            style={({ pressed }) => [styles.quickChip, pressed && { opacity: 0.7 }]}
+          >
+            <Feather name="list" size={13} color={Colors.primary} />
+            <Text style={styles.quickChipText}>Summarise</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => handleSend("Go deeper on this.")}
+            style={({ pressed }) => [styles.quickChip, pressed && { opacity: 0.7 }]}
+          >
+            <Feather name="arrow-down-circle" size={13} color={Colors.primary} />
+            <Text style={styles.quickChipText}>Go deeper</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => handleSend("What's a different way to look at this?")}
+            style={({ pressed }) => [styles.quickChip, pressed && { opacity: 0.7 }]}
+          >
+            <Feather name="refresh-cw" size={13} color={Colors.primary} />
+            <Text style={styles.quickChipText}>New angle</Text>
+          </Pressable>
+        </ScrollView>
+      )}
       <View style={{ paddingBottom: bottomPad }}>
         <ChatInput
           onSend={handleSend}
@@ -475,5 +512,29 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: Colors.background,
     fontFamily: "Inter_600SemiBold",
+  },
+
+  /* Quick action chips (active conversation) */
+  quickChipsRow: {
+    flexDirection: "row",
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  quickChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: Colors.surface,
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderWidth: 1,
+    borderColor: `${Colors.primary}30`,
+  },
+  quickChipText: {
+    fontSize: 12,
+    color: Colors.text,
+    fontFamily: "Inter_500Medium",
   },
 });

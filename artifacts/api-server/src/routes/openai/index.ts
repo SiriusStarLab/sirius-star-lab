@@ -535,6 +535,13 @@ function isImageRequest(text: string): boolean {
     /\b(show me|give me|can you make|can you create|can you draw|can you generate|can you paint)\b.{0,60}\b(image|picture|photo|drawing|painting|artwork|visual|portrait|scene)\b/i,
     /\bvisuali[sz]e\b/i,
     /\bwhat (does|would|could|might).{0,60}\blook like\b/i,
+    /\bshow me (this|it|that|the design|the concept|the layout|the idea|what (this|it|that) (looks?|would look))\b/i,
+    /\b(picture|image) (this|it|that|of this|of it)\b/i,
+    /\bcan (you )?(show|picture|visuali[sz]e|render|draw|generate|create|make) (this|it|that)\b/i,
+    /\b(generate|create|make|show|give me) (a |an )?(visual|render|concept art|mockup|sketch|diagram|illustration)\b/i,
+    /\b(what|how).{0,30}\b(look|appear|seem).{0,20}\b(like|visually)\b/i,
+    /\bpicture of\b/i,
+    /\bimage of\b/i,
   ];
   return patterns.some((p) => p.test(text));
 }
