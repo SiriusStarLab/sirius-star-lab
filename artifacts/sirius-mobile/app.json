@@ -17,6 +17,9 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.siriusai.app",
       "buildNumber": "1",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      },
       "privacyManifests": {
         "NSPrivacyAccessedAPITypes": []
       }
@@ -49,7 +52,11 @@
     },
     "extra": {
       "privacyPolicyUrl": "https://ai-companion-huttongarry4.replit.app/privacy",
-      "termsUrl": "https://ai-companion-huttongarry4.replit.app/terms"
-    }
+      "termsUrl": "https://ai-companion-huttongarry4.replit.app/terms",
+      "eas": {
+        "projectId": "44095ebc-6e60-4f8a-8b90-d2b2bc85588b"
+      }
+    },
+    "owner": "garryboy"
   }
 }
