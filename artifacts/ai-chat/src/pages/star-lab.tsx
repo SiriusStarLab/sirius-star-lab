@@ -21,14 +21,6 @@ const INDUSTRIES = [
   "Space Tech", "Telecoms", "General"
 ];
 
-const PROJECT_TABS = [
-  { id: "brief", label: "Brief", icon: FileText, placeholder: "Describe the product concept, the problem it solves, target market, and key objectives..." },
-  { id: "research", label: "Research", icon: BookOpen, placeholder: "Research notes, competitor analysis, material options, regulatory requirements, market data..." },
-  { id: "specs", label: "Specs", icon: Ruler, placeholder: "Technical specifications: dimensions, materials, tolerances, standards, BOM, performance requirements..." },
-  { id: "code", label: "Code", icon: Code, placeholder: "Production-ready code goes here. Use the AI panel to generate and refine it..." },
-  { id: "drawings", label: "Drawings", icon: Layers, placeholder: "Drawing instructions for newdimensionscad.com: views required, key dimensions, assembly details, callouts..." },
-];
-
 const SCOUT_MODES = [
   { id: "full", label: "Full Scan", icon: Globe, color: "hsl(193,100%,35%)", desc: "Broad scan across all industries and opportunity types" },
   { id: "bots", label: "Bot Opportunities", icon: Bot, color: "hsl(280,70%,55%)", desc: "Find tasks ripe for automation across all sectors" },
@@ -38,9 +30,12 @@ const SCOUT_MODES = [
 ];
 
 type Project = {
-  id: number; name: string; industry: string; status: string;
+  id: number; name: string; industry: string; phase: string; status: string;
   brief: string; research: string; specs: string; code: string;
-  drawingNotes: string; cadUrl: string; updatedAt: string;
+  drawingNotes: string; cadUrl: string; materials: string;
+  workflows: string; industryProblem: string; uses: string;
+  brochure: string; pitch: string; costToBuild: string; profitMargin: string;
+  renders: string; updatedAt: string;
   messages?: Message[];
 };
 type Message = { id: number; projectId: number; role: string; content: string; createdAt: string };
@@ -103,6 +98,28 @@ function PinGate({ onUnlock }: { onUnlock: (pin: string) => void }) {
   );
 }
 
+const PHASE_CONFIG = {
+  design: { label: "Design Phase", color: "hsl(193,100%,35%)", next: "production" },
+  production: { label: "Production Phase", color: "hsl(45,100%,45%)", next: "complete" },
+  complete: { label: "Complete", color: "hsl(155,70%,45%)", next: null },
+};
+
+const ALL_TABS = [
+  { id: "overview", label: "Overview", icon: Layers, field: null, phase: "all", placeholder: "", generated: false },
+  { id: "brief", label: "Brief", icon: FileText, field: "brief", phase: "design", placeholder: "Product concept, problem solved, target market, key objectives...", generated: false },
+  { id: "research", label: "Research", icon: BookOpen, field: "research", phase: "design", placeholder: "Market research, competitor analysis, regulatory requirements, material options...", generated: false },
+  { id: "specs", label: "Specs", icon: Ruler, field: "specs", phase: "design", placeholder: "Technical specifications: dimensions, tolerances, performance requirements, standards...", generated: false },
+  { id: "materials", label: "Materials", icon: Package, field: "materials", phase: "design", placeholder: "Materials list with specifications, suppliers, part numbers, costs...", generated: true },
+  { id: "code", label: "Code", icon: Code, field: "code", phase: "design", placeholder: "Production-ready code...", generated: false },
+  { id: "drawings", label: "Drawings", icon: Layers, field: "drawingNotes", phase: "design", placeholder: "CAD drawing instructions: views, dimensions, callouts, assembly details...", generated: false },
+  { id: "workflows", label: "Workflows", icon: Zap, field: "workflows", phase: "production", placeholder: "Manufacturing and deployment workflow steps...", generated: true },
+  { id: "market", label: "Market & Uses", icon: Globe, field: "industryProblem", phase: "production", placeholder: "Industry analysis, problem solved, use cases across sectors...", generated: true },
+  { id: "renders", label: "Renders", icon: Cpu, field: null, phase: "complete", placeholder: "", generated: false },
+  { id: "brochure", label: "Brochure", icon: FileText, field: "brochure", phase: "complete", placeholder: "Product brochure content...", generated: true },
+  { id: "pitch", label: "Pitch", icon: TrendingUp, field: "pitch", phase: "complete", placeholder: "Investor/client pitch deck content...", generated: true },
+  { id: "economics", label: "Economics", icon: Package, field: "costToBuild", phase: "complete", placeholder: "Cost to build, pricing, profit margin analysis...", generated: true },
+];
+
 function StreamingText({ content, streaming }: { content: string; streaming: boolean }) {
   return (
     <div className="whitespace-pre-wrap leading-relaxed" style={{ fontSize: "0.82rem", color: "rgba(255,255,255,0.85)" }}>
@@ -158,7 +175,7 @@ function ChatPanel({ project, pin, mode }: { project: Project; pin: string; mode
   return (
     <div className="flex flex-col h-full">
       <div className="flex gap-1 px-3 py-2 border-b flex-shrink-0 overflow-x-auto" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
-        {PROJECT_TABS.map(t => (
+        {ALL_TABS.filter(t => t.id !== "overview" && t.id !== "renders").map(t => (
           <button key={t.id} onClick={() => setActiveTab(t.id)}
             className="text-xs px-2.5 py-1 rounded-lg transition-all whitespace-nowrap flex-shrink-0"
             style={{ background: activeTab === t.id ? "hsl(193,100%,35%)" : "transparent", color: activeTab === t.id ? "white" : "rgba(255,255,255,0.35)" }}>
@@ -212,22 +229,175 @@ function ChatPanel({ project, pin, mode }: { project: Project; pin: string; mode
   );
 }
 
+type Render = { url: string; label: string; type: string; angle: string; generatedAt: string };
+
+type Completeness = { checks: { key: string; label: string; phase: string; filled: boolean }[]; filled: number; total: number; pct: number };
+
+function RendersTab({ project, pin, onUpdate }: { project: Project; pin: string; onUpdate: (p: Project) => void }) {
+  const [generating, setGenerating] = useState(false);
+  const [renderType, setRenderType] = useState("3d");
+  const [renderAngle, setRenderAngle] = useState("perspective");
+  const [selected, setSelected] = useState<Render | null>(null);
+  const base = getApiBase();
+
+  const renders: Render[] = (() => { try { return JSON.parse(project.renders || "[]"); } catch { return []; } })();
+
+  const generate = async () => {
+    setGenerating(true);
+    try {
+      const res = await fetch(`${base}lab/projects/${project.id}/render`, {
+        method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+        body: JSON.stringify({ type: renderType, angle: renderAngle }),
+      });
+      if (res.ok) {
+        const { renders: updated } = await res.json();
+        onUpdate({ ...project, renders: JSON.stringify(updated) });
+      }
+    } catch {}
+    setGenerating(false);
+  };
+
+  const deleteRender = (idx: number) => {
+    const updated = renders.filter((_, i) => i !== idx);
+    const updated2 = { ...project, renders: JSON.stringify(updated) };
+    fetch(`${base}lab/projects/${project.id}`, { method: "PUT", headers: { "Content-Type": "application/json", "x-lab-pin": pin }, body: JSON.stringify(updated2) });
+    onUpdate(updated2);
+  };
+
+  const RENDER_TYPES = [
+    { id: "3d", label: "3D Render", desc: "Photorealistic product render" },
+    { id: "2d", label: "2D Technical", desc: "Orthographic technical drawing" },
+    { id: "exploded", label: "Exploded View", desc: "Component breakdown diagram" },
+    { id: "lifestyle", label: "Lifestyle", desc: "Product in real-world context" },
+  ];
+
+  const ANGLES = {
+    "3d": ["perspective", "front", "side", "top", "isometric"],
+    "2d": ["front", "side", "top", "three-view"],
+    "exploded": ["isometric"],
+    "lifestyle": ["environment"],
+  };
+
+  return (
+    <div className="flex-1 flex min-h-0 overflow-y-auto">
+      <div className="flex-1 p-5">
+        {selected && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.85)" }}
+            onClick={() => setSelected(null)}>
+            <div className="relative max-w-3xl w-full mx-4">
+              <img src={selected.url} alt={selected.label} className="w-full rounded-2xl" />
+              <p className="text-white/60 text-xs text-center mt-2">{selected.label}</p>
+              <button onClick={() => setSelected(null)} className="absolute -top-3 -right-3 w-7 h-7 rounded-full bg-white/10 flex items-center justify-center">
+                <X className="w-4 h-4 text-white" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {renders.length === 0 ? (
+          <div className="flex items-center justify-center h-48">
+            <div className="text-center">
+              <Cpu className="w-8 h-8 mx-auto mb-2 text-white/10" />
+              <p className="text-white/30 text-sm">No renders yet — generate your first one</p>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            {renders.map((r, i) => (
+              <div key={i} className="relative group rounded-2xl overflow-hidden cursor-pointer"
+                onClick={() => setSelected(r)}
+                style={{ border: "1px solid rgba(255,255,255,0.08)" }}>
+                <img src={r.url} alt={r.label} className="w-full aspect-square object-cover" />
+                <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-end"
+                  style={{ background: "linear-gradient(to top, rgba(0,0,0,0.8), transparent)" }}>
+                  <div className="p-3 w-full flex items-center justify-between">
+                    <p className="text-white text-xs font-medium">{r.label}</p>
+                    <button onClick={e => { e.stopPropagation(); deleteRender(i); }}
+                      className="w-6 h-6 rounded-full flex items-center justify-center"
+                      style={{ background: "rgba(255,0,0,0.5)" }}>
+                      <Trash className="w-3 h-3 text-white" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="w-64 border-l flex-shrink-0 p-4 flex flex-col gap-4"
+        style={{ borderColor: "rgba(255,255,255,0.06)", background: "hsl(226,45%,7%)" }}>
+        <div>
+          <p className="text-white/40 text-xs mb-2 uppercase tracking-wider">Render Type</p>
+          <div className="space-y-1">
+            {RENDER_TYPES.map(t => (
+              <button key={t.id} onClick={() => setRenderType(t.id)}
+                className="w-full text-left px-3 py-2 rounded-xl transition-all"
+                style={{ background: renderType === t.id ? "hsl(193,100%,32%)" : "hsl(226,45%,11%)", border: renderType === t.id ? "none" : "1px solid rgba(255,255,255,0.06)" }}>
+                <p className="text-white text-xs font-medium">{t.label}</p>
+                <p className="text-white/35 text-xs">{t.desc}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <p className="text-white/40 text-xs mb-2 uppercase tracking-wider">Angle / View</p>
+          <div className="flex flex-wrap gap-1">
+            {((ANGLES as any)[renderType] || ["perspective"]).map((a: string) => (
+              <button key={a} onClick={() => setRenderAngle(a)}
+                className="text-xs px-2.5 py-1 rounded-lg capitalize transition-all"
+                style={{ background: renderAngle === a ? "hsl(193,100%,32%)" : "hsl(226,45%,12%)", color: renderAngle === a ? "white" : "rgba(255,255,255,0.45)" }}>
+                {a}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <button onClick={generate} disabled={generating}
+          className="w-full py-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-all mt-auto"
+          style={{ background: "hsl(193,100%,32%)", color: "white", opacity: generating ? 0.5 : 1 }}>
+          {generating ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Generating...</> : <><Sparkles className="w-3.5 h-3.5" /> Generate Render</>}
+        </button>
+
+        <p className="text-white/20 text-xs text-center">AI generates from your specs and brief. Add more detail for better results.</p>
+      </div>
+    </div>
+  );
+}
+
 function ProjectWorkspace({ project, pin, onUpdate }: { project: Project; pin: string; onUpdate: (p: Project) => void }) {
-  const [activeTab, setActiveTab] = useState("brief");
+  const [activeTab, setActiveTab] = useState("overview");
   const [saving, setSaving] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [editName, setEditName] = useState("");
   const [labMode, setLabMode] = useState<"engineering" | "bot">("engineering");
+  const [completeness, setCompleteness] = useState<Completeness | null>(null);
   const base = getApiBase();
 
   const headers = useCallback(() => ({ "Content-Type": "application/json", "x-lab-pin": pin }), [pin]);
 
+  const loadCompleteness = useCallback(async () => {
+    const res = await fetch(`${base}lab/projects/${project.id}/completeness`, { headers: { "x-lab-pin": pin } });
+    if (res.ok) setCompleteness(await res.json());
+  }, [base, pin, project.id]);
+
+  useEffect(() => { loadCompleteness(); }, [project.id, loadCompleteness]);
+
   const saveField = async (field: string, value: string) => {
     setSaving(true);
     const updated = { ...project, [field]: value };
-    await fetch(`${base}lab/projects/${project.id}`, { method: "PUT", headers: headers(), body: JSON.stringify(updated) });
+    await fetch(`${base}lab/projects/${project.id}`, { method: "PUT", headers: headers(), body: JSON.stringify({ [field]: value }) });
     onUpdate(updated);
     setSaving(false);
+    loadCompleteness();
+  };
+
+  const setPhase = async (phase: string) => {
+    const updated = { ...project, phase };
+    await fetch(`${base}lab/projects/${project.id}`, { method: "PUT", headers: headers(), body: JSON.stringify({ phase }) });
+    onUpdate(updated);
   };
 
   const saveProjectName = async () => {
@@ -236,50 +406,122 @@ function ProjectWorkspace({ project, pin, onUpdate }: { project: Project; pin: s
     setEditingName(false);
   };
 
-  const getContent = () => {
-    const map: Record<string, string> = { brief: project.brief, research: project.research, specs: project.specs, code: project.code, drawings: project.drawingNotes };
-    return map[activeTab] || "";
+  const generateSection = async (section: string) => {
+    if (generating) return;
+    setGenerating(true);
+    let result = "";
+    try {
+      const res = await fetch(`${base}lab/projects/${project.id}/generate`, {
+        method: "POST", headers: headers(), body: JSON.stringify({ section }),
+      });
+      const reader = res.body!.getReader(); const decoder = new TextDecoder();
+      while (true) {
+        const { done, value } = await reader.read(); if (done) break;
+        for (const line of decoder.decode(value).split("\n")) {
+          if (line.startsWith("data: ")) {
+            try {
+              const d = JSON.parse(line.slice(6));
+              if (d.content) {
+                result += d.content;
+                const fieldMap: Record<string, string> = { materials: "materials", workflows: "workflows", market: "industryProblem", brochure: "brochure", pitch: "pitch", cost: "costToBuild", economics: "costToBuild" };
+                const field = fieldMap[section];
+                if (field) onUpdate({ ...project, [field]: result });
+              }
+            } catch {}
+          }
+        }
+      }
+    } catch {}
+    setGenerating(false);
+    loadCompleteness();
   };
 
-  const getField = () => ({ brief: "brief", research: "research", specs: "specs", code: "code", drawings: "drawingNotes" }[activeTab] || "brief");
+  const getTabContent = (tabId: string): string => {
+    const map: Record<string, string> = {
+      brief: project.brief, research: project.research, specs: project.specs,
+      materials: project.materials, code: project.code, drawings: project.drawingNotes,
+      workflows: project.workflows, market: project.industryProblem,
+      brochure: project.brochure, pitch: project.pitch, economics: project.costToBuild,
+    };
+    return map[tabId] || "";
+  };
+
+  const getTabField = (tabId: string): string => {
+    const map: Record<string, string> = {
+      brief: "brief", research: "research", specs: "specs", materials: "materials",
+      code: "code", drawings: "drawingNotes", workflows: "workflows", market: "industryProblem",
+      brochure: "brochure", pitch: "pitch", economics: "costToBuild",
+    };
+    return map[tabId] || tabId;
+  };
 
   const openCad = () => {
     const url = `https://www.newdimensionscad.com?project=${encodeURIComponent(project.name)}&specs=${encodeURIComponent((project.specs || "").slice(0, 500))}&notes=${encodeURIComponent((project.drawingNotes || "").slice(0, 500))}`;
     window.open(url, "_blank");
   };
 
-  const copyContent = () => {
-    navigator.clipboard.writeText(getContent());
-  };
+  const phase = (project.phase || "design") as keyof typeof PHASE_CONFIG;
+  const phaseConfig = PHASE_CONFIG[phase] || PHASE_CONFIG.design;
+  const tab = ALL_TABS.find(t => t.id === activeTab);
+  const isCode = activeTab === "code";
+  const renders: Render[] = (() => { try { return JSON.parse(project.renders || "[]"); } catch { return []; } })();
 
-  const tab = PROJECT_TABS.find(t => t.id === activeTab)!;
+  const PHASE_TABS = [
+    { id: "all", label: "All" },
+    { id: "design", label: "Design" },
+    { id: "production", label: "Production" },
+    { id: "complete", label: "Complete" },
+  ];
+  const [phaseFilter, setPhaseFilter] = useState("all");
+  const visibleTabs = ALL_TABS.filter(t => phaseFilter === "all" || t.phase === phaseFilter || t.phase === "all");
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
+
       {/* Header */}
-      <div className="flex items-center gap-3 px-5 py-3 border-b flex-shrink-0"
+      <div className="flex items-center gap-3 px-4 py-2.5 border-b flex-shrink-0"
         style={{ borderColor: "rgba(255,255,255,0.06)" }}>
         {editingName ? (
           <div className="flex items-center gap-2 flex-1">
             <input autoFocus value={editName} onChange={e => setEditName(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter") saveProjectName(); if (e.key === "Escape") setEditingName(false); }}
-              className="bg-transparent text-white font-bold text-base outline-none border-b border-white/30 flex-1" />
+              className="bg-transparent text-white font-bold text-sm outline-none border-b border-white/30 flex-1" />
             <button onClick={saveProjectName}><Check className="w-4 h-4 text-green-400" /></button>
             <button onClick={() => setEditingName(false)}><X className="w-4 h-4 text-white/30" /></button>
           </div>
         ) : (
           <div className="flex items-center gap-2 flex-1 min-w-0">
-            <h1 className="text-white font-bold text-base truncate">{project.name}</h1>
+            <h1 className="text-white font-bold text-sm truncate">{project.name}</h1>
             <button onClick={() => { setEditName(project.name); setEditingName(true); }}>
               <Pencil className="w-3 h-3 text-white/20 hover:text-white/50 transition-colors" />
             </button>
-            <span className="text-white/25 text-xs hidden sm:block truncate">· {project.industry}</span>
+            <span className="text-white/25 text-xs hidden sm:block">· {project.industry}</span>
           </div>
         )}
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {saving && <span className="text-white/30 text-xs">Saving...</span>}
 
-          {/* Lab mode toggle */}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {saving && <span className="text-white/25 text-xs">Saving...</span>}
+
+          {/* Phase selector */}
+          <div className="flex gap-0.5 p-0.5 rounded-xl" style={{ background: "hsl(226,45%,11%)" }}>
+            {(["design", "production", "complete"] as const).map(p => (
+              <button key={p} onClick={() => setPhase(p)}
+                className="px-2.5 py-1 rounded-lg text-xs transition-all capitalize"
+                style={{ background: phase === p ? phaseConfig.color : "transparent", color: phase === p ? "white" : "rgba(255,255,255,0.3)", fontWeight: phase === p ? "600" : "400" }}>
+                {p}
+              </button>
+            ))}
+          </div>
+
+          {completeness && (
+            <div className="flex items-center gap-1.5">
+              <div className="w-16 h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.1)" }}>
+                <div className="h-full rounded-full transition-all" style={{ width: `${completeness.pct}%`, background: completeness.pct === 100 ? "hsl(155,70%,45%)" : phaseConfig.color }} />
+              </div>
+              <span className="text-white/30 text-xs">{completeness.pct}%</span>
+            </div>
+          )}
+
           <div className="flex gap-0.5 p-0.5 rounded-lg" style={{ background: "hsl(226,45%,12%)" }}>
             <button onClick={() => setLabMode("engineering")}
               className="flex items-center gap-1 px-2 py-1 rounded-md text-xs transition-all"
@@ -289,60 +531,211 @@ function ProjectWorkspace({ project, pin, onUpdate }: { project: Project; pin: s
             <button onClick={() => setLabMode("bot")}
               className="flex items-center gap-1 px-2 py-1 rounded-md text-xs transition-all"
               style={{ background: labMode === "bot" ? "hsl(280,70%,55%)" : "transparent", color: labMode === "bot" ? "white" : "rgba(255,255,255,0.35)" }}>
-              <Bot className="w-3 h-3" /> Bot Mode
+              <Bot className="w-3 h-3" /> Bot
             </button>
           </div>
 
           <button onClick={openCad}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs transition-all"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs transition-all"
             style={{ background: "hsl(226,45%,14%)", color: "hsl(193,100%,60%)", border: "1px solid rgba(255,255,255,0.07)" }}>
-            <ExternalLink className="w-3 h-3" /> Open in CAD
+            <ExternalLink className="w-3 h-3" /> CAD
           </button>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-0.5 px-4 py-2 border-b flex-shrink-0"
-        style={{ borderColor: "rgba(255,255,255,0.06)" }}>
-        {PROJECT_TABS.map(t => {
-          const Icon = t.icon;
-          return (
-            <button key={t.id} onClick={() => setActiveTab(t.id)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all"
-              style={{ background: activeTab === t.id ? "hsl(226,45%,16%)" : "transparent", color: activeTab === t.id ? "white" : "rgba(255,255,255,0.35)", border: activeTab === t.id ? "1px solid rgba(255,255,255,0.1)" : "1px solid transparent" }}>
-              <Icon className="w-3.5 h-3.5" />
-              {t.label}
+      {/* Tab navigation */}
+      <div className="flex-shrink-0 border-b" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+        <div className="flex items-center gap-1 px-3 py-1.5 overflow-x-auto">
+          {PHASE_TABS.map(pt => (
+            <button key={pt.id} onClick={() => setPhaseFilter(pt.id)}
+              className="text-xs px-2.5 py-1 rounded-full flex-shrink-0 transition-all"
+              style={{ background: phaseFilter === pt.id ? "rgba(255,255,255,0.1)" : "transparent", color: phaseFilter === pt.id ? "white" : "rgba(255,255,255,0.3)" }}>
+              {pt.label}
             </button>
-          );
-        })}
-        <div className="ml-auto flex items-center gap-1">
-          <button onClick={copyContent} title="Copy content"
-            className="p-1.5 rounded-lg transition-colors hover:bg-white/5">
-            <Copy className="w-3.5 h-3.5 text-white/30" />
+          ))}
+          <div className="w-px h-4 flex-shrink-0 mx-1" style={{ background: "rgba(255,255,255,0.1)" }} />
+          {visibleTabs.map(t => {
+            const Icon = t.icon;
+            const hasContent = t.field ? !!(project as any)[t.field] : t.id === "renders" ? renders.length > 0 : false;
+            const phaseColor = t.phase === "design" ? "hsl(193,100%,35%)" : t.phase === "production" ? "hsl(45,100%,45%)" : t.phase === "complete" ? "hsl(155,70%,45%)" : "rgba(255,255,255,0.5)";
+            return (
+              <button key={t.id} onClick={() => setActiveTab(t.id)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs flex-shrink-0 transition-all relative"
+                style={{ background: activeTab === t.id ? "hsl(226,45%,16%)" : "transparent", color: activeTab === t.id ? "white" : "rgba(255,255,255,0.4)", border: activeTab === t.id ? `1px solid ${phaseColor}40` : "1px solid transparent" }}>
+                <Icon className="w-3 h-3" style={{ color: activeTab === t.id ? phaseColor : undefined }} />
+                {t.label}
+                {hasContent && <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: phaseColor }} />}
+              </button>
+            );
+          })}
+          <button onClick={() => navigator.clipboard.writeText(getTabContent(activeTab))} title="Copy" className="ml-auto flex-shrink-0 p-1.5 rounded-lg hover:bg-white/5 transition-colors">
+            <Copy className="w-3.5 h-3.5 text-white/25" />
           </button>
         </div>
       </div>
 
-      {/* Content + Chat */}
+      {/* Main content */}
       <div className="flex-1 flex min-h-0">
-        <div className="flex-1 p-4 min-h-0">
-          <textarea key={`${project.id}-${activeTab}`} defaultValue={getContent()}
-            onBlur={e => saveField(getField(), e.target.value)}
-            placeholder={tab?.placeholder}
-            className="w-full h-full resize-none outline-none leading-relaxed"
-            style={{
-              background: "transparent", color: "rgba(255,255,255,0.8)",
-              fontFamily: activeTab === "code" ? "'Fira Code', 'Cascadia Code', 'Consolas', monospace" : "inherit",
-              fontSize: activeTab === "code" ? "0.75rem" : "0.83rem",
-              lineHeight: activeTab === "code" ? "1.6" : "1.7",
-            }} />
+
+        {/* Tab content */}
+        <div className="flex-1 min-h-0 overflow-y-auto">
+
+          {activeTab === "overview" && (
+            <div className="p-5 space-y-5">
+              {/* Phase progress */}
+              <div className="rounded-2xl p-4" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                <p className="text-white/40 text-xs mb-3 uppercase tracking-wider">Project Phase</p>
+                <div className="flex items-center gap-2">
+                  {(["design", "production", "complete"] as const).map((p, i) => {
+                    const cfg = PHASE_CONFIG[p];
+                    const done = ["design", "production", "complete"].indexOf(phase) >= i;
+                    return (
+                      <React.Fragment key={p}>
+                        <div className="flex-1">
+                          <button onClick={() => setPhase(p)} className="w-full py-2 rounded-xl text-xs font-semibold transition-all"
+                            style={{ background: phase === p ? cfg.color : done ? cfg.color + "30" : "hsl(226,45%,12%)", color: done ? "white" : "rgba(255,255,255,0.3)" }}>
+                            {cfg.label}
+                          </button>
+                        </div>
+                        {i < 2 && <ChevronRight className="w-3.5 h-3.5 text-white/20 flex-shrink-0" />}
+                      </React.Fragment>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Completeness */}
+              {completeness && (
+                <div className="rounded-2xl p-4" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-white/40 text-xs uppercase tracking-wider">Completeness</p>
+                    <span className="text-white font-bold">{completeness.pct}%</span>
+                  </div>
+                  <div className="w-full h-2 rounded-full overflow-hidden mb-3" style={{ background: "rgba(255,255,255,0.06)" }}>
+                    <div className="h-full rounded-full transition-all" style={{ width: `${completeness.pct}%`, background: completeness.pct === 100 ? "hsl(155,70%,45%)" : "hsl(193,100%,35%)" }} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {completeness.checks.map(c => {
+                      const color = c.phase === "design" ? "hsl(193,100%,35%)" : c.phase === "production" ? "hsl(45,100%,45%)" : "hsl(155,70%,45%)";
+                      return (
+                        <div key={c.key} className="flex items-center gap-2 text-xs">
+                          <div className="w-2.5 h-2.5 rounded-full flex-shrink-0 flex items-center justify-center" style={{ background: c.filled ? color : "rgba(255,255,255,0.1)" }}>
+                            {c.filled && <Check className="w-1.5 h-1.5 text-white" />}
+                          </div>
+                          <span style={{ color: c.filled ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.25)" }}>{c.label}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Latest render */}
+              {renders.length > 0 && (
+                <div className="rounded-2xl overflow-hidden cursor-pointer" onClick={() => setActiveTab("renders")}
+                  style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
+                  <img src={renders[0].url} alt={renders[0].label} className="w-full aspect-video object-cover" />
+                  <div className="p-3 flex items-center justify-between" style={{ background: "hsl(226,45%,9%)" }}>
+                    <p className="text-white text-xs font-medium">{renders[0].label}</p>
+                    <span className="text-white/30 text-xs">{renders.length} render{renders.length !== 1 ? "s" : ""} · View all</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Quick stats */}
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { label: "Industry", value: project.industry },
+                  { label: "Phase", value: PHASE_CONFIG[phase]?.label || phase },
+                  { label: "Renders", value: String(renders.length) },
+                ].map(s => (
+                  <div key={s.label} className="rounded-xl p-3 text-center" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                    <p className="text-white text-sm font-semibold truncate">{s.value}</p>
+                    <p className="text-white/30 text-xs mt-0.5">{s.label}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Quick generate actions */}
+              <div>
+                <p className="text-white/30 text-xs mb-2 uppercase tracking-wider">Quick Generate</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { label: "Materials Spec", section: "materials", tab: "materials" },
+                    { label: "Workflows", section: "workflows", tab: "workflows" },
+                    { label: "Market Analysis", section: "market", tab: "market" },
+                    { label: "Design Brochure", section: "brochure", tab: "brochure" },
+                    { label: "Pitch Deck", section: "pitch", tab: "pitch" },
+                    { label: "Cost Analysis", section: "cost", tab: "economics" },
+                  ].map(a => (
+                    <button key={a.section} onClick={() => { generateSection(a.section); setActiveTab(a.tab); }}
+                      disabled={generating}
+                      className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs transition-all text-left"
+                      style={{ background: "hsl(226,45%,12%)", color: "rgba(255,255,255,0.6)", border: "1px solid rgba(255,255,255,0.07)", opacity: generating ? 0.5 : 1 }}>
+                      <Sparkles className="w-3 h-3 flex-shrink-0" style={{ color: "hsl(193,100%,50%)" }} />
+                      {a.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "renders" && (
+            <RendersTab project={project} pin={pin} onUpdate={onUpdate} />
+          )}
+
+          {activeTab !== "overview" && activeTab !== "renders" && tab && (
+            <div className="flex flex-col h-full">
+              {tab.generated && (
+                <div className="px-4 py-2 border-b flex items-center justify-between flex-shrink-0"
+                  style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+                  <span className="text-white/30 text-xs">
+                    {activeTab === "market" ? "Market analysis + use cases" : activeTab === "economics" ? "Cost to build + profit margins" : tab.label}
+                  </span>
+                  <button onClick={() => generateSection(activeTab)} disabled={generating}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all"
+                    style={{ background: "hsl(193,100%,32%)", color: "white", opacity: generating ? 0.5 : 1 }}>
+                    {generating ? <><Loader2 className="w-3 h-3 animate-spin" /> Generating...</> : <><Sparkles className="w-3 h-3" /> Generate with AI</>}
+                  </button>
+                </div>
+              )}
+              {activeTab === "market" ? (
+                <div className="flex-1 flex flex-col min-h-0">
+                  <textarea key={`${project.id}-market`} defaultValue={project.industryProblem}
+                    onBlur={e => saveField("industryProblem", e.target.value)}
+                    placeholder="Industry problem analysis, market sizing, competitor landscape, use cases..."
+                    className="flex-1 p-4 resize-none outline-none leading-relaxed"
+                    style={{ background: "transparent", color: "rgba(255,255,255,0.8)", fontSize: "0.83rem", lineHeight: "1.7" }} />
+                </div>
+              ) : activeTab === "economics" ? (
+                <div className="flex-1 flex flex-col min-h-0">
+                  <textarea key={`${project.id}-economics`} defaultValue={project.costToBuild}
+                    onBlur={e => saveField("costToBuild", e.target.value)}
+                    placeholder="Cost to build breakdown, BOM, manufacturing costs, pricing strategy, profit margin analysis..."
+                    className="flex-1 p-4 resize-none outline-none leading-relaxed"
+                    style={{ background: "transparent", color: "rgba(255,255,255,0.8)", fontSize: "0.83rem", lineHeight: "1.7" }} />
+                </div>
+              ) : (
+                <textarea key={`${project.id}-${activeTab}`} defaultValue={getTabContent(activeTab)}
+                  onBlur={e => saveField(getTabField(activeTab), e.target.value)}
+                  placeholder={tab.placeholder}
+                  className="flex-1 p-4 resize-none outline-none leading-relaxed"
+                  style={{
+                    background: "transparent", color: "rgba(255,255,255,0.8)",
+                    fontFamily: isCode ? "'Fira Code','Cascadia Code','Consolas',monospace" : "inherit",
+                    fontSize: isCode ? "0.75rem" : "0.83rem", lineHeight: isCode ? "1.6" : "1.7",
+                  }} />
+              )}
+            </div>
+          )}
         </div>
 
         {/* AI Panel */}
-        <div className="w-72 border-l flex flex-col min-h-0"
+        <div className="w-64 border-l flex flex-col min-h-0"
           style={{ borderColor: "rgba(255,255,255,0.06)", background: "hsl(226,45%,6%)" }}>
-          <div className="px-3 py-2.5 border-b flex-shrink-0" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
-            <div className="flex items-center gap-2">
+          <div className="px-3 py-2 border-b flex-shrink-0" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+            <div className="flex items-center gap-1.5">
               {labMode === "bot"
                 ? <Bot className="w-3.5 h-3.5" style={{ color: "hsl(280,70%,65%)" }} />
                 : <Sparkles className="w-3.5 h-3.5" style={{ color: "hsl(193,100%,50%)" }} />}

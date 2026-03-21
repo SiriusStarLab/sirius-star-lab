@@ -2,6 +2,7 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { eq, desc } from "drizzle-orm";
 import { db, labProjects, labMessages, scoutReports } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
+import { generateImageBuffer } from "@workspace/integrations-openai-ai-server/image";
 
 const router: IRouter = Router();
 
@@ -293,11 +294,16 @@ router.get("/lab/projects/:id", authMiddleware, async (req: Request, res: Respon
 
 router.put("/lab/projects/:id", authMiddleware, async (req: Request, res: Response) => {
   const id = parseInt(req.params.id);
-  const { name, industry, status, brief, research, specs, code, drawingNotes, cadUrl } = req.body;
-  const [updated] = await db.update(labProjects)
-    .set({ name, industry, status, brief, research, specs, code, drawingNotes, cadUrl, updatedAt: new Date() })
-    .where(eq(labProjects.id, id))
-    .returning();
+  const {
+    name, industry, phase, status,
+    brief, research, specs, code, drawingNotes, cadUrl, materials,
+    workflows, industryProblem, uses,
+    brochure, pitch, costToBuild, profitMargin, renders
+  } = req.body;
+  const updatePayload: Record<string, any> = { updatedAt: new Date() };
+  const fields = { name, industry, phase, status, brief, research, specs, code, drawingNotes, cadUrl, materials, workflows, industryProblem, uses, brochure, pitch, costToBuild, profitMargin, renders };
+  for (const [k, v] of Object.entries(fields)) { if (v !== undefined) (updatePayload as any)[k] = v; }
+  const [updated] = await db.update(labProjects).set(updatePayload).where(eq(labProjects.id, id)).returning();
   res.json(updated);
 });
 
@@ -486,6 +492,356 @@ router.get("/lab/scout/reports", authMiddleware, async (req: Request, res: Respo
 router.delete("/lab/scout/reports/:id", authMiddleware, async (req: Request, res: Response) => {
   await db.delete(scoutReports).where(eq(scoutReports.id, parseInt(req.params.id)));
   res.json({ success: true });
+});
+
+// ─── PRODUCT RENDER GENERATION ─────────────────────────────────────────────
+
+router.post("/lab/projects/:id/render", authMiddleware, async (req: Request, res: Response) => {
+  const projectId = parseInt(req.params.id);
+  const { type = "3d", angle = "perspective", style = "product render" } = req.body;
+
+  const [project] = await db.select().from(labProjects).where(eq(labProjects.id, projectId));
+  if (!project) { res.status(404).json({ error: "Project not found" }); return; }
+
+  const name = project.name;
+  const specs = project.specs?.slice(0, 500) || "";
+  const materials = project.materials?.slice(0, 300) || "";
+  const brief = project.brief?.slice(0, 300) || "";
+
+  let prompt = "";
+  if (type === "3d") {
+    prompt = `Professional ${style} of "${name}". ${angle} view. ${specs ? `Key specs: ${specs}.` : ""} ${materials ? `Materials: ${materials}.` : ""} ${brief ? `Description: ${brief}.` : ""} Studio lighting, white background, photorealistic, high detail, product photography quality. Show the product clearly with no text overlays.`;
+  } else if (type === "2d") {
+    prompt = `Technical 2D product illustration of "${name}". ${angle === "front" ? "Front elevation view" : angle === "side" ? "Side elevation view" : angle === "top" ? "Top plan view" : "Three-view orthographic drawing"}. ${specs ? `Specs: ${specs}.` : ""} Clean technical drawing style, white background, precise lines, engineering illustration.`;
+  } else if (type === "exploded") {
+    prompt = `Exploded view technical illustration of "${name}" showing all component parts separated and labelled. ${specs ? `Details: ${specs}.` : ""} ${materials ? `Materials: ${materials}.` : ""} Clean white background, isometric perspective, arrows showing assembly directions, professional technical illustration style.`;
+  } else if (type === "lifestyle") {
+    prompt = `Professional lifestyle photograph of "${name}" in real-world use. ${brief ? `Product context: ${brief}.` : ""} ${specs ? `Details: ${specs}.` : ""} Natural lighting, contextual background showing the product being used, aspirational photography.`;
+  }
+
+  try {
+    const buffer = await generateImageBuffer(prompt, "1024x1024");
+    const b64 = buffer.toString("base64");
+    const dataUrl = `data:image/png;base64,${b64}`;
+
+    const existing = JSON.parse(project.renders || "[]") as { url: string; label: string; type: string }[];
+    const label = `${type === "3d" ? "3D" : type === "2d" ? "2D" : type === "exploded" ? "Exploded" : "Lifestyle"} — ${angle}`;
+    const newRender = { url: dataUrl, label, type, angle, generatedAt: new Date().toISOString() };
+    const updatedRenders = [newRender, ...existing].slice(0, 8);
+
+    await db.update(labProjects)
+      .set({ renders: JSON.stringify(updatedRenders), updatedAt: new Date() })
+      .where(eq(labProjects.id, projectId));
+
+    res.json({ render: newRender, renders: updatedRenders });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── AI DOCUMENT GENERATION ────────────────────────────────────────────────
+
+router.post("/lab/projects/:id/generate", authMiddleware, async (req: Request, res: Response) => {
+  const projectId = parseInt(req.params.id);
+  const { section } = req.body;
+
+  const [project] = await db.select().from(labProjects).where(eq(labProjects.id, projectId));
+  if (!project) { res.status(404).json({ error: "Project not found" }); return; }
+
+  sseHeaders(res);
+
+  const ctx = `
+Project: ${project.name}
+Industry: ${project.industry}
+Brief: ${project.brief || "Not yet written"}
+Research: ${project.research?.slice(0, 800) || "Not yet written"}
+Technical Specs: ${project.specs?.slice(0, 800) || "Not yet written"}
+Materials: ${project.materials?.slice(0, 500) || "Not specified"}
+Industry Problem: ${project.industryProblem || "Not specified"}
+Uses: ${project.uses || "Not specified"}
+Cost to Build: ${project.costToBuild || "Not yet calculated"}`;
+
+  const prompts: Record<string, { system: string; user: string }> = {
+    materials: {
+      system: `You are a world-class materials engineer and procurement specialist. Today is ${TODAY()}. You always recommend real, commercially available materials with real suppliers, real part numbers, and accurate pricing. You reference applicable standards (ISO, ASTM, BS EN, RoHS, REACH). You search for current material pricing.`,
+      user: `Based on this project, produce a complete materials specification:
+
+${ctx}
+
+Output a structured materials list covering:
+## Materials Specification
+
+### Primary Structural Materials
+[For each material: Name | Grade/specification | Supplier | Approx unit cost | Why chosen | Standard]
+
+### Secondary / Functional Materials
+[Same format]
+
+### Surface Finish / Coatings
+[Treatment, specification, supplier]
+
+### Fasteners & Hardware
+[Types, grades, quantities estimate]
+
+### Key Suppliers
+[Real company names, what they supply, lead time estimate]
+
+### Material Cost Estimate
+[Breakdown and total per unit]
+
+### Sustainability & Compliance
+[RoHS, REACH, recyclability, certifications required]`,
+    },
+
+    workflows: {
+      system: `You are a manufacturing and operations engineer with expertise across all production methods. Today is ${TODAY()}.`,
+      user: `Produce a complete manufacturing and deployment workflow for this project:
+
+${ctx}
+
+Include:
+## Manufacturing / Deployment Workflow
+
+### Phase 1: Pre-Production
+[Requirements review, supplier qualification, tooling, certifications needed]
+
+### Phase 2: Production Steps
+[Numbered sequence of exact manufacturing or development steps with time estimates]
+
+### Phase 3: Quality Control
+[Inspection points, test methods, acceptance criteria, standards]
+
+### Phase 4: Assembly
+[Assembly sequence, tooling, jigs, fixtures]
+
+### Phase 5: Testing & Validation
+[Performance tests, compliance tests, user acceptance testing]
+
+### Phase 6: Packaging & Delivery
+[Packaging spec, labelling requirements, shipping considerations]
+
+### Timeline
+[Gantt-style timeline from design freeze to first shipment]
+
+### Key Risks & Mitigations
+[Top 5 risks with mitigation strategies]`,
+    },
+
+    brochure: {
+      system: `You are a world-class product designer and copywriter — the calibre of Apple or Dyson marketing. You write product brochures that are clear, compelling, aspirational, and precise. No fluff. Every word earns its place.`,
+      user: `Create a complete product brochure for this product:
+
+${ctx}
+
+Format:
+# [Product Name]
+## [Powerful one-line tagline]
+
+[Opening paragraph — emotional hook, the world this product lives in, why it matters now]
+
+## The Problem
+[What problem this solves, for whom, and what happens without it — specific and honest]
+
+## The Solution
+[What this product does and how — lead with benefit, support with technical truth]
+
+## Key Features
+[5-7 specific features, each with a benefit statement, not just a spec]
+
+## Technical Specifications
+[Clean, scannable spec sheet]
+
+## Materials & Build Quality
+[What it's made from and why that matters]
+
+## Industries & Applications
+[Who uses this, in what context, with specific use case examples]
+
+## The Difference
+[What makes this genuinely better than alternatives — honest and specific]
+
+## [Call to action]`,
+    },
+
+    pitch: {
+      system: `You are a pitch deck writer and startup strategist at the level of the best Silicon Valley pitch coaches. You write pitches that are honest, compelling, and investor-ready.`,
+      user: `Create a complete investor/client pitch for this product:
+
+${ctx}
+
+Structure:
+# [Product Name] — Investor Pitch
+
+## The Problem (Slide 1)
+[The pain point — make it visceral and quantified]
+
+## The Solution (Slide 2)
+[Exactly what this is, in one sentence, then expanded]
+
+## Market Opportunity (Slide 3)
+[TAM / SAM / SOM with evidence — be specific, cite sources]
+
+## Product (Slide 4)
+[How it works, key features, technical differentiation]
+
+## Business Model (Slide 5)
+[How it makes money — pricing, margins, revenue streams]
+
+## Go-To-Market Strategy (Slide 6)
+[First 90 days, first year, distribution channels]
+
+## Competitive Landscape (Slide 7)
+[Real competitors, honest comparison, why we win]
+
+## Financial Projections (Slide 8)
+[3-year model: revenue, costs, margins — conservative and optimistic]
+
+## Team & Execution (Slide 9)
+[Why this team can execute this]
+
+## Ask (Slide 10)
+[What you're asking for, what it funds, timeline to milestones]`,
+    },
+
+    cost: {
+      system: `You are a financial analyst and product cost engineer. You produce accurate, itemised cost models with real market pricing. Today is ${TODAY()}. You search for current component, material, and manufacturing costs.`,
+      user: `Produce a complete cost-to-build and profitability analysis for this product:
+
+${ctx}
+
+Include:
+## Cost to Build Analysis
+
+### Bill of Materials (BOM)
+| Item | Specification | Qty | Unit Cost (£) | Total (£) | Supplier |
+[Complete BOM table]
+
+### Manufacturing / Development Costs
+| Step | Cost (£) | Notes |
+[Labour, tooling, setup, certification costs]
+
+### Overhead & Fixed Costs
+[Tooling amortisation, certification, insurance, IP]
+
+### Total Cost Per Unit (at different volumes)
+| Volume | Unit Cost | Notes |
+| 1 unit (prototype) | £X | |
+| 10 units | £X | |
+| 100 units | £X | |
+| 1,000 units | £X | |
+
+### Pricing Strategy
+[Recommended retail/wholesale prices with justification]
+
+### Profit Margin Analysis
+| Price Point | Cost | Gross Margin | Margin % |
+[Multiple scenarios]
+
+### Break-Even Analysis
+[Units and revenue needed to break even]
+
+### 3-Year Financial Projection
+| Year | Units | Revenue | COGS | Gross Profit | Margin % |
+
+### Key Cost Reduction Opportunities
+[Top 3 ways to reduce cost at scale]`,
+    },
+
+    industryProblem: {
+      system: `You are a market analyst and product strategist. You write precise, evidence-based market positioning documents. Today is ${TODAY()}.`,
+      user: `Write a complete industry and problem analysis for this product:
+
+${ctx}
+
+Include:
+## Market & Problem Analysis
+
+### Industry Overview
+[The sector this operates in — size, key players, current state]
+
+### The Core Problem
+[The specific pain point this solves — be precise, quantify the cost/impact of the problem]
+
+### Who Has This Problem
+[Specific buyer personas with characteristics, buying behaviour, and what they currently do instead]
+
+### Current Solutions & Their Failures
+[What exists now, why it's inadequate, what's missing]
+
+### Why Now
+[What makes this the right moment — technology unlock, regulation, trend, market shift]
+
+### Competitive Landscape
+[Real competitors mapped against key dimensions — be honest]
+
+## Use Cases
+
+### Primary Use Cases
+[3-5 specific, detailed use cases with example users and workflows]
+
+### Secondary Use Cases
+[2-3 additional applications]
+
+### Industries Served
+[For each industry: specific application, value delivered, key metrics improved]
+
+### Case Study Example
+[One fictional but realistic detailed case study showing the product solving a real problem]`,
+    },
+  };
+
+  const sectionAliases: Record<string, string> = { market: "industryProblem", economics: "cost" };
+  const resolvedSection = sectionAliases[section] || section;
+
+  const selected = prompts[resolvedSection];
+  if (!selected) { res.write(`data: ${JSON.stringify({ error: "Unknown section" })}\n\n`); res.end(); return; }
+
+  const dbFieldMap: Record<string, string> = {
+    cost: "costToBuild", industryProblem: "industryProblem",
+    materials: "materials", workflows: "workflows",
+    brochure: "brochure", pitch: "pitch",
+  };
+  const dbField = dbFieldMap[resolvedSection] || resolvedSection;
+
+  try {
+    const fullContent = await streamChatResponse(res, selected.system, selected.user);
+    await db.update(labProjects)
+      .set({ [dbField]: fullContent, updatedAt: new Date() })
+      .where(eq(labProjects.id, projectId));
+    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+  } catch (err: any) {
+    res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+  }
+  res.end();
+});
+
+// ─── PROJECT COMPLETENESS ──────────────────────────────────────────────────
+
+router.get("/lab/projects/:id/completeness", authMiddleware, async (req: Request, res: Response) => {
+  const [p] = await db.select().from(labProjects).where(eq(labProjects.id, parseInt(req.params.id)));
+  if (!p) { res.status(404).json({ error: "Not found" }); return; }
+
+  const checks = [
+    { key: "brief", label: "Brief", phase: "design", filled: !!p.brief?.trim() },
+    { key: "research", label: "Research", phase: "design", filled: !!p.research?.trim() },
+    { key: "specs", label: "Technical Specs", phase: "design", filled: !!p.specs?.trim() },
+    { key: "materials", label: "Materials", phase: "design", filled: !!p.materials?.trim() },
+    { key: "drawingNotes", label: "Drawing Notes", phase: "design", filled: !!p.drawingNotes?.trim() },
+    { key: "workflows", label: "Workflows", phase: "production", filled: !!p.workflows?.trim() },
+    { key: "industryProblem", label: "Market Analysis", phase: "production", filled: !!p.industryProblem?.trim() },
+    { key: "uses", label: "Use Cases", phase: "production", filled: !!p.uses?.trim() },
+    { key: "renders", label: "Product Renders", phase: "complete", filled: (JSON.parse(p.renders || "[]") as any[]).length > 0 },
+    { key: "brochure", label: "Brochure", phase: "complete", filled: !!p.brochure?.trim() },
+    { key: "pitch", label: "Pitch", phase: "complete", filled: !!p.pitch?.trim() },
+    { key: "costToBuild", label: "Cost Analysis", phase: "complete", filled: !!p.costToBuild?.trim() },
+    { key: "profitMargin", label: "Profit Margin", phase: "complete", filled: !!p.profitMargin?.trim() },
+  ];
+
+  const filled = checks.filter(c => c.filled).length;
+  const total = checks.length;
+  const pct = Math.round((filled / total) * 100);
+
+  res.json({ checks, filled, total, pct, phase: p.phase });
 });
 
 export default router;
