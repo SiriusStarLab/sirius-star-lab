@@ -506,6 +506,14 @@ function updateManifests(manifests, timestamp, baseUrl, assetsByHash) {
 }
 
 async function main() {
+  // Skip the Expo bundle build during standard web/server deployments.
+  // The mobile app is published separately via EAS (eas build + eas submit).
+  // Only run the full Metro bundle when EXPO_BUILD=1 is explicitly set.
+  if (!process.env.EXPO_BUILD) {
+    console.log("Skipping Expo bundle build (set EXPO_BUILD=1 to enable). Mobile app is submitted via EAS.");
+    process.exit(0);
+  }
+
   console.log("Building static Expo Go deployment...");
 
   setupSignalHandlers();
