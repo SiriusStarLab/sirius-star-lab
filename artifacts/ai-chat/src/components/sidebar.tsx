@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { PlusCircle, MessageSquare, Trash2, X, Settings, Zap, Loader2, Sparkles, FlaskConical } from "lucide-react";
@@ -21,9 +21,10 @@ import {
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
+  forceOpenPricing?: "plus" | "pro" | null;
 }
 
-export function Sidebar({ isOpen, onClose }: SidebarProps) {
+export function Sidebar({ isOpen, onClose, forceOpenPricing }: SidebarProps) {
   const [location, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -33,6 +34,10 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const { profile } = useProfile();
   const { status, usagePercent, isPremium } = useSubscription();
   const userId = getUserId();
+
+  useEffect(() => {
+    if (forceOpenPricing) setIsPricingOpen(true);
+  }, [forceOpenPricing]);
 
   const handleDirectUpgrade = async () => {
     setCheckingOut(true);

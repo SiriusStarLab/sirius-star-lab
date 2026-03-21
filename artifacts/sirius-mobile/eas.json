@@ -23,5 +23,24 @@
         "buildType": "app-bundle"
       }
     }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "appleId": "garryboy@icloud.com",
+        "ascAppId": "6CB86L6MP6",
+        "appleTeamId": "a4f395dd-7030-4104-90f6-889eeeab4640",
+        "language": "en-GB",
+        "sku": "com.siriusai.app",
+        "complianceEncryption": false,
+        "metadataPath": "./store-metadata/ios"
+      },
+      "android": {
+        "serviceAccountKeyPath": "./store-metadata/google-play-service-account.json",
+        "track": "internal",
+        "releaseStatus": "draft",
+        "changesNotSentForReview": false
+      }
+    }
   }
 }

@@ -1,9 +1,11 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { AppState, AppStateStatus } from "react-native";
 import React, {
   createContext,
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from "react";
 
@@ -47,6 +49,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [userId, setUserId] = useState<string | null>(null);
   const [profile, setProfile] = useState<AppProfile>(defaultProfile);
   const [loading, setLoading] = useState(true);
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
 
   const initUser = useCallback(async () => {
     let id = await AsyncStorage.getItem(USER_ID_KEY);
@@ -97,6 +100,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
     })();
   }, [initUser]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextState: AppStateStatus) => {
+      const prev = appStateRef.current;
+      appStateRef.current = nextState;
+      if (prev.match(/inactive|background/) && nextState === "active") {
+        refreshProfile();
+      }
+    });
+    return () => subscription.remove();
+  }, [refreshProfile]);
 
   return (
     <AppContext.Provider value={{ userId, profile, loading, refreshProfile, updateLocalProfile }}>

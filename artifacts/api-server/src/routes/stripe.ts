@@ -215,6 +215,31 @@ router.post("/stripe/webhook", async (req, res) => {
         }
         break;
       }
+      case "customer.subscription.updated": {
+        const sub = event.data.object as Stripe.Subscription;
+        const customerId = sub.customer as string;
+        const status = sub.status;
+        const [profile] = await db
+          .select({ userId: userProfilesTable.userId })
+          .from(userProfilesTable)
+          .where(eq(userProfilesTable.stripeCustomerId, customerId));
+        if (profile?.userId) {
+          if (status === "active" || status === "trialing") {
+            const amount = sub.items.data[0]?.price?.unit_amount;
+            let tier: string | undefined;
+            if (amount === 500) tier = "plus";
+            else if (amount === 1200) tier = "pro";
+            const metadata = sub.metadata as Record<string, string>;
+            if (!tier && metadata?.tier) tier = metadata.tier;
+            if (tier && ["plus", "pro"].includes(tier)) {
+              await db.update(userProfilesTable).set({ subscriptionTier: tier }).where(eq(userProfilesTable.userId, profile.userId));
+            }
+          } else if (["canceled", "unpaid", "past_due"].includes(status)) {
+            await db.update(userProfilesTable).set({ subscriptionTier: "free" }).where(eq(userProfilesTable.userId, profile.userId));
+          }
+        }
+        break;
+      }
       case "customer.subscription.deleted": {
         const sub = event.data.object as Stripe.Subscription;
         const customerId = sub.customer as string;
@@ -230,11 +255,41 @@ router.post("/stripe/webhook", async (req, res) => {
         }
         break;
       }
+      case "invoice.payment_succeeded": {
+        const invoice = event.data.object as Stripe.Invoice;
+        const customerId = (invoice as any).customer as string;
+        const [profile] = await db.select({ userId: userProfilesTable.userId, subscriptionTier: userProfilesTable.subscriptionTier }).from(userProfilesTable).where(eq(userProfilesTable.stripeCustomerId, customerId));
+        if (profile?.userId && profile.subscriptionTier === "free") {
+          await db.update(userProfilesTable).set({ subscriptionTier: "plus" }).where(eq(userProfilesTable.userId, profile.userId));
+        }
+        break;
+      }
+      case "invoice.payment_failed": {
+        console.warn("Invoice payment failed for customer:", (event.data.object as any).customer);
+        break;
+      }
     }
     return res.json({ received: true });
   } catch (err: any) {
     console.error("Webhook handler error:", err.message);
     return res.status(500).json({ error: "Webhook handler failed" });
+  }
+});
+
+// GET /api/stripe/subscription/:userId — poll subscription status (used by mobile after returning from web checkout)
+router.get("/stripe/subscription/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const [profile] = await db
+      .select({ subscriptionTier: userProfilesTable.subscriptionTier, stripeCustomerId: userProfilesTable.stripeCustomerId })
+      .from(userProfilesTable)
+      .where(eq(userProfilesTable.userId, userId));
+    return res.json({
+      tier: profile?.subscriptionTier ?? "free",
+      hasStripeCustomer: !!(profile?.stripeCustomerId),
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
   }
 });
 

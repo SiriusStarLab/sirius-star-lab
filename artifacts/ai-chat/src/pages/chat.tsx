@@ -20,9 +20,22 @@ export function ChatPage() {
   const conversationId = match && params?.id ? parseInt(params.id) : undefined;
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [upgradeParam, setUpgradeParam] = useState<"plus" | "pro" | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { profile } = useProfile();
   const aiName = profile.aiName || "Sirius";
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const up = params.get("upgrade");
+    if (up === "plus" || up === "pro") {
+      setUpgradeParam(up);
+      setIsSidebarOpen(true);
+      const url = new URL(window.location.href);
+      url.searchParams.delete("upgrade");
+      window.history.replaceState({}, "", url.toString());
+    }
+  }, []);
 
   const {
     data: dbConversation,
@@ -55,7 +68,7 @@ export function ChatPage() {
       {/* Subtle scan-line overlay */}
       <div className="scan-line" />
 
-      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} forceOpenPricing={upgradeParam} />
 
       <div className="flex-1 flex flex-col h-full relative z-10 w-full min-w-0">
         {/* Mobile header */}
