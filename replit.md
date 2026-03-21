@@ -21,6 +21,14 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 ### `artifacts/ai-chat` — Sirius AI Partnership App
 React + Vite frontend served at `/`. A full AI partnership platform — not a tool, not an assistant, a genuine partner:
 
+**Sirius Star Lab** (private R&D, at `/star-lab`)
+- PIN-gated (default PIN: 2025, changeable via STAR_LAB_PIN env var)
+- Multi-project workspace: Brief, Research, Specs, Code, Drawings tabs per project
+- Lab AI: engineering-focused, current tech only, web search, build-ready outputs
+- Opportunity Scout: scans industries + social media for product/business opportunities
+- Direct handoff to newdimensionscad.com with project specs pre-loaded
+- All projects persist independently in PostgreSQL (lab_projects, lab_messages, scout_reports tables)
+
 **Core experience**
 - Partnership-first design: the AI is an equal intelligence partner, not a tool
 - Mood check-in on welcome screen (8 emotional states → personalised opener)

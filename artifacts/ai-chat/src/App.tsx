@@ -7,6 +7,7 @@ import { TermsPage } from "@/pages/terms";
 import { PrivacyPage } from "@/pages/privacy";
 import { CheckoutSuccessPage } from "@/pages/checkout-success";
 import { CheckoutCancelPage } from "@/pages/checkout-cancel";
+import { StarLabPage } from "@/pages/star-lab";
 import NotFound from "@/pages/not-found";
 import { PWAInstallPrompt } from "@/components/pwa-install-prompt";
 
@@ -29,6 +30,7 @@ function Router() {
       <Route path="/privacy" component={PrivacyPage} />
       <Route path="/checkout/success" component={CheckoutSuccessPage} />
       <Route path="/checkout/cancel" component={CheckoutCancelPage} />
+      <Route path="/star-lab" component={StarLabPage} />
       <Route component={NotFound} />
     </Switch>
   );
