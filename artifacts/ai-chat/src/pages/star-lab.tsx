@@ -1322,6 +1322,7 @@ function BotLabPanel({ pin }: { pin: string }) {
             <div>
               <label className="text-white/40 text-xs mb-1.5 block">Describe the bot</label>
               <textarea value={description} onChange={e => setDescription(e.target.value)} rows={4}
+                onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); if (!streaming && description.trim()) design(); } }}
                 placeholder="What should this bot do? Be specific about inputs, outputs, and triggers..."
                 className="w-full px-3 py-2.5 rounded-xl text-white text-xs placeholder-white/20 resize-none outline-none"
                 style={{ background: "hsl(226,45%,11%)", border: "1px solid rgba(255,255,255,0.07)" }} />
@@ -1337,6 +1338,7 @@ function BotLabPanel({ pin }: { pin: string }) {
             <div>
               <label className="text-white/40 text-xs mb-1.5 block">Platforms / Systems involved</label>
               <input value={platforms} onChange={e => setPlatforms(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter" && !streaming && description.trim()) design(); }}
                 placeholder="e.g. Gmail, Xero, Slack, Shopify..."
                 className="w-full px-3 py-2 rounded-xl text-white text-xs placeholder-white/20 outline-none"
                 style={{ background: "hsl(226,45%,11%)", border: "1px solid rgba(255,255,255,0.07)" }} />
@@ -1498,6 +1500,7 @@ function ScoutPanel({ pin }: { pin: string }) {
             <div>
               <label className="text-white/40 text-xs mb-1.5 block">Specific focus (optional)</label>
               <textarea value={query} onChange={e => setQuery(e.target.value)} rows={2}
+                onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); if (!streaming) run(); } }}
                 placeholder="e.g. 'automation bots for accountants' or 'gaps in veterinary software'..."
                 className="w-full px-3 py-2 rounded-xl text-white text-xs placeholder-white/20 resize-none outline-none"
                 style={{ background: "hsl(226,45%,11%)", border: "1px solid rgba(255,255,255,0.07)" }} />
@@ -2080,6 +2083,7 @@ function CommerceLabPanel({ pin }: { pin: string }) {
             <textarea
               value={description}
               onChange={e => setDescription(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); if (!generating && description.trim()) generate(); } }}
               placeholder={
                 activeTool === "listings" ? "e.g. Bamboo travel water bottle, 500ml, keeps drinks cold 24hrs, leak-proof lid, includes infuser..."
                 : activeTool === "adcopy" ? "e.g. Online fitness coaching app for busy professionals. 12-week transformation programme, £47/month..."
