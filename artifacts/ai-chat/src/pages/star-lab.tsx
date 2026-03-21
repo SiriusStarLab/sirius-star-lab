@@ -41,7 +41,7 @@ type Project = {
 };
 type Message = { id: number; projectId: number; role: string; content: string; createdAt: string };
 type ScoutReport = { id: number; title: string; industry: string; opportunity: string; type: string; createdAt: string };
-type NavMode = "projects" | "botlab" | "scout" | "feed" | "grants";
+type NavMode = "projects" | "botlab" | "scout" | "feed" | "grants" | "commerce";
 
 const MAX_PIN_DIGITS = 8;
 const MAX_ATTEMPTS = 5;
@@ -1757,6 +1757,228 @@ function FeedPanel({ pin }: { pin: string }) {
   );
 }
 
+const COMMERCE_TOOLS = [
+  { id: "listings",   label: "Product Listings",  icon: Package,    color: "hsl(25,90%,55%)",   desc: "Amazon, Shopify & Etsy listings — titles, bullets, A+ content, SEO meta" },
+  { id: "adcopy",     label: "Ad Copy",           icon: Zap,        color: "hsl(280,70%,60%)",  desc: "Meta, Google & TikTok ads — complete creative with targeting briefs" },
+  { id: "email",      label: "Email Sequence",    icon: Send,       color: "hsl(193,100%,45%)", desc: "7-email welcome/nurture/convert/win-back flow with subject lines" },
+  { id: "seo",        label: "SEO Content Brief", icon: Telescope,  color: "hsl(155,70%,45%)",  desc: "Keyword strategy, page structure, meta, E-E-A-T & 90-day roadmap" },
+  { id: "social",     label: "Social Calendar",   icon: Globe,      color: "hsl(330,75%,60%)",  desc: "30-day Instagram/TikTok/LinkedIn calendar with hooks, copy & hashtags" },
+  { id: "conversion", label: "Conversion Audit",  icon: TrendingUp, color: "hsl(45,100%,50%)",  desc: "Full CRO analysis — page structure, A/B roadmap, checkout friction" },
+] as const;
+type CommerceToolId = typeof COMMERCE_TOOLS[number]["id"];
+
+const PLATFORM_OPTIONS: Record<CommerceToolId, string[]> = {
+  listings:   ["Amazon", "Shopify", "Etsy", "TikTok Shop", "eBay", "All platforms"],
+  adcopy:     ["Meta (Facebook + Instagram)", "Google Ads", "TikTok Ads", "LinkedIn Ads", "Pinterest Ads", "All platforms"],
+  email:      ["Klaviyo", "Mailchimp", "ActiveCampaign", "HubSpot", "Generic / Any ESP"],
+  seo:        ["WordPress", "Shopify", "Webflow", "Squarespace", "General / Any CMS"],
+  social:     ["Instagram + TikTok", "LinkedIn", "X (Twitter)", "Facebook", "All platforms"],
+  conversion: ["Shopify", "WooCommerce", "Webflow Landing Page", "Unbounce", "General landing page"],
+};
+
+const TONE_OPTIONS = ["Professional & confident", "Conversational & friendly", "Luxury & aspirational", "Bold & direct", "Playful & fun", "Authoritative & technical"];
+
+function CommerceLabPanel({ pin }: { pin: string }) {
+  const [activeTool, setActiveTool] = useState<CommerceToolId>("listings");
+  const [description, setDescription] = useState("");
+  const [platform, setPlatform] = useState("");
+  const [tone, setTone] = useState("");
+  const [output, setOutput] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const base = getApiBase();
+
+  const tool = COMMERCE_TOOLS.find(t => t.id === activeTool)!;
+
+  const generate = async () => {
+    if (!description.trim() || generating) return;
+    setGenerating(true); setOutput(""); setCopied(false);
+    try {
+      const res = await fetch(`${base}lab/commerce`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+        body: JSON.stringify({ type: activeTool, description, platform, tone }),
+      });
+      if (!res.ok || !res.body) { setGenerating(false); return; }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const msg = JSON.parse(line.slice(6));
+            if (msg.delta) setOutput(prev => prev + msg.delta);
+          } catch { /* ignore */ }
+        }
+      }
+    } catch { /* ignore */ }
+    setGenerating(false);
+  };
+
+  const copyOutput = () => {
+    navigator.clipboard.writeText(output);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="flex-1 flex flex-col min-h-0" style={{ background: "hsl(226,45%,5%)" }}>
+      {/* Tool selector */}
+      <div className="border-b flex-shrink-0" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+        <div className="px-4 py-3">
+          <p className="text-[10px] font-mono mb-2.5" style={{ color: "rgba(255,255,255,0.25)", letterSpacing: "0.15em" }}>COMMERCE LAB — SELECT TOOL</p>
+          <div className="grid grid-cols-3 gap-2">
+            {COMMERCE_TOOLS.map(t => {
+              const Icon = t.icon;
+              const active = activeTool === t.id;
+              return (
+                <button key={t.id} onClick={() => { setActiveTool(t.id); setOutput(""); setPlatform(""); }}
+                  className="flex flex-col gap-1.5 p-3 rounded-xl text-left transition-all"
+                  style={{
+                    background: active ? "hsl(226,45%,12%)" : "hsl(226,45%,8%)",
+                    border: `1px solid ${active ? t.color + "50" : "rgba(255,255,255,0.06)"}`,
+                    boxShadow: active ? `0 0 16px ${t.color}20` : "none",
+                  }}>
+                  <Icon className="w-4 h-4" style={{ color: active ? t.color : "rgba(255,255,255,0.3)" }} />
+                  <span className="text-xs font-semibold leading-tight" style={{ color: active ? "white" : "rgba(255,255,255,0.5)" }}>{t.label}</span>
+                  <span className="text-[10px] leading-tight" style={{ color: active ? "rgba(255,255,255,0.45)" : "rgba(255,255,255,0.2)" }}>{t.desc}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Input panel + output side by side */}
+      <div className="flex-1 flex min-h-0">
+        {/* Left: inputs */}
+        <div className="w-72 flex-shrink-0 flex flex-col border-r p-4 gap-4" style={{ borderColor: "rgba(255,255,255,0.06)", background: "hsl(226,45%,7%)" }}>
+          <div>
+            <label className="text-[10px] font-mono mb-1.5 block" style={{ color: "rgba(255,255,255,0.35)", letterSpacing: "0.12em" }}>
+              PRODUCT / BRAND / URL *
+            </label>
+            <textarea
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              placeholder={
+                activeTool === "listings" ? "e.g. Bamboo travel water bottle, 500ml, keeps drinks cold 24hrs, leak-proof lid, includes infuser..."
+                : activeTool === "adcopy" ? "e.g. Online fitness coaching app for busy professionals. 12-week transformation programme, £47/month..."
+                : activeTool === "email" ? "e.g. Handmade soy candles — Northwick Candle Co. Luxury scents, sustainable packaging, £18-£35..."
+                : activeTool === "seo" ? "e.g. 'best noise cancelling headphones under £100' — review/buyer guide page for a tech accessories site..."
+                : activeTool === "social" ? "e.g. Sustainable fashion brand for women 25-40. Slow fashion, ethical production, based in Manchester..."
+                : "e.g. Shopify store selling premium pet accessories. Current conversion rate ~1.2%. Target audience: dog owners 28-45..."
+              }
+              rows={6}
+              className="w-full rounded-xl p-3 text-sm resize-none outline-none leading-relaxed"
+              style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.8)", fontSize: "0.78rem" }}
+            />
+          </div>
+
+          <div>
+            <label className="text-[10px] font-mono mb-1.5 block" style={{ color: "rgba(255,255,255,0.35)", letterSpacing: "0.12em" }}>
+              PLATFORM
+            </label>
+            <select value={platform} onChange={e => setPlatform(e.target.value)}
+              className="w-full rounded-xl px-3 py-2.5 text-xs outline-none appearance-none"
+              style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.08)", color: platform ? "rgba(255,255,255,0.8)" : "rgba(255,255,255,0.3)" }}>
+              <option value="">Auto-select best platform</option>
+              {PLATFORM_OPTIONS[activeTool].map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label className="text-[10px] font-mono mb-1.5 block" style={{ color: "rgba(255,255,255,0.35)", letterSpacing: "0.12em" }}>
+              TONE
+            </label>
+            <select value={tone} onChange={e => setTone(e.target.value)}
+              className="w-full rounded-xl px-3 py-2.5 text-xs outline-none appearance-none"
+              style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.08)", color: tone ? "rgba(255,255,255,0.8)" : "rgba(255,255,255,0.3)" }}>
+              <option value="">Auto-match to product</option>
+              {TONE_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+
+          <button onClick={generate} disabled={!description.trim() || generating}
+            className="w-full py-3 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2"
+            style={{
+              background: !description.trim() || generating ? "hsl(226,45%,12%)" : `linear-gradient(135deg, ${tool.color}cc, ${tool.color}88)`,
+              border: `1px solid ${tool.color}40`,
+              color: !description.trim() ? "rgba(255,255,255,0.2)" : "white",
+              boxShadow: description.trim() && !generating ? `0 0 20px ${tool.color}30` : "none",
+            }}>
+            {generating
+              ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating...</>
+              : <><Sparkles className="w-4 h-4" /> Generate {tool.label}</>
+            }
+          </button>
+
+          {output && (
+            <div className="text-xs space-y-1" style={{ color: "rgba(255,255,255,0.3)" }}>
+              <p className="font-mono" style={{ fontSize: "10px", letterSpacing: "0.1em" }}>OUTPUT STATS</p>
+              <p>{output.split(" ").length.toLocaleString()} words</p>
+              <p>{output.length.toLocaleString()} characters</p>
+            </div>
+          )}
+        </div>
+
+        {/* Right: output */}
+        <div className="flex-1 flex flex-col min-h-0 min-w-0">
+          {/* Output toolbar */}
+          {output && (
+            <div className="px-4 py-2.5 border-b flex-shrink-0 flex items-center justify-between"
+              style={{ borderColor: "rgba(255,255,255,0.06)", background: "hsl(226,45%,6%)" }}>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full" style={{ background: tool.color }} />
+                <span className="text-xs font-semibold" style={{ color: "rgba(255,255,255,0.6)" }}>{tool.label}</span>
+                {generating && <span className="text-[10px] font-mono animate-pulse" style={{ color: tool.color }}>● LIVE</span>}
+              </div>
+              <button onClick={copyOutput}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all"
+                style={{ background: copied ? "hsla(155,70%,35%,0.2)" : "hsl(226,45%,12%)", color: copied ? "hsl(155,70%,55%)" : "rgba(255,255,255,0.5)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                {copied ? <><Check className="w-3 h-3" /> Copied!</> : <><Copy className="w-3 h-3" /> Copy all</>}
+              </button>
+            </div>
+          )}
+
+          {/* Output content */}
+          <div className="flex-1 overflow-y-auto">
+            {!output && !generating && (
+              <div className="flex flex-col items-center justify-center h-full gap-4 p-8">
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center"
+                  style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                  {React.createElement(tool.icon, { className: "w-7 h-7", style: { color: tool.color } })}
+                </div>
+                <div className="text-center space-y-1.5 max-w-xs">
+                  <p className="text-white font-semibold text-sm">{tool.label}</p>
+                  <p className="text-xs leading-relaxed" style={{ color: "rgba(255,255,255,0.35)" }}>{tool.desc}</p>
+                </div>
+              </div>
+            )}
+
+            {(output || generating) && (
+              <div className="p-5">
+                <div className="text-sm leading-relaxed whitespace-pre-wrap"
+                  style={{ color: "rgba(255,255,255,0.82)", fontFamily: "inherit", lineHeight: "1.75" }}>
+                  {output}
+                  {generating && <span className="inline-block w-0.5 h-4 ml-0.5 animate-pulse" style={{ background: tool.color, verticalAlign: "middle" }} />}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 type FundingMatch = {
   scheme: string; type: "tax_credit" | "grant" | "equity" | "loan";
   geography: string; amount: string; matchStrength: "strong" | "good" | "possible";
@@ -2096,6 +2318,7 @@ export function StarLabPage() {
     { id: "scout" as NavMode, label: "Scout", icon: Telescope, color: "hsl(45,100%,45%)" },
     { id: "feed" as NavMode, label: "AI Intelligence", icon: Atom, color: "hsl(210,80%,55%)", badge: true },
     { id: "grants" as NavMode, label: "Funding Radar", icon: BadgeCheck, color: "hsl(155,70%,45%)" },
+    { id: "commerce" as NavMode, label: "Commerce Lab", icon: TrendingUp, color: "hsl(25,90%,55%)" },
   ];
 
   return (
@@ -2199,6 +2422,7 @@ export function StarLabPage() {
         {navMode === "scout" && <ScoutPanel pin={pin} />}
         {navMode === "botlab" && <BotLabPanel pin={pin} />}
         {navMode === "grants" && <FundingRadarPanel pin={pin} />}
+        {navMode === "commerce" && <CommerceLabPanel pin={pin} />}
         {navMode === "projects" && (
           activeProject
             ? <ProjectWorkspace project={activeProject} pin={pin} onUpdate={p => setActiveProject(p)} />

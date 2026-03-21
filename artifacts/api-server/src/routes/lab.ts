@@ -1110,6 +1110,314 @@ router.get("/lab/projects/:id/completeness", authMiddleware, async (req: Request
   res.json({ checks, filled, total, pct, phase: p.phase });
 });
 
+// Commerce Lab — digital marketing & e-commerce content generation
+const COMMERCE_PROMPTS: Record<string, (desc: string, platform: string, tone: string) => string> = {
+  listings: (desc, platform, tone) => `You are the world's most effective e-commerce copywriter. Your product listings consistently outperform competitors on click-through rate and conversion.
+
+Generate a complete, platform-optimised product listing for:
+
+PRODUCT/BRAND: ${desc}
+PLATFORM: ${platform || "Amazon (primary), with Shopify and Etsy variants"}
+TONE: ${tone || "Professional, benefit-led, confident"}
+
+Deliver:
+
+## TITLE VARIANTS (5 options)
+Write 5 title options. Each must lead with the primary benefit, include the 2-3 highest-traffic keywords naturally, and stay within platform character limits (Amazon: 200 chars, Shopify: 70 chars for SEO title). Label which platform each is optimised for.
+
+## BULLET POINTS (7 bullets)
+Each bullet: benefit first (in CAPS), then feature, then why it matters. No fluff. Every bullet earns its place by answering a real buyer objection or desire.
+
+## PRODUCT DESCRIPTION (200 words)
+Narrative-led, customer psychology-informed. Opens with the problem/desire, builds with proof, closes with the transformation. Written for both humans and search algorithms.
+
+## A+ CONTENT / ENHANCED DESCRIPTION OUTLINE
+5-section structure for Amazon A+ or Shopify featured content: section title + 50-word copy block each. Visual suggestion for each section.
+
+## BACKEND SEARCH TERMS (Amazon)
+250 characters of backend keywords — no repetition of title terms, no prohibited content. Include misspellings, synonyms, use cases.
+
+## SEO META (Shopify)
+- Meta title (60 chars): 
+- Meta description (155 chars):
+
+## PRICING PSYCHOLOGY NOTES
+3 specific pricing and positioning recommendations based on the product type and platform.`,
+
+  adcopy: (desc, platform, tone) => `You are a performance marketing director who has managed £50M+ in ad spend across Google, Meta, and TikTok. Your ads consistently achieve top-quartile ROAS.
+
+Generate a complete set of production-ready ad creative for:
+
+PRODUCT/BRAND: ${desc}
+PRIMARY PLATFORM: ${platform || "Meta (Facebook + Instagram), Google Ads, TikTok"}
+TONE: ${tone || "Direct, benefit-led, with urgency"}
+
+Deliver:
+
+## META / FACEBOOK ADS (3 complete ads)
+For each ad:
+- Primary text (125 chars for feed, 500 chars for awareness)
+- Headline (27 chars)
+- Description (27 chars)  
+- CTA button recommendation
+- Audience targeting brief (interests, behaviours, demographics)
+- Creative direction (what the image/video should show)
+- Ad objective recommendation (TOFU/MOFU/BOFU)
+
+## GOOGLE ADS — RESPONSIVE SEARCH ADS (2 ads)
+For each:
+- 15 headlines (max 30 chars each) — write all 15, label pinning recommendations
+- 4 descriptions (max 90 chars each)
+- Final URL notes
+- Ad extensions: 6 sitelinks, 4 callouts, 4 structured snippets
+
+## TIKTOK ADS (2 ad scripts)
+For each:
+- Hook (0-3 seconds): exact words/action
+- Body (3-12 seconds): problem, product, proof
+- CTA (12-15 seconds): exact words
+- On-screen text overlay suggestions
+- Sound/music direction
+- Creator brief summary (if UGC)
+
+## RETARGETING ANGLES (3 angles for warm audiences)
+Different messaging for: viewed but didn't add to cart / added to cart but didn't buy / past purchasers for upsell.
+
+## A/B TEST PLAN
+5 specific split tests ranked by expected impact. What to test, what to measure, success metric.`,
+
+  email: (desc, platform, tone) => `You are a world-class email marketing specialist. Your sequences achieve open rates of 45%+ and click rates of 8%+.
+
+Generate a complete email sequence for:
+
+PRODUCT/BRAND: ${desc}
+PLATFORM/ESP: ${platform || "Klaviyo (adaptable to any ESP)"}
+TONE: ${tone || "Warm, personal, benefit-led"}
+
+Deliver 7 complete emails:
+
+## EMAIL 1 — WELCOME / BRAND STORY (send: immediately)
+Subject line options (3): 
+Preview text:
+Body copy (300 words): Brand story, what you stand for, what they can expect. Ends with a soft CTA.
+
+## EMAIL 2 — EDUCATION / PROBLEM (send: day 2)
+Subject line options (3):
+Preview text:
+Body copy (250 words): Deepen the problem your product solves. Build urgency around the pain of NOT solving it. No hard sell yet.
+
+## EMAIL 3 — PRODUCT HERO (send: day 4)
+Subject line options (3):
+Preview text:
+Body copy (300 words): Full product spotlight. Benefits first, features second. Social proof embedded. Clear CTA.
+
+## EMAIL 4 — SOCIAL PROOF / OBJECTION HANDLING (send: day 6)
+Subject line options (3):
+Preview text:
+Body copy (250 words): Real customer outcomes (write illustrative examples). Handle the top 3 objections directly.
+
+## EMAIL 5 — URGENCY / OFFER (send: day 8)
+Subject line options (3):
+Preview text:
+Body copy (200 words): Limited time or limited stock angle. Make the offer feel inevitable. Hard CTA.
+
+## EMAIL 6 — ABANDONED CART (send: 1hr after abandon)
+Subject line options (3):
+Preview text:
+Body copy (150 words): Conversational, slightly humorous. Address why they might have hesitated. Cart link prominent.
+
+## EMAIL 7 — WIN-BACK (send: 30 days post-purchase or 14 days no engagement)
+Subject line options (3):
+Preview text:
+Body copy (200 words): Re-engage. New angle, new value, new reason to come back.
+
+## SEGMENTATION NOTES
+How to split these flows for: cold list vs. engaged vs. past purchasers.
+
+## DELIVERABILITY CHECKLIST
+5 technical and content checks before sending.`,
+
+  seo: (desc, platform, tone) => `You are an SEO strategist who has ranked hundreds of pages to position 1 for competitive commercial keywords. You understand search intent, Google's Quality Rater Guidelines, and E-E-A-T deeply.
+
+Generate a complete SEO content brief for:
+
+PRODUCT/BRAND/TOPIC: ${desc}
+PLATFORM/CMS: ${platform || "Any (WordPress, Shopify, Webflow)"}
+CONTENT PURPOSE: ${tone || "Rank and convert — commercial intent"}
+
+Deliver:
+
+## KEYWORD STRATEGY
+Primary keyword: [name the most valuable, achievable target keyword]
+Search intent: [informational / commercial / transactional / navigational]
+Monthly search volume estimate: [range]
+Keyword difficulty: [assessment]
+
+Semantic cluster (15 supporting keywords):
+- [keyword] | intent | estimated volume
+(list all 15)
+
+Featured snippet opportunity: [yes/no + what question to answer]
+People Also Ask targets: [5 specific questions]
+
+## PAGE STRUCTURE
+H1 (exact): 
+H2 sections (8 headings — these are the sections of the article/page):
+Under each H2: 2-3 bullet points of what to cover, what angle to take, what proof/data to include
+
+## META DATA
+Title tag (60 chars): 
+Meta description (155 chars): 
+URL slug: 
+Alt text formula for images:
+
+## CONTENT SPECIFICATIONS
+Word count target:
+Reading level target:
+Content format: [article / landing page / product page / comparison page]
+Internal linking opportunities (5 specific pages to link to/from):
+External authority links to pursue (3 types of sources):
+
+## E-E-A-T REQUIREMENTS
+5 specific ways to demonstrate Experience, Expertise, Authoritativeness, Trustworthiness for this topic.
+
+## CONTENT GAPS ANALYSIS
+3 things the current top-ranking pages are missing that you can do better.
+
+## 90-DAY RANKING ROADMAP
+Month 1: [actions]
+Month 2: [actions]  
+Month 3: [expected position + actions to maintain]`,
+
+  social: (desc, platform, tone) => `You are a social media strategist who builds audiences of 100k+ from scratch. You understand the algorithm, the psychology of sharing, and the difference between content that gets likes and content that gets sales.
+
+Generate a 30-day social media content calendar for:
+
+PRODUCT/BRAND: ${desc}
+PLATFORMS: ${platform || "Instagram, TikTok, LinkedIn (adapt as needed)"}
+TONE: ${tone || "Authentic, engaging, conversion-focused"}
+
+Deliver:
+
+## CONTENT PILLARS (5 pillars)
+Name each pillar and explain its purpose (educate / entertain / inspire / convert / community). What % of content should each be?
+
+## 30-DAY CALENDAR
+Week 1 (Days 1-7): Lay out each day with:
+- Platform
+- Content type (Reel / Carousel / Story / Post / Short / Article)
+- Hook (first line — this is the most important part)
+- Body summary (2 sentences)
+- CTA
+- Hashtag strategy (3 tiers: niche/medium/broad)
+
+Week 2 (Days 8-14): Same format
+Week 3 (Days 15-21): Same format
+Week 4 (Days 22-30): Same format
+
+## VIRAL CONTENT FORMULAS (5 templates)
+For each: the formula, an example using this brand, why it works psychologically, best platform.
+
+## POSTING SCHEDULE
+Optimal times by platform (with reasoning). Frequency recommendations.
+
+## COMMUNITY MANAGEMENT PLAYBOOK
+How to respond to comments to maximise reach. DM strategy. Collaboration/UGC tactics.
+
+## 30-DAY METRICS TARGETS
+What success looks like: follower growth, reach, engagement rate, click-through, conversions.`,
+
+  conversion: (desc, platform, tone) => `You are a conversion rate optimisation expert who has improved conversion rates from 1% to 5%+ across e-commerce stores and landing pages. You understand buyer psychology, friction mapping, and systematic testing.
+
+Perform a complete CRO audit and strategy for:
+
+PRODUCT/BRAND/PAGE: ${desc}
+PLATFORM: ${platform || "Shopify / general e-commerce landing page"}
+CURRENT STAGE: ${tone || "Optimise for maximum purchase conversion"}
+
+Deliver:
+
+## BUYER JOURNEY ANALYSIS
+Map the 5 stages of buyer awareness for this product: Unaware → Problem Aware → Solution Aware → Product Aware → Most Aware. What does a visitor at each stage need to see on this page?
+
+## PAGE STRUCTURE AUDIT
+Evaluate and rewrite each section:
+
+### Above the Fold
+- What must be visible without scrolling (hero image, headline, subheadline, CTA, trust signals)
+- Ideal headline formula + 3 headline options for this product
+- CTA button text options (5 variants, ranked by predicted conversion)
+
+### Social Proof Section  
+- Types of proof needed (reviews, ratings, media logos, user count, celebrity endorsement)
+- Exact format and placement
+- What review content to surface (what people should say)
+
+### Product Description
+- Structure: lead with transformation, not features
+- Formatting for scanners vs. readers
+- What objections to pre-empt and where
+
+### FAQ Section
+- 8 questions that buying-intent visitors actually have — answer each concisely
+
+### Checkout Flow
+- 5 specific friction points to remove
+- Trust signals needed at checkout
+- Abandonment recovery tactics
+
+## TOP 10 CRO WINS (prioritised by impact vs. effort)
+For each: what to change, why it works, expected uplift, how to test it.
+
+## A/B TEST ROADMAP (12 weeks)
+Week-by-week testing plan. What to test first, how to measure, when to call a winner.
+
+## TRAFFIC QUALITY FILTER
+5 ways to pre-qualify traffic so you're not converting the wrong visitors.
+
+## PERSONALISATION OPPORTUNITIES
+3 dynamic content changes based on traffic source, device, or behaviour.`,
+};
+
+router.post("/lab/commerce", authMiddleware, async (req: Request, res: Response) => {
+  const { type, description, platform, tone } = req.body;
+  if (!type || !description) { res.status(400).json({ error: "type and description required" }); return; }
+
+  const promptFn = COMMERCE_PROMPTS[type];
+  if (!promptFn) { res.status(400).json({ error: "Unknown commerce type" }); return; }
+
+  sseHeaders(res);
+
+  try {
+    const systemPrompt = promptFn(description, platform || "", tone || "");
+    const userMessage = `Generate the complete ${type} output as specified. Be thorough, specific, and immediately actionable. Use the product/brand details provided. Write real copy — not placeholders.`;
+
+    const stream = await (openai as any).chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userMessage },
+      ],
+      stream: true,
+    });
+
+    let fullContent = "";
+    for await (const chunk of stream) {
+      const delta = chunk.choices[0]?.delta?.content || "";
+      if (delta) {
+        fullContent += delta;
+        res.write(`data: ${JSON.stringify({ delta })}\n\n`);
+      }
+    }
+
+    res.write(`data: ${JSON.stringify({ done: true, content: fullContent })}\n\n`);
+  } catch (err: any) {
+    res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+  }
+
+  res.end();
+});
+
 // Funding Radar — real grants & tax incentives across all projects
 const FUNDING_SYSTEM_PROMPT = `You are a specialist R&D funding advisor with deep expertise in UK, EU, and international grant schemes, tax incentives, and innovation funding programmes. Today is ${TODAY()}.
 
