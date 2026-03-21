@@ -241,28 +241,67 @@ async function streamChatResponse(
   systemPrompt: string,
   userMessage: string,
   history: { role: string; content: string }[] = [],
-  model = "gpt-5.2"
+  _model = "gpt-5.2"
 ): Promise<string> {
-  const messages: any[] = [
-    { role: "system", content: systemPrompt },
+  const inputMessages: any[] = [
     ...history.map(m => ({ role: m.role as "user" | "assistant", content: m.content })),
     { role: "user", content: userMessage },
   ];
 
   let fullContent = "";
 
-  const stream = await openai.chat.completions.create({
-    model,
-    messages,
+  const stream = await (openai as any).responses.create({
+    model: "gpt-4o",
+    tools: [{ type: "web_search_preview" }],
+    instructions: systemPrompt,
+    input: inputMessages,
     stream: true,
-    max_completion_tokens: 8192,
   });
 
-  for await (const chunk of stream) {
-    const delta = chunk.choices[0]?.delta?.content || "";
-    if (delta) {
-      fullContent += delta;
-      res.write(`data: ${JSON.stringify({ content: delta })}\n\n`);
+  for await (const event of stream) {
+    const eventType = (event as any).type as string;
+    if (eventType === "response.web_search_call.in_progress" || eventType === "response.web_search_call.searching") {
+      res.write(`data: ${JSON.stringify({ type: "searching" })}\n\n`);
+    } else if (eventType === "response.output_text.delta") {
+      const delta = (event as any).delta as string;
+      if (delta) {
+        fullContent += delta;
+        res.write(`data: ${JSON.stringify({ content: delta })}\n\n`);
+      }
+    }
+  }
+
+  return fullContent;
+}
+
+// Shared streaming helper for endpoints that use {delta} SSE format
+async function streamWithSearch(
+  res: Response,
+  systemPrompt: string,
+  userMessage: string,
+  jsonMode = false
+): Promise<string> {
+  const stream = await (openai as any).responses.create({
+    model: "gpt-4o",
+    tools: [{ type: "web_search_preview" }],
+    instructions: systemPrompt,
+    input: [{ role: "user", content: userMessage }],
+    stream: true,
+    ...(jsonMode ? { text: { format: { type: "json_object" } } } : {}),
+  });
+
+  let fullContent = "";
+
+  for await (const event of stream) {
+    const eventType = (event as any).type as string;
+    if (eventType === "response.web_search_call.in_progress" || eventType === "response.web_search_call.searching") {
+      res.write(`data: ${JSON.stringify({ type: "searching" })}\n\n`);
+    } else if (eventType === "response.output_text.delta") {
+      const delta = (event as any).delta as string;
+      if (delta) {
+        fullContent += delta;
+        res.write(`data: ${JSON.stringify({ delta })}\n\n`);
+      }
     }
   }
 
@@ -472,26 +511,8 @@ Find the 6 most compelling opportunities available right now — mix of bot auto
 
   sseHeaders(res);
 
-  let fullContent = "";
-
   try {
-    const stream = await openai.chat.completions.create({
-      model: "gpt-5.2",
-      messages: [
-        { role: "system", content: SCOUT_SYSTEM_PROMPT() },
-        { role: "user", content: userMessage },
-      ],
-      stream: true,
-      max_completion_tokens: 8192,
-    });
-
-    for await (const chunk of stream) {
-      const delta = chunk.choices[0]?.delta?.content || "";
-      if (delta) {
-        fullContent += delta;
-        res.write(`data: ${JSON.stringify({ content: delta })}\n\n`);
-      }
-    }
+    const fullContent = await streamChatResponse(res, SCOUT_SYSTEM_PROMPT(), userMessage);
 
     if (fullContent) {
       await db.insert(scoutReports).values({
@@ -1063,16 +1084,14 @@ Be brutally specific. Reference real things. No generic advice.`;
   res.setHeader("Cache-Control", "no-cache");
 
   try {
-    const completion = await openai.chat.completions.create({
-      model: "gpt-5.2",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      max_completion_tokens: 3000,
+    const response = await (openai as any).responses.create({
+      model: "gpt-4o",
+      tools: [{ type: "web_search_preview" }],
+      instructions: systemPrompt,
+      input: [{ role: "user", content: userPrompt }],
     });
 
-    const raw = completion.choices[0]?.message?.content || "[]";
+    const raw = response.output_text || "[]";
     const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
     let insights;
     try { insights = JSON.parse(cleaned); } catch { insights = []; }
@@ -1392,24 +1411,7 @@ router.post("/lab/commerce", authMiddleware, async (req: Request, res: Response)
     const systemPrompt = promptFn(description, platform || "", tone || "");
     const userMessage = `Generate the complete ${type} output as specified. Be thorough, specific, and immediately actionable. Use the product/brand details provided. Write real copy — not placeholders.`;
 
-    const stream = await (openai as any).chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userMessage },
-      ],
-      stream: true,
-    });
-
-    let fullContent = "";
-    for await (const chunk of stream) {
-      const delta = chunk.choices[0]?.delta?.content || "";
-      if (delta) {
-        fullContent += delta;
-        res.write(`data: ${JSON.stringify({ delta })}\n\n`);
-      }
-    }
-
+    const fullContent = await streamWithSearch(res, systemPrompt, userMessage);
     res.write(`data: ${JSON.stringify({ done: true, content: fullContent })}\n\n`);
   } catch (err: any) {
     res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
@@ -1525,25 +1527,7 @@ ${JSON.stringify(projectSummaries, null, 2)}
 
 Return the JSON response as specified.`;
 
-    const stream = await (openai as any).chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        { role: "system", content: FUNDING_SYSTEM_PROMPT },
-        { role: "user", content: userMessage },
-      ],
-      response_format: { type: "json_object" },
-      stream: true,
-    });
-
-    let fullContent = "";
-    for await (const chunk of stream) {
-      const delta = chunk.choices[0]?.delta?.content || "";
-      if (delta) {
-        fullContent += delta;
-        res.write(`data: ${JSON.stringify({ delta })}\n\n`);
-      }
-    }
-
+    const fullContent = await streamWithSearch(res, FUNDING_SYSTEM_PROMPT, userMessage);
     res.write(`data: ${JSON.stringify({ done: true, content: fullContent })}\n\n`);
   } catch (err: any) {
     res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);

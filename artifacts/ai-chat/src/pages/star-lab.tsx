@@ -321,6 +321,7 @@ function ChatPanel({ project, pin, mode }: { project: Project; pin: string; mode
   const [messages, setMessages] = useState<{ role: string; content: string }[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
+  const [searching, setSearching] = useState(false);
   const [activeTab, setActiveTab] = useState("brief");
   const bottomRef = useRef<HTMLDivElement>(null);
   const base = getApiBase();
@@ -334,7 +335,7 @@ function ChatPanel({ project, pin, mode }: { project: Project; pin: string; mode
 
   const send = async () => {
     if (!input.trim() || streaming) return;
-    const userMsg = input.trim(); setInput(""); setStreaming(true);
+    const userMsg = input.trim(); setInput(""); setStreaming(true); setSearching(false);
     setMessages(prev => [...prev, { role: "user", content: userMsg }, { role: "assistant", content: "" }]);
     let assistant = "";
     try {
@@ -348,12 +349,16 @@ function ChatPanel({ project, pin, mode }: { project: Project; pin: string; mode
         const { done, value } = await reader.read(); if (done) break;
         for (const line of decoder.decode(value).split("\n")) {
           if (line.startsWith("data: ")) {
-            try { const d = JSON.parse(line.slice(6)); if (d.content) { assistant += d.content; setMessages(prev => { const u = [...prev]; u[u.length - 1] = { role: "assistant", content: assistant }; return u; }); } } catch {}
+            try {
+              const d = JSON.parse(line.slice(6));
+              if (d.type === "searching") { setSearching(true); }
+              if (d.content) { setSearching(false); assistant += d.content; setMessages(prev => { const u = [...prev]; u[u.length - 1] = { role: "assistant", content: assistant }; return u; }); }
+            } catch {}
           }
         }
       }
     } catch {}
-    setStreaming(false);
+    setStreaming(false); setSearching(false);
   };
 
   const quickPrompts = mode === "bot"
@@ -396,6 +401,14 @@ function ChatPanel({ project, pin, mode }: { project: Project; pin: string; mode
             </div>
           </div>
         ))}
+        {searching && (
+          <div className="flex justify-start">
+            <div className="flex items-center gap-2 px-3 py-2 rounded-2xl" style={{ background: "hsl(226,45%,13%)" }}>
+              <Globe className="w-3 h-3 animate-pulse" style={{ color: "hsl(193,100%,55%)" }} />
+              <span className="text-xs" style={{ color: "hsl(193,100%,55%)" }}>Searching the web…</span>
+            </div>
+          </div>
+        )}
         <div ref={bottomRef} />
       </div>
 
@@ -1213,6 +1226,7 @@ function ScoutPanel({ pin }: { pin: string }) {
   const [industries, setIndustries] = useState<string[]>([]);
   const [focus, setFocus] = useState("full");
   const [streaming, setStreaming] = useState(false);
+  const [searching, setSearching] = useState(false);
   const [output, setOutput] = useState("");
   const [reports, setReports] = useState<ScoutReport[]>([]);
   const [showHistory, setShowHistory] = useState(false);
@@ -1229,7 +1243,7 @@ function ScoutPanel({ pin }: { pin: string }) {
   useEffect(() => { loadReports(); }, [loadReports]);
 
   const run = async () => {
-    setStreaming(true); setOutput(""); let result = "";
+    setStreaming(true); setSearching(false); setOutput(""); let result = "";
     try {
       const res = await fetch(`${base}lab/scout`, {
         method: "POST",
@@ -1241,12 +1255,16 @@ function ScoutPanel({ pin }: { pin: string }) {
         const { done, value } = await reader.read(); if (done) break;
         for (const line of decoder.decode(value).split("\n")) {
           if (line.startsWith("data: ")) {
-            try { const d = JSON.parse(line.slice(6)); if (d.content) { result += d.content; setOutput(result); } } catch {}
+            try {
+              const d = JSON.parse(line.slice(6));
+              if (d.type === "searching") { setSearching(true); }
+              if (d.content) { setSearching(false); result += d.content; setOutput(result); }
+            } catch {}
           }
         }
       }
     } catch {}
-    setStreaming(false);
+    setStreaming(false); setSearching(false);
     loadReports();
   };
 
@@ -1354,10 +1372,21 @@ function ScoutPanel({ pin }: { pin: string }) {
 
       {/* Results */}
       <div className="flex-1 flex flex-col min-h-0 overflow-y-auto p-5">
+        {searching && !output && (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="flex flex-col items-center gap-3">
+              <Globe className="w-8 h-8 animate-pulse" style={{ color: "hsl(193,100%,55%)" }} />
+              <p className="text-xs font-medium" style={{ color: "hsl(193,100%,55%)" }}>Searching the web…</p>
+            </div>
+          </div>
+        )}
         {output ? (
           <>
             <div className="flex items-center justify-between mb-4 flex-shrink-0">
-              <span className="text-white/40 text-xs">{focusMode.label} results</span>
+              <div className="flex items-center gap-2">
+                <span className="text-white/40 text-xs">{focusMode.label} results</span>
+                {searching && <span className="flex items-center gap-1 text-xs" style={{ color: "hsl(193,100%,55%)" }}><Globe className="w-3 h-3 animate-pulse" /> Searching…</span>}
+              </div>
               <button onClick={() => setOutput("")}
                 className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg"
                 style={{ background: "hsl(226,45%,12%)", color: "rgba(255,255,255,0.4)" }}>
@@ -1370,7 +1399,7 @@ function ScoutPanel({ pin }: { pin: string }) {
             </div>
             <div ref={bottomRef} />
           </>
-        ) : (
+        ) : !searching ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center max-w-sm">
               <Telescope className="w-10 h-10 mx-auto mb-3 text-white/10" />
@@ -1378,7 +1407,7 @@ function ScoutPanel({ pin }: { pin: string }) {
               <p className="text-white/20 text-xs leading-relaxed">Choose a scan type, optionally add a focus or industries, then run. The Scout searches across social media, forums, market data, patent databases, and product reviews to find real, evidence-based opportunities.</p>
             </div>
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );
@@ -1785,6 +1814,7 @@ function CommerceLabPanel({ pin }: { pin: string }) {
   const [tone, setTone] = useState("");
   const [output, setOutput] = useState("");
   const [generating, setGenerating] = useState(false);
+  const [searching, setSearching] = useState(false);
   const [copied, setCopied] = useState(false);
   const base = getApiBase();
 
@@ -1815,12 +1845,13 @@ function CommerceLabPanel({ pin }: { pin: string }) {
           if (!line.startsWith("data: ")) continue;
           try {
             const msg = JSON.parse(line.slice(6));
-            if (msg.delta) setOutput(prev => prev + msg.delta);
+            if (msg.type === "searching") { setSearching(true); }
+            if (msg.delta) { setSearching(false); setOutput(prev => prev + msg.delta); }
           } catch { /* ignore */ }
         }
       }
     } catch { /* ignore */ }
-    setGenerating(false);
+    setGenerating(false); setSearching(false);
   };
 
   const copyOutput = () => {
@@ -1938,7 +1969,8 @@ function CommerceLabPanel({ pin }: { pin: string }) {
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full" style={{ background: tool.color }} />
                 <span className="text-xs font-semibold" style={{ color: "rgba(255,255,255,0.6)" }}>{tool.label}</span>
-                {generating && <span className="text-[10px] font-mono animate-pulse" style={{ color: tool.color }}>● LIVE</span>}
+                {searching && <span className="flex items-center gap-1 text-[10px] font-mono animate-pulse" style={{ color: "hsl(193,100%,55%)" }}><Globe className="w-3 h-3" /> Searching…</span>}
+                {generating && !searching && <span className="text-[10px] font-mono animate-pulse" style={{ color: tool.color }}>● LIVE</span>}
               </div>
               <button onClick={copyOutput}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all"
@@ -1990,6 +2022,7 @@ type FundingResult = { opportunities: FundingOpportunity[]; summary: string };
 function FundingRadarPanel({ pin }: { pin: string }) {
   const [result, setResult] = useState<FundingResult | null>(null);
   const [running, setRunning] = useState(false);
+  const [searching, setSearching] = useState(false);
   const [rawStream, setRawStream] = useState("");
   const [filter, setFilter] = useState<"all" | "UK" | "EU" | "International">("all");
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
@@ -2004,7 +2037,7 @@ function FundingRadarPanel({ pin }: { pin: string }) {
   };
 
   const runAnalysis = async () => {
-    setRunning(true); setResult(null); setRawStream(""); setExpandedCards(new Set());
+    setRunning(true); setSearching(false); setResult(null); setRawStream(""); setExpandedCards(new Set());
     try {
       const res = await fetch(`${base}lab/funding`, {
         method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
@@ -2026,7 +2059,8 @@ function FundingRadarPanel({ pin }: { pin: string }) {
           if (!line.startsWith("data: ")) continue;
           try {
             const msg = JSON.parse(line.slice(6));
-            if (msg.delta) setRawStream(prev => prev + msg.delta);
+            if (msg.type === "searching") { setSearching(true); }
+            if (msg.delta) { setSearching(false); setRawStream(prev => prev + msg.delta); }
             if (msg.done && msg.content) {
               try {
                 const parsed = JSON.parse(msg.content) as FundingResult;
@@ -2037,7 +2071,7 @@ function FundingRadarPanel({ pin }: { pin: string }) {
         }
       }
     } catch { /* ignore */ }
-    setRunning(false);
+    setRunning(false); setSearching(false);
   };
 
   const STRENGTH_CONFIG = {
@@ -2119,8 +2153,14 @@ function FundingRadarPanel({ pin }: { pin: string }) {
 
         {running && !result && (
           <div className="flex flex-col items-center justify-center py-20 gap-4">
-            <Loader2 className="w-8 h-8 animate-spin" style={{ color: "hsl(155,70%,45%)" }} />
-            <p className="text-sm" style={{ color: "rgba(255,255,255,0.5)" }}>Analysing projects against funding databases...</p>
+            {searching ? (
+              <Globe className="w-8 h-8 animate-pulse" style={{ color: "hsl(193,100%,55%)" }} />
+            ) : (
+              <Loader2 className="w-8 h-8 animate-spin" style={{ color: "hsl(155,70%,45%)" }} />
+            )}
+            <p className="text-sm" style={{ color: searching ? "hsl(193,100%,65%)" : "rgba(255,255,255,0.5)" }}>
+              {searching ? "Searching the web for live funding data…" : "Analysing projects against funding databases..."}
+            </p>
             {rawStream && (
               <div className="max-w-md w-full rounded-xl p-4 font-mono text-xs leading-relaxed"
                 style={{ background: "hsl(226,45%,8%)", color: "rgba(255,255,255,0.3)", border: "1px solid rgba(255,255,255,0.06)", maxHeight: "120px", overflow: "hidden" }}>
