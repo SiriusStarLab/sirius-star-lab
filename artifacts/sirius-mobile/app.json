@@ -55,11 +55,7 @@
         }
       ],
       "expo-font",
-      "expo-web-browser",
-      [
-        "expo-speech",
-        {}
-      ]
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
