@@ -3,8 +3,18 @@ import { openai } from "@workspace/integrations-openai-ai-server";
 import nodemailer from "nodemailer";
 
 const router: IRouter = Router();
+const LAB_PIN = process.env.STAR_LAB_PIN || "2025";
 
-router.post("/outreach/generate", async (req: Request, res: Response) => {
+function authMiddleware(req: Request, res: Response, next: () => void) {
+  const pin = req.headers["x-lab-pin"] as string;
+  if (pin !== LAB_PIN) {
+    res.status(401).json({ error: "Unauthorised" });
+    return;
+  }
+  next();
+}
+
+router.post("/outreach/generate", authMiddleware, async (req: Request, res: Response) => {
   const { messageType, product, senderName, senderCompany, tone, subjectTemplate, recipients } = req.body;
 
   if (!recipients || recipients.length === 0) {
@@ -60,7 +70,7 @@ Return valid JSON only:
   res.end();
 });
 
-router.post("/outreach/send", async (req: Request, res: Response) => {
+router.post("/outreach/send", authMiddleware, async (req: Request, res: Response) => {
   const { messages, smtpHost, smtpPort, smtpUser, smtpPass, fromName, fromEmail } = req.body;
 
   const host = smtpHost || process.env.SMTP_HOST;
