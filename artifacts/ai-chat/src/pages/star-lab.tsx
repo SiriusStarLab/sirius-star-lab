@@ -366,6 +366,21 @@ function RendersTab({ project, pin, onUpdate }: { project: Project; pin: string;
   );
 }
 
+type Insight = { category: string; priority: string; icon: string; title: string; detail: string; action: string };
+
+const INSIGHT_ICON_MAP: Record<string, React.ComponentType<{ className?: string; style?: React.CSSProperties }>> = {
+  alert: Zap, lightbulb: Lightbulb, shield: BadgeCheck, trending: TrendingUp,
+  wrench: Wrench, package: Package, globe: Globe, pound: Package,
+  star: Star, check: Check,
+};
+
+const INSIGHT_PRIORITY_STYLE: Record<string, { bg: string; text: string; label: string }> = {
+  critical: { bg: "hsl(0,80%,30%)", text: "hsl(0,80%,75%)", label: "Critical" },
+  high: { bg: "hsl(25,80%,28%)", text: "hsl(25,90%,65%)", label: "High" },
+  medium: { bg: "hsl(45,70%,22%)", text: "hsl(45,90%,60%)", label: "Medium" },
+  low: { bg: "hsl(193,60%,18%)", text: "hsl(193,90%,55%)", label: "Low" },
+};
+
 function ProjectWorkspace({ project, pin, onUpdate }: { project: Project; pin: string; onUpdate: (p: Project) => void }) {
   const [activeTab, setActiveTab] = useState("overview");
   const [saving, setSaving] = useState(false);
@@ -374,6 +389,10 @@ function ProjectWorkspace({ project, pin, onUpdate }: { project: Project; pin: s
   const [editName, setEditName] = useState("");
   const [labMode, setLabMode] = useState<"engineering" | "bot">("engineering");
   const [completeness, setCompleteness] = useState<Completeness | null>(null);
+  const [insights, setInsights] = useState<Insight[]>([]);
+  const [loadingInsights, setLoadingInsights] = useState(false);
+  const [insightsLoaded, setInsightsLoaded] = useState(false);
+  const [expandedInsight, setExpandedInsight] = useState<number | null>(null);
   const base = getApiBase();
 
   const headers = useCallback(() => ({ "Content-Type": "application/json", "x-lab-pin": pin }), [pin]);
@@ -383,7 +402,24 @@ function ProjectWorkspace({ project, pin, onUpdate }: { project: Project; pin: s
     if (res.ok) setCompleteness(await res.json());
   }, [base, pin, project.id]);
 
-  useEffect(() => { loadCompleteness(); }, [project.id, loadCompleteness]);
+  const loadInsights = useCallback(async () => {
+    setLoadingInsights(true);
+    try {
+      const res = await fetch(`${base}lab/projects/${project.id}/insights`, {
+        method: "POST", headers: { "x-lab-pin": pin, "Content-Type": "application/json" },
+      });
+      if (res.ok) { const data = await res.json(); setInsights(Array.isArray(data) ? data : []); }
+    } catch {}
+    setLoadingInsights(false);
+    setInsightsLoaded(true);
+  }, [base, pin, project.id]);
+
+  useEffect(() => {
+    setInsights([]); setInsightsLoaded(false);
+    loadCompleteness();
+    // Auto-load insights for any project that has at least a name
+    loadInsights();
+  }, [project.id]);
 
   const saveField = async (field: string, value: string) => {
     setSaving(true);
@@ -654,6 +690,85 @@ function ProjectWorkspace({ project, pin, onUpdate }: { project: Project; pin: s
                     <p className="text-white/30 text-xs mt-0.5">{s.label}</p>
                   </div>
                 ))}
+              </div>
+
+              {/* Sirius Insights */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <Atom className="w-3.5 h-3.5" style={{ color: "hsl(193,100%,55%)" }} />
+                    <p className="text-white text-xs font-semibold">Sirius Insights</p>
+                    {insights.length > 0 && (
+                      <span className="text-xs px-1.5 py-0.5 rounded-full font-medium"
+                        style={{ background: "hsl(193,100%,20%)", color: "hsl(193,100%,65%)" }}>
+                        {insights.length}
+                      </span>
+                    )}
+                  </div>
+                  <button onClick={loadInsights} disabled={loadingInsights}
+                    className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg transition-all"
+                    style={{ background: "hsl(226,45%,14%)", color: "rgba(255,255,255,0.4)" }}>
+                    {loadingInsights ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                    {loadingInsights ? "Analysing..." : "Refresh"}
+                  </button>
+                </div>
+
+                {loadingInsights && insights.length === 0 && (
+                  <div className="rounded-2xl p-5 text-center" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                    <Loader2 className="w-5 h-5 mx-auto mb-2 animate-spin" style={{ color: "hsl(193,100%,50%)" }} />
+                    <p className="text-white/40 text-xs">Sirius is analysing your project...</p>
+                  </div>
+                )}
+
+                {!loadingInsights && insightsLoaded && insights.length === 0 && (
+                  <div className="rounded-2xl p-4 text-center" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                    <p className="text-white/30 text-xs">No insights generated. Click Refresh to try again.</p>
+                  </div>
+                )}
+
+                {insights.length > 0 && (
+                  <div className="space-y-2">
+                    {insights.map((insight, i) => {
+                      const pStyle = INSIGHT_PRIORITY_STYLE[insight.priority] || INSIGHT_PRIORITY_STYLE.low;
+                      const IconComp = INSIGHT_ICON_MAP[insight.icon] || Lightbulb;
+                      const isExpanded = expandedInsight === i;
+                      return (
+                        <div key={i} className="rounded-xl overflow-hidden cursor-pointer transition-all"
+                          style={{ background: "hsl(226,45%,10%)", border: `1px solid rgba(255,255,255,0.07)` }}
+                          onClick={() => setExpandedInsight(isExpanded ? null : i)}>
+                          <div className="flex items-center gap-3 px-3 py-2.5">
+                            <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
+                              style={{ background: pStyle.bg }}>
+                              <IconComp className="w-3.5 h-3.5" style={{ color: pStyle.text }} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-0.5">
+                                <span className="text-xs px-1.5 py-0.5 rounded font-medium"
+                                  style={{ background: pStyle.bg, color: pStyle.text }}>
+                                  {pStyle.label}
+                                </span>
+                                <span className="text-white/35 text-xs truncate">{insight.category}</span>
+                              </div>
+                              <p className="text-white text-xs font-medium leading-snug">{insight.title}</p>
+                            </div>
+                            <ChevronDown className="w-3.5 h-3.5 flex-shrink-0 transition-transform text-white/30"
+                              style={{ transform: isExpanded ? "rotate(180deg)" : "none" }} />
+                          </div>
+                          {isExpanded && (
+                            <div className="px-3 pb-3 pt-0 border-t" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+                              <p className="text-white/60 text-xs leading-relaxed mt-2 mb-3">{insight.detail}</p>
+                              <div className="flex items-start gap-2 rounded-lg p-2.5"
+                                style={{ background: "hsl(226,45%,13%)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                                <Zap className="w-3 h-3 flex-shrink-0 mt-0.5" style={{ color: "hsl(193,100%,55%)" }} />
+                                <p className="text-white/80 text-xs font-medium leading-snug">{insight.action}</p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               {/* Quick generate actions */}

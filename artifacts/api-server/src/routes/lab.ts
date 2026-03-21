@@ -815,7 +815,95 @@ Include:
   res.end();
 });
 
-// ─── PROJECT COMPLETENESS ──────────────────────────────────────────────────
+// ─── SIRIUS INSIGHTS ───────────────────────────────────────────────────────
+
+router.post("/lab/projects/:id/insights", authMiddleware, async (req: Request, res: Response) => {
+  const [p] = await db.select().from(labProjects).where(eq(labProjects.id, parseInt(req.params.id)));
+  if (!p) { res.status(404).json({ error: "Not found" }); return; }
+
+  const phase = p.phase || "design";
+  const filledFields: string[] = [];
+  if (p.brief?.trim()) filledFields.push(`Brief: ${p.brief.slice(0, 600)}`);
+  if (p.research?.trim()) filledFields.push(`Research: ${p.research.slice(0, 400)}`);
+  if (p.specs?.trim()) filledFields.push(`Technical Specs: ${p.specs.slice(0, 500)}`);
+  if (p.materials?.trim()) filledFields.push(`Materials: ${p.materials.slice(0, 400)}`);
+  if (p.drawingNotes?.trim()) filledFields.push(`Drawing Notes: ${p.drawingNotes.slice(0, 300)}`);
+  if (p.workflows?.trim()) filledFields.push(`Workflows: ${p.workflows.slice(0, 400)}`);
+  if (p.industryProblem?.trim()) filledFields.push(`Market Analysis: ${p.industryProblem.slice(0, 400)}`);
+  if (p.brochure?.trim()) filledFields.push(`Brochure: ${p.brochure.slice(0, 400)}`);
+  if (p.pitch?.trim()) filledFields.push(`Pitch: ${p.pitch.slice(0, 400)}`);
+  if (p.costToBuild?.trim()) filledFields.push(`Cost Analysis: ${p.costToBuild.slice(0, 400)}`);
+  const rendersCount = (JSON.parse(p.renders || "[]") as any[]).length;
+
+  const context = filledFields.length > 0
+    ? filledFields.join("\n\n")
+    : `Project name: "${p.name}", Industry: ${p.industry}. No content yet — give suggestions based on the project name and industry.`;
+
+  const systemPrompt = `You are Sirius, the world's most advanced R&D intelligence partner. Today is ${TODAY()}.
+
+Your job is to analyse a product project and deliver sharp, specific, actionable insights — like a chief engineer, product strategist, and business analyst reviewing the same project simultaneously.
+
+You always:
+- Give insights that are immediately actionable, not generic
+- Reference real standards, suppliers, regulations, or techniques where relevant
+- Identify both RISKS (things that could go wrong) and OPPORTUNITIES (things that could be significantly better)
+- Rank by impact — the highest-stakes insights first
+- Keep each insight concise but precise — one clear point per insight`;
+
+  const phaseContext = {
+    design: "This project is in the Design Phase. Focus on: design risks, missing specifications, material selection issues, regulatory compliance gaps, IP considerations, and technical feasibility concerns.",
+    production: "This project is in the Production Phase. Focus on: manufacturing risks, supply chain vulnerabilities, quality control gaps, workflow inefficiencies, timeline risks, and cost overruns.",
+    complete: "This project is nearing or at completion. Focus on: market positioning gaps, pricing strategy, pitch weaknesses, competitive differentiation, go-to-market risks, and final pre-launch checks.",
+  }[phase] || "";
+
+  const userPrompt = `Analyse this project and return EXACTLY a valid JSON array of 6 insight objects. No markdown, no explanation — just the raw JSON array.
+
+PROJECT: "${p.name}"
+INDUSTRY: ${p.industry}
+CURRENT PHASE: ${phase}
+RENDERS GENERATED: ${rendersCount}
+
+CONTENT SO FAR:
+${context}
+
+${phaseContext}
+
+Return this exact JSON structure (6 items):
+[
+  {
+    "category": "one of: Design Risk | Material | Regulatory | Technical | Commercial | Manufacturing | Market | Financial | Opportunity | Quality | IP | Supply Chain | Pitch | Safety",
+    "priority": "one of: critical | high | medium | low",
+    "icon": "one of: alert | lightbulb | shield | trending | wrench | package | globe | pound | star | check",
+    "title": "Sharp 6-10 word title — specific to this project",
+    "detail": "2-3 sentences. Specific, precise, actionable. Reference real standards, suppliers, techniques. No vague advice.",
+    "action": "Exact next step in under 15 words — what should be done right now"
+  }
+]
+
+Be brutally specific. Reference real things. No generic advice.`;
+
+  res.setHeader("Content-Type", "application/json");
+  res.setHeader("Cache-Control", "no-cache");
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-5.2",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      max_completion_tokens: 3000,
+    });
+
+    const raw = completion.choices[0]?.message?.content || "[]";
+    const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+    let insights;
+    try { insights = JSON.parse(cleaned); } catch { insights = []; }
+    res.json(insights);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 router.get("/lab/projects/:id/completeness", authMiddleware, async (req: Request, res: Response) => {
   const [p] = await db.select().from(labProjects).where(eq(labProjects.id, parseInt(req.params.id)));
