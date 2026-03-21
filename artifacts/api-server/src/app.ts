@@ -38,4 +38,20 @@ app.get("/api/download/sirius-mobile", (req, res) => {
 
 app.use("/api", router);
 
+// In production, serve the built web app from the ai-chat artifact
+if (!isDev) {
+  const webDistPath = path.resolve(
+    process.cwd(),
+    "artifacts",
+    "ai-chat",
+    "dist",
+    "public",
+  );
+  app.use(express.static(webDistPath));
+  // SPA fallback: send index.html for any unknown route
+  app.get("*", (_req, res) => {
+    res.sendFile(path.join(webDistPath, "index.html"));
+  });
+}
+
 export default app;
