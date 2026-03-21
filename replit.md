@@ -26,7 +26,8 @@ React + Vite frontend served at `/`. A full AI partnership platform — not a to
 - Multi-project workspace: Brief, Research, Specs, Code, Drawings tabs per project
 - Lab AI: engineering-focused, current tech only, web search, build-ready outputs
 - Opportunity Scout: scans industries + social media for product/business opportunities
-- Direct handoff to newdimensionscad.com with project specs pre-loaded
+- CAD file storage per project: upload DWG, DXF, STEP, IGES, STL, OBJ, F3D files directly into Star Lab (stored in GCS object storage). Files are linked to the project and accessible from the Drawings tab.
+- Drawing notes + CAD files split view in the Drawings tab
 - All projects persist independently in PostgreSQL (lab_projects, lab_messages, scout_reports tables)
 
 **Core experience**

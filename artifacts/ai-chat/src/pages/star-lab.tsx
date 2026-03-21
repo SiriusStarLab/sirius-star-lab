@@ -7,7 +7,7 @@ import {
   ChevronDown, RotateCcw, Copy, Globe,
   Cpu, Wrench, ChevronRight, Rss, RefreshCw, Bookmark, BookmarkCheck,
   Heart, FlaskConical, Eye, EyeOff, Trash, Bell, BellOff, Filter,
-  ChevronUp, BadgeCheck, Lightbulb, Atom
+  ChevronUp, BadgeCheck, Lightbulb, Atom, Upload, Download
 } from "lucide-react";
 import { getApiBase } from "@/lib/api-base";
 
@@ -582,6 +582,177 @@ const INSIGHT_PRIORITY_STYLE: Record<string, { bg: string; text: string; label: 
   low: { bg: "hsl(193,60%,18%)", text: "hsl(193,90%,55%)", label: "Low" },
 };
 
+type CadFileRecord = {
+  id: number;
+  projectId: number;
+  fileName: string;
+  fileSize: number;
+  fileType: string;
+  objectPath: string;
+  description: string;
+  uploadedAt: string;
+};
+
+function CadFilesPanel({ project, pin }: { project: Project; pin: string }) {
+  const [files, setFiles] = useState<CadFileRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const base = getApiBase();
+  const hdrs = useCallback(() => ({ "x-lab-pin": pin }), [pin]);
+
+  const loadFiles = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${base}lab/projects/${project.id}/cad-files`, { headers: hdrs() });
+      if (res.ok) setFiles(await res.json());
+    } catch {}
+    setLoading(false);
+  }, [base, project.id, hdrs]);
+
+  useEffect(() => { loadFiles(); }, [project.id]);
+
+  const getExt = (name: string) => name.split(".").pop()?.toUpperCase() || "FILE";
+
+  const formatSize = (bytes: number) => {
+    if (!bytes) return "—";
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const extColor = (name: string) => {
+    const e = name.split(".").pop()?.toLowerCase();
+    const m: Record<string, string> = { dwg: "#00b4d8", dxf: "#0077b6", step: "#48cae4", stp: "#48cae4", iges: "#90e0ef", igs: "#90e0ef", stl: "#f77f00", obj: "#fcbf49", f3d: "#e63946", "3dm": "#2d6a4f" };
+    return m[e || ""] || "rgba(255,255,255,0.4)";
+  };
+
+  const uploadFile = async (file: File) => {
+    setUploading(true);
+    try {
+      const urlRes = await fetch(`${base}lab/projects/${project.id}/cad-files/upload-url`, {
+        method: "POST",
+        headers: { ...hdrs(), "Content-Type": "application/json" },
+      });
+      if (!urlRes.ok) throw new Error("Could not get upload URL");
+      const { uploadURL, objectPath } = await urlRes.json();
+
+      await fetch(uploadURL, {
+        method: "PUT",
+        headers: { "Content-Type": file.type || "application/octet-stream" },
+        body: file,
+      });
+
+      await fetch(`${base}lab/projects/${project.id}/cad-files`, {
+        method: "POST",
+        headers: { ...hdrs(), "Content-Type": "application/json" },
+        body: JSON.stringify({ fileName: file.name, fileSize: file.size, fileType: file.type || getExt(file.name), objectPath }),
+      });
+
+      await loadFiles();
+    } catch (err) {
+      console.error("CAD upload error:", err);
+    }
+    setUploading(false);
+  };
+
+  const downloadFile = async (f: CadFileRecord) => {
+    try {
+      const res = await fetch(`${base}lab/projects/${project.id}/cad-files/${f.id}/download-url`, { headers: hdrs() });
+      if (!res.ok) throw new Error("Could not get download URL");
+      const { url, fileName } = await res.json();
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch (err) {
+      console.error("CAD download error:", err);
+    }
+  };
+
+  const deleteFile = async (id: number) => {
+    await fetch(`${base}lab/projects/${project.id}/cad-files/${id}`, { method: "DELETE", headers: hdrs() });
+    setFiles(prev => prev.filter(f => f.id !== id));
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) uploadFile(file);
+  };
+
+  return (
+    <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: "14px" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div>
+          <p style={{ color: "rgba(255,255,255,0.65)", fontSize: "0.8rem", fontWeight: 600, marginBottom: "1px" }}>CAD Files</p>
+          <p style={{ color: "rgba(255,255,255,0.25)", fontSize: "0.68rem" }}>
+            {files.length === 0 ? "No files stored yet" : `${files.length} file${files.length !== 1 ? "s" : ""} stored in Star Lab`}
+          </p>
+        </div>
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
+          style={{ display: "flex", alignItems: "center", gap: "6px", padding: "7px 14px", borderRadius: "10px", background: "hsl(193,100%,32%)", color: "white", fontSize: "0.75rem", fontWeight: 600, border: "none", cursor: uploading ? "not-allowed" : "pointer", opacity: uploading ? 0.6 : 1, flexShrink: 0 }}>
+          {uploading ? <Loader2 size={12} style={{ animation: "spin 1s linear infinite" }} /> : <Upload size={12} />}
+          {uploading ? "Uploading…" : "Upload File"}
+        </button>
+      </div>
+
+      <div
+        onDragOver={e => { e.preventDefault(); setDragging(true); }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={handleDrop}
+        onClick={() => !uploading && fileInputRef.current?.click()}
+        style={{ border: `2px dashed ${dragging ? "hsl(193,100%,50%)" : "rgba(255,255,255,0.08)"}`, borderRadius: "12px", padding: "18px", textAlign: "center", cursor: uploading ? "not-allowed" : "pointer", background: dragging ? "rgba(0,180,216,0.05)" : "transparent", transition: "all 0.2s" }}>
+        <Upload size={16} style={{ color: "rgba(255,255,255,0.2)", margin: "0 auto 6px" }} />
+        <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "0.75rem" }}>Drag & drop a CAD file here or click to browse</p>
+        <p style={{ color: "rgba(255,255,255,0.15)", fontSize: "0.65rem", marginTop: "3px" }}>DWG · DXF · STEP · IGES · STL · OBJ · F3D · 3DM</p>
+      </div>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".dwg,.dxf,.step,.stp,.iges,.igs,.stl,.obj,.f3d,.3dm,.sldprt,.ipt,.asm,.prt,.catpart,.catproduct"
+        style={{ display: "none" }}
+        onChange={e => { const f = e.target.files?.[0]; if (f) uploadFile(f); e.target.value = ""; }}
+      />
+
+      {loading ? (
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", justifyContent: "center", padding: "12px", color: "rgba(255,255,255,0.2)", fontSize: "0.75rem" }}>
+          <Loader2 size={12} style={{ animation: "spin 1s linear infinite" }} /> Loading files…
+        </div>
+      ) : files.length === 0 ? null : (
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+          {files.map(f => (
+            <div key={f.id} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", borderRadius: "10px", background: "hsl(226,45%,11%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+              <div style={{ width: "34px", height: "34px", borderRadius: "8px", background: `${extColor(f.fileName)}18`, border: `1px solid ${extColor(f.fileName)}30`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <span style={{ fontSize: "0.52rem", fontWeight: 800, color: extColor(f.fileName), fontFamily: "monospace", letterSpacing: "0" }}>{getExt(f.fileName)}</span>
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ color: "rgba(255,255,255,0.8)", fontSize: "0.78rem", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.fileName}</p>
+                <p style={{ color: "rgba(255,255,255,0.25)", fontSize: "0.65rem" }}>
+                  {formatSize(f.fileSize)} · {new Date(f.uploadedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                </p>
+              </div>
+              <button onClick={() => downloadFile(f)} title="Download file" style={{ padding: "6px", borderRadius: "6px", background: "transparent", border: "none", cursor: "pointer", color: "hsl(193,100%,55%)", display: "flex", alignItems: "center" }}>
+                <Download size={13} />
+              </button>
+              <button onClick={() => deleteFile(f.id)} title="Delete file" style={{ padding: "6px", borderRadius: "6px", background: "transparent", border: "none", cursor: "pointer", color: "rgba(255,90,90,0.55)", display: "flex", alignItems: "center" }}>
+                <Trash2 size={13} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ProjectWorkspace({ project, pin, onUpdate }: { project: Project; pin: string; onUpdate: (p: Project) => void }) {
   const [activeTab, setActiveTab] = useState("overview");
   const [saving, setSaving] = useState(false);
@@ -1035,6 +1206,16 @@ function ProjectWorkspace({ project, pin, onUpdate }: { project: Project; pin: s
                     placeholder="Cost to build breakdown, BOM, manufacturing costs, pricing strategy, profit margin analysis..."
                     className="flex-1 p-4 resize-none outline-none leading-relaxed"
                     style={{ background: "transparent", color: "rgba(255,255,255,0.8)", fontSize: "0.83rem", lineHeight: "1.7" }} />
+                </div>
+              ) : activeTab === "drawings" ? (
+                <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
+                  <textarea key={`${project.id}-drawings`} defaultValue={project.drawingNotes}
+                    onBlur={e => saveField("drawingNotes", e.target.value)}
+                    placeholder="Drawing notes: views required, dimension callouts, tolerances, assembly details, revision history..."
+                    style={{ background: "transparent", color: "rgba(255,255,255,0.8)", fontSize: "0.83rem", lineHeight: "1.7", padding: "16px", resize: "none", outline: "none", minHeight: "140px", flexShrink: 0 }} />
+                  <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                    <CadFilesPanel project={project} pin={pin} />
+                  </div>
                 </div>
               ) : (
                 <textarea key={`${project.id}-${activeTab}`} defaultValue={getTabContent(activeTab)}

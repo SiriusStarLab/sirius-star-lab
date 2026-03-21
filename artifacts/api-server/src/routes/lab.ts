@@ -1,8 +1,9 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { eq, desc } from "drizzle-orm";
-import { db, labProjects, labMessages, scoutReports } from "@workspace/db";
+import { db, labProjects, labMessages, scoutReports, cadFiles } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { generateImageBuffer } from "@workspace/integrations-openai-ai-server/image";
+import { ObjectStorageService } from "../lib/objectStorage";
 
 const router: IRouter = Router();
 
@@ -1534,6 +1535,101 @@ Return the JSON response as specified.`;
   }
 
   res.end();
+});
+
+// ── CAD File Storage ────────────────────────────────────────────────────────
+
+const storage = new ObjectStorageService();
+
+// Request a presigned upload URL and register the file
+router.post("/lab/projects/:id/cad-files", authMiddleware, async (req: Request, res: Response) => {
+  const projectId = parseInt(req.params.id);
+  const { fileName, fileSize, fileType, objectPath, description } = req.body;
+
+  if (!fileName || !objectPath) {
+    return res.status(400).json({ error: "fileName and objectPath are required" });
+  }
+
+  try {
+    const [file] = await db.insert(cadFiles).values({
+      projectId,
+      fileName,
+      fileSize: fileSize || 0,
+      fileType: fileType || "",
+      objectPath,
+      description: description || "",
+    }).returning();
+
+    return res.json(file);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Request presigned upload URL from GCS
+router.post("/lab/projects/:id/cad-files/upload-url", authMiddleware, async (_req: Request, res: Response) => {
+  try {
+    const uploadURL = await storage.getObjectEntityUploadURL();
+    const objectPath = storage.normalizeObjectEntityPath(uploadURL);
+    return res.json({ uploadURL, objectPath });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// List CAD files for a project
+router.get("/lab/projects/:id/cad-files", authMiddleware, async (req: Request, res: Response) => {
+  const projectId = parseInt(req.params.id);
+  try {
+    const files = await db
+      .select()
+      .from(cadFiles)
+      .where(eq(cadFiles.projectId, projectId))
+      .orderBy(desc(cadFiles.uploadedAt));
+    return res.json(files);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Update description of a CAD file
+router.patch("/lab/projects/:id/cad-files/:fileId", authMiddleware, async (req: Request, res: Response) => {
+  const fileId = parseInt(req.params.fileId);
+  const { description } = req.body;
+  try {
+    const [updated] = await db
+      .update(cadFiles)
+      .set({ description })
+      .where(eq(cadFiles.id, fileId))
+      .returning();
+    return res.json(updated);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete a CAD file
+router.delete("/lab/projects/:id/cad-files/:fileId", authMiddleware, async (req: Request, res: Response) => {
+  const fileId = parseInt(req.params.fileId);
+  try {
+    await db.delete(cadFiles).where(eq(cadFiles.id, fileId));
+    return res.json({ success: true });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Generate a presigned download URL for a CAD file
+router.get("/lab/projects/:id/cad-files/:fileId/download-url", authMiddleware, async (req: Request, res: Response) => {
+  const fileId = parseInt(req.params.fileId);
+  try {
+    const [record] = await db.select().from(cadFiles).where(eq(cadFiles.id, fileId));
+    if (!record) return res.status(404).json({ error: "File not found" });
+    const signedUrl = await storage.getObjectEntityDownloadURL(record.objectPath, 3600);
+    return res.json({ url: signedUrl, fileName: record.fileName });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
 });
 
 export default router;
