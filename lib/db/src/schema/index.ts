@@ -24,3 +24,4 @@ export * from "./user_profiles";
 export * from "./lab_projects";
 export * from "./lab_messages";
 export * from "./scout_reports";
+export * from "./ai_discoveries";

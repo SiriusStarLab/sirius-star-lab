@@ -5,6 +5,7 @@ import openaiRouter from "./openai";
 import subscriptionRouter from "./subscription";
 import stripeRouter from "./stripe";
 import labRouter from "./lab";
+import intelligenceFeedRouter from "./intelligence-feed";
 
 const router: IRouter = Router();
 
@@ -14,5 +15,6 @@ router.use(intelligenceRouter);
 router.use(subscriptionRouter);
 router.use(stripeRouter);
 router.use(labRouter);
+router.use(intelligenceFeedRouter);
 
 export default router;

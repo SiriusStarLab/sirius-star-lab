@@ -4,8 +4,10 @@ import {
   Lock, Star, Plus, Trash2, Send, Loader2, FileText, Code, Ruler,
   BookOpen, Telescope, ExternalLink, Sparkles, X, FolderOpen,
   Pencil, Check, Bot, Zap, TrendingUp, Package, Layers,
-  ChevronDown, RotateCcw, Save, Copy, AlertCircle, Globe,
-  Cpu, Wrench, ChevronRight
+  ChevronDown, RotateCcw, Copy, Globe,
+  Cpu, Wrench, ChevronRight, Rss, RefreshCw, Bookmark, BookmarkCheck,
+  Heart, FlaskConical, Eye, EyeOff, Trash, Bell, BellOff, Filter,
+  ChevronUp, BadgeCheck, Lightbulb, Atom
 } from "lucide-react";
 import { getApiBase } from "@/lib/api-base";
 
@@ -43,7 +45,7 @@ type Project = {
 };
 type Message = { id: number; projectId: number; role: string; content: string; createdAt: string };
 type ScoutReport = { id: number; title: string; industry: string; opportunity: string; type: string; createdAt: string };
-type NavMode = "projects" | "botlab" | "scout";
+type NavMode = "projects" | "botlab" | "scout" | "feed";
 
 function PinGate({ onUnlock }: { onUnlock: (pin: string) => void }) {
   const [pin, setPin] = useState("");
@@ -682,6 +684,379 @@ function ScoutPanel({ pin }: { pin: string }) {
   );
 }
 
+type Discovery = {
+  id: number; sweepId: string; category: string; title: string;
+  summary: string; detail: string; source: string; sourceType: string;
+  applicability: string; isRead: boolean; isSaved: boolean; discoveredAt: string;
+};
+
+type FeedStats = {
+  total: number; unread: number; saved: boolean; sweepRunning: boolean;
+  lastSweep: { startedAt: string; status: string; itemsFound: string } | null;
+  categories: Record<string, number>;
+};
+
+const CATEGORY_COLORS: Record<string, string> = {
+  Healthcare: "hsl(340,70%,55%)", Engineering: "hsl(193,100%,35%)",
+  Robotics: "hsl(280,70%,55%)", Language: "hsl(210,80%,55%)",
+  Vision: "hsl(155,70%,45%)", Creative: "hsl(300,60%,55%)",
+  Science: "hsl(45,100%,45%)", Finance: "hsl(25,100%,50%)",
+  Legal: "hsl(0,60%,55%)", Education: "hsl(180,70%,40%)",
+  Security: "hsl(0,80%,45%)", Agriculture: "hsl(90,65%,40%)",
+  Energy: "hsl(55,90%,45%)", Retail: "hsl(320,65%,50%)",
+  "Research Breakthrough": "hsl(240,80%,65%)", "New Application": "hsl(170,70%,45%)",
+  "Platform Release": "hsl(215,80%,60%)",
+};
+
+const SOURCE_TYPE_LABELS: Record<string, string> = {
+  university_research: "University Research", industry_deployment: "Industry Deployment",
+  product_release: "Product Release", patent: "Patent Filing",
+  breakthrough: "Research Breakthrough", use_case: "New Use Case",
+};
+
+function DiscoveryCard({ d, pin, onUpdate, onDelete }: {
+  d: Discovery; pin: string; onUpdate: (id: number, updates: Partial<Discovery>) => void; onDelete: (id: number) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const base = getApiBase();
+  const catColor = CATEGORY_COLORS[d.category] || "hsl(193,100%,35%)";
+
+  const patch = async (updates: Partial<Discovery>) => {
+    await fetch(`${base}feed/discoveries/${d.id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+      body: JSON.stringify(updates)
+    });
+    onUpdate(d.id, updates);
+  };
+
+  const handleExpand = () => {
+    if (!d.isRead) patch({ isRead: true });
+    setExpanded(!expanded);
+  };
+
+  return (
+    <motion.div layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+      className="rounded-2xl overflow-hidden transition-all"
+      style={{ background: "hsl(226,45%,9%)", border: `1px solid ${d.isRead ? "rgba(255,255,255,0.06)" : catColor + "40"}`, opacity: d.isRead ? 0.85 : 1 }}>
+      <div className="p-4 cursor-pointer" onClick={handleExpand}>
+        <div className="flex items-start gap-3">
+          <div className="w-2 h-2 rounded-full flex-shrink-0 mt-2" style={{ background: d.isRead ? "rgba(255,255,255,0.15)" : catColor }} />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap mb-1">
+              <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: catColor + "25", color: catColor }}>{d.category}</span>
+              {d.sourceType && <span className="text-xs text-white/25">{SOURCE_TYPE_LABELS[d.sourceType] || d.sourceType}</span>}
+              {!d.isRead && <span className="text-xs text-white/40 italic">New</span>}
+            </div>
+            <h3 className="text-white text-sm font-semibold leading-tight mb-1">{d.title}</h3>
+            <p className="text-white/50 text-xs leading-relaxed">{d.summary}</p>
+          </div>
+          <div className="flex items-center gap-1 flex-shrink-0">
+            {expanded ? <ChevronUp className="w-3.5 h-3.5 text-white/25" /> : <ChevronRight className="w-3.5 h-3.5 text-white/25" />}
+          </div>
+        </div>
+      </div>
+
+      <AnimatePresence>
+        {expanded && (
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+            style={{ overflow: "hidden" }}>
+            <div className="px-4 pb-4 space-y-3">
+              <div className="h-px" style={{ background: "rgba(255,255,255,0.06)" }} />
+
+              {d.detail && (
+                <div>
+                  <p className="text-white/30 text-xs uppercase tracking-wider mb-1.5">Detail</p>
+                  <p className="text-white/70 text-xs leading-relaxed">{d.detail}</p>
+                </div>
+              )}
+
+              {d.applicability && (
+                <div className="rounded-xl p-3" style={{ background: catColor + "12", border: `1px solid ${catColor}25` }}>
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <Lightbulb className="w-3 h-3" style={{ color: catColor }} />
+                    <p className="text-xs font-medium" style={{ color: catColor }}>How Sirius can use this</p>
+                  </div>
+                  <p className="text-white/70 text-xs leading-relaxed">{d.applicability}</p>
+                </div>
+              )}
+
+              {d.source && (
+                <p className="text-white/25 text-xs">Source: {d.source}</p>
+              )}
+
+              <div className="flex items-center gap-2 pt-1">
+                <button onClick={() => patch({ isSaved: !d.isSaved })}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all"
+                  style={{ background: d.isSaved ? catColor + "25" : "hsl(226,45%,14%)", color: d.isSaved ? catColor : "rgba(255,255,255,0.4)" }}>
+                  {d.isSaved ? <BookmarkCheck className="w-3 h-3" /> : <Bookmark className="w-3 h-3" />}
+                  {d.isSaved ? "Saved" : "Save"}
+                </button>
+                <button onClick={() => patch({ isRead: !d.isRead })}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all"
+                  style={{ background: "hsl(226,45%,14%)", color: "rgba(255,255,255,0.4)" }}>
+                  {d.isRead ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                  {d.isRead ? "Mark unread" : "Mark read"}
+                </button>
+                <button onClick={() => onDelete(d.id)}
+                  className="ml-auto flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs transition-all"
+                  style={{ color: "rgba(255,255,255,0.2)" }}>
+                  <Trash className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
+function FeedPanel({ pin }: { pin: string }) {
+  const [discoveries, setDiscoveries] = useState<Discovery[]>([]);
+  const [stats, setStats] = useState<FeedStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [sweeping, setSweeping] = useState(false);
+  const [sweepLog, setSweepLog] = useState<string[]>([]);
+  const [filterCategory, setFilterCategory] = useState("all");
+  const [filterSaved, setFilterSaved] = useState(false);
+  const [filterUnread, setFilterUnread] = useState(false);
+  const [showSweepLog, setShowSweepLog] = useState(false);
+  const sweepLogRef = useRef<HTMLDivElement>(null);
+  const base = getApiBase();
+  const headers = useCallback((): Record<string, string> => ({ "x-lab-pin": pin }), [pin]);
+
+  const loadAll = useCallback(async () => {
+    const params = new URLSearchParams();
+    if (filterCategory !== "all") params.set("category", filterCategory);
+    if (filterUnread) params.set("unread", "true");
+    if (filterSaved) params.set("saved", "true");
+
+    const [discRes, statsRes] = await Promise.all([
+      fetch(`${base}feed/discoveries?${params}&limit=100`, { headers: headers() }),
+      fetch(`${base}feed/stats`, { headers: headers() }),
+    ]);
+    if (discRes.ok) setDiscoveries(await discRes.json());
+    if (statsRes.ok) setStats(await statsRes.json());
+    setLoading(false);
+  }, [base, headers, filterCategory, filterUnread, filterSaved]);
+
+  useEffect(() => { loadAll(); }, [loadAll]);
+
+  useEffect(() => {
+    if (sweepLogRef.current) sweepLogRef.current.scrollTop = sweepLogRef.current.scrollHeight;
+  }, [sweepLog]);
+
+  const runSweep = async () => {
+    setSweeping(true);
+    setSweepLog(["Initialising sweep..."]);
+    setShowSweepLog(true);
+
+    try {
+      const res = await fetch(`${base}feed/sweep`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-lab-pin": pin }
+      });
+
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        for (const line of decoder.decode(value).split("\n")) {
+          if (line.startsWith("data: ")) {
+            try {
+              const d = JSON.parse(line.slice(6));
+              if (d.phase === "searching") setSweepLog(prev => [...prev, `🔍 ${d.content}`]);
+              else if (d.phase === "streaming" && d.content?.includes("TITLE:")) {
+                setSweepLog(prev => [...prev, `📡 Receiving discoveries...`]);
+              }
+              if (d.done) {
+                setSweepLog(prev => [...prev, `✅ Sweep complete — ${d.itemsFound} new discoveries found`]);
+                loadAll();
+              }
+              if (d.error) setSweepLog(prev => [...prev, `❌ Error: ${d.error}`]);
+            } catch {}
+          }
+        }
+      }
+    } catch (err: any) {
+      setSweepLog(prev => [...prev, `❌ ${err.message}`]);
+    }
+
+    setSweeping(false);
+  };
+
+  const markAllRead = async () => {
+    await fetch(`${base}feed/mark-all-read`, { method: "PATCH", headers: headers() });
+    loadAll();
+  };
+
+  const updateDiscovery = (id: number, updates: Partial<Discovery>) => {
+    setDiscoveries(prev => prev.map(d => d.id === id ? { ...d, ...updates } : d));
+    if (stats) setStats({ ...stats, unread: updates.isRead ? Math.max(0, stats.unread - 1) : stats.unread + 1 });
+  };
+
+  const deleteDiscovery = async (id: number) => {
+    await fetch(`${base}feed/discoveries/${id}`, { method: "DELETE", headers: headers() });
+    setDiscoveries(prev => prev.filter(d => d.id !== id));
+  };
+
+  const categories = stats ? Object.keys(stats.categories).sort() : [];
+
+  return (
+    <div className="flex-1 flex min-h-0">
+      {/* Left: controls */}
+      <div className="w-64 border-r flex-shrink-0 flex flex-col overflow-y-auto"
+        style={{ borderColor: "rgba(255,255,255,0.06)", background: "hsl(226,45%,6%)" }}>
+        <div className="p-4">
+          {/* Header */}
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center"
+              style={{ background: "linear-gradient(135deg, hsl(210,80%,55%), hsl(280,70%,50%))" }}>
+              <Atom className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <h2 className="text-white font-bold text-sm">AI Intelligence</h2>
+              <p className="text-white/35 text-xs">Live discovery feed</p>
+            </div>
+          </div>
+
+          {/* Stats */}
+          {stats && (
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              {[
+                { label: "Total", value: stats.total, color: "rgba(255,255,255,0.5)" },
+                { label: "Unread", value: stats.unread, color: "hsl(45,100%,55%)" },
+              ].map(s => (
+                <div key={s.label} className="rounded-xl p-2.5 text-center"
+                  style={{ background: "hsl(226,45%,11%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                  <p className="font-bold text-lg leading-none" style={{ color: s.color }}>{s.value}</p>
+                  <p className="text-white/30 text-xs mt-0.5">{s.label}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Sweep controls */}
+          <button onClick={runSweep} disabled={sweeping}
+            className="w-full py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-all mb-2"
+            style={{ background: "linear-gradient(135deg, hsl(210,80%,50%), hsl(280,70%,50%))", color: "white", opacity: sweeping ? 0.5 : 1 }}>
+            {sweeping ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Sweeping...</> : <><RefreshCw className="w-3.5 h-3.5" /> Run AI Sweep Now</>}
+          </button>
+
+          {stats?.lastSweep && (
+            <p className="text-white/20 text-xs text-center mb-4">
+              Last: {new Date(stats.lastSweep.startedAt).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+              {" · "}{stats.lastSweep.itemsFound} found
+            </p>
+          )}
+
+          {showSweepLog && sweepLog.length > 0 && (
+            <div ref={sweepLogRef}
+              className="rounded-xl p-3 mb-4 max-h-32 overflow-y-auto space-y-1"
+              style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+              {sweepLog.map((l, i) => (
+                <p key={i} className="text-white/50 text-xs leading-relaxed">{l}</p>
+              ))}
+            </div>
+          )}
+
+          {/* Filters */}
+          <div className="space-y-2">
+            <p className="text-white/25 text-xs uppercase tracking-wider">Filter</p>
+
+            <div className="flex gap-1.5 flex-wrap">
+              {[
+                { label: filterSaved ? "Saved ✓" : "Saved", active: filterSaved, action: () => setFilterSaved(!filterSaved) },
+                { label: filterUnread ? "Unread ✓" : "Unread", active: filterUnread, action: () => setFilterUnread(!filterUnread) },
+              ].map(f => (
+                <button key={f.label} onClick={f.action}
+                  className="text-xs px-2.5 py-1 rounded-full transition-all"
+                  style={{ background: f.active ? "hsl(210,80%,50%)" : "hsl(226,45%,12%)", color: f.active ? "white" : "rgba(255,255,255,0.4)", border: f.active ? "none" : "1px solid rgba(255,255,255,0.06)" }}>
+                  {f.label}
+                </button>
+              ))}
+            </div>
+
+            <div>
+              <p className="text-white/25 text-xs mb-1.5">Category</p>
+              <div className="flex flex-wrap gap-1">
+                <button onClick={() => setFilterCategory("all")}
+                  className="text-xs px-2 py-0.5 rounded-full transition-all"
+                  style={{ background: filterCategory === "all" ? "rgba(255,255,255,0.15)" : "transparent", color: filterCategory === "all" ? "white" : "rgba(255,255,255,0.35)" }}>
+                  All
+                </button>
+                {categories.map(cat => {
+                  const color = CATEGORY_COLORS[cat] || "hsl(193,100%,35%)";
+                  return (
+                    <button key={cat} onClick={() => setFilterCategory(filterCategory === cat ? "all" : cat)}
+                      className="text-xs px-2 py-0.5 rounded-full transition-all"
+                      style={{
+                        background: filterCategory === cat ? color + "30" : "transparent",
+                        color: filterCategory === cat ? color : "rgba(255,255,255,0.35)",
+                        border: filterCategory === cat ? `1px solid ${color}50` : "1px solid transparent"
+                      }}>
+                      {cat}
+                      <span className="ml-1 text-white/20">{stats?.categories[cat]}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {discoveries.length > 0 && stats && stats.unread > 0 && (
+            <button onClick={markAllRead} className="w-full mt-4 py-1.5 rounded-xl text-xs text-white/30 transition-all hover:text-white/50"
+              style={{ background: "hsl(226,45%,10%)" }}>
+              Mark all as read
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Right: feed */}
+      <div className="flex-1 flex flex-col min-h-0 overflow-y-auto p-5">
+        {loading ? (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="flex items-center gap-2 text-white/30">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span className="text-sm">Loading feed...</span>
+            </div>
+          </div>
+        ) : discoveries.length === 0 ? (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center max-w-sm">
+              <Atom className="w-10 h-10 mx-auto mb-3 text-white/10" />
+              <p className="text-white/30 text-sm font-medium mb-2">No discoveries yet</p>
+              <p className="text-white/15 text-xs leading-relaxed mb-5">The sweep runs every 6 hours automatically, scanning universities, research labs, and industry sources for new AI developments. You can also trigger it manually above.</p>
+              <button onClick={runSweep} disabled={sweeping}
+                className="px-5 py-2.5 rounded-xl text-sm font-medium text-white transition-all"
+                style={{ background: "linear-gradient(135deg, hsl(210,80%,50%), hsl(280,70%,50%))", opacity: sweeping ? 0.5 : 1 }}>
+                {sweeping ? "Running sweep..." : "Run First Sweep"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center justify-between mb-4 flex-shrink-0">
+              <p className="text-white/30 text-xs">{discoveries.length} discoveries{filterCategory !== "all" ? ` · ${filterCategory}` : ""}</p>
+              <p className="text-white/20 text-xs">Auto-updates every 6 hours</p>
+            </div>
+            <div className="space-y-2">
+              <AnimatePresence>
+                {discoveries.map(d => (
+                  <DiscoveryCard key={d.id} d={d} pin={pin} onUpdate={updateDiscovery} onDelete={deleteDiscovery} />
+                ))}
+              </AnimatePresence>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function StarLabPage() {
   const [unlocked, setUnlocked] = useState(false);
   const [pin, setPin] = useState("");
@@ -738,6 +1113,7 @@ export function StarLabPage() {
     { id: "projects" as NavMode, label: "Projects", icon: FolderOpen, color: "hsl(193,100%,35%)" },
     { id: "botlab" as NavMode, label: "Bot Lab", icon: Bot, color: "hsl(280,70%,55%)" },
     { id: "scout" as NavMode, label: "Scout", icon: Telescope, color: "hsl(45,100%,45%)" },
+    { id: "feed" as NavMode, label: "AI Intelligence", icon: Atom, color: "hsl(210,80%,55%)", badge: true },
   ];
 
   return (
@@ -770,7 +1146,10 @@ export function StarLabPage() {
                   border: navMode === item.id ? `1px solid ${item.color}30` : "1px solid transparent"
                 }}>
                 <Icon className="w-4 h-4 flex-shrink-0" style={{ color: navMode === item.id ? item.color : "rgba(255,255,255,0.3)" }} />
-                <span className="text-sm" style={{ color: navMode === item.id ? "white" : "rgba(255,255,255,0.4)" }}>{item.label}</span>
+                <span className="text-sm flex-1" style={{ color: navMode === item.id ? "white" : "rgba(255,255,255,0.4)" }}>{item.label}</span>
+                {(item as any).badge && (
+                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: item.color }} />
+                )}
               </button>
             );
           })}
@@ -834,6 +1213,7 @@ export function StarLabPage() {
 
       {/* MAIN */}
       <div className="flex-1 flex flex-col min-w-0 min-h-0">
+        {navMode === "feed" && <FeedPanel pin={pin} />}
         {navMode === "scout" && <ScoutPanel pin={pin} />}
         {navMode === "botlab" && <BotLabPanel pin={pin} />}
         {navMode === "projects" && (
