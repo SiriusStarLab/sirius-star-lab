@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { PlusCircle, MessageSquare, Trash2, X, Settings, Zap, Loader2, Sparkles, FlaskConical } from "lucide-react";
+import { PlusCircle, MessageSquare, Trash2, X, Settings, Zap, Loader2, Sparkles, FlaskConical, BookOpen } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { SettingsPanel } from "@/components/settings-panel";
 import { MemoryPortrait } from "@/components/memory-portrait";
 import { PricingModal, startCheckout } from "@/components/pricing-modal";
+import { TutorialsModal } from "@/components/tutorials-modal";
 import { useProfile } from "@/hooks/use-profile";
 import { useSubscription } from "@/hooks/use-subscription";
 import { getUserId } from "@/lib/user-id";
@@ -30,6 +31,7 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing }: SidebarProps) {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPortraitOpen, setIsPortraitOpen] = useState(false);
   const [isPricingOpen, setIsPricingOpen] = useState(false);
+  const [isTutorialsOpen, setIsTutorialsOpen] = useState(false);
   const [checkingOut, setCheckingOut] = useState(false);
   const { profile } = useProfile();
   const { status, usagePercent, isPremium } = useSubscription();
@@ -327,6 +329,18 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing }: SidebarProps) {
         </button>
 
         <button
+          onClick={() => setIsTutorialsOpen(true)}
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-all duration-200 text-sm"
+        >
+          <BookOpen size={15} />
+          <span className="text-[13px]">Sirius Guide</span>
+          <span className="ml-auto text-[9px] font-mono uppercase tracking-wider px-2 py-0.5 rounded"
+            style={{ background: "hsl(193 100% 52% / 0.1)", color: "hsl(193 100% 52%)", border: "1px solid hsl(193 100% 52% / 0.2)" }}>
+            Help
+          </span>
+        </button>
+
+        <button
           onClick={() => setIsSettingsOpen(true)}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-all duration-200 text-sm"
         >
@@ -377,6 +391,7 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing }: SidebarProps) {
       <SettingsPanel isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
       <MemoryPortrait isOpen={isPortraitOpen} onClose={() => setIsPortraitOpen(false)} aiName={aiName} />
       <PricingModal isOpen={isPricingOpen} onClose={() => setIsPricingOpen(false)} currentTier={status.tier} hasStripeCustomer={status.hasStripeCustomer} />
+      <TutorialsModal open={isTutorialsOpen} onClose={() => setIsTutorialsOpen(false)} />
     </>
   );
 }

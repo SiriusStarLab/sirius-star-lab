@@ -7,7 +7,8 @@ import {
   ChevronDown, RotateCcw, Copy, Globe,
   Cpu, Wrench, ChevronRight, Rss, RefreshCw, Bookmark, BookmarkCheck,
   Heart, FlaskConical, Eye, EyeOff, Trash, Bell, BellOff, Filter,
-  ChevronUp, BadgeCheck, Lightbulb, Atom, Upload, Download
+  ChevronUp, BadgeCheck, Lightbulb, Atom, Upload, Download,
+  Mail, UserPlus, Users, Settings2, AtSign, Building2, Briefcase, StickyNote, CheckCircle2, AlertCircle
 } from "lucide-react";
 import { getApiBase } from "@/lib/api-base";
 
@@ -41,7 +42,7 @@ type Project = {
 };
 type Message = { id: number; projectId: number; role: string; content: string; createdAt: string };
 type ScoutReport = { id: number; title: string; industry: string; opportunity: string; type: string; createdAt: string };
-type NavMode = "projects" | "botlab" | "scout" | "feed" | "grants" | "commerce";
+type NavMode = "projects" | "botlab" | "scout" | "feed" | "grants" | "commerce" | "outreach";
 
 const MAX_PIN_DIGITS = 8;
 const MAX_ATTEMPTS = 5;
@@ -2485,6 +2486,446 @@ function FundingRadarPanel({ pin }: { pin: string }) {
   );
 }
 
+// ─── Outreach Hub ────────────────────────────────────────────────────
+type Recipient = { id: string; name: string; email: string; company: string; role: string; notes: string };
+type GeneratedMessage = { recipientId: string; subject: string; body: string; status: "pending" | "generating" | "done" | "error"; error?: string };
+
+const MSG_TYPES = ["Cold Email", "Follow-up", "Partnership", "Sales Pitch", "LinkedIn DM"];
+const TONES = ["Professional", "Friendly", "Direct", "Warm", "Confident"];
+
+function OutreachHubPanel({ pin }: { pin: string }) {
+  const base = getApiBase();
+
+  // Campaign config
+  const [msgType, setMsgType] = useState("Cold Email");
+  const [product, setProduct] = useState("");
+  const [senderName, setSenderName] = useState("");
+  const [senderCompany, setSenderCompany] = useState("");
+  const [tone, setTone] = useState("Professional");
+  const [subjectTemplate, setSubjectTemplate] = useState("");
+
+  // Recipient form
+  const [rName, setRName] = useState("");
+  const [rEmail, setREmail] = useState("");
+  const [rCompany, setRCompany] = useState("");
+  const [rRole, setRRole] = useState("");
+  const [rNotes, setRNotes] = useState("");
+  const [bulkText, setBulkText] = useState("");
+  const [showBulk, setShowBulk] = useState(false);
+
+  // Data
+  const [recipients, setRecipients] = useState<Recipient[]>([]);
+  const [messages, setMessages] = useState<GeneratedMessage[]>([]);
+  const [generating, setGenerating] = useState(false);
+
+  // SMTP send modal
+  const [showSmtp, setShowSmtp] = useState(false);
+  const [smtpHost, setSmtpHost] = useState("");
+  const [smtpPort, setSmtpPort] = useState("587");
+  const [smtpUser, setSmtpUser] = useState("");
+  const [smtpPass, setSmtpPass] = useState("");
+  const [fromEmail, setFromEmail] = useState("");
+  const [fromName, setFromName] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sendResult, setSendResult] = useState<{ sent: number; failed: number } | null>(null);
+
+  const addRecipient = () => {
+    if (!rName.trim() || !rEmail.trim()) return;
+    setRecipients(prev => [...prev, { id: crypto.randomUUID(), name: rName.trim(), email: rEmail.trim(), company: rCompany.trim(), role: rRole.trim(), notes: rNotes.trim() }]);
+    setRName(""); setREmail(""); setRCompany(""); setRRole(""); setRNotes("");
+  };
+
+  const parseBulk = () => {
+    const lines = bulkText.split("\n").map(l => l.trim()).filter(Boolean);
+    const parsed: Recipient[] = [];
+    for (const line of lines) {
+      const parts = line.split(/,|\t/).map(p => p.trim());
+      const name = parts[0] || "";
+      const email = parts[1] || "";
+      if (name && email.includes("@")) {
+        parsed.push({ id: crypto.randomUUID(), name, email, company: parts[2] || "", role: parts[3] || "", notes: "" });
+      }
+    }
+    if (parsed.length) { setRecipients(prev => [...prev, ...parsed]); setBulkText(""); setShowBulk(false); }
+  };
+
+  const generate = async () => {
+    if (!recipients.length || generating) return;
+    setGenerating(true);
+    setMessages(recipients.map(r => ({ recipientId: r.id, subject: "", body: "", status: "pending" })));
+
+    try {
+      const res = await fetch(`${base}/api/outreach/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+        body: JSON.stringify({ messageType: msgType, product, senderName, senderCompany, tone, subjectTemplate, recipients }),
+      });
+
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop() || "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (data.done) continue;
+            if (data.error) {
+              setMessages(prev => prev.map(m => m.recipientId === data.recipientId ? { ...m, status: "error", error: data.error } : m));
+            } else {
+              setMessages(prev => prev.map(m => m.recipientId === data.recipientId ? { ...m, subject: data.subject, body: data.body, status: "done" } : m));
+            }
+          } catch {}
+        }
+      }
+    } catch (err: any) {
+      setMessages(prev => prev.map(m => ({ ...m, status: "error", error: err.message })));
+    }
+    setGenerating(false);
+  };
+
+  const updateMsg = (recipientId: string, field: "subject" | "body", val: string) =>
+    setMessages(prev => prev.map(m => m.recipientId === recipientId ? { ...m, [field]: val } : m));
+
+  const copyAll = () => {
+    const text = messages.filter(m => m.status === "done").map(m => {
+      const r = recipients.find(r => r.id === m.recipientId);
+      return `To: ${r?.email}\nSubject: ${m.subject}\n\n${m.body}`;
+    }).join("\n\n---\n\n");
+    navigator.clipboard.writeText(text);
+  };
+
+  const sendEmails = async () => {
+    setSending(true); setSendResult(null);
+    const payload = messages.filter(m => m.status === "done").map(m => {
+      const r = recipients.find(r => r.id === m.recipientId);
+      return { to: r?.email, subject: m.subject, body: m.body };
+    });
+    try {
+      const res = await fetch(`${base}/api/outreach/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+        body: JSON.stringify({ messages: payload, smtpHost, smtpPort, smtpUser, smtpPass, fromEmail, fromName }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setSendResult({ sent: data.sent, failed: data.failed });
+    } catch (err: any) {
+      setSendResult({ sent: 0, failed: payload.length });
+    }
+    setSending(false);
+  };
+
+  const doneCount = messages.filter(m => m.status === "done").length;
+
+  return (
+    <div className="flex h-full min-h-0">
+      {/* Left Panel — Config + Recipients */}
+      <div className="w-80 flex-shrink-0 flex flex-col border-r overflow-y-auto" style={{ borderColor: "rgba(255,255,255,0.06)", background: "hsl(226,45%,6%)" }}>
+        <div className="p-4 border-b" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+          <div className="flex items-center gap-2 mb-1">
+            <Mail className="w-4 h-4" style={{ color: "hsl(340,80%,60%)" }} />
+            <h2 className="text-white font-semibold text-sm">Outreach Hub</h2>
+          </div>
+          <p className="text-white/30 text-xs">AI-personalised messages at scale</p>
+        </div>
+
+        <div className="p-4 space-y-4">
+          {/* Message type */}
+          <div>
+            <label className="text-white/40 text-xs font-medium mb-1.5 block">Message Type</label>
+            <div className="flex flex-wrap gap-1">
+              {MSG_TYPES.map(t => (
+                <button key={t} onClick={() => setMsgType(t)}
+                  className="px-2.5 py-1 rounded-lg text-xs transition-all"
+                  style={{ background: msgType === t ? "hsl(340,80%,45%)" : "hsl(226,45%,12%)", color: msgType === t ? "white" : "rgba(255,255,255,0.35)", border: `1px solid ${msgType === t ? "hsl(340,80%,50%)" : "transparent"}` }}>
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Product */}
+          <div>
+            <label className="text-white/40 text-xs font-medium mb-1.5 block">Your Product / Service</label>
+            <textarea value={product} onChange={e => setProduct(e.target.value)} placeholder="Describe what you're promoting…" rows={3}
+              className="w-full text-xs text-white placeholder-white/20 outline-none resize-none rounded-xl p-2.5"
+              style={{ background: "hsl(226,45%,12%)", border: "1px solid rgba(255,255,255,0.07)" }} />
+          </div>
+
+          {/* Sender */}
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-white/40 text-xs font-medium mb-1.5 block">Your Name</label>
+              <input value={senderName} onChange={e => setSenderName(e.target.value)} placeholder="Alex Smith"
+                className="w-full text-xs text-white placeholder-white/20 outline-none rounded-xl px-2.5 py-2"
+                style={{ background: "hsl(226,45%,12%)", border: "1px solid rgba(255,255,255,0.07)" }} />
+            </div>
+            <div>
+              <label className="text-white/40 text-xs font-medium mb-1.5 block">Company</label>
+              <input value={senderCompany} onChange={e => setSenderCompany(e.target.value)} placeholder="Acme Ltd"
+                className="w-full text-xs text-white placeholder-white/20 outline-none rounded-xl px-2.5 py-2"
+                style={{ background: "hsl(226,45%,12%)", border: "1px solid rgba(255,255,255,0.07)" }} />
+            </div>
+          </div>
+
+          {/* Tone */}
+          <div>
+            <label className="text-white/40 text-xs font-medium mb-1.5 block">Tone</label>
+            <div className="flex flex-wrap gap-1">
+              {TONES.map(t => (
+                <button key={t} onClick={() => setTone(t)}
+                  className="px-2.5 py-1 rounded-lg text-xs transition-all"
+                  style={{ background: tone === t ? "hsl(193,100%,32%)" : "hsl(226,45%,12%)", color: tone === t ? "white" : "rgba(255,255,255,0.35)", border: `1px solid ${tone === t ? "hsl(193,100%,38%)" : "transparent"}` }}>
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Subject template */}
+          <div>
+            <label className="text-white/40 text-xs font-medium mb-1.5 block">Subject Template <span className="text-white/20">(optional)</span></label>
+            <input value={subjectTemplate} onChange={e => setSubjectTemplate(e.target.value)} placeholder="Quick question for {name}…"
+              className="w-full text-xs text-white placeholder-white/20 outline-none rounded-xl px-2.5 py-2"
+              style={{ background: "hsl(226,45%,12%)", border: "1px solid rgba(255,255,255,0.07)" }} />
+          </div>
+        </div>
+
+        {/* Recipients */}
+        <div className="px-4 pb-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <label className="text-white/40 text-xs font-medium flex items-center gap-1.5">
+              <Users className="w-3.5 h-3.5" />
+              Recipients ({recipients.length})
+            </label>
+            <button onClick={() => setShowBulk(b => !b)} className="text-xs text-white/30 hover:text-white/60 transition-colors">
+              {showBulk ? "Manual" : "Bulk paste"}
+            </button>
+          </div>
+
+          {showBulk ? (
+            <div>
+              <textarea value={bulkText} onChange={e => setBulkText(e.target.value)} rows={5}
+                placeholder={"Name, Email, Company (optional)\nJane Smith, jane@co.com, Acme\nBob Jones, bob@biz.io"}
+                className="w-full text-xs text-white placeholder-white/20 outline-none resize-none rounded-xl p-2.5 mb-2"
+                style={{ background: "hsl(226,45%,12%)", border: "1px solid rgba(255,255,255,0.07)" }} />
+              <button onClick={parseBulk} className="w-full py-2 rounded-xl text-xs font-medium text-white"
+                style={{ background: "hsl(193,100%,32%)" }}>Add from list</button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <input value={rName} onChange={e => setRName(e.target.value)} placeholder="Full name"
+                  className="text-xs text-white placeholder-white/20 outline-none rounded-xl px-2.5 py-2"
+                  style={{ background: "hsl(226,45%,12%)", border: "1px solid rgba(255,255,255,0.07)" }} />
+                <input value={rEmail} onChange={e => setREmail(e.target.value)} placeholder="Email address"
+                  className="text-xs text-white placeholder-white/20 outline-none rounded-xl px-2.5 py-2"
+                  style={{ background: "hsl(226,45%,12%)", border: "1px solid rgba(255,255,255,0.07)" }} />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <input value={rCompany} onChange={e => setRCompany(e.target.value)} placeholder="Company (opt)"
+                  className="text-xs text-white placeholder-white/20 outline-none rounded-xl px-2.5 py-2"
+                  style={{ background: "hsl(226,45%,12%)", border: "1px solid rgba(255,255,255,0.07)" }} />
+                <input value={rRole} onChange={e => setRRole(e.target.value)} placeholder="Role (opt)"
+                  className="text-xs text-white placeholder-white/20 outline-none rounded-xl px-2.5 py-2"
+                  style={{ background: "hsl(226,45%,12%)", border: "1px solid rgba(255,255,255,0.07)" }} />
+              </div>
+              <input value={rNotes} onChange={e => setRNotes(e.target.value)} placeholder="Context / notes (opt)"
+                className="w-full text-xs text-white placeholder-white/20 outline-none rounded-xl px-2.5 py-2"
+                style={{ background: "hsl(226,45%,12%)", border: "1px solid rgba(255,255,255,0.07)" }} />
+              <button onClick={addRecipient} disabled={!rName.trim() || !rEmail.trim()}
+                className="w-full py-2 rounded-xl text-xs font-medium text-white flex items-center justify-center gap-1.5 transition-opacity disabled:opacity-30"
+                style={{ background: "hsl(193,100%,32%)" }}>
+                <UserPlus className="w-3.5 h-3.5" /> Add Recipient
+              </button>
+            </div>
+          )}
+
+          {/* Recipient list */}
+          <div className="space-y-1 max-h-48 overflow-y-auto">
+            {recipients.map(r => (
+              <div key={r.id} className="flex items-center gap-2 rounded-xl px-2.5 py-2" style={{ background: "hsl(226,45%,11%)" }}>
+                <AtSign className="w-3 h-3 flex-shrink-0 text-white/20" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-white text-xs truncate font-medium">{r.name}</p>
+                  <p className="text-white/30 text-xs truncate">{r.email}{r.company ? ` · ${r.company}` : ""}</p>
+                </div>
+                <button onClick={() => setRecipients(prev => prev.filter(x => x.id !== r.id))} className="text-white/20 hover:text-red-400 transition-colors">
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {/* Generate */}
+          <button onClick={generate} disabled={generating || !recipients.length || !product.trim()}
+            className="w-full py-2.5 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 transition-all disabled:opacity-30"
+            style={{ background: "linear-gradient(135deg, hsl(340,80%,45%), hsl(280,70%,50%))" }}>
+            {generating ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating…</> : <><Sparkles className="w-4 h-4" /> Generate All Messages</>}
+          </button>
+        </div>
+      </div>
+
+      {/* Right Panel — Generated Messages */}
+      <div className="flex-1 flex flex-col min-w-0 min-h-0">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-3 border-b flex-shrink-0" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+          <div>
+            <h3 className="text-white font-semibold text-sm">{doneCount > 0 ? `${doneCount} message${doneCount !== 1 ? "s" : ""} ready` : "Generated Messages"}</h3>
+            <p className="text-white/25 text-xs">{messages.length ? `${messages.filter(m => m.status === "done").length} / ${messages.length} complete` : "Configure a campaign and hit Generate"}</p>
+          </div>
+          {doneCount > 0 && (
+            <div className="flex items-center gap-2">
+              <button onClick={copyAll} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs text-white/60 hover:text-white transition-colors" style={{ background: "hsl(226,45%,12%)" }}>
+                <Copy className="w-3.5 h-3.5" /> Copy all
+              </button>
+              <button onClick={() => setShowSmtp(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-white" style={{ background: "hsl(340,80%,40%)" }}>
+                <Mail className="w-3.5 h-3.5" /> Send via email
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Message cards */}
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          {messages.length === 0 && (
+            <div className="flex-1 flex items-center justify-center h-full text-center">
+              <div>
+                <Mail className="w-10 h-10 mx-auto mb-3 text-white/8" />
+                <p className="text-white/20 text-sm">Add recipients and generate personalised messages</p>
+                <p className="text-white/12 text-xs mt-1">Each message is uniquely crafted for the individual</p>
+              </div>
+            </div>
+          )}
+
+          {messages.map(m => {
+            const r = recipients.find(r => r.id === m.recipientId);
+            return (
+              <motion.div key={m.recipientId} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                className="rounded-2xl p-4" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                {/* Card header */}
+                <div className="flex items-start justify-between mb-3">
+                  <div>
+                    <p className="text-white font-medium text-sm">{r?.name}</p>
+                    <p className="text-white/30 text-xs">{r?.email}{r?.company ? ` · ${r.company}` : ""}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {m.status === "pending" && <div className="w-2 h-2 rounded-full bg-white/20" />}
+                    {m.status === "generating" && <Loader2 className="w-3.5 h-3.5 text-white/40 animate-spin" />}
+                    {m.status === "done" && <CheckCircle2 className="w-3.5 h-3.5" style={{ color: "hsl(155,70%,45%)" }} />}
+                    {m.status === "error" && <AlertCircle className="w-3.5 h-3.5 text-red-400" />}
+                    {m.status === "done" && (
+                      <button onClick={() => navigator.clipboard.writeText(`Subject: ${m.subject}\n\n${m.body}`)}
+                        className="text-white/20 hover:text-white/60 transition-colors">
+                        <Copy className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {m.status === "error" && (
+                  <p className="text-red-400 text-xs">{m.error || "Generation failed"}</p>
+                )}
+
+                {(m.status === "done" || m.status === "generating") && (
+                  <>
+                    <div className="mb-2">
+                      <label className="text-white/25 text-xs mb-1 block">Subject</label>
+                      <input value={m.subject} onChange={e => updateMsg(m.recipientId, "subject", e.target.value)}
+                        className="w-full text-white text-xs outline-none rounded-lg px-2.5 py-1.5"
+                        style={{ background: "hsl(226,45%,13%)", border: "1px solid rgba(255,255,255,0.06)" }} />
+                    </div>
+                    <div>
+                      <label className="text-white/25 text-xs mb-1 block">Message</label>
+                      <textarea value={m.body} onChange={e => updateMsg(m.recipientId, "body", e.target.value)} rows={6}
+                        className="w-full text-white text-xs outline-none resize-none rounded-lg px-2.5 py-1.5"
+                        style={{ background: "hsl(226,45%,13%)", border: "1px solid rgba(255,255,255,0.06)" }} />
+                    </div>
+                  </>
+                )}
+
+                {m.status === "pending" && (
+                  <p className="text-white/20 text-xs italic">Queued…</p>
+                )}
+              </motion.div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* SMTP Send Modal */}
+      <AnimatePresence>
+        {showSmtp && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style={{ background: "rgba(0,0,0,0.7)" }}
+            onClick={e => e.target === e.currentTarget && setShowSmtp(false)}>
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+              className="w-full max-w-md rounded-2xl p-6" style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.1)" }}>
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="text-white font-semibold">Send via SMTP</h3>
+                <button onClick={() => setShowSmtp(false)} className="text-white/30 hover:text-white/60"><X className="w-4 h-4" /></button>
+              </div>
+              <p className="text-white/30 text-xs mb-4">Enter your SMTP details. Alternatively set SMTP_HOST, SMTP_USER, SMTP_PASS in environment variables to skip this form.</p>
+              <div className="space-y-3">
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="col-span-2">
+                    <label className="text-white/35 text-xs mb-1 block">SMTP Host</label>
+                    <input value={smtpHost} onChange={e => setSmtpHost(e.target.value)} placeholder="smtp.gmail.com"
+                      className="w-full text-xs text-white placeholder-white/20 outline-none rounded-xl px-3 py-2"
+                      style={{ background: "hsl(226,45%,14%)", border: "1px solid rgba(255,255,255,0.07)" }} />
+                  </div>
+                  <div>
+                    <label className="text-white/35 text-xs mb-1 block">Port</label>
+                    <input value={smtpPort} onChange={e => setSmtpPort(e.target.value)} placeholder="587"
+                      className="w-full text-xs text-white placeholder-white/20 outline-none rounded-xl px-3 py-2"
+                      style={{ background: "hsl(226,45%,14%)", border: "1px solid rgba(255,255,255,0.07)" }} />
+                  </div>
+                </div>
+                {[
+                  { label: "SMTP Username", val: smtpUser, set: setSmtpUser, ph: "you@gmail.com" },
+                  { label: "SMTP Password / App Password", val: smtpPass, set: setSmtpPass, ph: "••••••••••" },
+                  { label: "From Name", val: fromName, set: setFromName, ph: "Alex Smith" },
+                  { label: "From Email", val: fromEmail, set: setFromEmail, ph: "alex@company.com" },
+                ].map(f => (
+                  <div key={f.label}>
+                    <label className="text-white/35 text-xs mb-1 block">{f.label}</label>
+                    <input type={f.label.includes("Password") ? "password" : "text"} value={f.val} onChange={e => f.set(e.target.value)} placeholder={f.ph}
+                      className="w-full text-xs text-white placeholder-white/20 outline-none rounded-xl px-3 py-2"
+                      style={{ background: "hsl(226,45%,14%)", border: "1px solid rgba(255,255,255,0.07)" }} />
+                  </div>
+                ))}
+              </div>
+              {sendResult && (
+                <div className="mt-3 p-3 rounded-xl" style={{ background: sendResult.failed ? "rgba(220,50,50,0.1)" : "rgba(50,180,100,0.1)" }}>
+                  <p className="text-xs" style={{ color: sendResult.failed ? "#f87171" : "#4ade80" }}>
+                    {sendResult.sent} sent{sendResult.failed > 0 ? `, ${sendResult.failed} failed` : " successfully"}
+                  </p>
+                </div>
+              )}
+              <div className="flex gap-3 mt-5">
+                <button onClick={() => setShowSmtp(false)} className="flex-1 py-2.5 rounded-xl text-sm text-white/40" style={{ background: "hsl(226,45%,13%)" }}>Cancel</button>
+                <button onClick={sendEmails} disabled={sending}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 disabled:opacity-50"
+                  style={{ background: "hsl(340,80%,42%)" }}>
+                  {sending ? <><Loader2 className="w-4 h-4 animate-spin" /> Sending…</> : <><Send className="w-4 h-4" /> Send {doneCount} emails</>}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 export function StarLabPage() {
   const [unlocked, setUnlocked] = useState(false);
   const [pin, setPin] = useState("");
@@ -2544,6 +2985,7 @@ export function StarLabPage() {
     { id: "feed" as NavMode, label: "AI Intelligence", icon: Atom, color: "hsl(210,80%,55%)", badge: true },
     { id: "grants" as NavMode, label: "Funding Radar", icon: BadgeCheck, color: "hsl(155,70%,45%)" },
     { id: "commerce" as NavMode, label: "Commerce Lab", icon: TrendingUp, color: "hsl(25,90%,55%)" },
+    { id: "outreach" as NavMode, label: "Outreach Hub", icon: Mail, color: "hsl(340,80%,60%)" },
   ];
 
   return (
@@ -2648,6 +3090,7 @@ export function StarLabPage() {
         {navMode === "botlab" && <BotLabPanel pin={pin} />}
         {navMode === "grants" && <FundingRadarPanel pin={pin} />}
         {navMode === "commerce" && <CommerceLabPanel pin={pin} />}
+        {navMode === "outreach" && <OutreachHubPanel pin={pin} />}
         {navMode === "projects" && (
           activeProject
             ? <ProjectWorkspace project={activeProject} pin={pin} onUpdate={p => setActiveProject(p)} />

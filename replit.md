@@ -28,6 +28,11 @@ React + Vite frontend served at `/`. A full AI partnership platform — not a to
 - Opportunity Scout: scans industries + social media for product/business opportunities
 - CAD file storage per project: upload DWG, DXF, STEP, IGES, STL, OBJ, F3D files directly into Star Lab (stored in GCS object storage). Files are linked to the project and accessible from the Drawings tab.
 - Drawing notes + CAD files split view in the Drawings tab
+- **Outreach Hub**: AI-personalised outreach campaigns — configure message type, tone, sender info, product; add recipients individually or via bulk paste (CSV); generates personalised messages per recipient via SSE stream; editable subject + body; copy all or send via SMTP. API routes: POST `/api/outreach/generate`, POST `/api/outreach/send`. SMTP config via env vars (SMTP_HOST, SMTP_USER, SMTP_PASS, SMTP_PORT, SMTP_FROM, SMTP_FROM_NAME) or entered inline.
+
+**Main site features**
+- **Sirius Guide**: Tutorials panel accessible from sidebar ("Sirius Guide" button). Slide-in right drawer with categorised accordion sections: Getting Started, Intelligence Modes, Topic Hub, Voice Input, Image Analysis, Memory Portrait, Daily Wisdom, Plans, Star Lab. Fully self-contained in `src/components/tutorials-modal.tsx`.
+
 - All projects persist independently in PostgreSQL (lab_projects, lab_messages, scout_reports tables)
 
 **Core experience**

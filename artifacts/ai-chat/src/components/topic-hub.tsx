@@ -135,7 +135,6 @@ function VoicePlayer({ topic, language, onContinue, onClose }: VoicePlayerProps)
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioBlobRef = useRef<string | null>(null);
 
-  // Pre-create a persistent Audio element so iOS considers it "user-gesture unlocked"
   useEffect(() => {
     const audio = new Audio();
     audioRef.current = audio;
@@ -155,17 +154,12 @@ function VoicePlayer({ topic, language, onContinue, onClose }: VoicePlayerProps)
   const fetchAndPlay = useCallback(async (voice: TtsVoiceId) => {
     const audio = audioRef.current;
     if (!audio) return;
-
-    // iOS CRITICAL: call play() synchronously within the user gesture
-    // before any await — this "unlocks" audio playback for this element
     audio.pause();
     audio.src = "";
     audio.play().catch(() => {});
-
     destroyBlob();
     setStatus("loading");
     setProgress(0);
-
     try {
       const res = await fetch("/api/openai/tts", {
         method: "POST",
@@ -176,7 +170,6 @@ function VoicePlayer({ topic, language, onContinue, onClose }: VoicePlayerProps)
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       audioBlobRef.current = url;
-
       audio.ontimeupdate = () => {
         if (audio.duration) setProgress((audio.currentTime / audio.duration) * 100);
       };
@@ -192,17 +185,10 @@ function VoicePlayer({ topic, language, onContinue, onClose }: VoicePlayerProps)
   }, [topic, language, destroyBlob]);
 
   const handlePlayPause = () => {
-    if (status === "idle" || status === "error") {
-      fetchAndPlay(selectedVoice);
-    } else if (status === "playing") {
-      audioRef.current?.pause();
-      setStatus("paused");
-    } else if (status === "paused") {
-      audioRef.current?.play();
-      setStatus("playing");
-    } else if (status === "done") {
-      fetchAndPlay(selectedVoice);
-    }
+    if (status === "idle" || status === "error") fetchAndPlay(selectedVoice);
+    else if (status === "playing") { audioRef.current?.pause(); setStatus("paused"); }
+    else if (status === "paused") { audioRef.current?.play(); setStatus("playing"); }
+    else if (status === "done") fetchAndPlay(selectedVoice);
   };
 
   const handleStop = () => {
@@ -257,7 +243,6 @@ function VoicePlayer({ topic, language, onContinue, onClose }: VoicePlayerProps)
           boxShadow: `0 0 60px hsl(${topic.accent} / 0.2), 0 24px 48px rgba(0,0,0,0.6)`,
         }}
       >
-        {/* Header */}
         <div className="p-6 pb-4">
           <div className="flex items-start justify-between mb-4">
             <div className="flex items-center gap-3">
@@ -276,7 +261,6 @@ function VoicePlayer({ topic, language, onContinue, onClose }: VoicePlayerProps)
           </p>
         </div>
 
-        {/* Voice picker */}
         <div className="px-6 pb-4">
           <p className="text-[9px] font-mono uppercase tracking-[0.22em] text-white/35 mb-2">Choose a voice</p>
           <div className="grid grid-cols-3 gap-2">
@@ -301,7 +285,6 @@ function VoicePlayer({ topic, language, onContinue, onClose }: VoicePlayerProps)
           </div>
         </div>
 
-        {/* Progress bar */}
         <div className="px-6 pb-4">
           <div className="h-1 rounded-full bg-white/8 overflow-hidden">
             <motion.div
@@ -313,9 +296,7 @@ function VoicePlayer({ topic, language, onContinue, onClose }: VoicePlayerProps)
           </div>
         </div>
 
-        {/* Playback controls */}
         <div className="px-6 pb-5 flex items-center gap-3">
-          {/* Play / Pause button */}
           <button
             onClick={handlePlayPause}
             disabled={isLoading}
@@ -343,7 +324,6 @@ function VoicePlayer({ topic, language, onContinue, onClose }: VoicePlayerProps)
             )}
           </button>
 
-          {/* Stop button */}
           <button
             onClick={handleStop}
             className="flex items-center justify-center w-9 h-9 rounded-full transition-all duration-200 active:scale-95 shrink-0"
@@ -354,7 +334,6 @@ function VoicePlayer({ topic, language, onContinue, onClose }: VoicePlayerProps)
             </svg>
           </button>
 
-          {/* Status */}
           <div className="flex items-center gap-2 flex-1">
             {isPlaying && (
               <div className="flex gap-0.5 items-end h-4 shrink-0">
@@ -375,7 +354,6 @@ function VoicePlayer({ topic, language, onContinue, onClose }: VoicePlayerProps)
           </div>
         </div>
 
-        {/* Footer */}
         <div
           className="px-6 py-4 flex justify-end"
           style={{ borderTop: `1px solid hsl(${topic.accent} / 0.12)` }}
@@ -402,7 +380,7 @@ interface TopicHubProps {
 }
 
 export function TopicHub({ onSelect }: TopicHubProps) {
-  const [activeTopic, setActiveTopic] = useState<Topic | null>(null);
+  const [voiceTopic, setVoiceTopic] = useState<Topic | null>(null);
   const { profile } = useProfile();
   const language = profile.preferredLanguage || "auto";
 
@@ -419,8 +397,8 @@ export function TopicHub({ onSelect }: TopicHubProps) {
               initial={{ opacity: 0, y: 8, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               transition={{ delay: 0.04 * i, duration: 0.3, ease: "easeOut" }}
-              onClick={() => setActiveTopic(topic)}
-              className="group flex flex-col items-start gap-2 p-4 rounded-xl text-left transition-all duration-200 active:scale-[0.97]"
+              onClick={() => onSelect(topic.prompt)}
+              className="group relative flex flex-col items-start gap-2 p-4 rounded-xl text-left transition-all duration-200 active:scale-[0.97]"
               style={{
                 background: `linear-gradient(145deg, hsl(${topic.accent} / 0.30) 0%, hsl(${topic.accent} / 0.12) 100%)`,
                 backdropFilter: "blur(10px)",
@@ -442,7 +420,17 @@ export function TopicHub({ onSelect }: TopicHubProps) {
             >
               <div className="flex items-center justify-between w-full">
                 <span className="text-xl leading-none">{topic.emoji}</span>
-                <span className="opacity-0 group-hover:opacity-60 transition-opacity text-white text-[10px]">▶</span>
+                {/* Voice intro — appears on hover */}
+                <span
+                  role="button"
+                  tabIndex={-1}
+                  onClick={e => { e.stopPropagation(); setVoiceTopic(topic); }}
+                  className="opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity text-white text-[11px] px-1.5 py-0.5 rounded-md cursor-pointer select-none"
+                  style={{ background: `hsl(${topic.accent} / 0.25)`, border: `1px solid hsl(${topic.accent} / 0.4)` }}
+                  title="Voice intro"
+                >
+                  🔊
+                </span>
               </div>
               <div>
                 <p className="font-mono uppercase tracking-widest mb-0.5"
@@ -460,15 +448,15 @@ export function TopicHub({ onSelect }: TopicHubProps) {
       </div>
 
       <AnimatePresence>
-        {activeTopic && (
+        {voiceTopic && (
           <VoicePlayer
-            topic={activeTopic}
+            topic={voiceTopic}
             language={language}
             onContinue={() => {
-              onSelect(activeTopic.prompt);
-              setActiveTopic(null);
+              onSelect(voiceTopic.prompt);
+              setVoiceTopic(null);
             }}
-            onClose={() => setActiveTopic(null)}
+            onClose={() => setVoiceTopic(null)}
           />
         )}
       </AnimatePresence>

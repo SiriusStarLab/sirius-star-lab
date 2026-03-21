@@ -6,6 +6,7 @@ import subscriptionRouter from "./subscription";
 import stripeRouter from "./stripe";
 import labRouter from "./lab";
 import intelligenceFeedRouter from "./intelligence-feed";
+import outreachRouter from "./outreach";
 
 const router: IRouter = Router();
 
@@ -16,5 +17,6 @@ router.use(subscriptionRouter);
 router.use(stripeRouter);
 router.use(labRouter);
 router.use(intelligenceFeedRouter);
+router.use(outreachRouter);
 
 export default router;

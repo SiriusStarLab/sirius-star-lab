@@ -247,7 +247,7 @@ export function ChatInput({ onSend, isTyping, onStop }: ChatInputProps) {
           return (
             <button
               key={m.id}
-              onClick={() => setMode(m.id)}
+              onClick={() => { setMode(m.id); setTimeout(() => textareaRef.current?.focus(), 0); }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium whitespace-nowrap transition-all duration-200 shrink-0"
               style={{
                 background: active ? "hsl(193 100% 52% / 0.12)" : "hsl(210 30% 95%)",
