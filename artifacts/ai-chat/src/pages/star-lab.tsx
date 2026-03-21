@@ -41,7 +41,7 @@ type Project = {
 };
 type Message = { id: number; projectId: number; role: string; content: string; createdAt: string };
 type ScoutReport = { id: number; title: string; industry: string; opportunity: string; type: string; createdAt: string };
-type NavMode = "projects" | "botlab" | "scout" | "feed";
+type NavMode = "projects" | "botlab" | "scout" | "feed" | "grants";
 
 const MAX_PIN_DIGITS = 8;
 const MAX_ATTEMPTS = 5;
@@ -1757,6 +1757,287 @@ function FeedPanel({ pin }: { pin: string }) {
   );
 }
 
+type FundingMatch = {
+  scheme: string; type: "tax_credit" | "grant" | "equity" | "loan";
+  geography: string; amount: string; matchStrength: "strong" | "good" | "possible";
+  matchReason: string; keyEvidence: string; nextStep: string; url: string;
+};
+type FundingOpportunity = { projectId: number; projectName: string; matches: FundingMatch[] };
+type FundingResult = { opportunities: FundingOpportunity[]; summary: string };
+
+function FundingRadarPanel({ pin }: { pin: string }) {
+  const [result, setResult] = useState<FundingResult | null>(null);
+  const [running, setRunning] = useState(false);
+  const [rawStream, setRawStream] = useState("");
+  const [filter, setFilter] = useState<"all" | "UK" | "EU" | "International">("all");
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+  const base = getApiBase();
+
+  const toggleCard = (key: string) => {
+    setExpandedCards(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
+
+  const runAnalysis = async () => {
+    setRunning(true); setResult(null); setRawStream(""); setExpandedCards(new Set());
+    try {
+      const res = await fetch(`${base}lab/funding`, {
+        method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+        body: JSON.stringify({}),
+      });
+      if (!res.ok || !res.body) { setRunning(false); return; }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const msg = JSON.parse(line.slice(6));
+            if (msg.delta) setRawStream(prev => prev + msg.delta);
+            if (msg.done && msg.content) {
+              try {
+                const parsed = JSON.parse(msg.content) as FundingResult;
+                setResult(parsed);
+              } catch { /* ignore parse error */ }
+            }
+          } catch { /* ignore */ }
+        }
+      }
+    } catch { /* ignore */ }
+    setRunning(false);
+  };
+
+  const STRENGTH_CONFIG = {
+    strong: { label: "Strong Match", color: "hsl(155,70%,45%)", bg: "hsla(155,70%,45%,0.1)", border: "hsla(155,70%,45%,0.25)" },
+    good:   { label: "Good Match",   color: "hsl(45,100%,50%)", bg: "hsla(45,100%,50%,0.1)", border: "hsla(45,100%,50%,0.25)" },
+    possible: { label: "Possible",   color: "hsl(210,80%,60%)", bg: "hsla(210,80%,60%,0.1)", border: "hsla(210,80%,60%,0.25)" },
+  };
+
+  const TYPE_LABELS: Record<string, string> = { tax_credit: "Tax Credit", grant: "Grant", equity: "Equity", loan: "Loan" };
+  const GEO_COLORS: Record<string, string> = { UK: "hsl(193,100%,40%)", EU: "hsl(45,90%,50%)", International: "hsl(280,60%,60%)" };
+
+  const filteredOpportunities = result?.opportunities.map(opp => ({
+    ...opp,
+    matches: filter === "all" ? opp.matches : opp.matches.filter(m => m.geography.includes(filter)),
+  })).filter(opp => opp.matches.length > 0) ?? [];
+
+  const totalMatches = result?.opportunities.reduce((sum, o) => sum + o.matches.length, 0) ?? 0;
+  const strongMatches = result?.opportunities.reduce((sum, o) => sum + o.matches.filter(m => m.matchStrength === "strong").length, 0) ?? 0;
+
+  return (
+    <div className="flex-1 flex flex-col min-h-0 overflow-y-auto" style={{ background: "hsl(226,45%,5%)" }}>
+      {/* Header */}
+      <div className="p-6 border-b flex-shrink-0" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <BadgeCheck className="w-5 h-5" style={{ color: "hsl(155,70%,45%)" }} />
+              <h2 className="text-white font-bold text-lg">Funding Radar</h2>
+            </div>
+            <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)", maxWidth: "480px" }}>
+              Scans every project in your Lab against real, active UK and international R&D grant schemes, tax incentives, and innovation funding programmes. Only genuine opportunities — no speculation.
+            </p>
+          </div>
+          <button onClick={runAnalysis} disabled={running}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold flex-shrink-0 transition-all"
+            style={{ background: running ? "hsl(226,45%,12%)" : "hsl(155,70%,38%)", color: "white", border: "1px solid hsla(155,70%,45%,0.3)", opacity: running ? 0.7 : 1 }}>
+            {running ? <><Loader2 className="w-4 h-4 animate-spin" /> Scanning...</> : <><RefreshCw className="w-4 h-4" /> Run Analysis</>}
+          </button>
+        </div>
+
+        {result && (
+          <div className="mt-4 grid grid-cols-3 gap-3">
+            {[
+              { label: "Total Opportunities", value: totalMatches, color: "hsl(193,100%,50%)" },
+              { label: "Strong Matches", value: strongMatches, color: "hsl(155,70%,50%)" },
+              { label: "Projects Analysed", value: result.opportunities.length, color: "hsl(45,100%,50%)" },
+            ].map(s => (
+              <div key={s.label} className="rounded-xl p-3 text-center"
+                style={{ background: "hsl(226,45%,8%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                <p className="text-xl font-bold" style={{ color: s.color }}>{s.value}</p>
+                <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>{s.label}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 p-6 space-y-6">
+        {!result && !running && (
+          <div className="flex flex-col items-center justify-center py-24 gap-5">
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center"
+              style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <BadgeCheck className="w-8 h-8" style={{ color: "hsl(155,70%,45%)" }} />
+            </div>
+            <div className="text-center space-y-1.5">
+              <p className="text-white font-semibold text-base">Find funding for your projects</p>
+              <p className="text-xs max-w-sm leading-relaxed" style={{ color: "rgba(255,255,255,0.35)" }}>
+                Analyses every project in your Lab against UK RDEC, Innovate UK, Horizon Europe, DASA, sector-specific funds, and international tax incentives. Projects with a Brief or Specs get the most relevant results.
+              </p>
+            </div>
+            <button onClick={runAnalysis}
+              className="px-6 py-3 rounded-xl font-semibold text-sm transition-all"
+              style={{ background: "hsl(155,70%,38%)", color: "white", border: "1px solid hsla(155,70%,45%,0.3)", boxShadow: "0 0 24px hsla(155,70%,38%,0.2)" }}>
+              Run Funding Analysis
+            </button>
+          </div>
+        )}
+
+        {running && !result && (
+          <div className="flex flex-col items-center justify-center py-20 gap-4">
+            <Loader2 className="w-8 h-8 animate-spin" style={{ color: "hsl(155,70%,45%)" }} />
+            <p className="text-sm" style={{ color: "rgba(255,255,255,0.5)" }}>Analysing projects against funding databases...</p>
+            {rawStream && (
+              <div className="max-w-md w-full rounded-xl p-4 font-mono text-xs leading-relaxed"
+                style={{ background: "hsl(226,45%,8%)", color: "rgba(255,255,255,0.3)", border: "1px solid rgba(255,255,255,0.06)", maxHeight: "120px", overflow: "hidden" }}>
+                {rawStream.slice(-400)}
+              </div>
+            )}
+          </div>
+        )}
+
+        {result && (
+          <>
+            {/* Summary */}
+            {result.summary && (
+              <div className="rounded-xl p-4" style={{ background: "hsl(226,45%,9%)", border: "1px solid hsla(155,70%,45%,0.2)" }}>
+                <p className="text-xs font-mono mb-1.5" style={{ color: "hsl(155,70%,45%)", letterSpacing: "0.1em" }}>PORTFOLIO SUMMARY</p>
+                <p className="text-sm leading-relaxed" style={{ color: "rgba(255,255,255,0.75)" }}>{result.summary}</p>
+              </div>
+            )}
+
+            {/* Geography filter */}
+            <div className="flex items-center gap-2">
+              {(["all", "UK", "EU", "International"] as const).map(f => (
+                <button key={f} onClick={() => setFilter(f)}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                  style={{
+                    background: filter === f ? "hsl(226,45%,14%)" : "transparent",
+                    border: filter === f ? "1px solid rgba(255,255,255,0.15)" : "1px solid rgba(255,255,255,0.06)",
+                    color: filter === f ? "white" : "rgba(255,255,255,0.35)",
+                  }}>
+                  {f === "all" ? "All Regions" : f}
+                </button>
+              ))}
+              <span className="ml-auto text-xs" style={{ color: "rgba(255,255,255,0.25)" }}>
+                {filteredOpportunities.reduce((s, o) => s + o.matches.length, 0)} opportunities shown
+              </span>
+            </div>
+
+            {/* Opportunities by project */}
+            {filteredOpportunities.length === 0 && (
+              <p className="text-center py-12 text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>
+                No opportunities found for the selected region filter.
+              </p>
+            )}
+
+            {filteredOpportunities.map(opp => (
+              <div key={opp.projectId} className="space-y-2">
+                <div className="flex items-center gap-2 mb-3">
+                  <FlaskConical className="w-3.5 h-3.5" style={{ color: "hsl(193,100%,45%)" }} />
+                  <span className="text-sm font-semibold text-white">{opp.projectName}</span>
+                  <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: "hsla(193,100%,35%,0.15)", color: "hsl(193,100%,55%)", border: "1px solid hsla(193,100%,35%,0.2)" }}>
+                    {opp.matches.length} opportunit{opp.matches.length !== 1 ? "ies" : "y"}
+                  </span>
+                </div>
+
+                {opp.matches.map((match, idx) => {
+                  const strength = STRENGTH_CONFIG[match.matchStrength] || STRENGTH_CONFIG.possible;
+                  const cardKey = `${opp.projectId}-${idx}`;
+                  const expanded = expandedCards.has(cardKey);
+                  const geo = match.geography.split("+")[0].trim();
+                  const geoColor = GEO_COLORS[geo] || "hsl(193,100%,40%)";
+
+                  return (
+                    <div key={idx} className="rounded-xl overflow-hidden transition-all"
+                      style={{ background: "hsl(226,45%,8%)", border: `1px solid ${strength.border}` }}>
+                      {/* Card header — always visible */}
+                      <button onClick={() => toggleCard(cardKey)} className="w-full text-left p-4">
+                        <div className="flex items-start gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                              <span className="text-sm font-semibold text-white">{match.scheme}</span>
+                            </div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {/* Match strength */}
+                              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                                style={{ background: strength.bg, color: strength.color, border: `1px solid ${strength.border}` }}>
+                                {strength.label}
+                              </span>
+                              {/* Type */}
+                              <span className="text-[10px] px-2 py-0.5 rounded-full"
+                                style={{ background: "hsl(226,45%,12%)", color: "rgba(255,255,255,0.5)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                                {TYPE_LABELS[match.type] || match.type}
+                              </span>
+                              {/* Geography */}
+                              <span className="text-[10px] px-2 py-0.5 rounded-full font-mono"
+                                style={{ background: `${geoColor}15`, color: geoColor, border: `1px solid ${geoColor}30` }}>
+                                {match.geography}
+                              </span>
+                              {/* Amount */}
+                              <span className="text-[10px] font-semibold" style={{ color: "hsl(45,100%,55%)" }}>
+                                {match.amount}
+                              </span>
+                            </div>
+                          </div>
+                          <ChevronDown className="w-4 h-4 flex-shrink-0 transition-transform mt-0.5"
+                            style={{ color: "rgba(255,255,255,0.3)", transform: expanded ? "rotate(180deg)" : "rotate(0deg)" }} />
+                        </div>
+                        {/* Match reason — always shown */}
+                        <p className="text-xs mt-2 leading-relaxed" style={{ color: "rgba(255,255,255,0.55)" }}>
+                          {match.matchReason}
+                        </p>
+                      </button>
+
+                      {/* Expanded detail */}
+                      {expanded && (
+                        <div className="px-4 pb-4 space-y-3 border-t" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+                          <div className="pt-3 space-y-3">
+                            <div className="rounded-lg p-3" style={{ background: "hsl(226,45%,11%)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                              <p className="text-[10px] font-mono mb-1" style={{ color: "rgba(255,255,255,0.3)", letterSpacing: "0.1em" }}>EVIDENCE NEEDED</p>
+                              <p className="text-xs leading-relaxed" style={{ color: "rgba(255,255,255,0.65)" }}>{match.keyEvidence}</p>
+                            </div>
+                            <div className="rounded-lg p-3" style={{ background: "hsla(155,70%,35%,0.08)", border: "1px solid hsla(155,70%,35%,0.2)" }}>
+                              <p className="text-[10px] font-mono mb-1" style={{ color: "hsl(155,70%,45%)", letterSpacing: "0.1em" }}>NEXT STEP</p>
+                              <p className="text-xs leading-relaxed" style={{ color: "rgba(255,255,255,0.7)" }}>{match.nextStep}</p>
+                            </div>
+                            {match.url && (
+                              <a href={match.url} target="_blank" rel="noopener noreferrer"
+                                className="flex items-center gap-1.5 text-xs transition-all"
+                                style={{ color: "hsl(193,100%,55%)" }}
+                                onMouseEnter={e => e.currentTarget.style.color = "hsl(193,100%,70%)"}
+                                onMouseLeave={e => e.currentTarget.style.color = "hsl(193,100%,55%)"}>
+                                <ExternalLink className="w-3 h-3" />
+                                {match.url}
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function StarLabPage() {
   const [unlocked, setUnlocked] = useState(false);
   const [pin, setPin] = useState("");
@@ -1814,6 +2095,7 @@ export function StarLabPage() {
     { id: "botlab" as NavMode, label: "Bot Lab", icon: Bot, color: "hsl(280,70%,55%)" },
     { id: "scout" as NavMode, label: "Scout", icon: Telescope, color: "hsl(45,100%,45%)" },
     { id: "feed" as NavMode, label: "AI Intelligence", icon: Atom, color: "hsl(210,80%,55%)", badge: true },
+    { id: "grants" as NavMode, label: "Funding Radar", icon: BadgeCheck, color: "hsl(155,70%,45%)" },
   ];
 
   return (
@@ -1916,6 +2198,7 @@ export function StarLabPage() {
         {navMode === "feed" && <FeedPanel pin={pin} />}
         {navMode === "scout" && <ScoutPanel pin={pin} />}
         {navMode === "botlab" && <BotLabPanel pin={pin} />}
+        {navMode === "grants" && <FundingRadarPanel pin={pin} />}
         {navMode === "projects" && (
           activeProject
             ? <ProjectWorkspace project={activeProject} pin={pin} onUpdate={p => setActiveProject(p)} />

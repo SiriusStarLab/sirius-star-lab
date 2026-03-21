@@ -1110,4 +1110,138 @@ router.get("/lab/projects/:id/completeness", authMiddleware, async (req: Request
   res.json({ checks, filled, total, pct, phase: p.phase });
 });
 
+// Funding Radar — real grants & tax incentives across all projects
+const FUNDING_SYSTEM_PROMPT = `You are a specialist R&D funding advisor with deep expertise in UK, EU, and international grant schemes, tax incentives, and innovation funding programmes. Today is ${TODAY()}.
+
+## YOUR MISSION
+Analyse each R&D project provided and identify ONLY real, currently active or regularly recurring funding opportunities. Do not invent schemes. Do not mention schemes that have closed permanently. Do not mention schemes that are irrelevant to the project.
+
+## REAL SCHEMES YOU MAY REFERENCE (verify relevance to each project)
+
+### UK TAX INCENTIVES
+- **RDEC (R&D Expenditure Credit)** — merged scheme from April 2024. 20% taxable credit on qualifying R&D expenditure for all UK companies. R&D-intensive SMEs (where qualifying R&D ≥ 30% of total expenditure) receive 27% credit. Qualifying costs: staff salaries, subcontractor costs (65% cap), materials consumed, software licences, utilities. Must be UK-based R&D activities solving scientific or technological uncertainty.
+- **Patent Box** — 10% corporation tax rate on profits attributable to patented inventions. Can be combined with RDEC. Relevant if project produces patentable innovations.
+
+### UK GRANTS — INNOVATE UK / UKRI
+- **Innovate UK Smart Grants** — quarterly open competitions, £25k–£2M, 25–70% funding, for game-changing innovations across all sectors. Apply via Innovate UK website.
+- **Knowledge Transfer Partnerships (KTP)** — 50–67% funded collaborative projects between businesses and universities. Minimum 2-year projects. Delivers a graduate embedded in the business.
+- **Small Business Research Initiative (SBRI)** — government department challenges, up to £1M Phase 2. Various departments run these (DASA, DHSC, DESNZ etc).
+- **Innovate UK Edge** — support for high-growth innovative SMEs.
+- **Horizon Europe (UK association restored Dec 2023)** — UK companies fully eligible. EIC Accelerator (up to €2.5M grant + €15M equity investment), EIC Pathfinder (up to €4M collaborative), ERC grants (individual researchers).
+- **Eurostars** — EUREKA programme for R&D-performing SMEs, up to 50% funding, collaborative international projects.
+
+### UK SECTOR-SPECIFIC
+- **DASA (Defence and Security Accelerator)** — Quick Wins £25k–£100k, main competitions up to £5M. Open to dual-use technologies. Industries: defence, security, cybersecurity, drones, AI, sensors, communications.
+- **ATI Programme (Aerospace Technology Institute)** — up to 50% funding for aerospace R&D. Minimum £250k project costs. Joint government/industry funding.
+- **APC (Advanced Propulsion Centre)** — up to £10M+ for automotive/propulsion technology R&D. Focus on zero emission vehicles, batteries, fuel cells, powertrains.
+- **NIHR (National Institute for Health Research)** — for medical devices, diagnostics, health technology. Invention for Innovation (i4i) programme, £100k–£2M.
+- **UK Space Agency grants** — for space technology, Earth observation, satellite communications. Various competitions throughout the year.
+- **Made Smarter Innovation** — manufacturing digitalisation, Industry 4.0, robotics, AI in manufacturing. Up to £5M.
+- **Catapult Centres** — co-funded access to facilities and expertise: High Value Manufacturing Catapult, Connected Places, Digital Catapult, Medicines Discovery Catapult, Offshore Renewable Energy Catapult.
+- **Faraday Battery Challenge** — battery technology, energy storage, electric vehicles. Up to £10M.
+- **Industrial Energy Transformation Fund (IETF)** — energy efficiency and decarbonisation in industry.
+
+### EU / INTERNATIONAL
+- **Horizon Europe EIC Accelerator** — up to €2.5M grant + up to €15M equity. For deep tech startups. Open to UK companies (re-associated Dec 2023). Highly competitive.
+- **Horizon Europe EIC Pathfinder** — up to €4M for breakthrough research. Collaborative.
+- **Canada SR&ED (Scientific Research & Experimental Development)** — 15–35% tax credit on qualifying R&D. Available to any company with Canadian R&D activities or subsidiaries.
+- **Australia R&D Tax Incentive** — 43.5% refundable tax offset for companies with <$20M aggregated turnover; 38.5% non-refundable for larger. Available to Australian entities.
+- **Germany ZIM (Zentrales Innovationsprogramm Mittelstand)** — up to €2.1M per project for German SMEs or international collaboration with German partners.
+- **Netherlands WBSO** — R&D tax credit, 32% for first €350k for startups, 16% thereafter.
+- **USA SBIR/STTR** — if company has US operations: Phase I up to $275k, Phase II up to $1.85M. 11 federal agencies.
+- **Singapore Enterprise Development Grant (EDG)** — up to 50% funding for product development and innovation if operating in Singapore.
+
+## OUTPUT FORMAT
+Return valid JSON only. No markdown. No preamble. This exact structure:
+
+{
+  "opportunities": [
+    {
+      "projectId": <number>,
+      "projectName": "<string>",
+      "matches": [
+        {
+          "scheme": "<exact scheme name>",
+          "type": "tax_credit" | "grant" | "equity" | "loan",
+          "geography": "UK" | "EU" | "International" | "UK + EU",
+          "amount": "<e.g. Up to £2M | 20% of qualifying costs | €2.5M grant + €15M equity>",
+          "matchStrength": "strong" | "good" | "possible",
+          "matchReason": "<1-2 sentences: exactly why this project qualifies for this specific scheme>",
+          "keyEvidence": "<what the applicant needs to document/evidence to support the claim>",
+          "nextStep": "<specific actionable next step — e.g. 'Register on Innovate UK Funding Service and apply in next Smart Grant round (check innovateuk.ukri.org for current window)'>",
+          "url": "<real URL for more information>"
+        }
+      ]
+    }
+  ],
+  "summary": "<2-3 sentences: overall portfolio funding picture — estimated total potential value, strongest opportunities, strategic recommendations>"
+}
+
+## RULES
+1. Only include schemes where there is genuine eligibility based on the project description — do not list every scheme for every project
+2. matchStrength "strong" = project clearly meets core eligibility criteria; "good" = likely eligible with some conditions; "possible" = worth investigating, eligibility not certain
+3. Be specific about WHY this project qualifies — reference actual project content
+4. URLs must be real government or official organisation websites
+5. If a project has insufficient information to assess, include it with an empty matches array and note in matchReason
+6. Prioritise UK RDEC for any project with genuine scientific/technological uncertainty — it applies to almost all R&D`;
+
+router.post("/lab/funding", authMiddleware, async (req: Request, res: Response) => {
+  sseHeaders(res);
+
+  try {
+    const projects = await db.select().from(labProjects).orderBy(desc(labProjects.updatedAt));
+
+    if (projects.length === 0) {
+      res.write(`data: ${JSON.stringify({ done: true, content: JSON.stringify({ opportunities: [], summary: "No projects found in the Lab. Add projects and fill in their Brief and Specs to enable funding analysis." }) })}\n\n`);
+      res.end();
+      return;
+    }
+
+    const projectSummaries = projects.map(p => ({
+      id: p.id,
+      name: p.name,
+      industry: p.industry,
+      phase: p.phase,
+      brief: (p.brief || "").slice(0, 800),
+      specs: (p.specs || "").slice(0, 600),
+      research: (p.research || "").slice(0, 400),
+      materials: (p.materials || "").slice(0, 300),
+      code: p.code ? "[Code present]" : "",
+      costToBuild: (p.costToBuild || "").slice(0, 200),
+    }));
+
+    const userMessage = `Analyse these R&D projects for UK and international funding opportunities. Be rigorous — only include schemes where there is genuine eligibility.
+
+PROJECTS:
+${JSON.stringify(projectSummaries, null, 2)}
+
+Return the JSON response as specified.`;
+
+    const stream = await (openai as any).chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        { role: "system", content: FUNDING_SYSTEM_PROMPT },
+        { role: "user", content: userMessage },
+      ],
+      response_format: { type: "json_object" },
+      stream: true,
+    });
+
+    let fullContent = "";
+    for await (const chunk of stream) {
+      const delta = chunk.choices[0]?.delta?.content || "";
+      if (delta) {
+        fullContent += delta;
+        res.write(`data: ${JSON.stringify({ delta })}\n\n`);
+      }
+    }
+
+    res.write(`data: ${JSON.stringify({ done: true, content: fullContent })}\n\n`);
+  } catch (err: any) {
+    res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+  }
+
+  res.end();
+});
+
 export default router;
