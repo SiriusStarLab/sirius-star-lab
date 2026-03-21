@@ -31,6 +31,10 @@ export const labProjects = pgTable("lab_projects", {
   costToBuild: text("cost_to_build").default(""),
   profitMargin: text("profit_margin").default(""),
 
+  // Market & commercialisation fields
+  businessCase: text("business_case").default(""),
+  goToMarket: text("go_to_market").default(""),
+
   // Renders — JSON array of { url: string, label: string, type: "2d"|"3d"|"photo" }
   renders: text("renders").default("[]"),
 

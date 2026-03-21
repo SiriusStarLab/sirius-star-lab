@@ -35,6 +35,7 @@ type Project = {
   drawingNotes: string; cadUrl: string; materials: string;
   workflows: string; industryProblem: string; uses: string;
   brochure: string; pitch: string; costToBuild: string; profitMargin: string;
+  businessCase: string; goToMarket: string;
   renders: string; updatedAt: string;
   messages?: Message[];
 };
@@ -114,10 +115,12 @@ const ALL_TABS = [
   { id: "drawings", label: "Drawings", icon: Layers, field: "drawingNotes", phase: "design", placeholder: "CAD drawing instructions: views, dimensions, callouts, assembly details...", generated: false },
   { id: "workflows", label: "Workflows", icon: Zap, field: "workflows", phase: "production", placeholder: "Manufacturing and deployment workflow steps...", generated: true },
   { id: "market", label: "Market & Uses", icon: Globe, field: "industryProblem", phase: "production", placeholder: "Industry analysis, problem solved, use cases across sectors...", generated: true },
+  { id: "businessCase", label: "Business Case", icon: BadgeCheck, field: "businessCase", phase: "production", placeholder: "Why build this, competitive displacement strategy, AI advantage, investment justification...", generated: true },
   { id: "renders", label: "Renders", icon: Cpu, field: null, phase: "complete", placeholder: "", generated: false },
   { id: "brochure", label: "Brochure", icon: FileText, field: "brochure", phase: "complete", placeholder: "Product brochure content...", generated: true },
   { id: "pitch", label: "Pitch", icon: TrendingUp, field: "pitch", phase: "complete", placeholder: "Investor/client pitch deck content...", generated: true },
   { id: "economics", label: "Economics", icon: Package, field: "costToBuild", phase: "complete", placeholder: "Cost to build, pricing, profit margin analysis...", generated: true },
+  { id: "goToMarket", label: "Go-to-Market", icon: Globe, field: "goToMarket", phase: "complete", placeholder: "Launch strategy, channels, pricing, 90-day plan, KPIs...", generated: true },
 ];
 
 function StreamingText({ content, streaming }: { content: string; streaming: boolean }) {
@@ -478,6 +481,7 @@ function ProjectWorkspace({ project, pin, onUpdate }: { project: Project; pin: s
       materials: project.materials, code: project.code, drawings: project.drawingNotes,
       workflows: project.workflows, market: project.industryProblem,
       brochure: project.brochure, pitch: project.pitch, economics: project.costToBuild,
+      businessCase: project.businessCase, goToMarket: project.goToMarket,
     };
     return map[tabId] || "";
   };
@@ -487,6 +491,7 @@ function ProjectWorkspace({ project, pin, onUpdate }: { project: Project; pin: s
       brief: "brief", research: "research", specs: "specs", materials: "materials",
       code: "code", drawings: "drawingNotes", workflows: "workflows", market: "industryProblem",
       brochure: "brochure", pitch: "pitch", economics: "costToBuild",
+      businessCase: "businessCase", goToMarket: "goToMarket",
     };
     return map[tabId] || tabId;
   };
@@ -779,6 +784,8 @@ function ProjectWorkspace({ project, pin, onUpdate }: { project: Project; pin: s
                     { label: "Materials Spec", section: "materials", tab: "materials" },
                     { label: "Workflows", section: "workflows", tab: "workflows" },
                     { label: "Market Analysis", section: "market", tab: "market" },
+                    { label: "Business Case", section: "businessCase", tab: "businessCase" },
+                    { label: "Go-to-Market Plan", section: "goToMarket", tab: "goToMarket" },
                     { label: "Design Brochure", section: "brochure", tab: "brochure" },
                     { label: "Pitch Deck", section: "pitch", tab: "pitch" },
                     { label: "Cost Analysis", section: "cost", tab: "economics" },

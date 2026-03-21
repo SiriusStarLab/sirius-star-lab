@@ -298,10 +298,11 @@ router.put("/lab/projects/:id", authMiddleware, async (req: Request, res: Respon
     name, industry, phase, status,
     brief, research, specs, code, drawingNotes, cadUrl, materials,
     workflows, industryProblem, uses,
-    brochure, pitch, costToBuild, profitMargin, renders
+    brochure, pitch, costToBuild, profitMargin,
+    businessCase, goToMarket, renders
   } = req.body;
   const updatePayload: Record<string, any> = { updatedAt: new Date() };
-  const fields = { name, industry, phase, status, brief, research, specs, code, drawingNotes, cadUrl, materials, workflows, industryProblem, uses, brochure, pitch, costToBuild, profitMargin, renders };
+  const fields = { name, industry, phase, status, brief, research, specs, code, drawingNotes, cadUrl, materials, workflows, industryProblem, uses, brochure, pitch, costToBuild, profitMargin, businessCase, goToMarket, renders };
   for (const [k, v] of Object.entries(fields)) { if (v !== undefined) (updatePayload as any)[k] = v; }
   const [updated] = await db.update(labProjects).set(updatePayload).where(eq(labProjects.id, id)).returning();
   res.json(updated);
@@ -788,9 +789,157 @@ Include:
 ### Case Study Example
 [One fictional but realistic detailed case study showing the product solving a real problem]`,
     },
+
+    businessCase: {
+      system: `You are a senior strategy consultant and investment analyst with deep expertise in product commercialisation and competitive strategy. Today is ${TODAY()}. You write business cases that are precise, evidence-driven, and investment-grade. You have particular expertise in how AI adoption creates durable competitive advantages and defensible market positions. You understand the current AI landscape at the frontier level — LLMs, computer vision, predictive systems, autonomous agents — and how they translate into product differentiation. You never write generic business cases. Every point is specific, quantified, and based on current market reality.`,
+      user: `Write a complete strategic business case for developing and bringing this product to market:
+
+${ctx}
+
+Structure:
+# Business Case: [Product Name]
+
+## Executive Summary
+[3 sentences: What it is, the strategic opportunity, and the primary reason it will outpace competitors]
+
+## The Strategic Opportunity
+### Market Timing — Why Now
+[What specific market condition, technology unlock, or regulatory shift makes this the optimal moment to build this product. Be precise: reference actual events, technology thresholds crossed, or incumbent failures]
+
+### Market Size & Growth
+[TAM / SAM / SOM with real evidence. Market growth rate. What's driving it. Specific data points]
+
+### The Gap in the Market
+[Exactly what is missing from the current market. Why incumbents haven't solved it. Where the white space is]
+
+## Why This Product Wins
+### Competitive Displacement Strategy
+[Name the top 3-5 real competitors. Identify their specific weaknesses. Explain exactly why this product displaces them rather than joins them]
+
+### Sustainable Competitive Advantages
+[At least 5 specific advantages. Not features — structural advantages that compound over time: network effects, data moats, switching costs, proprietary methods, regulatory positioning]
+
+### AI as a Competitive Weapon
+[This is critical: How AI integration specifically creates an insurmountable edge. Which AI capabilities (LLMs, computer vision, predictive analytics, autonomous agents, personalisation engines) are embedded in this product. Why this makes the product fundamentally better than anything that doesn't use AI the same way. How the AI advantage compounds over time as the product learns. Reference the current frontier of AI capability — what's now commercially deployable that wasn't 12 months ago]
+
+### Technology Moat
+[What technical assets will be built that competitors cannot easily replicate: proprietary datasets, trained models, patents, integrations, manufacturing processes]
+
+## Investment Justification
+### Cost to Build
+[Development cost, time to first revenue, time to profitability]
+
+### Revenue Model
+[Primary and secondary revenue streams. Unit economics. Payback period]
+
+### Return Profile
+[3-year revenue projection. IRR estimate. Scenario analysis: conservative / base / optimistic]
+
+### Risk-Adjusted Return
+[Top 3 risks, probability, mitigation. Net risk-adjusted case for investment]
+
+## Strategic Fit & Build Rationale
+### Why We Build This (Not Someone Else)
+[Specific unfair advantages the team/organisation brings to this product. Why an outsider can't replicate this]
+
+### Build vs. Buy vs. Partner Analysis
+[Should any components be acquired, licensed, or built from scratch? Specific options evaluated]
+
+### Opportunity Cost
+[What is the cost of NOT building this? What happens if a competitor launches first?]
+
+## Recommendation
+[Clear, direct recommendation: Build / Build with partner / License / Pass. Exact next steps with timeline]`,
+    },
+
+    goToMarket: {
+      system: `You are a world-class go-to-market strategist with experience launching frontier technology products. Today is ${TODAY()}. You combine product marketing expertise with deep knowledge of sales strategy, channel economics, and AI-driven growth. You write GTM plans that are specific, sequenced, and executable — not frameworks. Every recommendation references real platforms, real channels, and real customer acquisition tactics available today.`,
+      user: `Write a complete, execution-ready go-to-market strategy for launching this product:
+
+${ctx}
+
+Structure:
+# Go-to-Market Strategy: [Product Name]
+
+## GTM Summary
+[One paragraph: Target customer, primary channel, key message, launch model, year-1 revenue target]
+
+## Target Customer
+### Ideal Customer Profile (ICP)
+[Firmographic and demographic specifics — industry, company size, role, geography, budget, urgency signal]
+
+### Buyer Personas
+[2-3 specific personas: their title, what they care about, how they buy, what objections they raise, what breaks their status quo]
+
+### Customer Acquisition Cost (CAC) Target
+[Expected CAC by channel. Payback period. LTV:CAC target]
+
+## Positioning & Messaging
+### Core Positioning Statement
+[One precise positioning statement using the template: For [customer] who [need], [product] is a [category] that [benefit]. Unlike [alternative], we [key differentiator]]
+
+### Key Messages by Persona
+[Tailored message per persona — their specific language, their specific fear/aspiration, specific proof point]
+
+### AI Differentiation Message
+[How to communicate the AI advantage simply and credibly to a non-technical buyer. What proof point makes it real. Why it matters to them specifically]
+
+## Channel Strategy
+### Primary Channel (Year 1)
+[The single highest-leverage channel. Why. Specific tactics. Economics]
+
+### Secondary Channels (Year 1)
+[2-3 supporting channels with specific tactics and expected contribution]
+
+### Digital Presence
+[Website strategy, SEO approach, content plan, social presence — specific platforms, content types, posting cadence]
+
+### Partnerships
+[Specific named partners — technology, channel, distribution, OEM. Why each makes sense. How to approach them]
+
+## Sales Motion
+### Sales Model
+[Self-serve / inside sales / field sales / channel sales — which model and why for this product]
+
+### Sales Process
+[Stage-by-stage sales process: prospecting method, discovery approach, demo strategy, proof of concept approach, commercials, close]
+
+### Pricing Strategy
+[Specific pricing tiers with prices. Rationale. Competitor price comparison. Upsell/cross-sell paths]
+
+### Sales Enablement
+[What the sales team needs: battle cards, ROI calculator, demo environment, case studies, objection handlers]
+
+## Launch Sequence
+### Pre-Launch (Months 1-3)
+[Exact activities: beta customer recruitment, press/analyst briefings, content pipeline, partnership agreements, sales tool development]
+
+### Launch (Month 4)
+[Launch day activities: press release targets, launch event, first paid campaigns, outreach sequences, PR plan]
+
+### Post-Launch (Months 5-12)
+[Scaling activities: case study capture, reference customer programme, channel expansion, product-led growth hooks]
+
+## AI-Powered Growth Tactics
+[Specific ways AI is used in the go-to-market itself: AI-personalised outreach, AI-driven lead scoring, AI content creation at scale, AI-powered demo personalisation, predictive churn prevention. Reference specific tools available today]
+
+## Year 1 Plan & KPIs
+### 90-Day Milestones
+[Specific, measurable milestones for weeks 1-4, 5-8, 9-12]
+
+### Year 1 Targets
+| Metric | Q1 | Q2 | Q3 | Q4 |
+[Revenue, customers, CAC, conversion rate, NPS, churn]
+
+### Success Metrics
+[The 5 metrics that determine whether the GTM is working. How they're measured. What good looks like]
+
+## Budget & Resource Plan
+[Required headcount, agency/tool spend, marketing budget — broken down by channel and quarter]`,
+    },
   };
 
-  const sectionAliases: Record<string, string> = { market: "industryProblem", economics: "cost" };
+  const sectionAliases: Record<string, string> = { market: "industryProblem", economics: "cost", "go-to-market": "goToMarket", "business-case": "businessCase" };
   const resolvedSection = sectionAliases[section] || section;
 
   const selected = prompts[resolvedSection];
@@ -800,6 +949,7 @@ Include:
     cost: "costToBuild", industryProblem: "industryProblem",
     materials: "materials", workflows: "workflows",
     brochure: "brochure", pitch: "pitch",
+    businessCase: "businessCase", goToMarket: "goToMarket",
   };
   const dbField = dbFieldMap[resolvedSection] || resolvedSection;
 
@@ -833,6 +983,8 @@ router.post("/lab/projects/:id/insights", authMiddleware, async (req: Request, r
   if (p.brochure?.trim()) filledFields.push(`Brochure: ${p.brochure.slice(0, 400)}`);
   if (p.pitch?.trim()) filledFields.push(`Pitch: ${p.pitch.slice(0, 400)}`);
   if (p.costToBuild?.trim()) filledFields.push(`Cost Analysis: ${p.costToBuild.slice(0, 400)}`);
+  if (p.businessCase?.trim()) filledFields.push(`Business Case: ${p.businessCase.slice(0, 400)}`);
+  if (p.goToMarket?.trim()) filledFields.push(`Go-to-Market Plan: ${p.goToMarket.slice(0, 400)}`);
   const rendersCount = (JSON.parse(p.renders || "[]") as any[]).length;
 
   const context = filledFields.length > 0
@@ -851,9 +1003,9 @@ You always:
 - Keep each insight concise but precise — one clear point per insight`;
 
   const phaseContext = {
-    design: "This project is in the Design Phase. Focus on: design risks, missing specifications, material selection issues, regulatory compliance gaps, IP considerations, and technical feasibility concerns.",
-    production: "This project is in the Production Phase. Focus on: manufacturing risks, supply chain vulnerabilities, quality control gaps, workflow inefficiencies, timeline risks, and cost overruns.",
-    complete: "This project is nearing or at completion. Focus on: market positioning gaps, pricing strategy, pitch weaknesses, competitive differentiation, go-to-market risks, and final pre-launch checks.",
+    design: "This project is in the Design Phase. Focus on: design risks, missing specifications, material selection issues, regulatory compliance gaps, IP considerations, technical feasibility concerns. Also highlight where AI integration could be built into the product to create competitive advantage.",
+    production: "This project is in the Production Phase. Focus on: manufacturing risks, supply chain vulnerabilities, quality control gaps, workflow inefficiencies, timeline risks, cost overruns, and whether the business case adequately identifies the competitive displacement strategy and AI advantage.",
+    complete: "This project is nearing or at completion. Focus on: go-to-market execution risks, pricing strategy, pitch weaknesses, competitive differentiation gaps, launch readiness, channel strategy, and whether the AI advantage is being properly communicated and weaponised for market entry.",
   }[phase] || "";
 
   const userPrompt = `Analyse this project and return EXACTLY a valid JSON array of 6 insight objects. No markdown, no explanation — just the raw JSON array.
@@ -918,11 +1070,12 @@ router.get("/lab/projects/:id/completeness", authMiddleware, async (req: Request
     { key: "workflows", label: "Workflows", phase: "production", filled: !!p.workflows?.trim() },
     { key: "industryProblem", label: "Market Analysis", phase: "production", filled: !!p.industryProblem?.trim() },
     { key: "uses", label: "Use Cases", phase: "production", filled: !!p.uses?.trim() },
+    { key: "businessCase", label: "Business Case", phase: "production", filled: !!p.businessCase?.trim() },
     { key: "renders", label: "Product Renders", phase: "complete", filled: (JSON.parse(p.renders || "[]") as any[]).length > 0 },
     { key: "brochure", label: "Brochure", phase: "complete", filled: !!p.brochure?.trim() },
     { key: "pitch", label: "Pitch", phase: "complete", filled: !!p.pitch?.trim() },
     { key: "costToBuild", label: "Cost Analysis", phase: "complete", filled: !!p.costToBuild?.trim() },
-    { key: "profitMargin", label: "Profit Margin", phase: "complete", filled: !!p.profitMargin?.trim() },
+    { key: "goToMarket", label: "Go-to-Market Plan", phase: "complete", filled: !!p.goToMarket?.trim() },
   ];
 
   const filled = checks.filter(c => c.filled).length;
