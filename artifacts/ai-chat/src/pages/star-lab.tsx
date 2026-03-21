@@ -43,57 +43,242 @@ type Message = { id: number; projectId: number; role: string; content: string; c
 type ScoutReport = { id: number; title: string; industry: string; opportunity: string; type: string; createdAt: string };
 type NavMode = "projects" | "botlab" | "scout" | "feed";
 
+const MAX_PIN_DIGITS = 8;
+const MAX_ATTEMPTS = 5;
+const LOCKOUT_SECONDS = 60;
+
 function PinGate({ onUnlock }: { onUnlock: (pin: string) => void }) {
-  const [pin, setPin] = useState("");
-  const [error, setError] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [digits, setDigits] = useState<string[]>([]);
+  const [status, setStatus] = useState<"idle" | "loading" | "error" | "locked">("idle");
+  const [attempts, setAttempts] = useState(0);
+  const [lockoutEnd, setLockoutEnd] = useState<number | null>(null);
+  const [countdown, setCountdown] = useState(0);
+  const [shake, setShake] = useState(false);
+  const [scanLine, setScanLine] = useState(0);
   const base = getApiBase();
 
+  // Scan line animation
+  useEffect(() => {
+    const id = setInterval(() => setScanLine(p => (p + 1) % 100), 30);
+    return () => clearInterval(id);
+  }, []);
+
+  // Lockout countdown
+  useEffect(() => {
+    if (!lockoutEnd) return;
+    const tick = () => {
+      const remaining = Math.ceil((lockoutEnd - Date.now()) / 1000);
+      if (remaining <= 0) { setStatus("idle"); setLockoutEnd(null); setAttempts(0); setCountdown(0); }
+      else setCountdown(remaining);
+    };
+    tick();
+    const id = setInterval(tick, 500);
+    return () => clearInterval(id);
+  }, [lockoutEnd]);
+
+  // Keyboard support
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (status === "locked" || status === "loading") return;
+      if (e.key >= "0" && e.key <= "9") press(e.key);
+      else if (e.key === "Backspace") deleteLast();
+      else if (e.key === "Enter") submit();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [digits, status]);
+
+  const press = (d: string) => {
+    if (digits.length >= MAX_PIN_DIGITS || status === "loading" || status === "locked") return;
+    setDigits(prev => [...prev, d]);
+    setStatus("idle");
+  };
+
+  const deleteLast = () => {
+    if (status === "loading" || status === "locked") return;
+    setDigits(prev => prev.slice(0, -1));
+    setStatus("idle");
+  };
+
+  const triggerShake = () => {
+    setShake(true);
+    setTimeout(() => { setShake(false); setDigits([]); }, 600);
+  };
+
   const submit = async () => {
-    if (!pin) return;
-    setLoading(true); setError(false);
+    if (digits.length === 0 || status === "loading" || status === "locked") return;
+    const pin = digits.join("");
+    setStatus("loading");
     try {
       const res = await fetch(`${base}lab/auth`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pin }),
       });
-      if (res.ok) { sessionStorage.setItem("lab_pin", pin); onUnlock(pin); }
-      else { setError(true); setPin(""); }
-    } catch { setError(true); }
-    setLoading(false);
+      if (res.ok) {
+        sessionStorage.setItem("lab_pin", pin);
+        onUnlock(pin);
+      } else {
+        const newAttempts = attempts + 1;
+        setAttempts(newAttempts);
+        if (newAttempts >= MAX_ATTEMPTS) {
+          setStatus("locked");
+          setLockoutEnd(Date.now() + LOCKOUT_SECONDS * 1000);
+        } else {
+          setStatus("error");
+          triggerShake();
+        }
+      }
+    } catch {
+      setStatus("error");
+      triggerShake();
+    }
   };
 
+  const KEYS = ["1","2","3","4","5","6","7","8","9","del","0","ok"];
+  const attemptsLeft = MAX_ATTEMPTS - attempts;
+  const PIN_DISPLAY_LENGTH = Math.max(4, digits.length + (digits.length < MAX_PIN_DIGITS ? 1 : 0));
+
   return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: "hsl(226,45%,4%)" }}>
-      <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }}
-        className="flex flex-col items-center gap-8 w-full max-w-xs px-6">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-16 h-16 rounded-2xl flex items-center justify-center"
-            style={{ background: "linear-gradient(135deg, hsl(193,100%,30%), hsl(226,70%,45%))", boxShadow: "0 0 40px hsla(193,100%,35%,0.3)" }}>
-            <Star className="w-8 h-8 text-white" />
+    <div className="min-h-screen flex items-center justify-center relative overflow-hidden"
+      style={{ background: "hsl(226,50%,3%)" }}>
+
+      {/* Animated scan line */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        <div className="absolute w-full h-px opacity-5 transition-none"
+          style={{ top: `${scanLine}%`, background: "hsl(193,100%,60%)", boxShadow: "0 0 8px hsl(193,100%,60%)" }} />
+        {/* Grid overlay */}
+        <div className="absolute inset-0 opacity-[0.02]"
+          style={{ backgroundImage: "linear-gradient(hsl(193,100%,60%) 1px, transparent 1px), linear-gradient(90deg, hsl(193,100%,60%) 1px, transparent 1px)", backgroundSize: "40px 40px" }} />
+      </div>
+
+      {/* Corner brackets */}
+      {[["top-8 left-8", "border-t-2 border-l-2"], ["top-8 right-8", "border-t-2 border-r-2"], ["bottom-8 left-8", "border-b-2 border-l-2"], ["bottom-8 right-8", "border-b-2 border-r-2"]].map(([pos, border], i) => (
+        <div key={i} className={`absolute w-8 h-8 ${pos} ${border} opacity-20`}
+          style={{ borderColor: "hsl(193,100%,50%)" }} />
+      ))}
+
+      {/* Status bar */}
+      <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-6 py-3 text-xs font-mono"
+        style={{ color: "hsl(193,100%,40%)", borderBottom: "1px solid rgba(0,255,200,0.05)" }}>
+        <span>SIRIUS STAR LAB</span>
+        <span className="flex items-center gap-2">
+          <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "hsl(193,100%,50%)" }} />
+          SECURE TERMINAL v2.0
+        </span>
+        <span>{new Date().toLocaleTimeString("en-GB", { hour12: false })}</span>
+      </div>
+
+      <motion.div
+        animate={shake ? { x: [-8, 8, -8, 8, -4, 4, 0] } : { x: 0 }}
+        transition={{ duration: 0.5, ease: "easeInOut" }}
+        className="flex flex-col items-center gap-7 w-80 relative z-10">
+
+        {/* Logo */}
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative">
+            <div className="w-20 h-20 rounded-2xl flex items-center justify-center"
+              style={{ background: "linear-gradient(135deg, hsl(226,50%,10%), hsl(226,50%,8%))", border: "1px solid rgba(0,200,180,0.15)", boxShadow: "0 0 60px hsla(193,100%,35%,0.15), inset 0 1px 0 rgba(255,255,255,0.05)" }}>
+              <FlaskConical className="w-9 h-9" style={{ color: "hsl(193,100%,55%)" }} />
+            </div>
+            <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full animate-pulse"
+              style={{ background: "hsl(193,100%,50%)", boxShadow: "0 0 8px hsl(193,100%,50%)" }} />
           </div>
           <div className="text-center">
-            <h1 className="text-white text-2xl font-bold tracking-tight">Sirius Star Lab</h1>
-            <p className="text-white/40 text-sm mt-1">Private R&D Intelligence</p>
+            <p className="font-mono text-xs mb-1" style={{ color: "hsl(193,100%,40%)", letterSpacing: "0.25em" }}>CLASSIFIED ACCESS</p>
+            <h1 className="text-white text-xl font-bold tracking-tight">Sirius Star Lab</h1>
+            <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.3)" }}>Private R&D Intelligence</p>
           </div>
         </div>
-        <div className="w-full space-y-3">
-          <div className="relative">
-            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/25" />
-            <input type="password" value={pin} onChange={e => setPin(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && submit()}
-              placeholder="PIN" autoFocus
-              className="w-full pl-11 pr-4 py-4 rounded-2xl text-white placeholder-white/20 text-center text-2xl tracking-[0.6em] outline-none"
-              style={{ background: "hsl(226,45%,9%)", border: `1px solid ${error ? "hsl(0,70%,50%)" : "rgba(255,255,255,0.07)"}` }} />
+
+        {/* PIN dots */}
+        <div className="w-full px-4">
+          <div className="flex items-center justify-center gap-3 py-5 px-6 rounded-2xl"
+            style={{ background: "hsl(226,50%,6%)", border: `1px solid ${status === "error" ? "hsla(0,70%,50%,0.4)" : status === "locked" ? "hsla(0,70%,50%,0.3)" : "rgba(0,200,180,0.1)"}`, boxShadow: status === "error" ? "0 0 20px hsla(0,70%,50%,0.1)" : "inset 0 1px 0 rgba(255,255,255,0.03)" }}>
+            {status === "locked" ? (
+              <div className="flex items-center gap-2.5">
+                <Lock className="w-4 h-4" style={{ color: "hsl(0,70%,55%)" }} />
+                <span className="font-mono text-sm font-semibold" style={{ color: "hsl(0,70%,60%)" }}>
+                  Locked — {countdown}s
+                </span>
+              </div>
+            ) : (
+              Array.from({ length: Math.max(4, digits.length + (digits.length < MAX_PIN_DIGITS ? 1 : 0)) }).map((_, i) => (
+                <div key={i} className="w-3 h-3 rounded-full transition-all duration-150"
+                  style={{
+                    background: i < digits.length
+                      ? status === "error" ? "hsl(0,70%,55%)" : "hsl(193,100%,55%)"
+                      : i === digits.length
+                      ? "rgba(255,255,255,0.12)"
+                      : "rgba(255,255,255,0.06)",
+                    boxShadow: i < digits.length && status !== "error"
+                      ? "0 0 8px hsl(193,100%,55%)"
+                      : "none",
+                    transform: i === digits.length ? "scale(0.7)" : "scale(1)",
+                  }} />
+              ))
+            )}
           </div>
-          {error && <p className="text-center text-xs" style={{ color: "hsl(0,70%,60%)" }}>Incorrect PIN. Try again.</p>}
-          <button onClick={submit} disabled={loading || !pin}
-            className="w-full py-3.5 rounded-2xl font-semibold text-white transition-all text-sm"
-            style={{ background: "hsl(193,100%,35%)", opacity: loading || !pin ? 0.4 : 1 }}>
-            {loading ? "Verifying..." : "Enter the Lab"}
-          </button>
+
+          {/* Attempt warning */}
+          {status === "error" && attempts > 0 && attempts < MAX_ATTEMPTS && (
+            <p className="text-center text-xs mt-2 font-mono" style={{ color: "hsl(25,90%,60%)" }}>
+              Access denied — {attemptsLeft} attempt{attemptsLeft !== 1 ? "s" : ""} remaining
+            </p>
+          )}
+          {status === "locked" && (
+            <p className="text-center text-xs mt-2 font-mono" style={{ color: "hsl(0,70%,55%)" }}>
+              Terminal locked after {MAX_ATTEMPTS} failed attempts
+            </p>
+          )}
         </div>
-        <p className="text-white/15 text-xs text-center">Access restricted to authorised users only</p>
+
+        {/* Keypad */}
+        <div className="grid grid-cols-3 gap-2.5 w-full px-4">
+          {KEYS.map(key => {
+            const isOk = key === "ok";
+            const isDel = key === "del";
+            const isDisabled = status === "locked" || (status === "loading");
+            return (
+              <button
+                key={key}
+                onClick={() => { if (isOk) submit(); else if (isDel) deleteLast(); else press(key); }}
+                disabled={isDisabled || (isOk && digits.length === 0)}
+                className="h-14 rounded-xl flex items-center justify-center transition-all active:scale-95 select-none"
+                style={{
+                  background: isOk
+                    ? digits.length > 0 && !isDisabled
+                      ? "linear-gradient(135deg, hsl(193,100%,28%), hsl(193,100%,22%))"
+                      : "hsl(226,50%,10%)"
+                    : isDel
+                    ? "hsl(226,50%,10%)"
+                    : "hsl(226,50%,9%)",
+                  border: isOk
+                    ? digits.length > 0 && !isDisabled
+                      ? "1px solid hsl(193,100%,35%)"
+                      : "1px solid rgba(255,255,255,0.05)"
+                    : "1px solid rgba(255,255,255,0.05)",
+                  boxShadow: isOk && digits.length > 0 && !isDisabled
+                    ? "0 0 20px hsla(193,100%,35%,0.3)"
+                    : "inset 0 1px 0 rgba(255,255,255,0.03)",
+                  opacity: isDisabled || (isOk && digits.length === 0) ? 0.3 : 1,
+                  color: isOk ? "hsl(193,100%,70%)" : "rgba(255,255,255,0.8)",
+                }}>
+                {isOk
+                  ? status === "loading"
+                    ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: "hsl(193,100%,60%)" }} />
+                    : <Check className="w-5 h-5" />
+                  : isDel
+                  ? <span className="text-lg font-light" style={{ color: "rgba(255,255,255,0.4)" }}>⌫</span>
+                  : <span className="text-lg font-semibold" style={{ fontFamily: "monospace", letterSpacing: "-0.02em" }}>{key}</span>
+                }
+              </button>
+            );
+          })}
+        </div>
+
+        <p className="font-mono text-xs" style={{ color: "rgba(255,255,255,0.1)", letterSpacing: "0.15em" }}>
+          AUTHORISED PERSONNEL ONLY
+        </p>
       </motion.div>
     </div>
   );
