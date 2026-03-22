@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useRoute, useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, Zap, Home } from "lucide-react";
+import { Menu, Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sidebar } from "@/components/sidebar";
 import { ChatMessage } from "@/components/chat-message";
@@ -160,31 +160,43 @@ export function ChatPage() {
                 }}
               />
 
-              {/* Orb */}
+              {/* Twins logo — the Sirius AI brand mark */}
               <motion.div
-                initial={{ opacity: 0, scale: 0.7 }}
+                initial={{ opacity: 0, scale: 0.75 }}
                 animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-                className="relative z-10 w-20 h-20 flex items-center justify-center mb-5"
+                transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
+                className="relative z-10 flex items-center justify-center mb-6"
+                style={{ width: 120, height: 120 }}
               >
+                {/* Outer slow-spin ring */}
                 <div className="ai-ring-outer absolute inset-0 rounded-full"
-                  style={{ border: "1px dashed hsl(193 100% 52% / 0.28)" }} />
-                <div className="ai-ring-inner absolute inset-2.5 rounded-full"
-                  style={{ border: "1px solid hsl(193 100% 52% / 0.18)" }} />
-                <div className="ai-core-pulse absolute inset-6 rounded-full"
-                  style={{ background: "hsl(193 100% 52% / 0.15)", filter: "blur(6px)" }} />
-                <div
-                  className="relative z-10 w-10 h-10 rounded-full flex items-center justify-center neon-glow"
+                  style={{ border: "1px dashed hsl(193 100% 52% / 0.32)" }} />
+                {/* Inner ring */}
+                <div className="absolute inset-3 rounded-full"
+                  style={{ border: "1px solid hsl(193 100% 52% / 0.20)" }} />
+                {/* Ambient glow behind the image */}
+                <div className="absolute inset-0 rounded-full pointer-events-none"
                   style={{
-                    background: "linear-gradient(135deg, hsl(193 100% 52%), hsl(193 100% 35%))",
-                    border: "1px solid hsl(193 100% 52% / 0.6)",
-                    boxShadow: "0 0 20px hsl(193 100% 52% / 0.5)",
+                    background: "radial-gradient(circle, hsl(193 100% 52% / 0.18) 0%, transparent 68%)",
+                    filter: "blur(10px)",
+                  }} />
+                {/* The twins logo */}
+                <div
+                  className="relative z-10 rounded-full overflow-hidden"
+                  style={{
+                    width: 96,
+                    height: 96,
+                    border: "2px solid hsl(193 100% 52% / 0.45)",
+                    boxShadow: "0 0 28px hsl(193 100% 52% / 0.40), 0 0 70px hsl(193 100% 52% / 0.14)",
                   }}
                 >
-                  <Zap className="w-4 h-4 text-white" fill="currentColor" />
+                  <img
+                    src="/logo-v2.png"
+                    alt="Sirius AI"
+                    className="w-full h-full object-cover"
+                    style={{ filter: "brightness(1.12) contrast(1.06) saturate(1.18)" }}
+                  />
                 </div>
-                <div className="absolute inset-0 rounded-full"
-                  style={{ background: "radial-gradient(circle, hsl(193 100% 52% / 0.15) 0%, transparent 70%)" }} />
               </motion.div>
 
               {/* Heading */}
