@@ -10,6 +10,13 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { getUserId } from "@/lib/user-id";
 
+// Preserves in-flight messages across the "/" → "/c/:id" route remount so
+// mobile users don't see a flash of the welcome screen mid-conversation.
+const PENDING_BRIDGE: { messages: ChatMessage[]; convId: number | null } = {
+  messages: [],
+  convId: null,
+};
+
 export type ChatSource = {
   url: string;
   title: string;
@@ -31,7 +38,20 @@ export type ChatMessage = {
 };
 
 export function useChat(conversationId?: number) {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    // Restore in-progress messages if we just navigated to this conversation
+    if (
+      conversationId !== undefined &&
+      PENDING_BRIDGE.convId === conversationId &&
+      PENDING_BRIDGE.messages.length > 0
+    ) {
+      const saved = [...PENDING_BRIDGE.messages];
+      PENDING_BRIDGE.messages = [];
+      PENDING_BRIDGE.convId = null;
+      return saved;
+    }
+    return [];
+  });
   const [isTyping, setIsTyping] = useState(false);
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
@@ -41,11 +61,15 @@ export function useChat(conversationId?: number) {
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const setInitialMessages = useCallback((dbMessages: OpenaiMessage[]) => {
-    setMessages(dbMessages.map(m => ({
-      ...m,
-      id: m.id,
-      role: m.role as "user" | "assistant" | "system"
-    })));
+    setMessages(prev => {
+      // Don't replace messages if streaming is in progress (avoids flash)
+      if (prev.some(m => m.isStreaming)) return prev;
+      return dbMessages.map(m => ({
+        ...m,
+        id: m.id,
+        role: m.role as "user" | "assistant" | "system"
+      }));
+    });
   }, []);
 
   const stopStream = useCallback(() => {
@@ -67,24 +91,31 @@ export function useChat(conversationId?: number) {
     setMessages(prev => [...prev, { id: userMsgId, role: "user", content, uploadedImageBase64: imageBase64 }]);
     
     try {
-      if (!activeId) {
-        const title = content.length > 40 ? content.slice(0, 40) + "..." : content;
-        const newConvo = await createConversation({ data: { title } });
-        activeId = newConvo.id;
-        
-        queryClient.invalidateQueries({ queryKey: getListOpenaiConversationsQueryKey() });
-        setLocation(`/c/${activeId}`, { replace: true });
-      }
-
       const assistantMsgId = Date.now() + 1;
-      setMessages(prev => [...prev, {
+      const assistantMsg: ChatMessage = {
         id: assistantMsgId,
         role: "assistant",
         content: "",
         isStreaming: true,
         isSearching: false,
         sources: [],
-      }]);
+      };
+
+      if (!activeId) {
+        const title = content.length > 40 ? content.slice(0, 40) + "..." : content;
+        const newConvo = await createConversation({ data: { title } });
+        activeId = newConvo.id;
+
+        // Populate the bridge BEFORE navigation so the new ChatPage instance
+        // picks up these messages immediately and skips the loading flash.
+        PENDING_BRIDGE.messages = [userMsg, assistantMsg];
+        PENDING_BRIDGE.convId = activeId;
+        
+        queryClient.invalidateQueries({ queryKey: getListOpenaiConversationsQueryKey() });
+        setLocation(`/c/${activeId}`, { replace: true });
+      }
+
+      setMessages(prev => [...prev, assistantMsg]);
       setIsTyping(true);
 
       abortControllerRef.current = new AbortController();

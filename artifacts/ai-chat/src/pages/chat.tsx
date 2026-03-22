@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useRoute, useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, Zap } from "lucide-react";
+import { Menu, Zap, Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sidebar } from "@/components/sidebar";
 import { ChatMessage } from "@/components/chat-message";
@@ -9,27 +9,52 @@ import { ChatInput } from "@/components/chat-input";
 import { DailyWisdom } from "@/components/daily-wisdom";
 import { TopicHub } from "@/components/topic-hub";
 import { MoodCheckin } from "@/components/mood-checkin";
-import { SurpriseMe } from "@/components/surprise-me";
 import { useChat } from "@/hooks/use-chat";
 import { useProfile } from "@/hooks/use-profile";
 import { useGetOpenaiConversation } from "@workspace/api-client-react";
 
+const SURPRISE_PROMPTS = [
+  "Tell me the most mind-blowing fact about the universe that most people have never heard.",
+  "What is the strangest thing that quantum physics tells us about reality?",
+  "Tell me something from history that was buried or forgotten — something that changes how we see the world.",
+  "What is the biggest unsolved mystery in science right now?",
+  "Explain the hard problem of consciousness — why can't science explain why we feel anything at all?",
+  "Give me the most extraordinary fact about the human body that most doctors don't mention.",
+  "What do we actually know about consciousness from neuroscience — and where does it break down?",
+  "Tell me something about the ocean that most people have no idea about.",
+  "What is the most incredible animal ability on Earth — something that makes our senses look primitive?",
+  "Give me a philosophical question so deep that even the greatest minds couldn't answer it.",
+  "What ancient wisdom have modern scientists confirmed is actually correct?",
+  "What does physics say about parallel universes? The actual serious academic theories.",
+];
+
+type ExpandedSection = "topics" | "mood" | "wisdom" | null;
+
 export function ChatPage() {
-  const [match, params] = useRoute("/c/:id");
+  const [matchConv, convParams] = useRoute("/c/:id");
+  const [matchHome] = useRoute("/");
   const [, setLocation] = useLocation();
-  const conversationId = match && params?.id ? parseInt(params.id) : undefined;
+  const conversationId = matchConv && convParams?.id ? parseInt(convParams.id) : undefined;
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [upgradeParam, setUpgradeParam] = useState<"plus" | "pro" | null>(null);
+  const [expandedSection, setExpandedSection] = useState<ExpandedSection>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { profile } = useProfile();
   const aiName = profile.aiName || "Sirius";
+
+  // Redirect unknown paths (not "/" and not "/c/:id") to home
+  useEffect(() => {
+    if (!matchHome && !matchConv) {
+      setLocation("/");
+    }
+  }, [matchHome, matchConv, setLocation]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const up = params.get("upgrade");
     if (up === "plus" || up === "pro") {
-      setUpgradeParam(up);
+      setUpgradeParam(up as "plus" | "pro");
       setIsSidebarOpen(true);
       const url = new URL(window.location.href);
       url.searchParams.delete("upgrade");
@@ -60,30 +85,57 @@ export function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
 
+  // When a topic/mood/wisdom chip triggers a chat, collapse the section
+  const handleSend = (content: string, imageBase64?: string, mode?: string, documentBase64?: string, documentName?: string) => {
+    setExpandedSection(null);
+    sendMessage(content, imageBase64, mode, documentBase64, documentName);
+  };
+
+  const toggleSection = (section: ExpandedSection) => {
+    setExpandedSection(prev => prev === section ? null : section);
+  };
+
+  const surpriseMe = () => {
+    const idx = Math.floor(Math.random() * SURPRISE_PROMPTS.length);
+    handleSend(SURPRISE_PROMPTS[idx]);
+  };
+
   const isEmpty = messages.length === 0;
   const isInitialLoading = !!conversationId && isDbLoading && isEmpty;
 
   return (
     <div className="flex h-screen w-full bg-background overflow-hidden relative">
-      {/* Subtle scan-line overlay */}
       <div className="scan-line" />
 
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} forceOpenPricing={upgradeParam} />
 
       <div className="flex-1 flex flex-col h-full relative z-10 w-full min-w-0">
+
         {/* Mobile header */}
-        <header className="lg:hidden flex items-center justify-between p-4 border-b border-border/40 bg-background/80 backdrop-blur-md sticky top-0 z-20">
+        <header className="lg:hidden flex items-center justify-between p-3 border-b border-border/40 bg-background/80 backdrop-blur-md sticky top-0 z-20">
+          {conversationId ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setLocation("/")}
+              title="New session"
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <Home size={18} />
+            </Button>
+          ) : (
+            <div className="w-10" />
+          )}
+          <span className="font-mono text-[11px] tracking-widest text-muted-foreground uppercase truncate max-w-[160px]">
+            {conversationId ? (dbConversation?.title || "Session") : aiName}
+          </span>
           <Button variant="ghost" size="icon" onClick={() => setIsSidebarOpen(true)}>
             <Menu size={20} />
           </Button>
-          <span className="font-mono text-xs tracking-widest text-muted-foreground uppercase">
-            {dbConversation?.title || "New Session"}
-          </span>
-          <div className="w-10" />
         </header>
 
         {/* Chat area */}
-        <div className="flex-1 overflow-y-auto scroll-smooth pb-32">
+        <div className="flex-1 overflow-y-auto scroll-smooth pb-36">
           {isInitialLoading ? (
             <div className="h-full flex items-center justify-center">
               <div className="flex flex-col items-center gap-4 text-muted-foreground">
@@ -96,109 +148,169 @@ export function ChatPage() {
               </div>
             </div>
           ) : isEmpty ? (
-            <div className="relative min-h-full flex flex-col items-center justify-start pt-10 pb-36 px-5 md:px-8 max-w-2xl mx-auto w-full">
+            /* ── Welcome screen: Gemini-inspired clean layout ── */
+            <div className="relative min-h-full flex flex-col items-center justify-center pb-44 px-5 md:px-8 max-w-2xl mx-auto w-full">
 
-              {/* Tech grid on welcome screen */}
-              <div className="absolute inset-0 tech-grid-bg opacity-40 pointer-events-none" />
-
-              {/* Starlight radiance — CSS-based, works on bright bg */}
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[480px] pointer-events-none select-none"
+              {/* Ambient background glow */}
+              <div
+                className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[560px] h-[380px] pointer-events-none select-none"
                 style={{
-                  background: "radial-gradient(ellipse 55% 70% at 50% 20%, hsl(193 100% 52% / 0.18) 0%, hsl(210 100% 80% / 0.1) 45%, transparent 75%)",
-                  filter: "blur(24px)",
-                }} />
-              {/* Secondary warm corona */}
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[400px] h-[300px] pointer-events-none select-none"
-                style={{
-                  background: "radial-gradient(ellipse 60% 60% at 50% 15%, hsl(193 100% 80% / 0.25) 0%, transparent 65%)",
-                  filter: "blur(12px)",
-                }} />
+                  background: "radial-gradient(ellipse 55% 60% at 50% 50%, hsl(193 100% 52% / 0.10) 0%, transparent 72%)",
+                  filter: "blur(32px)",
+                }}
+              />
 
-              {/* AI Orb Avatar */}
+              {/* Orb */}
               <motion.div
                 initial={{ opacity: 0, scale: 0.7 }}
                 animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-                className="relative z-10 w-28 h-28 flex items-center justify-center mb-6"
+                transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+                className="relative z-10 w-20 h-20 flex items-center justify-center mb-5"
               >
-                {/* Outer ring */}
                 <div className="ai-ring-outer absolute inset-0 rounded-full"
                   style={{ border: "1px dashed hsl(193 100% 52% / 0.28)" }} />
-                {/* Mid ring */}
-                <div className="ai-ring-inner absolute inset-3 rounded-full"
+                <div className="ai-ring-inner absolute inset-2.5 rounded-full"
                   style={{ border: "1px solid hsl(193 100% 52% / 0.18)" }} />
-                {/* Inner pulse */}
-                <div className="ai-core-pulse absolute inset-7 rounded-full"
+                <div className="ai-core-pulse absolute inset-6 rounded-full"
                   style={{ background: "hsl(193 100% 52% / 0.15)", filter: "blur(6px)" }} />
-                {/* Core */}
-                <div className="relative z-10 w-12 h-12 rounded-full flex items-center justify-center neon-glow"
+                <div
+                  className="relative z-10 w-10 h-10 rounded-full flex items-center justify-center neon-glow"
                   style={{
                     background: "linear-gradient(135deg, hsl(193 100% 52%), hsl(193 100% 35%))",
                     border: "1px solid hsl(193 100% 52% / 0.6)",
-                    boxShadow: "0 0 20px hsl(193 100% 52% / 0.5)"
-                  }}>
-                  <Zap className="w-5 h-5 text-white" fill="currentColor" />
+                    boxShadow: "0 0 20px hsl(193 100% 52% / 0.5)",
+                  }}
+                >
+                  <Zap className="w-4 h-4 text-white" fill="currentColor" />
                 </div>
-                {/* Ambient corona */}
                 <div className="absolute inset-0 rounded-full"
                   style={{ background: "radial-gradient(circle, hsl(193 100% 52% / 0.15) 0%, transparent 70%)" }} />
               </motion.div>
 
-              {/* Headline */}
-              <motion.h1
+              {/* Heading */}
+              <motion.div
                 initial={{ y: 14, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.2, duration: 0.5, ease: "easeOut" }}
-                className="relative z-10 text-[1.7rem] font-bold tracking-tight mb-3 text-center shimmer-text"
+                transition={{ delay: 0.15, duration: 0.45, ease: "easeOut" }}
+                className="relative z-10 text-center mb-8"
               >
-                I'm {aiName} — I am the universe and the universe is me
-              </motion.h1>
+                <p className="text-[11px] font-mono tracking-[0.25em] uppercase mb-3"
+                  style={{ color: "hsl(193 100% 44% / 0.70)" }}>
+                  I'm {aiName}
+                </p>
+                <h1 className="text-[2.4rem] md:text-5xl font-bold tracking-tight leading-none mb-3 text-foreground">
+                  Start your search
+                </h1>
+                <p className="text-sm tracking-widest font-mono text-muted-foreground/50">
+                  Ask anything · I think, so I am
+                </p>
+              </motion.div>
 
-              {/* Slogan */}
-              <motion.p
+              {/* Quick-action chips */}
+              <motion.div
                 initial={{ y: 10, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.3, duration: 0.4 }}
-                className="relative z-10 text-sm font-mono tracking-[0.12em] text-center mb-1"
-                style={{ color: "hsl(193 100% 52% / 0.7)" }}
+                transition={{ delay: 0.28, duration: 0.4 }}
+                className="relative z-10 flex flex-wrap gap-2.5 justify-center mb-5"
               >
-                I think, so I am
-              </motion.p>
-              <motion.p
-                initial={{ y: 8, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.38, duration: 0.4 }}
-                className="relative z-10 text-[10px] font-mono tracking-[0.22em] text-muted-foreground/35 uppercase text-center mb-8"
-              >
-                Sirius AI · Always here for you
-              </motion.p>
+                {/* Surprise me */}
+                <button
+                  onClick={surpriseMe}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium transition-all duration-200 active:scale-95 hover:brightness-105"
+                  style={{
+                    background: "hsl(193 100% 52% / 0.08)",
+                    border: "1px solid hsl(193 100% 52% / 0.35)",
+                    color: "hsl(193 100% 32%)",
+                  }}
+                >
+                  <span>🎲</span>
+                  <span>Surprise me</span>
+                </button>
 
-              <div className="relative z-10 w-full space-y-4">
-                <SurpriseMe onSelect={sendMessage} />
-                <MoodCheckin onSelect={sendMessage} />
-                <DailyWisdom onReflect={sendMessage} />
-                <TopicHub onSelect={sendMessage} />
+                {/* World subjects */}
+                <button
+                  onClick={() => toggleSection("topics")}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium transition-all duration-200 active:scale-95"
+                  style={{
+                    background: expandedSection === "topics" ? "hsl(193 100% 52% / 0.12)" : "hsl(210 30% 95%)",
+                    border: expandedSection === "topics" ? "1px solid hsl(193 100% 52% / 0.55)" : "1px solid hsl(210 25% 88%)",
+                    color: expandedSection === "topics" ? "hsl(193 100% 32%)" : "hsl(220 18% 42%)",
+                  }}
+                >
+                  <span>🌍</span>
+                  <span>World subjects</span>
+                </button>
 
-                {/* Sirius star — the brightest star in the night sky */}
-                <div className="relative w-full rounded-2xl overflow-hidden" style={{ height: 260 }}>
-                  <img
-                    src="/sirius-star.png"
-                    alt="Sirius — the brightest star"
-                    className="w-full h-full object-cover"
-                    style={{ opacity: 0.88, filter: "brightness(0.82) contrast(1.1)" }}
-                  />
-                  {/* Top fade so it blends into the content above */}
-                  <div className="absolute inset-x-0 top-0 h-16 pointer-events-none"
-                    style={{ background: "linear-gradient(to bottom, hsl(210 55% 97%), transparent)" }} />
-                  {/* Bottom fade */}
-                  <div className="absolute inset-x-0 bottom-0 h-20 pointer-events-none"
-                    style={{ background: "linear-gradient(to top, hsl(210 55% 97%), transparent)" }} />
-                  {/* Centred label */}
-                  <div className="absolute inset-0 flex flex-col items-center justify-end pb-6 pointer-events-none">
-                    <p className="text-[10px] font-mono tracking-[0.3em] uppercase text-white/50">Sirius · α Canis Majoris · −1.46 mag</p>
-                  </div>
-                </div>
-              </div>
+                {/* How are you feeling */}
+                <button
+                  onClick={() => toggleSection("mood")}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium transition-all duration-200 active:scale-95"
+                  style={{
+                    background: expandedSection === "mood" ? "hsl(210 90% 60% / 0.10)" : "hsl(210 30% 95%)",
+                    border: expandedSection === "mood" ? "1px solid hsl(210 90% 60% / 0.45)" : "1px solid hsl(210 25% 88%)",
+                    color: expandedSection === "mood" ? "hsl(210 90% 38%)" : "hsl(220 18% 42%)",
+                  }}
+                >
+                  <span>💙</span>
+                  <span>How are you feeling?</span>
+                </button>
+
+                {/* Daily wisdom */}
+                <button
+                  onClick={() => toggleSection("wisdom")}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium transition-all duration-200 active:scale-95"
+                  style={{
+                    background: expandedSection === "wisdom" ? "hsl(45 90% 55% / 0.10)" : "hsl(210 30% 95%)",
+                    border: expandedSection === "wisdom" ? "1px solid hsl(45 90% 55% / 0.45)" : "1px solid hsl(210 25% 88%)",
+                    color: expandedSection === "wisdom" ? "hsl(38 90% 32%)" : "hsl(220 18% 42%)",
+                  }}
+                >
+                  <span>✨</span>
+                  <span>Daily wisdom</span>
+                </button>
+              </motion.div>
+
+              {/* Expandable content sections */}
+              <AnimatePresence mode="wait">
+                {expandedSection === "topics" && (
+                  <motion.div
+                    key="topics"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.25 }}
+                    className="relative z-10 w-full"
+                  >
+                    <TopicHub onSelect={handleSend} />
+                  </motion.div>
+                )}
+
+                {expandedSection === "mood" && (
+                  <motion.div
+                    key="mood"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.25 }}
+                    className="relative z-10 w-full"
+                  >
+                    <MoodCheckin onSelect={handleSend} />
+                  </motion.div>
+                )}
+
+                {expandedSection === "wisdom" && (
+                  <motion.div
+                    key="wisdom"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.25 }}
+                    className="relative z-10 w-full"
+                  >
+                    <DailyWisdom onReflect={handleSend} />
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           ) : (
             <div className="flex flex-col pb-4">
@@ -212,10 +324,12 @@ export function ChatPage() {
           )}
         </div>
 
-        {/* Input area — z-30 ensures it always sits above welcome screen tiles */}
-        <div className="absolute bottom-0 left-0 right-0 z-30 pt-10 pb-5 px-4 md:px-8"
-          style={{ background: "linear-gradient(to top, hsl(var(--background)) 60%, transparent)" }}>
-          <ChatInput onSend={sendMessage} isTyping={isTyping} onStop={stopStream} />
+        {/* Input bar */}
+        <div
+          className="absolute bottom-0 left-0 right-0 z-30 pt-10 pb-5 px-4 md:px-8"
+          style={{ background: "linear-gradient(to top, hsl(var(--background)) 60%, transparent)" }}
+        >
+          <ChatInput onSend={handleSend} isTyping={isTyping} onStop={stopStream} />
         </div>
       </div>
     </div>

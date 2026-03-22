@@ -24,14 +24,18 @@ const queryClient = new QueryClient({
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={ChatPage} />
-      <Route path="/c/:id" component={ChatPage} />
       <Route path="/terms" component={TermsPage} />
       <Route path="/privacy" component={PrivacyPage} />
       <Route path="/checkout/success" component={CheckoutSuccessPage} />
       <Route path="/checkout/cancel" component={CheckoutCancelPage} />
       <Route path="/star-lab" component={StarLabPage} />
-      <Route component={NotFound} />
+      {/*
+        ChatPage is the catch-all — it handles "/" and "/c/:id" internally
+        via useRoute(). By using a single Route element for both paths, the
+        component is never unmounted during navigation between them, which
+        preserves in-flight state (messages, streaming) across route changes.
+      */}
+      <Route component={ChatPage} />
     </Switch>
   );
 }

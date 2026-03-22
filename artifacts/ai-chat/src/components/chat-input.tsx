@@ -18,12 +18,12 @@ const PLACEHOLDERS = [
 ];
 
 const MODES = [
-  { id: "guru", label: "Guru", emoji: "🧿" },
-  { id: "coach", label: "Coach", emoji: "🏋️" },
-  { id: "scientist", label: "Scientist", emoji: "🔬" },
-  { id: "philosopher", label: "Philosopher", emoji: "🦉" },
-  { id: "creative", label: "Creative", emoji: "🎨" },
-  { id: "friend", label: "Friend", emoji: "🤝" },
+  { id: "guru",        label: "Guru",        emoji: "🧿", desc: "Deep expertise & thorough answers" },
+  { id: "coach",       label: "Coach",       emoji: "🏋️", desc: "Action plans & accountability" },
+  { id: "scientist",   label: "Scientist",   emoji: "🔬", desc: "Evidence-based & methodical" },
+  { id: "philosopher", label: "Philosopher", emoji: "🦉", desc: "Reflective & exploratory" },
+  { id: "creative",    label: "Creative",    emoji: "🎨", desc: "Imaginative & generative" },
+  { id: "friend",      label: "Friend",      emoji: "🤝", desc: "Warm, honest conversation" },
 ];
 
 interface ChatInputProps {
@@ -241,7 +241,7 @@ export function ChatInput({ onSend, isTyping, onStop }: ChatInputProps) {
     <div className="relative w-full max-w-3xl mx-auto">
 
       {/* Mode selector */}
-      <div className="flex items-center gap-1.5 mb-3 overflow-x-auto pb-0.5" style={{ scrollbarWidth: "none" }}>
+      <div className="flex items-center gap-1.5 mb-1.5 overflow-x-auto pb-0.5" style={{ scrollbarWidth: "none" }}>
         {MODES.map((m) => {
           const active = mode === m.id;
           return (
@@ -261,6 +261,15 @@ export function ChatInput({ onSend, isTyping, onStop }: ChatInputProps) {
             </button>
           );
         })}
+      </div>
+      {/* Active mode description */}
+      <div className="mb-2.5 h-4 flex items-center">
+        {MODES.find(m => m.id === mode) && (
+          <p className="text-[10px] font-mono tracking-[0.18em] transition-all duration-200"
+            style={{ color: mode !== "guru" ? "hsl(193 100% 40% / 0.75)" : "hsl(220 14% 60% / 0.5)" }}>
+            ↳ {MODES.find(m => m.id === mode)?.desc}
+          </p>
+        )}
       </div>
 
       {/* Image preview strip */}
