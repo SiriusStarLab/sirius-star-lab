@@ -1,12 +1,15 @@
 /**
- * Sirius Star Lab — Autonomous Daily Scanner
+ * Sirius Star Lab — Autonomous Multi-Sector Scanner
  *
- * Runs every 24 hours to:
- *   1. Discover new product opportunities across focused industries
- *   2. Auto-create Star Lab projects with pre-filled Brief + Research + Business Case
- *   3. Set approval_status = "pending" on all auto-created projects
- *   4. Upgrade existing projects with latest research intelligence
- *   5. Trigger funding analysis on all new projects
+ * Runs every 24 hours. Scans EVERY industry sector on Earth across 5 intelligence passes:
+ *
+ *   Pass 1 — Bot & Automation opportunities (4 sector clusters × 4 bots)
+ *   Pass 2 — SaaS & Software gap opportunities (4 sector clusters × 3 products)
+ *   Pass 3 — Broken Product mining (App Store, Reddit, forums — 6 improvement targets)
+ *   Pass 4 — Precision Engineering products (expanded sectors — 6 products)
+ *   Pass 5 — Trend & Patent intelligence (emerging opportunities — 5 products)
+ *
+ * Every project lands in the DB with approvalStatus = "pending" — owner decides what to build.
  */
 
 import crypto from "crypto";
@@ -16,114 +19,173 @@ import { openai } from "@workspace/integrations-openai-ai-server";
 
 const TODAY = () => new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
-// ── System prompts ─────────────────────────────────────────────────────────────
+// ── Shared output format ───────────────────────────────────────────────────────
 
-const DISCOVERY_SYSTEM_PROMPT = () => `You are an autonomous R&D intelligence engine inside Sirius Star Lab. Today is ${TODAY()}.
-
-## COMPANY CONTEXT
-You are scanning opportunities for TWO business capabilities:
-
-### CAPABILITY A — Software / AI Products (6 opportunities)
-Focus: Autonomous social media and marketing bots and SaaS tools that businesses will pay for.
-Products must be:
-- Autonomous AI agents that run without human input
-- Genuinely sellable to companies (B2B SaaS model)
-- Covering social media management, content creation, campaign automation, lead generation, brand monitoring, analytics reporting, influencer tracking, or outreach automation
-- Capable of operating 24/7 with minimal supervision
-- Differentiated from existing tools (not just another Hootsuite clone)
-
-Target buyers: Marketing agencies, e-commerce brands, retail chains, hospitality groups, professional services firms, startups scaling their brand.
-
-### CAPABILITY B — Precision Engineering Products (4 opportunities)
-Company: Strategic Innovation Dundee Ltd — a precision engineering facility with:
-- Dugard CNC sliding head machines (38mm and 26mm bar capacity) — for turned parts, complex multi-feature components
-- Star CNC sliding head machine — high-speed precision turning
-- Two EDM wire cutting machines — for ultra-precise forms, complex profiles, hardened materials, bespoke cutting tools and gauges
-
-The engineering shop CAN produce: precision turned components, complex machined parts, bespoke cutting tools, gauges, fixtures, implantable-grade components, aerospace-spec parts.
-
-Scan for NEW PRODUCT OPPORTUNITIES in these engineering sectors ONLY:
-- Oil & Gas: subsea connectors, precision valve bodies, instrumentation parts, hydraulic fittings, downhole tools
-- Aerospace: landing gear components, fasteners, precision hydraulic parts, sensor housings, actuator components
-- Medical Devices: orthopaedic implants, surgical instruments, endoscopy components, catheter tips, drug delivery mechanisms, diagnostic tool housings
-- Hydrogen / Clean Energy: precision valve components, fuel cell hardware, electrolysis equipment parts, hydrogen sensor housings, high-pressure fittings
-
-Products must be manufacturable on the existing machines. Focus on HIGH-VALUE components where precision is critical and margins are strong.
-
+const PRODUCT_FORMAT = `
 ## OUTPUT FORMAT (strict — separate each product with ---PRODUCT---)
 
-PRODUCT_NAME: [Specific, marketable product name]
-CAPABILITY: [A — Software/Marketing Bot | B — Engineering Product]
-INDUSTRY: [Exact industry]
-PROBLEM: [Specific problem this product solves — 2 sentences]
-SOLUTION: [How this product solves it — 2 sentences]
-BRIEF: [400-word product brief: what the product is, who the customer is, their exact pain today, how this product solves it, key features, technical approach, what makes it better than alternatives, target market, revenue model]
-RESEARCH: [400-word research: market size, main competitors and their weaknesses, technologies involved, key technical challenges, regulatory considerations, recent market signals validating this opportunity, any UK/EU specific angles]
-BUSINESS_CASE: [300-word business case: why we should build this NOW — urgency, TAM/SAM, revenue potential year 1/3/5, investment required, time to first sale, strategic fit, key risks and mitigations, recommendation with confidence level]
-TARGET_MARKET: [Specific customer description]
-OPPORTUNITY_SCORE: [1-10]
+PRODUCT_NAME: [Specific, marketable product name — not generic]
+TYPE: [Bot/Automation | SaaS/Software | Product Improvement | Engineering Product | Trend Play]
+INDUSTRY: [Exact industry sector]
+PROBLEM: [Specific problem — 2 sentences with evidence of real people complaining about this]
+SOLUTION: [Precisely what gets built — not vague]
+BRIEF: [350+ word product brief: what it is, who buys it, their exact daily pain, how this solves it, key features, tech approach, why better than alternatives, revenue model]
+RESEARCH: [350+ word research: market size with source, top 3 competitors and their specific weaknesses, key tech/regulatory considerations, recent signals validating this, UK/Scotland angles if any]
+BUSINESS_CASE: [250+ word business case: revenue potential yr 1/3, investment needed, time to first £, key risks, recommendation with confidence level 1-10]
+OPPORTUNITY_SCORE: [6-10]
+---PRODUCT---`;
 
----PRODUCT---
-
-[next opportunity]
-
+const RULES = `
 ## RULES
-1. Scan real trade press, patent filings, startup news, industry reports, academic papers right now
-2. All 6 Capability A products must be genuinely autonomous AI/bot tools — not manual dashboards
-3. All 4 Capability B products must be manufacturable on sliding head lathes or EDM wire cutting — check this
-4. No science fiction — everything must be buildable within 18 months
-5. Minimum OPPORTUNITY_SCORE of 7
-6. Be specific — name real competitors, real market sizes, real technologies
-7. Each BRIEF, RESEARCH, and BUSINESS_CASE section must be minimum 280 words`;
+1. Search the web RIGHT NOW — all data must be current (within 12 months)
+2. Every product must have evidence someone is asking for it (real complaint, real trend, real gap)
+3. No science fiction — must be buildable within 18 months with current technology
+4. Minimum OPPORTUNITY_SCORE 7
+5. Be specific: name real competitors, real market sizes, real technologies, real customers
+6. Each BRIEF, RESEARCH, and BUSINESS_CASE must be minimum 250 words
+7. Never repeat an opportunity from a different angle — each must be genuinely distinct`;
 
-const UPGRADE_SYSTEM_PROMPT = () => `You are an autonomous R&D intelligence engine running inside Sirius Star Lab. Today is ${TODAY()}.
+// ── Pass 1: Bot & Automation — 4 sector clusters ──────────────────────────────
+
+const BOT_CLUSTERS = [
+  {
+    id: "bots-professional",
+    label: "Professional Services",
+    sectors: "Legal (law firms, conveyancing, contract review), Finance (accounting, bookkeeping, CFO services), Insurance (claims processing, underwriting), HR (recruitment agencies, onboarding, payroll, compliance)",
+    count: 4,
+  },
+  {
+    id: "bots-health-care",
+    label: "Healthcare & Public Sector",
+    sectors: "Healthcare (GP practices, dental, physio, mental health clinics, NHS admin), Social Care, Veterinary practices, Pharmacy, Local government (planning, permits, council services)",
+    count: 4,
+  },
+  {
+    id: "bots-commerce",
+    label: "Commerce & Hospitality",
+    sectors: "Retail (inventory, customer service, returns), eCommerce (Amazon/Shopify sellers, fulfilment), Hospitality (hotels, restaurants, takeaways), Food delivery, Events & ticketing, Tourism",
+    count: 4,
+  },
+  {
+    id: "bots-industrial",
+    label: "Industrial & Trades",
+    sectors: "Construction (site admin, compliance, procurement), Property management (landlords, letting agents, facilities), Agriculture (farm management, livestock tracking, crop monitoring), Logistics (haulage, last-mile, freight forwarding), Manufacturing (production scheduling, quality reporting)",
+    count: 4,
+  },
+];
+
+// ── Pass 2: SaaS & Software Gaps — 4 sector clusters ─────────────────────────
+
+const SAAS_CLUSTERS = [
+  {
+    id: "saas-creative",
+    label: "Creative & Media",
+    sectors: "Podcasters, YouTubers, newsletter writers, indie game developers, music producers, graphic designers, photographers, video editors, social media creators — tools they desperately need that don't exist or are badly broken",
+    count: 3,
+  },
+  {
+    id: "saas-education",
+    label: "Education & Training",
+    sectors: "Schools (admin, SEN reporting, parent communication), universities, tutoring platforms, corporate L&D, professional certification bodies, skills bootcamps — gaps in their tooling",
+    count: 3,
+  },
+  {
+    id: "saas-niche-smb",
+    label: "Niche SMB Tools",
+    sectors: "Funeral directors, tattoo studios, pet groomers, car detailers, mobile mechanics, personal trainers, massage therapists, childcare providers, cleaning companies — businesses using WhatsApp and spreadsheets because no decent software exists for them",
+    count: 3,
+  },
+  {
+    id: "saas-data-compliance",
+    label: "Data, Compliance & Regulation",
+    sectors: "GDPR/data compliance for SMEs, AI governance tools, ESG reporting, supply chain due diligence (UK Modern Slavery Act), employment law compliance, CQC compliance for care homes, FCA compliance for IFAs",
+    count: 3,
+  },
+];
+
+// ── Pass 3: Broken Product Mining ─────────────────────────────────────────────
+
+const BROKEN_PRODUCT_PROMPT = () => `You are a product intelligence analyst with access to the web. Today is ${TODAY()}.
 
 ## YOUR MISSION
-For the project provided, search the web right now for the latest developments (last 30 days) that are relevant to this project's design, technology, market, or competitive landscape.
+Search the internet RIGHT NOW for products that are clearly failing their users — then identify exactly what better version to build.
 
-## WHAT TO FIND
-1. New materials, components, or manufacturing processes applicable to this project
-2. Competitor product launches or updates that change the competitive picture
-3. New patents filed in this space
-4. Recent research papers with relevant findings
-5. Regulatory changes that affect this product category
-6. Market intelligence: new investment, partnerships, demand signals
-7. New AI/software capabilities that could enhance or transform this product
-8. Supply chain developments: new suppliers, price changes, availability
+Search these specific sources:
+- App Store reviews (1-2 star reviews) for: project management apps, CRM tools, accounting software, HR software, scheduling apps, field service management apps
+- Reddit threads: r/smallbusiness, r/freelance, r/entrepreneur, r/legaladvice, r/accounting, r/marketing — search "is there a better alternative to X", "I hate X app because", "frustrated with X"
+- G2, Capterra, Trustpilot — look for software with high complaint volume about specific features
+- Twitter/X — search for "X app is terrible", "X software keeps", "switched away from X"
+- UK-specific: look for US-centric tools that are poor for UK SMEs (US date formats, no VAT support, no Companies House integration, etc.)
 
-## OUTPUT FORMAT
-Return a JSON object with this structure:
-{
-  "upgrades": [
-    {
-      "category": "Technology | Competition | Regulation | Market | Research | Supply Chain",
-      "headline": "<10-word headline>",
-      "detail": "<150-word detailed finding with source references>",
-      "impact": "high | medium | low",
-      "actionRequired": "<specific action or update this insight should trigger>"
-    }
-  ],
-  "researchAppend": "<600-word research update — comprehensive, formatted with subheadings, suitable to append to the project Research tab. Begin with '## Research Update — [DATE]'. Cover all relevant findings.>"
-}
+For each broken product you find, design the better version.
 
-## RULES
-- Only include genuinely relevant, specific findings
-- Minimum 3 upgrades, maximum 8
-- Only include if there's something genuinely new in the last 30 days
-- researchAppend must be comprehensive and actionable`;
+${PRODUCT_FORMAT}
+${RULES}
 
-// ── Opportunity parser ────────────────────────────────────────────────────────
+Find 6 genuinely broken products with clear evidence of user frustration and identify the exact better product to build.`;
+
+// ── Pass 4: Precision Engineering — Expanded Sectors ─────────────────────────
+
+const ENGINEERING_PROMPT = () => `You are a precision engineering product intelligence analyst. Today is ${TODAY()}.
+
+## MANUFACTURING CAPABILITY
+Strategic Innovation Dundee Ltd has:
+- Dugard CNC sliding head lathes (38mm bar capacity) — complex multi-feature turned parts, ±0.005mm tolerance
+- Dugard CNC sliding head lathes (26mm bar capacity) — high-volume precision turning
+- Star CNC sliding head lathe — high-speed precision turning
+- Two EDM wire cutting machines — ultra-precise profiles, hardened steels, complex forms, bespoke tooling & gauges
+
+CAN MAKE: precision turned components, complex machined parts, bespoke cutting tools, gauges, fixtures, implant-grade parts, aerospace-spec components, sensor housings, hydraulic fittings, custom tooling.
+
+## SECTORS TO SCAN
+Search for high-value precision component opportunities across ALL of these sectors:
+- **Oil & Gas**: subsea connectors, valve bodies, downhole tools, wellhead components, hydraulic manifolds
+- **Aerospace**: landing gear parts, fastener systems, hydraulic actuator components, sensor housings, fuel system parts
+- **Medical Devices**: orthopaedic implants, surgical instruments, endoscopy components, catheter components, drug delivery mechanisms, dental implant components
+- **Hydrogen/Clean Energy**: fuel cell hardware, high-pressure hydrogen fittings, electrolysis components, valve seats, sensor housings
+- **Automotive/Motorsport**: precision powertrain components, EV battery connectors, motorsport-spec parts, fuel injection components
+- **Defence**: precision actuator components, optical instrument housings, weapon system components, UAV precision parts
+- **Nuclear**: instrumentation fittings, high-integrity valve components, containment seals (where EDM/turning applicable)
+- **Marine/Offshore**: subsea instrumentation fittings, precision pump components, ROV components, mooring system parts
+- **Semiconductor/Electronics**: precision jigs and fixtures, test probe housings, inspection gauges, vacuum system components
+- **Scientific Instruments**: precision optical mounts, metrology gauge components, laboratory instrument parts
+
+${PRODUCT_FORMAT}
+${RULES}
+
+Find 6 high-value precision component products manufacturable on the described machines. Each must state WHICH machine makes it and why it's a strong commercial opportunity right now.`;
+
+// ── Pass 5: Trend & Patent Intelligence ──────────────────────────────────────
+
+const TREND_PROMPT = () => `You are an emerging opportunity analyst with full web access. Today is ${TODAY()}.
+
+## YOUR MISSION
+Search the web RIGHT NOW for:
+1. New UK/EU regulations coming into force in the next 12 months that will create compliance burdens and therefore software/service opportunities
+2. Patent filings in the last 6 months in areas where the underlying technology is now mature enough to build a product
+3. ProductHunt launches in the last 30 days that are getting traction — what's the gap their success reveals?
+4. Recent Y Combinator / Seedcamp / Techstars batches — what sectors are they investing in and what's the gap adjacent to those bets?
+5. News about industries being disrupted by AI where incumbents haven't adapted — businesses that still operate the old way
+6. New government initiatives (UK specifically): UKRI funding calls, DESNZ hydrogen projects, NHS digitisation, defence procurement
+7. Job boards (Indeed, LinkedIn) — search for "we need someone to manually do X" — these are automation opportunities
+8. Social media trends creating new commercial needs (new platforms, new content formats, new creator economy segments)
+
+${PRODUCT_FORMAT}
+${RULES}
+
+Find 5 specific trend-driven or regulation-driven product opportunities with concrete timing reasons why NOW is the moment to build.`;
+
+// ── Shared: product parser ─────────────────────────────────────────────────────
 
 type ProductOpportunity = {
   name: string;
-  capability: string;
+  type: string;
   industry: string;
   problem: string;
   solution: string;
   brief: string;
   research: string;
   businessCase: string;
-  targetMarket: string;
   score: number;
 };
 
@@ -137,14 +199,13 @@ function parseOpportunities(raw: string): ProductOpportunity[] {
     const score = parseInt(get("OPPORTUNITY_SCORE")) || 7;
     return {
       name: get("PRODUCT_NAME"),
-      capability: get("CAPABILITY"),
+      type: get("TYPE") || "Software/SaaS",
       industry: get("INDUSTRY"),
       problem: get("PROBLEM"),
       solution: get("SOLUTION"),
       brief: get("BRIEF"),
       research: get("RESEARCH"),
       businessCase: get("BUSINESS_CASE"),
-      targetMarket: get("TARGET_MARKET"),
       score,
     };
   }).filter(o => o.name && o.brief && o.score >= 6);
@@ -160,22 +221,43 @@ function namesSimilar(a: string, b: string): boolean {
   return common.length >= 2;
 }
 
-// ── Funding analysis trigger ──────────────────────────────────────────────────
+// ── GPT-4o with web search ────────────────────────────────────────────────────
+
+async function runScanWithWebSearch(systemPrompt: string, userPrompt: string, maxTokens = 8000): Promise<string> {
+  // Use the Responses API with web_search_preview for live internet access
+  const response = await (openai as any).responses.create({
+    model: "gpt-4o",
+    tools: [{ type: "web_search_preview" }],
+    instructions: systemPrompt,
+    input: [{ role: "user", content: userPrompt }],
+    max_output_tokens: maxTokens,
+  });
+
+  // Extract text from response
+  let text = "";
+  for (const item of response.output || []) {
+    if (item.type === "message" && Array.isArray(item.content)) {
+      for (const c of item.content) {
+        if (c.type === "output_text") text += c.text;
+      }
+    }
+  }
+  return text;
+}
+
+// ── Funding analysis ──────────────────────────────────────────────────────────
 
 async function triggerFundingForProject(projectId: number) {
   try {
     const [project] = await db.select().from(labProjects).where(eq(labProjects.id, projectId));
     if (!project) return;
 
-    const prompt = `Analyse this R&D project for UK and international funding opportunities. Focus on the top 5 most relevant schemes.
+    const prompt = `Analyse this project for UK and international funding opportunities. Return the top 5 most relevant schemes.
 
-PROJECT: ${JSON.stringify({
-      id: project.id, name: project.name, industry: project.industry,
-      brief: (project.brief || "").slice(0, 800),
-      research: (project.research || "").slice(0, 400),
-    })}
+PROJECT: ${project.name} | INDUSTRY: ${project.industry}
+BRIEF: ${(project.brief || "").slice(0, 600)}
 
-Return JSON: { "opportunities": [{ "projectId": ${project.id}, "projectName": "${project.name}", "matches": [{ "scheme": "...", "type": "tax_credit|grant|equity|loan", "geography": "UK|EU|USA|Canada|Australia|...", "amount": "...", "matchStrength": "strong|good|possible", "matchReason": "...", "keyEvidence": "...", "nextStep": "...", "url": "..." }] }], "summary": "..." }`;
+Return JSON: { "opportunities": [{ "projectId": ${project.id}, "projectName": "${project.name}", "matches": [{ "scheme": "...", "type": "tax_credit|grant|equity|loan", "geography": "UK|EU|USA|...", "amount": "...", "matchStrength": "strong|good|possible", "matchReason": "...", "keyEvidence": "...", "nextStep": "...", "url": "..." }] }], "summary": "..." }`;
 
     const resp = await openai.chat.completions.create({
       model: "gpt-4o",
@@ -189,7 +271,7 @@ Return JSON: { "opportunities": [{ "projectId": ${project.id}, "projectName": "$
 
     const content = resp.choices[0]?.message?.content;
     if (!content) throw new Error("No content");
-    JSON.parse(content); // validate
+    JSON.parse(content);
 
     await db.update(labProjects).set({
       fundingAnalysis: content,
@@ -203,38 +285,14 @@ Return JSON: { "opportunities": [{ "projectId": ${project.id}, "projectName": "$
   }
 }
 
-// ── Phase 1: Discover new product opportunities ───────────────────────────────
+// ── Save opportunities to DB ──────────────────────────────────────────────────
 
-async function discoverOpportunities(scanId: string): Promise<{ created: number; items: any[] }> {
-  console.log("[Lab Auto-Scan] Phase 1: Scanning for new product opportunities (software bots + engineering)...");
-
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o",
-    messages: [
-      { role: "system", content: DISCOVERY_SYSTEM_PROMPT() },
-      {
-        role: "user",
-        content: `Run a full product opportunity scan right now. Today is ${TODAY()}.
-
-Search for:
-- 6 autonomous social media / marketing bot / AI SaaS product opportunities (B2B, companies will pay for these)
-- 4 precision engineering product opportunities manufacturable on CNC sliding head lathes (38mm, 26mm bar capacity) and EDM wire cutting machines in oil & gas, aerospace, medical, and hydrogen sectors
-
-For each opportunity produce a full BRIEF, RESEARCH, and BUSINESS_CASE as specified. Separate each with ---PRODUCT--- exactly. Return all 10 opportunities.`,
-      },
-    ],
-    max_tokens: 16000,
-    temperature: 0.35,
-  });
-
-  const raw = response.choices[0]?.message?.content || "";
-  const opportunities = parseOpportunities(raw);
-
-  console.log(`[Lab Auto-Scan] Found ${opportunities.length} opportunities. Creating projects...`);
-
-  const existing = await db.select({ id: labProjects.id, name: labProjects.name })
-    .from(labProjects).orderBy(desc(labProjects.createdAt));
-
+async function saveOpportunities(
+  opportunities: ProductOpportunity[],
+  existing: { id: number; name: string }[],
+  scanId: string,
+  passLabel: string,
+): Promise<{ created: number; items: any[] }> {
   const items: any[] = [];
   let created = 0;
 
@@ -243,13 +301,11 @@ For each opportunity produce a full BRIEF, RESEARCH, and BUSINESS_CASE as specif
 
     const isDuplicate = existing.some(p => namesSimilar(p.name, opp.name));
     if (isDuplicate) {
-      console.log(`[Lab Auto-Scan] Skipping duplicate: "${opp.name}"`);
+      console.log(`[Lab Auto-Scan] [${passLabel}] Skip duplicate: "${opp.name}"`);
       continue;
     }
 
     try {
-      const capabilityLabel = opp.capability.startsWith("A") ? "Social/Marketing Bot" : "Engineering Product";
-
       const [project] = await db.insert(labProjects).values({
         name: opp.name,
         industry: opp.industry || "General",
@@ -269,42 +325,191 @@ For each opportunity produce a full BRIEF, RESEARCH, and BUSINESS_CASE as specif
         type: "new",
         projectId: project.id,
         projectName: project.name,
-        capability: capabilityLabel,
-        action: `New ${capabilityLabel} — ${opp.industry} — awaiting your approval`,
+        capability: opp.type,
+        action: `[${passLabel}] New ${opp.type} — ${opp.industry} — awaiting approval`,
       });
       created++;
 
-      triggerFundingForProject(project.id).catch(err =>
-        console.error(`[Lab Auto-Scan] Funding failed for ${project.id}:`, err)
-      );
+      console.log(`[Lab Auto-Scan] [${passLabel}] Created: "${project.name}" [${opp.industry}] → PENDING`);
 
-      console.log(`[Lab Auto-Scan] Created project: "${project.name}" [${capabilityLabel}] → PENDING APPROVAL`);
+      triggerFundingForProject(project.id).catch(() => {});
     } catch (err) {
-      console.error(`[Lab Auto-Scan] Failed to create project "${opp.name}":`, err);
+      console.error(`[Lab Auto-Scan] [${passLabel}] Failed to create "${opp.name}":`, err);
     }
   }
 
   return { created, items };
 }
 
+// ── Pass 1: Bot & Automation scans ───────────────────────────────────────────
+
+async function runBotScans(scanId: string, existing: { id: number; name: string }[]): Promise<{ created: number; items: any[] }> {
+  let totalCreated = 0;
+  const allItems: any[] = [];
+
+  for (const cluster of BOT_CLUSTERS) {
+    console.log(`[Lab Auto-Scan] [Pass 1 — Bots] Scanning: ${cluster.label}...`);
+    try {
+      const systemPrompt = `You are an automation opportunity analyst with live web access. Today is ${TODAY()}.
+
+Your job is to find specific bot and automation opportunities in this sector cluster: ${cluster.label}
+
+Sectors in scope: ${cluster.sectors}
+
+For each opportunity: it must be a GENUINELY AUTONOMOUS bot or AI agent — not a dashboard or manual tool. It must run without human input, perform a task currently done by humans, and businesses will pay monthly for it.
+
+Before suggesting any opportunity, search the web for: evidence this task is done manually today, complaints about the manual process, attempts by others that failed or that have poor reviews, and the specific technology that makes automation possible now.
+
+${PRODUCT_FORMAT}
+${RULES}
+
+Find ${cluster.count} genuine bot/automation opportunities across these sectors. Search the web for evidence of each one.`;
+
+      const raw = await runScanWithWebSearch(systemPrompt, `Search for ${cluster.count} automation bot opportunities in: ${cluster.sectors}. Today is ${TODAY()}. Find real evidence of manual processes ripe for automation.`);
+      const opps = parseOpportunities(raw);
+      const result = await saveOpportunities(opps, existing, scanId, `Bots-${cluster.label}`);
+      totalCreated += result.created;
+      allItems.push(...result.items);
+    } catch (err) {
+      console.error(`[Lab Auto-Scan] [Pass 1] Failed cluster ${cluster.label}:`, err);
+    }
+  }
+
+  return { created: totalCreated, items: allItems };
+}
+
+// ── Pass 2: SaaS & Software scans ────────────────────────────────────────────
+
+async function runSaaSScans(scanId: string, existing: { id: number; name: string }[]): Promise<{ created: number; items: any[] }> {
+  let totalCreated = 0;
+  const allItems: any[] = [];
+
+  for (const cluster of SAAS_CLUSTERS) {
+    console.log(`[Lab Auto-Scan] [Pass 2 — SaaS] Scanning: ${cluster.label}...`);
+    try {
+      const systemPrompt = `You are a SaaS product opportunity analyst with live web access. Today is ${TODAY()}.
+
+Focus sector: ${cluster.label}
+Sectors: ${cluster.sectors}
+
+Search for software GAPS — products people need that don't exist, or where existing tools are badly inadequate. Prioritise:
+- Verticals where the dominant tool is 10+ years old
+- Sectors where the typical solution is still spreadsheets + email
+- Niches too small for enterprise software but still commercially viable at SME pricing (£29-£199/month)
+- UK-specific gaps where US tools don't work well (VAT, Companies House, HMRC integration, UK date/currency formats)
+
+Search Reddit, G2, Capterra, Twitter, industry forums for evidence of the gap before suggesting it.
+
+${PRODUCT_FORMAT}
+${RULES}
+
+Find ${cluster.count} SaaS product opportunities. Each must have real evidence of the gap from web research.`;
+
+      const raw = await runScanWithWebSearch(systemPrompt, `Search for ${cluster.count} SaaS software gap opportunities in: ${cluster.sectors}. Today is ${TODAY()}. Find evidence these gaps are real from forums, reviews, and complaints.`);
+      const opps = parseOpportunities(raw);
+      const result = await saveOpportunities(opps, existing, scanId, `SaaS-${cluster.label}`);
+      totalCreated += result.created;
+      allItems.push(...result.items);
+    } catch (err) {
+      console.error(`[Lab Auto-Scan] [Pass 2] Failed cluster ${cluster.label}:`, err);
+    }
+  }
+
+  return { created: totalCreated, items: allItems };
+}
+
+// ── Pass 3: Broken Product Mining ────────────────────────────────────────────
+
+async function runBrokenProductScan(scanId: string, existing: { id: number; name: string }[]): Promise<{ created: number; items: any[] }> {
+  console.log("[Lab Auto-Scan] [Pass 3 — Broken Products] Mining App Store, Reddit, forums...");
+  try {
+    const raw = await runScanWithWebSearch(
+      `You are a product intelligence analyst mining user complaints to find broken products ripe for replacement. Today is ${TODAY()}. ${RULES}`,
+      BROKEN_PRODUCT_PROMPT(),
+      6000,
+    );
+    const opps = parseOpportunities(raw);
+    return saveOpportunities(opps, existing, scanId, "Broken Products");
+  } catch (err) {
+    console.error("[Lab Auto-Scan] [Pass 3] Failed:", err);
+    return { created: 0, items: [] };
+  }
+}
+
+// ── Pass 4: Precision Engineering ────────────────────────────────────────────
+
+async function runEngineeringScan(scanId: string, existing: { id: number; name: string }[]): Promise<{ created: number; items: any[] }> {
+  console.log("[Lab Auto-Scan] [Pass 4 — Engineering] Scanning expanded precision component sectors...");
+  try {
+    const raw = await runScanWithWebSearch(
+      `You are a precision engineering product analyst. Today is ${TODAY()}. ${RULES}`,
+      ENGINEERING_PROMPT(),
+      6000,
+    );
+    const opps = parseOpportunities(raw);
+    return saveOpportunities(opps, existing, scanId, "Engineering");
+  } catch (err) {
+    console.error("[Lab Auto-Scan] [Pass 4] Failed:", err);
+    return { created: 0, items: [] };
+  }
+}
+
+// ── Pass 5: Trend & Patent Intelligence ──────────────────────────────────────
+
+async function runTrendScan(scanId: string, existing: { id: number; name: string }[]): Promise<{ created: number; items: any[] }> {
+  console.log("[Lab Auto-Scan] [Pass 5 — Trends] Scanning regulations, patents, ProductHunt, YC, social trends...");
+  try {
+    const raw = await runScanWithWebSearch(
+      `You are a trend and patent intelligence analyst. Today is ${TODAY()}. ${RULES}`,
+      TREND_PROMPT(),
+      5000,
+    );
+    const opps = parseOpportunities(raw);
+    return saveOpportunities(opps, existing, scanId, "Trends");
+  } catch (err) {
+    console.error("[Lab Auto-Scan] [Pass 5] Failed:", err);
+    return { created: 0, items: [] };
+  }
+}
+
 // ── Phase 2: Upgrade existing projects ────────────────────────────────────────
 
+const UPGRADE_SYSTEM_PROMPT = () => `You are an autonomous R&D intelligence engine. Today is ${TODAY()}.
+
+For the project provided, search the web for the latest developments (last 30 days) relevant to this project.
+
+Find:
+1. New materials, components, or processes applicable to this project
+2. Competitor product launches or updates
+3. New patents filed in this space
+4. Recent research papers with relevant findings
+5. Regulatory changes affecting this product category
+6. Market intelligence: new investment, demand signals
+7. New AI/software capabilities that could enhance this product
+8. Supply chain developments: new suppliers, price changes
+
+Return JSON:
+{
+  "upgrades": [{ "category": "Technology|Competition|Regulation|Market|Research|Supply Chain", "headline": "...", "detail": "...", "impact": "high|medium|low", "actionRequired": "..." }],
+  "researchAppend": "## Research Update — [DATE]\\n\\n[600+ word comprehensive update with subheadings]"
+}
+
+Rules: minimum 3 upgrades, only include genuinely new findings from last 30 days, researchAppend must be actionable.`;
+
 async function upgradeExistingProjects(scanId: string): Promise<{ upgraded: number; items: any[] }> {
-  console.log("[Lab Auto-Scan] Phase 2: Scanning for project upgrades...");
+  console.log("[Lab Auto-Scan] [Phase 2 — Upgrades] Updating existing projects with latest intelligence...");
 
   const projects = await db.select().from(labProjects)
     .where(eq(labProjects.status, "active"))
     .orderBy(desc(labProjects.updatedAt))
-    .limit(10);
+    .limit(8);
 
-  const eligibleProjects = projects.filter(p =>
-    (p.brief || "").length > 80 && p.approvalStatus !== "rejected"
-  );
+  const eligible = projects.filter(p => (p.brief || "").length > 80 && p.approvalStatus !== "rejected");
 
   let upgraded = 0;
   const items: any[] = [];
 
-  for (const project of eligibleProjects) {
+  for (const project of eligible) {
     try {
       const response = await openai.chat.completions.create({
         model: "gpt-4o",
@@ -312,14 +517,12 @@ async function upgradeExistingProjects(scanId: string): Promise<{ upgraded: numb
           { role: "system", content: UPGRADE_SYSTEM_PROMPT() },
           {
             role: "user",
-            content: `Search the web for the latest developments relevant to this project and generate an upgrade report.
+            content: `Search the web for latest developments relevant to this project and return the upgrade JSON.
 
-PROJECT NAME: ${project.name}
+PROJECT: ${project.name}
 INDUSTRY: ${project.industry}
-BRIEF: ${(project.brief || "").slice(0, 600)}
-EXISTING RESEARCH (to avoid duplicating): ${(project.research || "").slice(0, 400)}
-
-Return the JSON response as specified. Be specific, current, and actionable.`,
+BRIEF: ${(project.brief || "").slice(0, 500)}
+EXISTING RESEARCH (avoid duplicating): ${(project.research || "").slice(0, 300)}`,
           },
         ],
         response_format: { type: "json_object" },
@@ -334,25 +537,16 @@ Return the JSON response as specified. Be specific, current, and actionable.`,
       const append = data.researchAppend || "";
 
       if (append && append.length > 100) {
-        const currentResearch = project.research || "";
-        const newResearch = currentResearch
-          ? `${currentResearch}\n\n---\n\n${append}`
+        const newResearch = project.research
+          ? `${project.research}\n\n---\n\n${append}`
           : append;
 
-        await db.update(labProjects).set({
-          research: newResearch,
-          updatedAt: new Date(),
-        }).where(eq(labProjects.id, project.id));
+        await db.update(labProjects).set({ research: newResearch, updatedAt: new Date() }).where(eq(labProjects.id, project.id));
 
         const upgradeCount = (data.upgrades || []).length;
-        items.push({
-          type: "upgrade",
-          projectId: project.id,
-          projectName: project.name,
-          action: `${upgradeCount} new intelligence signals — research updated`,
-        });
+        items.push({ type: "upgrade", projectId: project.id, projectName: project.name, action: `${upgradeCount} new intelligence signals appended` });
         upgraded++;
-        console.log(`[Lab Auto-Scan] Upgraded project: "${project.name}" (${upgradeCount} signals)`);
+        console.log(`[Lab Auto-Scan] Upgraded: "${project.name}" (${upgradeCount} signals)`);
       }
     } catch (err) {
       console.error(`[Lab Auto-Scan] Upgrade failed for "${project.name}":`, err);
@@ -370,41 +564,67 @@ export async function runLabAutoScan(): Promise<{
   upgradesApplied: number;
 }> {
   const scanId = crypto.randomUUID().slice(0, 8);
-  console.log(`\n[Lab Auto-Scan] ════ Starting autonomous scan ${scanId} ════`);
+  console.log(`\n[Lab Auto-Scan] ════ Starting full multi-sector scan ${scanId} ════`);
+  console.log(`[Lab Auto-Scan] Passes: Bot×4 clusters + SaaS×4 clusters + Broken Products + Engineering + Trends + Upgrades`);
 
   const [logEntry] = await db.insert(labScanHistory).values({
     scanId,
     status: "running",
-    summary: "Scan in progress...",
+    summary: "Multi-sector scan in progress...",
   }).returning();
 
+  // Load all existing projects once — shared across all passes for dupe detection
+  const existing = await db.select({ id: labProjects.id, name: labProjects.name }).from(labProjects);
+
   let projectsCreated = 0;
-  let upgradesApplied = 0;
   const allItems: any[] = [];
 
   try {
-    const discovery = await discoverOpportunities(scanId);
-    projectsCreated = discovery.created;
-    allItems.push(...discovery.items);
+    // Run all 5 discovery passes sequentially (to avoid rate limits)
+    console.log(`\n[Lab Auto-Scan] ── Pass 1: Bot & Automation (4 sector clusters) ──`);
+    const bots = await runBotScans(scanId, existing);
+    projectsCreated += bots.created;
+    allItems.push(...bots.items);
 
+    console.log(`\n[Lab Auto-Scan] ── Pass 2: SaaS & Software Gaps (4 sector clusters) ──`);
+    const saas = await runSaaSScans(scanId, existing);
+    projectsCreated += saas.created;
+    allItems.push(...saas.items);
+
+    console.log(`\n[Lab Auto-Scan] ── Pass 3: Broken Product Mining ──`);
+    const broken = await runBrokenProductScan(scanId, existing);
+    projectsCreated += broken.created;
+    allItems.push(...broken.items);
+
+    console.log(`\n[Lab Auto-Scan] ── Pass 4: Precision Engineering (expanded sectors) ──`);
+    const engineering = await runEngineeringScan(scanId, existing);
+    projectsCreated += engineering.created;
+    allItems.push(...engineering.items);
+
+    console.log(`\n[Lab Auto-Scan] ── Pass 5: Trend & Patent Intelligence ──`);
+    const trends = await runTrendScan(scanId, existing);
+    projectsCreated += trends.created;
+    allItems.push(...trends.items);
+
+    // Run upgrades on existing projects
+    console.log(`\n[Lab Auto-Scan] ── Phase 2: Upgrading existing projects ──`);
     const upgrades = await upgradeExistingProjects(scanId);
-    upgradesApplied = upgrades.upgraded;
     allItems.push(...upgrades.items);
 
-    const summary = `Scan complete — ${projectsCreated} new project${projectsCreated !== 1 ? "s" : ""} created (awaiting approval), ${upgradesApplied} existing project${upgradesApplied !== 1 ? "s" : ""} upgraded with latest intelligence.`;
+    const summary = `Multi-sector scan complete — ${projectsCreated} new projects created (pending approval), ${upgrades.upgraded} existing projects upgraded. Sectors covered: bots (legal, health, commerce, trades), SaaS (creative, education, niche SMB, compliance), broken products, precision engineering (10 sectors), trends & patents.`;
 
     await db.update(labScanHistory).set({
       status: "complete",
-      opportunitiesFound: projectsCreated + upgradesApplied,
+      opportunitiesFound: projectsCreated + upgrades.upgraded,
       projectsCreated,
-      upgradesApplied,
+      upgradesApplied: upgrades.upgraded,
       summary,
       items: JSON.stringify(allItems),
       completedAt: new Date(),
     }).where(eq(labScanHistory.id, logEntry.id));
 
-    console.log(`[Lab Auto-Scan] ════ Scan ${scanId} complete — ${projectsCreated} created (pending approval), ${upgradesApplied} upgraded ════\n`);
-    return { scanId, projectsCreated, upgradesApplied };
+    console.log(`\n[Lab Auto-Scan] ════ Scan ${scanId} complete — ${projectsCreated} new projects (pending approval), ${upgrades.upgraded} upgraded ════\n`);
+    return { scanId, projectsCreated, upgradesApplied: upgrades.upgraded };
 
   } catch (err: any) {
     console.error(`[Lab Auto-Scan] Fatal error in scan ${scanId}:`, err);

@@ -2930,12 +2930,18 @@ function AutoLabPanel({ pin, onSelectProject }: {
   };
 
   const capLabel = (p: Project) => {
-    const nm = (p.name + p.industry).toLowerCase();
-    const isSoftware = ["marketing", "social", "bot", "saas", "campaign", "content", "brand", "influencer", "outreach", "analytics", "platform", "tool", "software", "app", "automation"].some(k => nm.includes(k));
-    const isEngineering = ["aerospace", "medical", "oil", "gas", "hydrogen", "precision", "machined", "valve", "implant", "turbine", "hydraulic", "sensor"].some(k => nm.includes(k));
+    const nm = (p.name + " " + p.industry).toLowerCase();
+    const isEngineering = ["aerospace", "medical", "oil", "gas", "hydrogen", "precision", "machined", "valve", "implant", "turbine", "hydraulic", "sensor", "marine", "nuclear", "defence", "defense", "semiconductor", "automotive", "motorsport", "subsea", "offshore", "downhole"].some(k => nm.includes(k));
+    const isBot = ["bot", "automation", "automat", "autonomous", "agent"].some(k => nm.includes(k));
+    const isSaaS = ["platform", "saas", "software", "tool", "app", "dashboard", "management"].some(k => nm.includes(k));
+    const isLegal = ["legal", "law", "contract", "compliance", "gdpr", "fca", "cqc", "regulatory"].some(k => nm.includes(k));
+    const isHealth = ["health", "care", "medical software", "nhs", "dental", "clinic", "vet", "pharma"].some(k => nm.includes(k));
     if (isEngineering) return { label: "Engineering", color: "hsl(45,100%,55%)" };
-    if (isSoftware) return { label: "Marketing Bot", color: "hsl(280,70%,65%)" };
-    return { label: "Auto", color: "hsl(193,100%,55%)" };
+    if (isLegal) return { label: "Legal/Compliance", color: "hsl(0,70%,65%)" };
+    if (isHealth) return { label: "Healthcare", color: "hsl(155,70%,55%)" };
+    if (isBot) return { label: "Bot/Automation", color: "hsl(280,70%,65%)" };
+    if (isSaaS) return { label: "SaaS", color: "hsl(193,100%,55%)" };
+    return { label: p.industry || "Software", color: "hsl(220,60%,65%)" };
   };
 
   return (
@@ -2950,8 +2956,8 @@ function AutoLabPanel({ pin, onSelectProject }: {
               <h2 className="text-white font-bold text-lg">Autonomous Lab</h2>
               {running && <span className="text-xs px-2 py-0.5 rounded-full animate-pulse" style={{ background: "hsla(155,70%,45%,0.12)", color: "hsl(155,70%,55%)" }}>Scanning now…</span>}
             </div>
-            <p className="text-xs leading-relaxed" style={{ color: "rgba(255,255,255,0.35)", maxWidth: "520px" }}>
-              Scans every 24 hours for social media/marketing bots and precision engineering products (oil & gas, aerospace, medical, hydrogen). Auto-creates projects — you approve or reject each one.
+            <p className="text-xs leading-relaxed" style={{ color: "rgba(255,255,255,0.35)", maxWidth: "580px" }}>
+              Runs 5 intelligence passes across every sector on Earth — automation bots (legal, healthcare, commerce, trades), SaaS gaps (creative, education, niche SMB, compliance), broken product mining (App Store, Reddit, forums), precision engineering (10 sectors), and trend/patent intelligence. Each scan creates new projects for your approval.
             </p>
           </div>
           <button onClick={triggerScan} disabled={running || triggering}
@@ -2978,6 +2984,28 @@ function AutoLabPanel({ pin, onSelectProject }: {
       </div>
 
       <div className="flex-1 p-6 space-y-8">
+
+        {/* ── SCAN INTELLIGENCE PASSES ─────────────────────────────── */}
+        <div>
+          <p className="text-xs font-semibold mb-3 uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.25)" }}>What Each Scan Covers</p>
+          <div className="grid grid-cols-1 gap-2">
+            {[
+              { pass: "1", label: "Bot & Automation", color: "hsl(280,70%,60%)", sectors: "Legal, HR, Finance, Insurance · Healthcare, NHS, Pharmacy, Vets · Retail, eCommerce, Hospitality, Food · Construction, Agriculture, Logistics, Manufacturing" },
+              { pass: "2", label: "SaaS & Software Gaps", color: "hsl(193,100%,50%)", sectors: "Creative & Media tools · Education, corporate L&D · Niche SMBs (funeral directors, pet groomers, tradespeople) · GDPR, ESG, FCA, CQC compliance" },
+              { pass: "3", label: "Broken Product Mining", color: "hsl(25,100%,55%)", sectors: "App Store 1-2 star reviews · Reddit complaints (r/smallbusiness, r/entrepreneur) · G2 / Capterra / Trustpilot · UK-specific gaps in US-centric software" },
+              { pass: "4", label: "Precision Engineering", color: "hsl(45,100%,55%)", sectors: "Oil & Gas, Aerospace, Medical, Hydrogen · Automotive, Motorsport, Defence, Marine · Nuclear, Semiconductor, Scientific instruments" },
+              { pass: "5", label: "Trend & Patent Intelligence", color: "hsl(155,70%,55%)", sectors: "UK/EU regulations coming into force · New patent filings · ProductHunt & YC trends · Job board automation signals · Social media emerging needs" },
+            ].map(p => (
+              <div key={p.pass} className="flex items-start gap-3 rounded-xl px-3.5 py-2.5" style={{ background: "hsl(226,45%,8%)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                <div className="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5 text-xs font-bold" style={{ background: p.color + "22", color: p.color }}>{p.pass}</div>
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold mb-0.5" style={{ color: p.color }}>{p.label}</p>
+                  <p className="text-xs leading-relaxed" style={{ color: "rgba(255,255,255,0.3)" }}>{p.sectors}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
 
         {/* ── APPROVAL QUEUE ─────────────────────────────────────── */}
         {pendingProjects.length > 0 && (
