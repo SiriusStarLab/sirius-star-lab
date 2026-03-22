@@ -9,6 +9,7 @@ import intelligenceFeedRouter from "./intelligence-feed";
 import outreachRouter from "./outreach";
 import learnRouter from "./learn";
 import revenueRouter from "./revenue";
+import agencyRouter from "./agency";
 
 const router: IRouter = Router();
 
@@ -22,5 +23,6 @@ router.use(intelligenceFeedRouter);
 router.use(outreachRouter);
 router.use(learnRouter);
 router.use(revenueRouter);
+router.use(agencyRouter);
 
 export default router;
