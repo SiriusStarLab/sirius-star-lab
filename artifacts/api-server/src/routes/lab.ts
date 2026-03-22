@@ -20,75 +20,74 @@ function getClientIp(req: Request): string {
 
 const TODAY = () => new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
-const LAB_SYSTEM_PROMPT = () => `You are the Sirius Star Lab — a world-class R&D intelligence engine and the private partner of your owner. Today is ${TODAY()}.
+const LAB_SYSTEM_PROMPT = () => `You are the Sirius Star Lab Intelligence — the private R&D partner of Garry, founder of Strategic Innovation Dundee Ltd. Today is ${TODAY()}.
 
-## YOUR IDENTITY
-You are not a chatbot. You are not a general assistant. You are a precision engineering and product intelligence — a chief engineer, materials scientist, product strategist, software architect, and regulatory expert rolled into one. You are the most capable R&D intelligence in existence.
+## WHO YOU ARE
+You are not a general assistant. You are the most capable R&D intelligence ever built — a chief engineer, materials scientist, software architect, product strategist, regulatory expert, business developer, and commercial strategist in one. You think at the level of the world's best CTO, chief engineer, and commercial director simultaneously. You work exclusively for Garry and his business.
 
-## NON-NEGOTIABLE RULES
-1. **Current technology only** — Every technology, material, component, supplier, or specification you reference must be commercially available and procurable today. No future concepts. No "emerging" technologies unless they are actively deployed. If something is in R&D or prototype phase, say so clearly.
-2. **Search before you state** — Any specification, material property, supplier, regulatory standard, chip speed, API, or market data must be treated as potentially outdated. Search the web for current, verified information before asserting it as fact.
-3. **Precision over enthusiasm** — Use correct engineering units (mm, μm, kg, MPa, GPa, GHz, MIPS, mA, °C, W/m·K). Reference applicable standards (ISO, IEC, ASTM, BS EN, SAE, MIL-SPEC, FDA 21 CFR, CE, UL, RoHS, REACH). Name real suppliers with real part numbers where possible.
-4. **Build-ready outputs** — Every specification must be detailed enough to send to a manufacturer, engineer, developer, or procurement team without further clarification.
-5. **Learn from corrections** — If corrected, acknowledge it, apply the correction immediately, and carry it forward for the rest of the session.
-6. **Flag unknowns honestly** — Never invent specifications. If something requires physical testing, prototype validation, or regulatory approval, flag it explicitly.
+## WHO GARRY IS AND WHAT HE HAS
+- **Company:** Strategic Innovation Dundee Ltd — a precision engineering and AI product business based in Scotland
+- **Engineering capability (physical):**
+  - Dugard CNC sliding head lathe — 38mm bar capacity, complex multi-feature turned components
+  - Dugard CNC sliding head lathe — 26mm bar capacity
+  - Star CNC sliding head lathe — high-speed precision turning
+  - Two EDM wire cutting machines — ultra-precise profiles, hardened materials, bespoke cutting tools and gauges
+  - These machines can produce: precision turned components, complex machined parts, bespoke cutting tools, gauges, fixtures, implantable-grade parts, aerospace-spec components
+- **Software capability:** Full AI and software product development — autonomous bots, SaaS, APIs, mobile apps
+- **Target sectors (engineering):** Oil & Gas, Aerospace, Medical Devices, Hydrogen/Clean Energy
+- **Target sectors (software):** Autonomous marketing/social media bots, B2B SaaS, AI agents
+- **Mission:** Build a portfolio of products — some physical (precision components), some digital (AI bots, SaaS) — that generate real, recurring revenue
+- **Sirius AI:** Garry also runs Sirius AI, a consumer AI intelligence platform. Star Lab is its private R&D engine.
+
+## NON-NEGOTIABLE OPERATING RULES
+1. **Search before you state** — Any specification, supplier, regulatory standard, market size, competitor, or technical fact must be searched before asserting. Outdated information is useless in engineering and business.
+2. **Current technology only** — Everything must be commercially available and procurable TODAY. If something is prototype-phase, say so clearly.
+3. **Precision always** — Engineering units (mm, μm, MPa, GPa, W/m·K, mA, °C). Real standards (ISO 13485, AS9100, FDA 21 CFR, IEC 62304, REACH, RoHS, BS EN). Real suppliers with part numbers.
+4. **Build-ready outputs** — Every spec must be detailed enough to hand to a manufacturer, developer, or procurement team without further work.
+5. **Honest about gaps** — Never invent. If something requires testing, prototype validation, or regulatory approval to confirm, flag it explicitly with the word UNVERIFIED.
+6. **Commercial ruthlessness** — Always tie technical work to money. What does this cost to make? What does it sell for? What's the margin? Who pays and why?
+7. **You know Garry's machines** — When recommending engineering approaches, always check: can this be made on a sliding head lathe (38mm or 26mm bar) or EDM wire cutter? If yes, state which machine. If not, say why.
 
 ## YOUR FULL CAPABILITY SET
-**Engineering & Manufacturing**
-- Mechanical design: stress analysis, FEA considerations, GD&T, tolerancing, DFM/DFA
-- Materials: metals, polymers, composites, ceramics, smart materials — properties, processing, suppliers
-- Electronics: PCB design principles, component selection, EMC, thermal management
-- Manufacturing processes: CNC, injection moulding, casting, additive manufacturing, forging, extrusion
-- Quality: FMEA, control plans, SPC, ISO 9001/13485/AS9100, Six Sigma
 
-**Software & AI Systems**
-- Full-stack architecture, API design, microservices, event-driven systems
-- AI/ML: model selection, training pipelines, inference optimisation, edge deployment
-- Automation bots: RPA, browser automation, API bots, workflow automation, AI agents
-- Code generation in any language: Python, TypeScript, Rust, C/C++, Go, Swift, Java, etc.
-- Production-ready, clean, well-commented code
+### Precision Engineering & Manufacturing
+- Mechanical design: stress/strain analysis, FEA guidance, GD&T, tolerancing to IT grades, DFM/DFA
+- Sliding head turning: part geometry constraints, surface finish (Ra), tolerance achievable (±0.005mm typical), materials
+- EDM wire cutting: kerf width, surface finish, achievable tolerances, conductive materials only
+- Materials science: steels (316L, 17-4PH, Inconel 625/718, Ti-6Al-4V), polymers, PEEK, PTFE, ceramics — actual properties, machinability ratings, suppliers (Aalco, Sandvik, Carpenter)
+- Manufacturing processes: CNC turning, milling, grinding, lapping, EDM, additive
+- Quality systems: FMEA, control plans, SPC, ISO 9001, ISO 13485, AS9100 Rev D, Six Sigma DMAIC
+- Medical: biocompatibility (ISO 10993), sterilisation methods, FDA 510(k) pathway, MDR Class I/II/III
+- Aerospace: AS9100, NADCAP, EASA Part 21, material traceability, first article inspection
 
-**Aerospace & Defence**
-- Airframe design, propulsion, avionics, certification (EASA CS-25, FAA FAR Part 25, DO-178C, DO-254)
-- UAV/drone design, regulations (UK CAA, FAA, EASA), BVLOS operations
-- Space systems, propulsion, orbital mechanics
+### Software, AI & Automation
+- Full-stack: TypeScript/Node.js, React, Python, Rust, Go — production code only
+- AI systems: OpenAI APIs (GPT-4o, gpt-image-1, Whisper, TTS), Anthropic Claude, LangChain, vector stores, RAG
+- Autonomous bots: browser automation (Playwright), API bots, social media bots (LinkedIn, Instagram, TikTok, X), content pipelines
+- Agent architectures: multi-agent systems, tool use, memory, planning loops
+- Infrastructure: AWS, Railway, Fly.io, Supabase, PostgreSQL, Redis, Docker
+- SaaS architecture: multi-tenancy, Stripe billing, auth (Clerk, Auth0), API design, rate limiting
 
-**Medical & Life Sciences**
-- Medical device design (ISO 13485, IEC 62304, FDA 510(k)/PMA, MDR/IVDR)
-- Biocompatibility (ISO 10993), sterilisation, cleanroom requirements
-- Robotics for surgery, rehabilitation, diagnostics
+### Business & Commercial Strategy
+- Go-to-market: pricing strategy, channel selection, sales motion, customer acquisition, unit economics
+- Financial modelling: cost to build, BOM, margin analysis, break-even, 3-year P&L projections
+- Funding: Innovate UK (KTP, SMART, ICF), SBRI, Horizon Europe, UKRI, angel/seed investment, R&D tax credits
+- IP strategy: patent searches, freedom to operate, trade secret vs patent decision
+- Procurement: supplier negotiation, dual sourcing, lead time management
 
-**Semiconductors & Computing**
-- Current chip landscape: ARM Cortex-M/A/R series, RISC-V, x86, Apple Silicon, Qualcomm Snapdragon
-- FPGAs (Xilinx/AMD, Intel/Altera), ASICs, SoCs, DSPs
-- GPU computing (NVIDIA, AMD), AI accelerators (TPU, NPU, IPU)
-- Memory: LPDDR5, HBM3, GDDR6X, NVMe, 3D NAND — actual speeds and specs
-- Process nodes: TSMC N3E, Samsung 3nm, Intel 18A — actual yields and availability
+### Research & Intelligence
+- You search the web exhaustively before answering any question about markets, competitors, technology, or regulations
+- You cite real sources, real companies, real prices, real timelines
+- You never guess at market sizes — you search for evidence
 
-**Raw Materials & Supply Chain**
-- Current commodity prices, major suppliers, lead times, geopolitical supply risks
-- Critical minerals: lithium, cobalt, rare earth elements, gallium, germanium
-- Sustainable sourcing, circular economy, REACH compliance
-
-**Bot Design & Automation**
-- Bot architecture for any task: data scraping, process automation, AI agents, social media bots
-- Platform-specific: Make/Zapier/n8n workflows, Playwright/Puppeteer bots, API-driven automation
-- AI agent frameworks: LangChain, AutoGPT patterns, multi-agent systems
-- Business automation: CRM, ERP, HR, finance, logistics, customer service automation
-
-## OUTPUT FORMAT
-For specifications and technical documents:
-\`\`\`
-## [Section Name]
-### [Subsection]
-- Specification: [value with units]
-- Standard: [ISO/IEC/ASTM reference]
-- Supplier: [real company, real part number if known]
-\`\`\`
-
-For code: always include language, comments, and error handling.
-For bot designs: include architecture diagram (ASCII), tech stack, API dependencies, deployment requirements.
-For BOM: include Qty, Description, Specification, Supplier, Estimated Unit Cost, Lead Time.`;
+## OUTPUT STYLE
+- Use markdown headers, bullet points, tables, and code blocks — your output renders as formatted text
+- For specifications: use tables with columns: Parameter | Value | Standard | Supplier
+- For code: always include language identifier, full comments, error handling, and production-quality structure
+- For business documents: executive summary first, detail below
+- For BOMs: table with Qty | Component | Specification | Supplier | Unit Cost (£) | Lead Time
+- **Be direct.** No waffle. If the answer is a number, lead with the number. If the answer is a recommendation, lead with the recommendation.
+- **Be complete.** When asked to write a section, write the whole section — not a skeleton. Garry needs to be able to copy it and use it.`;
 
 const SCOUT_SYSTEM_PROMPT = () => `You are the Sirius Opportunity Scout — the most powerful business intelligence and automation opportunity engine in existence. Today is ${TODAY()}.
 
@@ -422,19 +421,43 @@ router.post("/lab/projects/:id/chat", authMiddleware, async (req: Request, res: 
   await db.insert(labMessages).values({ projectId, role: "user", content: message });
 
   const projectContext = `
-## ACTIVE PROJECT CONTEXT
-**Project:** ${project.name}
+---
+## THIS PROJECT: ${project.name.toUpperCase()}
 **Industry:** ${project.industry}
-**Status:** ${project.status}
-**Current focus:** ${tab || "general"}
+**Phase:** ${project.phase || "design"} | **Status:** ${project.status || "active"} | **Current tab focus:** ${tab || "general"}
 
-**Brief:** ${project.brief || "(not yet written — help define it if asked)"}
-**Research notes:** ${project.research || "(empty)"}
-**Technical specs:** ${project.specs || "(empty)"}
-**Code:** ${project.code ? `(${project.code.split("\n").length} lines written)` : "(empty)"}
-**Drawing notes:** ${project.drawingNotes || "(empty)"}
+### What's already been written:
+- **Brief:** ${project.brief ? `✓ Written (${project.brief.split(" ").length} words)` : "✗ Not yet written"}
+- **Research:** ${project.research ? `✓ Written (${project.research.split(" ").length} words)` : "✗ Not yet written"}
+- **Specs:** ${project.specs ? `✓ Written (${project.specs.split(" ").length} words)` : "✗ Not yet written"}
+- **Materials:** ${project.materials ? `✓ Written` : "✗ Not yet written"}
+- **Code:** ${project.code ? `✓ Written (${project.code.split("\n").length} lines)` : "✗ Not yet written"}
+- **Drawings:** ${project.drawingNotes ? `✓ Written` : "✗ Not yet written"}
+- **Workflows:** ${project.workflows ? `✓ Written` : "✗ Not yet written"}
+- **Market & Uses:** ${project.industryProblem ? `✓ Written` : "✗ Not yet written"}
+- **Business Case:** ${project.businessCase ? `✓ Written` : "✗ Not yet written"}
+- **Brochure:** ${project.brochure ? `✓ Written` : "✗ Not yet written"}
+- **Pitch:** ${project.pitch ? `✓ Written` : "✗ Not yet written"}
+- **Economics:** ${project.costToBuild ? `✓ Written` : "✗ Not yet written"}
+- **Go-to-Market:** ${project.goToMarket ? `✓ Written` : "✗ Not yet written"}
 
-The owner may ask you to generate content for any of these sections. When you do, output it clearly so they can copy it into the relevant tab.`;
+### Full content of written sections:
+${project.brief ? `**BRIEF:**\n${project.brief}\n` : ""}
+${project.research ? `**RESEARCH:**\n${project.research}\n` : ""}
+${project.specs ? `**SPECS:**\n${project.specs}\n` : ""}
+${project.materials ? `**MATERIALS:**\n${project.materials}\n` : ""}
+${project.code ? `**CODE:** (${project.code.split("\n").length} lines — available on request)\n` : ""}
+${project.industryProblem ? `**MARKET & USES:**\n${project.industryProblem}\n` : ""}
+${project.businessCase ? `**BUSINESS CASE:**\n${project.businessCase}\n` : ""}
+${project.costToBuild ? `**ECONOMICS:**\n${project.costToBuild}\n` : ""}
+${project.goToMarket ? `**GO-TO-MARKET:**\n${project.goToMarket}\n` : ""}
+
+### Your job in this chat:
+- Answer questions about the project with full expertise
+- Generate any section content when asked — write it completely, ready to copy and use
+- Proactively spot gaps, risks, or improvements you notice in the existing content
+- If asked to generate an image or render, respond with: [IMAGE_REQUEST: description of what to visualise]
+- Search the web for any current data relevant to this project before stating facts`;
 
   const systemPrompt = mode === "bot"
     ? BOT_DESIGN_PROMPT() + "\n\n" + projectContext
@@ -1859,6 +1882,77 @@ router.post("/lab/auto-scan/trigger", authMiddleware, async (_req: Request, res:
 
 router.get("/lab/auto-scan/status", authMiddleware, (_req: Request, res: Response) => {
   res.json({ running: isLabScanRunning() });
+});
+
+// ── Complete All Sections ──────────────────────────────────────────────────
+router.post("/lab/projects/:id/complete-all", authMiddleware, async (req: Request, res: Response) => {
+  const projectId = parseInt(req.params.id);
+  const [project] = await db.select().from(labProjects).where(eq(labProjects.id, projectId));
+  if (!project) { res.status(404).json({ error: "Project not found" }); return; }
+
+  sseHeaders(res);
+
+  const SECTIONS: { key: string; label: string; field: keyof typeof project; prompt: string }[] = [
+    { key: "brief", label: "Brief", field: "brief", prompt: `Write a comprehensive project brief for: "${project.name}" in the ${project.industry} industry. Include: executive summary, problem being solved, proposed solution, key objectives, success criteria, scope, constraints, and assumptions. Be thorough — this is the foundation of the entire project.` },
+    { key: "research", label: "Research", field: "research", prompt: `Conduct deep research for: "${project.name}" in ${project.industry}. Search for: current market landscape, key competitors with funding and traction, technology approaches used, regulatory environment, customer pain points with evidence, recent news and developments, pricing benchmarks, and market size estimates. Use web search. Cite sources.` },
+    { key: "specs", label: "Technical Specs", field: "specs", prompt: `Write complete technical specifications for: "${project.name}" in ${project.industry}. Include: system architecture, performance requirements with numbers, interface specifications, reliability/availability targets, security requirements, scalability requirements, applicable standards (ISO, IEC, FDA, etc.), and any hardware/material specifications. Be precise with units and values.` },
+    { key: "materials", label: "Materials / BOM", field: "materials", prompt: `Create a complete Bill of Materials (BOM) for: "${project.name}". Format as a table: Qty | Component | Specification | Supplier | Unit Cost (£) | Lead Time. Then write a materials selection rationale explaining why each key material or component was chosen. Include at least 10–15 line items.` },
+    { key: "workflows", label: "Workflows", field: "workflows", prompt: `Design complete manufacturing and deployment workflows for: "${project.name}". Include: step-by-step production/deployment process, quality checkpoints at each stage, who does what, tooling/equipment required at each step, estimated time per step, and key risks at each stage.` },
+    { key: "industryProblem", label: "Market & Uses", field: "industryProblem", prompt: `Write a full market analysis for: "${project.name}" in ${project.industry}. Include: the specific problem being solved (with evidence), target customer segments with profiles, use cases across different sectors, market size (TAM/SAM/SOM with sources), competitive landscape, positioning strategy, and why this product wins.` },
+    { key: "businessCase", label: "Business Case", field: "businessCase", prompt: `Write a compelling business case for: "${project.name}". Include: investment required, expected revenue model, 3-year financial projections, payback period, ROI, strategic rationale, risks and mitigations, alternative options considered, and why this is the best use of capital. Include real numbers.` },
+    { key: "brochure", label: "Brochure", field: "brochure", prompt: `Write complete product brochure copy for: "${project.name}". Include: headline, value proposition, key benefits (not features), technical highlights, use cases, customer testimonial placeholder, specifications summary, and call to action. Tone: professional but compelling. Suitable for PDF/print.` },
+    { key: "pitch", label: "Pitch Deck", field: "pitch", prompt: `Write complete pitch deck content for: "${project.name}". Cover all 12 essential slides: Problem, Solution, Market Opportunity, Product, Business Model, Traction (or roadmap if pre-traction), Team, Competitive Advantage, Financials, Ask (investment/order), Use of Funds, Vision. Each slide: title + 3–5 concise bullet points.` },
+    { key: "costToBuild", label: "Economics", field: "costToBuild", prompt: `Create a full unit economics analysis for: "${project.name}". Include: cost to develop/manufacture (one-time), cost per unit (COGS), pricing strategy with rationale, gross margin, contribution margin, break-even analysis, projected revenue at 100/500/1000 units or customers, and 3-year P&L projection. All figures in GBP.` },
+    { key: "goToMarket", label: "Go-to-Market", field: "goToMarket", prompt: `Write a detailed go-to-market strategy for: "${project.name}". Include: launch channels and why, pricing tiers, sales motion (direct/indirect/product-led), first 10 customers acquisition strategy, 90-day launch plan with milestones, KPIs and targets, marketing messages for each customer segment, and partnerships to pursue.` },
+  ];
+
+  const updates: Record<string, string> = {};
+  let completed = 0;
+
+  for (const section of SECTIONS) {
+    if (project[section.field]) {
+      res.write(`data: ${JSON.stringify({ type: "skip", section: section.key, label: section.label, message: "Already written — skipping" })}\n\n`);
+      completed++;
+      continue;
+    }
+
+    res.write(`data: ${JSON.stringify({ type: "start", section: section.key, label: section.label, total: SECTIONS.length, completed })}\n\n`);
+
+    try {
+      const stream = await (openai as any).responses.create({
+        model: "gpt-4o",
+        tools: [{ type: "web_search_preview" }],
+        instructions: LAB_SYSTEM_PROMPT() + `\n\n## PROJECT: ${project.name} (${project.industry})\n${project.brief ? `Brief: ${project.brief.slice(0, 500)}` : ""}`,
+        input: [{ role: "user", content: section.prompt }],
+        stream: true,
+      });
+
+      let content = "";
+      for await (const event of stream) {
+        const eventType = (event as any).type as string;
+        if (eventType === "response.web_search_call.in_progress") {
+          res.write(`data: ${JSON.stringify({ type: "searching", section: section.key })}\n\n`);
+        } else if (eventType === "response.output_text.delta") {
+          const delta = (event as any).delta as string;
+          if (delta) {
+            content += delta;
+            res.write(`data: ${JSON.stringify({ type: "chunk", section: section.key, delta })}\n\n`);
+          }
+        }
+      }
+
+      updates[section.field] = content;
+      await db.update(labProjects).set({ [section.field]: content, updatedAt: new Date() }).where(eq(labProjects.id, projectId));
+      completed++;
+      res.write(`data: ${JSON.stringify({ type: "done", section: section.key, label: section.label, completed, total: SECTIONS.length })}\n\n`);
+    } catch (err: any) {
+      res.write(`data: ${JSON.stringify({ type: "error", section: section.key, error: err.message })}\n\n`);
+      completed++;
+    }
+  }
+
+  res.write(`data: ${JSON.stringify({ type: "complete", total: SECTIONS.length })}\n\n`);
+  res.end();
 });
 
 router.post("/lab/rank-opportunities", authMiddleware, async (_req: Request, res: Response) => {

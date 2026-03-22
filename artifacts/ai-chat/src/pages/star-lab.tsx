@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Lock, Star, Plus, Trash2, Send, Loader2, FileText, Code, Ruler,
@@ -481,21 +483,199 @@ const ALL_TABS = [
   { id: "funding", label: "Funding", icon: BadgeCheck, field: "fundingAnalysis", phase: "all", placeholder: "", generated: false },
 ];
 
-function StreamingText({ content, streaming }: { content: string; streaming: boolean }) {
+// ── Lab Markdown Renderer ─────────────────────────────────────────────────
+function LabMarkdown({ content, streaming }: { content: string; streaming: boolean }) {
+  const [copiedBlock, setCopiedBlock] = useState<number | null>(null);
+
+  const copyBlock = (code: string, idx: number) => {
+    navigator.clipboard.writeText(code);
+    setCopiedBlock(idx);
+    setTimeout(() => setCopiedBlock(null), 2000);
+  };
+
+  let codeBlockIdx = 0;
+
   return (
-    <div className="whitespace-pre-wrap leading-relaxed" style={{ fontSize: "0.82rem", color: "rgba(255,255,255,0.85)" }}>
-      {content}
-      {streaming && <span className="inline-block w-1.5 h-4 ml-0.5 rounded-sm animate-pulse" style={{ background: "hsl(193,100%,50%)", verticalAlign: "middle" }} />}
+    <div style={{ fontSize: "0.82rem", color: "rgba(255,255,255,0.88)", lineHeight: 1.65 }}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          h1: ({ children }) => <h1 className="text-base font-bold text-white mb-2 mt-3 first:mt-0 border-b pb-1" style={{ borderColor: "rgba(255,255,255,0.1)" }}>{children}</h1>,
+          h2: ({ children }) => <h2 className="text-sm font-bold mb-1.5 mt-3 first:mt-0" style={{ color: "hsl(193,100%,65%)" }}>{children}</h2>,
+          h3: ({ children }) => <h3 className="text-xs font-semibold mb-1 mt-2 first:mt-0" style={{ color: "rgba(255,255,255,0.75)" }}>{children}</h3>,
+          p: ({ children }) => <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>,
+          ul: ({ children }) => <ul className="mb-2 space-y-0.5 list-none pl-0">{children}</ul>,
+          ol: ({ children }) => <ol className="mb-2 space-y-0.5 pl-4" style={{ listStyleType: "decimal" }}>{children}</ol>,
+          li: ({ children }) => (
+            <li className="flex gap-1.5 items-start">
+              <span className="mt-1.5 w-1 h-1 rounded-full flex-shrink-0" style={{ background: "hsl(193,100%,50%)" }} />
+              <span>{children}</span>
+            </li>
+          ),
+          strong: ({ children }) => <strong className="font-semibold text-white">{children}</strong>,
+          em: ({ children }) => <em style={{ color: "rgba(255,255,255,0.65)" }}>{children}</em>,
+          a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" className="underline" style={{ color: "hsl(193,100%,60%)" }}>{children}</a>,
+          blockquote: ({ children }) => (
+            <blockquote className="pl-3 py-1 my-2 rounded-r-lg" style={{ borderLeft: "3px solid hsl(193,100%,40%)", background: "rgba(0,198,255,0.06)" }}>
+              {children}
+            </blockquote>
+          ),
+          table: ({ children }) => (
+            <div className="overflow-x-auto my-2 rounded-lg" style={{ border: "1px solid rgba(255,255,255,0.08)" }}>
+              <table className="w-full text-xs" style={{ borderCollapse: "collapse" }}>{children}</table>
+            </div>
+          ),
+          thead: ({ children }) => <thead style={{ background: "rgba(0,198,255,0.08)" }}>{children}</thead>,
+          th: ({ children }) => <th className="text-left px-2.5 py-1.5 font-semibold" style={{ color: "hsl(193,100%,65%)", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>{children}</th>,
+          td: ({ children }) => <td className="px-2.5 py-1.5" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.8)" }}>{children}</td>,
+          hr: () => <hr className="my-3" style={{ borderColor: "rgba(255,255,255,0.08)" }} />,
+          code({ node, className, children, ...props }: any) {
+            const inline = !className;
+            if (inline) {
+              return (
+                <code className="px-1 py-0.5 rounded text-xs font-mono" style={{ background: "rgba(0,198,255,0.12)", color: "hsl(193,100%,70%)" }} {...props}>
+                  {children}
+                </code>
+              );
+            }
+            const thisIdx = codeBlockIdx++;
+            const codeStr = String(children).replace(/\n$/, "");
+            const lang = (className || "").replace("language-", "") || "code";
+            return (
+              <div className="relative my-2 rounded-xl overflow-hidden" style={{ background: "hsl(226,45%,8%)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                <div className="flex items-center justify-between px-3 py-1.5" style={{ background: "rgba(255,255,255,0.04)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                  <span className="text-xs font-mono" style={{ color: "hsl(193,100%,55%)" }}>{lang}</span>
+                  <button onClick={() => copyBlock(codeStr, thisIdx)}
+                    className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-md transition-all"
+                    style={{ background: copiedBlock === thisIdx ? "hsl(155,70%,30%)" : "rgba(255,255,255,0.06)", color: copiedBlock === thisIdx ? "hsl(155,70%,70%)" : "rgba(255,255,255,0.45)" }}>
+                    {copiedBlock === thisIdx ? <><Check className="w-2.5 h-2.5" /> Copied</> : <><Copy className="w-2.5 h-2.5" /> Copy</>}
+                  </button>
+                </div>
+                <pre className="overflow-x-auto p-3 text-xs font-mono leading-relaxed m-0" style={{ color: "rgba(255,255,255,0.85)" }}>
+                  <code>{codeStr}</code>
+                </pre>
+              </div>
+            );
+          },
+        }}
+      >
+        {content}
+      </ReactMarkdown>
+      {streaming && <span className="inline-block w-1.5 h-3.5 ml-0.5 rounded-sm animate-pulse" style={{ background: "hsl(193,100%,50%)", verticalAlign: "middle" }} />}
+    </div>
+  );
+}
+
+// ── Complete All Sections Modal ────────────────────────────────────────────
+type CompleteProgress = { section: string; label: string; status: "pending" | "running" | "done" | "skip" | "error"; content?: string };
+
+function CompleteAllModal({ project, pin, onClose, onDone }: { project: Project; pin: string; onClose: () => void; onDone: () => void }) {
+  const SECTION_LABELS: Record<string, string> = {
+    brief: "Brief", research: "Research", specs: "Technical Specs",
+    materials: "Materials / BOM", workflows: "Workflows", industryProblem: "Market & Uses",
+    businessCase: "Business Case", brochure: "Brochure", pitch: "Pitch Deck",
+    costToBuild: "Economics", goToMarket: "Go-to-Market",
+  };
+  const allSections = Object.entries(SECTION_LABELS).map(([key, label]) => ({ section: key, label, status: "pending" as const }));
+  const [progress, setProgress] = useState<CompleteProgress[]>(allSections);
+  const [running, setRunning] = useState(false);
+  const [finished, setFinished] = useState(false);
+  const base = getApiBase();
+
+  const run = async () => {
+    setRunning(true);
+    try {
+      const res = await fetch(`${base}lab/projects/${project.id}/complete-all`, {
+        method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+      });
+      const reader = res.body!.getReader(); const decoder = new TextDecoder();
+      let buf = "";
+      while (true) {
+        const { done, value } = await reader.read(); if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split("\n"); buf = lines.pop() || "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const d = JSON.parse(line.slice(6));
+            if (d.type === "skip") {
+              setProgress(prev => prev.map(p => p.section === d.section ? { ...p, status: "skip" } : p));
+            } else if (d.type === "start") {
+              setProgress(prev => prev.map(p => p.section === d.section ? { ...p, status: "running" } : p));
+            } else if (d.type === "done") {
+              setProgress(prev => prev.map(p => p.section === d.section ? { ...p, status: "done" } : p));
+            } else if (d.type === "error") {
+              setProgress(prev => prev.map(p => p.section === d.section ? { ...p, status: "error" } : p));
+            } else if (d.type === "complete") {
+              setFinished(true);
+            }
+          } catch {}
+        }
+      }
+    } catch {}
+    setRunning(false);
+  };
+
+  useEffect(() => { run(); }, []);
+
+  const statusIcon = (status: string) => {
+    if (status === "done") return <Check className="w-3.5 h-3.5" style={{ color: "hsl(155,70%,55%)" }} />;
+    if (status === "skip") return <Check className="w-3.5 h-3.5" style={{ color: "rgba(255,255,255,0.25)" }} />;
+    if (status === "running") return <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: "hsl(193,100%,55%)" }} />;
+    if (status === "error") return <AlertCircle className="w-3.5 h-3.5" style={{ color: "hsl(0,80%,60%)" }} />;
+    return <div className="w-3.5 h-3.5 rounded-full border" style={{ borderColor: "rgba(255,255,255,0.12)" }} />;
+  };
+
+  const done = progress.filter(p => p.status === "done").length;
+  const total = progress.filter(p => p.status !== "skip").length;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.8)", backdropFilter: "blur(8px)" }}>
+      <div className="w-full max-w-md rounded-2xl overflow-hidden" style={{ background: "hsl(226,45%,11%)", border: "1px solid rgba(255,255,255,0.08)" }}>
+        <div className="p-4 border-b flex items-center justify-between" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+          <div>
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <Sparkles className="w-4 h-4" style={{ color: "hsl(193,100%,55%)" }} />
+              Complete Entire Project
+            </h3>
+            <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>Generating all missing sections with full AI depth</p>
+          </div>
+          {finished && <button onClick={() => { onDone(); onClose(); }} className="text-xs px-3 py-1.5 rounded-lg text-white" style={{ background: "hsl(193,100%,35%)" }}>Done</button>}
+        </div>
+        <div className="p-4 space-y-2">
+          {progress.map(p => (
+            <div key={p.section} className="flex items-center gap-3 py-1.5 px-2 rounded-lg" style={{ background: p.status === "running" ? "rgba(0,198,255,0.06)" : "transparent" }}>
+              {statusIcon(p.status)}
+              <span className="text-xs flex-1" style={{ color: p.status === "skip" ? "rgba(255,255,255,0.25)" : p.status === "running" ? "hsl(193,100%,70%)" : p.status === "done" ? "rgba(255,255,255,0.8)" : "rgba(255,255,255,0.45)" }}>
+                {p.label}
+              </span>
+              {p.status === "skip" && <span className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>already written</span>}
+              {p.status === "running" && <span className="text-xs" style={{ color: "hsl(193,100%,55%)" }}>writing…</span>}
+              {p.status === "done" && <span className="text-xs" style={{ color: "hsl(155,70%,55%)" }}>complete</span>}
+            </div>
+          ))}
+        </div>
+        {running && (
+          <div className="px-4 pb-4">
+            <div className="h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+              <div className="h-full rounded-full transition-all duration-500" style={{ width: `${total === 0 ? 0 : (done / total) * 100}%`, background: "hsl(193,100%,40%)" }} />
+            </div>
+            <p className="text-xs text-center mt-2" style={{ color: "rgba(255,255,255,0.3)" }}>{done} of {total} sections complete — this takes a few minutes</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
 function ChatPanel({ project, pin, mode }: { project: Project; pin: string; mode: "engineering" | "bot" }) {
-  const [messages, setMessages] = useState<{ role: string; content: string }[]>([]);
+  const [messages, setMessages] = useState<{ role: string; content: string; copied?: boolean }[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [searching, setSearching] = useState(false);
   const [activeTab, setActiveTab] = useState("brief");
+  const [showCompleteAll, setShowCompleteAll] = useState(false);
+  const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const base = getApiBase();
 
@@ -506,100 +686,181 @@ function ChatPanel({ project, pin, mode }: { project: Project; pin: string; mode
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, streaming]);
 
-  const send = async () => {
-    if (!input.trim() || streaming) return;
-    const userMsg = input.trim(); setInput(""); setStreaming(true); setSearching(false);
-    setMessages(prev => [...prev, { role: "user", content: userMsg }, { role: "assistant", content: "" }]);
+  const copyMessage = (content: string, idx: number) => {
+    navigator.clipboard.writeText(content);
+    setCopiedIdx(idx);
+    setTimeout(() => setCopiedIdx(null), 2000);
+  };
+
+  const exportChat = () => {
+    const text = messages.map(m => `**${m.role === "user" ? "You" : "Sirius Lab"}:**\n${m.content}`).join("\n\n---\n\n");
+    const blob = new Blob([`# ${project.name} — Lab Chat\n\n${text}`], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = `${project.name.replace(/\s+/g, "-")}-lab-chat.md`; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const send = async (override?: string) => {
+    const msg = (override || input).trim();
+    if (!msg || streaming) return;
+    setInput(""); setStreaming(true); setSearching(false);
+    setMessages(prev => [...prev, { role: "user", content: msg }, { role: "assistant", content: "" }]);
     let assistant = "";
     try {
       const res = await fetch(`${base}lab/projects/${project.id}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-lab-pin": pin },
-        body: JSON.stringify({ message: userMsg, tab: activeTab, mode: mode === "bot" ? "bot" : "engineering" }),
+        body: JSON.stringify({ message: msg, tab: activeTab, mode: mode === "bot" ? "bot" : "engineering" }),
       });
       const reader = res.body!.getReader(); const decoder = new TextDecoder();
+      let buf = "";
       while (true) {
         const { done, value } = await reader.read(); if (done) break;
-        for (const line of decoder.decode(value).split("\n")) {
-          if (line.startsWith("data: ")) {
-            try {
-              const d = JSON.parse(line.slice(6));
-              if (d.type === "searching") { setSearching(true); }
-              if (d.content) { setSearching(false); assistant += d.content; setMessages(prev => { const u = [...prev]; u[u.length - 1] = { role: "assistant", content: assistant }; return u; }); }
-            } catch {}
-          }
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split("\n"); buf = lines.pop() || "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const d = JSON.parse(line.slice(6));
+            if (d.type === "searching") { setSearching(true); }
+            if (d.content) { setSearching(false); assistant += d.content; setMessages(prev => { const u = [...prev]; u[u.length - 1] = { role: "assistant", content: assistant }; return u; }); }
+          } catch {}
         }
       }
     } catch {}
     setStreaming(false); setSearching(false);
   };
 
-  const quickPrompts = mode === "bot"
-    ? ["Design the full architecture", "Write the core code", "What APIs do I need?", "Estimate the build cost", "Deployment instructions"]
-    : ["Help me write the brief", "Generate technical specs", "What materials should I use?", "Write the code", "Create a BOM"];
+  const missingSections: string[] = [];
+  if (!project.brief) missingSections.push("Write the project brief");
+  if (!project.research) missingSections.push("Research the market and competitors");
+  if (!project.specs) missingSections.push("Generate technical specifications");
+  if (!project.materials) missingSections.push("Create the Bill of Materials");
+  if (!project.businessCase) missingSections.push("Write the business case");
+  if (!project.pitch) missingSections.push("Write the investor pitch");
+  if (!project.goToMarket) missingSections.push("Create a go-to-market strategy");
+
+  const botPrompts = ["Design the full architecture", "Write the core automation code", "What APIs do I need?", "Estimate the running cost", "Write the deployment guide", "Identify the risks"];
+  const quickPrompts = mode === "bot" ? botPrompts : (missingSections.length > 0 ? missingSections.slice(0, 6) : ["What are the biggest risks?", "How can this make more money?", "Who are the top competitors?", "What should I build first?", "How do I get the first 10 customers?"]);
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex gap-1 px-3 py-2 border-b flex-shrink-0 overflow-x-auto" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
-        {ALL_TABS.filter(t => t.id !== "overview" && t.id !== "renders").map(t => (
-          <button key={t.id} onClick={() => setActiveTab(t.id)}
-            className="text-xs px-2.5 py-1 rounded-lg transition-all whitespace-nowrap flex-shrink-0"
-            style={{ background: activeTab === t.id ? "hsl(193,100%,35%)" : "transparent", color: activeTab === t.id ? "white" : "rgba(255,255,255,0.35)" }}>
-            {t.label}
-          </button>
-        ))}
-      </div>
+    <>
+      {showCompleteAll && (
+        <CompleteAllModal project={project} pin={pin} onClose={() => setShowCompleteAll(false)} onDone={() => window.location.reload()} />
+      )}
+      <div className="flex flex-col h-full">
+        <div className="flex items-center gap-1 px-3 py-2 border-b flex-shrink-0" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+          <div className="flex gap-1 overflow-x-auto flex-1 min-w-0">
+            {ALL_TABS.filter(t => t.id !== "overview" && t.id !== "renders").map(t => (
+              <button key={t.id} onClick={() => setActiveTab(t.id)}
+                className="text-xs px-2.5 py-1 rounded-lg transition-all whitespace-nowrap flex-shrink-0"
+                style={{ background: activeTab === t.id ? "hsl(193,100%,35%)" : "transparent", color: activeTab === t.id ? "white" : "rgba(255,255,255,0.3)" }}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-1 flex-shrink-0 ml-1">
+            {messages.length > 0 && (
+              <button onClick={exportChat} title="Export chat" className="w-7 h-7 rounded-lg flex items-center justify-center transition-all" style={{ background: "rgba(255,255,255,0.04)" }}>
+                <Download className="w-3 h-3" style={{ color: "rgba(255,255,255,0.35)" }} />
+              </button>
+            )}
+            {mode !== "bot" && (
+              <button onClick={() => setShowCompleteAll(true)} title="Complete all sections" className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs transition-all whitespace-nowrap"
+                style={{ background: "hsl(193,100%,20%)", color: "hsl(193,100%,65%)", border: "1px solid hsl(193,100%,25%)" }}>
+                <Sparkles className="w-3 h-3" />
+                Complete All
+              </button>
+            )}
+          </div>
+        </div>
 
-      <div className="flex-1 overflow-y-auto p-3 space-y-3 min-h-0">
-        {messages.length === 0 && (
-          <div className="py-8">
-            <div className="flex flex-wrap gap-1.5">
-              {quickPrompts.map(p => (
-                <button key={p} onClick={() => { setInput(p); }}
-                  className="text-xs px-3 py-1.5 rounded-xl transition-all"
-                  style={{ background: "hsl(226,45%,14%)", color: "rgba(255,255,255,0.5)", border: "1px solid rgba(255,255,255,0.07)" }}>
-                  {p}
-                </button>
-              ))}
+        <div className="flex-1 overflow-y-auto p-3 space-y-4 min-h-0">
+          {messages.length === 0 && (
+            <div className="py-6">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "hsl(193,100%,20%)" }}>
+                  <Sparkles className="w-4 h-4" style={{ color: "hsl(193,100%,55%)" }} />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-white">Sirius Lab Intelligence</p>
+                  <p className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>
+                    {mode === "bot" ? "Specialist bot architect — ready to design" : "Your private R&D partner — GPT-4o + live web search"}
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {quickPrompts.map(p => (
+                  <button key={p} onClick={() => send(p)}
+                    className="text-xs px-3 py-1.5 rounded-xl transition-all text-left"
+                    style={{ background: "hsl(226,45%,14%)", color: "rgba(255,255,255,0.55)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                    {p}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
-        {messages.map((m, i) => (
-          <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-            <div className="max-w-[90%] rounded-2xl px-3 py-2.5"
-              style={{ background: m.role === "user" ? "hsl(193,100%,32%)" : "hsl(226,45%,13%)" }}>
-              {m.role === "assistant"
-                ? <StreamingText content={m.content} streaming={streaming && i === messages.length - 1} />
-                : <p className="text-white text-xs leading-relaxed">{m.content}</p>}
-            </div>
-          </div>
-        ))}
-        {searching && (
-          <div className="flex justify-start">
-            <div className="flex items-center gap-2 px-3 py-2 rounded-2xl" style={{ background: "hsl(226,45%,13%)" }}>
-              <Globe className="w-3 h-3 animate-pulse" style={{ color: "hsl(193,100%,55%)" }} />
-              <span className="text-xs" style={{ color: "hsl(193,100%,55%)" }}>Searching the web…</span>
-            </div>
-          </div>
-        )}
-        <div ref={bottomRef} />
-      </div>
+          )}
 
-      <div className="p-3 border-t flex-shrink-0" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
-        <div className="flex gap-2">
-          <textarea value={input} onChange={e => setInput(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-            placeholder="Ask the Lab AI..." rows={2}
-            className="flex-1 px-3 py-2 rounded-xl text-white text-xs placeholder-white/25 resize-none outline-none"
-            style={{ background: "hsl(226,45%,12%)", border: "1px solid rgba(255,255,255,0.07)" }} />
-          <button onClick={send} disabled={streaming || !input.trim()}
-            className="w-9 h-9 rounded-xl flex items-center justify-center self-end transition-all flex-shrink-0"
-            style={{ background: "hsl(193,100%,35%)", opacity: streaming || !input.trim() ? 0.35 : 1 }}>
-            {streaming ? <Loader2 className="w-3.5 h-3.5 text-white animate-spin" /> : <Send className="w-3.5 h-3.5 text-white" />}
-          </button>
+          {messages.map((m, i) => (
+            <div key={i} className={`flex gap-2 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+              {m.role === "assistant" && (
+                <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5" style={{ background: "hsl(193,100%,20%)" }}>
+                  <Sparkles className="w-3 h-3" style={{ color: "hsl(193,100%,55%)" }} />
+                </div>
+              )}
+              <div className="max-w-[88%]">
+                <div className="rounded-2xl px-3.5 py-3"
+                  style={{ background: m.role === "user" ? "hsl(193,100%,30%)" : "hsl(226,45%,13%)" }}>
+                  {m.role === "assistant"
+                    ? <LabMarkdown content={m.content} streaming={streaming && i === messages.length - 1} />
+                    : <p className="text-white text-xs leading-relaxed">{m.content}</p>}
+                </div>
+                {m.role === "assistant" && m.content && (
+                  <div className="flex items-center gap-2 mt-1 px-1">
+                    <button onClick={() => copyMessage(m.content, i)}
+                      className="flex items-center gap-1 text-xs transition-all"
+                      style={{ color: copiedIdx === i ? "hsl(155,70%,55%)" : "rgba(255,255,255,0.2)" }}>
+                      {copiedIdx === i ? <><Check className="w-2.5 h-2.5" /> Copied</> : <><Copy className="w-2.5 h-2.5" /> Copy</>}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+
+          {searching && (
+            <div className="flex gap-2 justify-start">
+              <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "hsl(193,100%,20%)" }}>
+                <Globe className="w-3 h-3 animate-pulse" style={{ color: "hsl(193,100%,55%)" }} />
+              </div>
+              <div className="flex items-center gap-2 px-3.5 py-2 rounded-2xl" style={{ background: "hsl(226,45%,13%)" }}>
+                <span className="text-xs" style={{ color: "hsl(193,100%,55%)" }}>Searching the web for current information…</span>
+              </div>
+            </div>
+          )}
+          <div ref={bottomRef} />
+        </div>
+
+        <div className="p-3 border-t flex-shrink-0" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+          <div className="flex gap-2">
+            <textarea value={input} onChange={e => setInput(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+              placeholder={mode === "bot" ? "Ask the bot architect…" : "Ask the Lab Intelligence — GPT-4o + live web search…"}
+              rows={2}
+              className="flex-1 px-3 py-2 rounded-xl text-white text-xs placeholder-white/20 resize-none outline-none"
+              style={{ background: "hsl(226,45%,11%)", border: "1px solid rgba(255,255,255,0.07)" }} />
+            <button onClick={() => send()} disabled={streaming || !input.trim()}
+              className="w-9 h-9 rounded-xl flex items-center justify-center self-end transition-all flex-shrink-0"
+              style={{ background: "hsl(193,100%,35%)", opacity: streaming || !input.trim() ? 0.3 : 1 }}>
+              {streaming ? <Loader2 className="w-3.5 h-3.5 text-white animate-spin" /> : <Send className="w-3.5 h-3.5 text-white" />}
+            </button>
+          </div>
+          <p className="text-xs text-center mt-1.5" style={{ color: "rgba(255,255,255,0.15)" }}>
+            Shift+Enter for new line · GPT-4o · Live web search
+          </p>
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
