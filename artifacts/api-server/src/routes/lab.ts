@@ -350,6 +350,14 @@ router.post("/lab/projects", authMiddleware, async (req: Request, res: Response)
   res.json(project);
 });
 
+// Must be before /:id to avoid "pending-approval" being treated as an ID
+router.get("/lab/projects/pending-approval", authMiddleware, async (_req: Request, res: Response) => {
+  const pending = await db.select().from(labProjects)
+    .where(eq(labProjects.approvalStatus, "pending"))
+    .orderBy(desc(labProjects.createdAt));
+  res.json(pending);
+});
+
 router.get("/lab/projects/:id", authMiddleware, async (req: Request, res: Response) => {
   const id = parseInt(req.params.id);
   const [project] = await db.select().from(labProjects).where(eq(labProjects.id, id));
@@ -1800,6 +1808,34 @@ router.get("/lab/projects/:id/cad-files/:fileId/download-url", authMiddleware, a
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
+});
+
+// ── Approval workflow ─────────────────────────────────────────────────────────
+
+// Public — no PIN required (returns count only, no project details)
+router.get("/lab/notification-count", async (_req: Request, res: Response) => {
+  try {
+    const pending = await db.select({ id: labProjects.id })
+      .from(labProjects)
+      .where(eq(labProjects.approvalStatus, "pending"));
+    res.json({ pendingApproval: pending.length });
+  } catch {
+    res.json({ pendingApproval: 0 });
+  }
+});
+
+router.post("/lab/projects/:id/approve", authMiddleware, async (req: Request, res: Response) => {
+  const id = parseInt(req.params.id);
+  if (!id) return res.status(400).json({ error: "Invalid id" });
+  await db.update(labProjects).set({ approvalStatus: "approved", updatedAt: new Date() }).where(eq(labProjects.id, id));
+  res.json({ ok: true });
+});
+
+router.post("/lab/projects/:id/reject", authMiddleware, async (req: Request, res: Response) => {
+  const id = parseInt(req.params.id);
+  if (!id) return res.status(400).json({ error: "Invalid id" });
+  await db.update(labProjects).set({ approvalStatus: "rejected", updatedAt: new Date() }).where(eq(labProjects.id, id));
+  res.json({ ok: true });
 });
 
 // ── Auto-scan history & manual trigger ────────────────────────────────────────

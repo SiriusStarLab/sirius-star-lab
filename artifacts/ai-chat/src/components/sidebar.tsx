@@ -13,11 +13,29 @@ import { TutorialsModal } from "@/components/tutorials-modal";
 import { useProfile } from "@/hooks/use-profile";
 import { useSubscription } from "@/hooks/use-subscription";
 import { getUserId } from "@/lib/user-id";
+import { getApiBase } from "@/lib/api-base";
 import {
   useListOpenaiConversations,
   useDeleteOpenaiConversation,
   getListOpenaiConversationsQueryKey,
 } from "@workspace/api-client-react";
+
+function useLabPendingCount() {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    const base = getApiBase();
+    const check = async () => {
+      try {
+        const res = await fetch(`${base}lab/notification-count`);
+        if (res.ok) { const d = await res.json(); setCount(d.pendingApproval || 0); }
+      } catch {}
+    };
+    check();
+    const iv = setInterval(check, 30000);
+    return () => clearInterval(iv);
+  }, []);
+  return count;
+}
 
 interface SidebarProps {
   isOpen: boolean;
@@ -27,6 +45,7 @@ interface SidebarProps {
 
 export function Sidebar({ isOpen, onClose, forceOpenPricing }: SidebarProps) {
   const [location, setLocation] = useLocation();
+  const labPendingCount = useLabPendingCount();
   const queryClient = useQueryClient();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPortraitOpen, setIsPortraitOpen] = useState(false);
@@ -165,13 +184,21 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing }: SidebarProps) {
         >
           <FlaskConical size={15} style={{ flexShrink: 0 }} />
           <span className="flex-1 text-left">Star Lab</span>
-          <span className="text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded"
-            style={{ background: "hsla(193,100%,35%,0.15)", color: "hsl(193,100%,55%)", border: "1px solid hsla(193,100%,35%,0.2)", letterSpacing: "0.15em" }}>
-            R&amp;D
-          </span>
-          {/* Subtle pulse dot */}
-          <span className="w-1.5 h-1.5 rounded-full animate-pulse flex-shrink-0"
-            style={{ background: "hsl(193,100%,55%)", boxShadow: "0 0 6px hsl(193,100%,55%)" }} />
+          {labPendingCount > 0 ? (
+            <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold animate-pulse flex-shrink-0"
+              style={{ background: "hsl(25,90%,55%)", color: "white", boxShadow: "0 0 8px hsla(25,90%,55%,0.6)" }}>
+              {labPendingCount}
+            </span>
+          ) : (
+            <>
+              <span className="text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded"
+                style={{ background: "hsla(193,100%,35%,0.15)", color: "hsl(193,100%,55%)", border: "1px solid hsla(193,100%,35%,0.2)", letterSpacing: "0.15em" }}>
+                R&amp;D
+              </span>
+              <span className="w-1.5 h-1.5 rounded-full animate-pulse flex-shrink-0"
+                style={{ background: "hsl(193,100%,55%)", boxShadow: "0 0 6px hsl(193,100%,55%)" }} />
+            </>
+          )}
         </button>
       </div>
 

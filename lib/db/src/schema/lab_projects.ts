@@ -42,6 +42,9 @@ export const labProjects = pgTable("lab_projects", {
   autoCreated: text("auto_created").default(""),   // "" | "auto"
   autoScanId: text("auto_scan_id").default(""),
 
+  // Approval workflow — auto-created projects start as "pending"
+  approvalStatus: text("approval_status").default(""),  // "" | "pending" | "approved" | "rejected"
+
   // Funding analysis — auto-populated per project
   fundingAnalysis: text("funding_analysis").default(""),
   fundingStatus: text("funding_status").default(""),   // "" | "pending" | "complete" | "error"
