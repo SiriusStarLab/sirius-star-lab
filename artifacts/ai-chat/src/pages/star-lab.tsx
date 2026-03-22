@@ -61,7 +61,7 @@ type RankResult = {
   keyStrengths: string[]; estimatedMonthlyRevenue: string;
   buildEffort: string;
 };
-type NavMode = "projects" | "botlab" | "scout" | "feed" | "grants" | "commerce" | "outreach" | "autolab" | "revenue" | "agency";
+type NavMode = "projects" | "botlab" | "scout" | "feed" | "grants" | "commerce" | "outreach" | "autolab" | "revenue" | "agency" | "mission";
 
 const MAX_PIN_DIGITS = 8;
 const MAX_ATTEMPTS = 5;
@@ -4068,6 +4068,118 @@ function OutreachHubPanel({ pin }: { pin: string }) {
   );
 }
 
+// ─── Mission Foundation Panel ───────────────────────────────────────────────
+
+function MissionPanel({ pin }: { pin: string }) {
+  const base = getApiBase();
+  const [content, setContent] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [burning, setBurning] = useState(false);
+  const [burned, setBurned] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    fetch(`${base}lab/mission`, { headers: { "x-lab-pin": pin } })
+      .then(r => r.json())
+      .then(d => { setContent(d.content || ""); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  const burnToProject = async () => {
+    setBurning(true);
+    try {
+      await fetch(`${base}lab/mission/burn`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+      });
+      setBurned(true);
+    } catch { /* ignore */ }
+    setBurning(false);
+  };
+
+  return (
+    <div className="flex-1 flex flex-col min-h-0" style={{ background: "hsl(226,45%,5%)" }}>
+      {/* Header */}
+      <div className="px-6 pt-5 pb-4 border-b flex-shrink-0" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center"
+            style={{ background: "linear-gradient(135deg, hsl(193,100%,30%), hsl(226,70%,50%))" }}>
+            <Star className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h2 className="text-white font-bold text-lg leading-none">Mission Foundation</h2>
+            <p className="text-white/30 text-xs mt-0.5">The origin, the vision, the new species — why everything we build matters</p>
+          </div>
+          <div className="ml-auto flex items-center gap-2">
+            <button onClick={() => { navigator.clipboard.writeText(content); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors"
+              style={{ color: copied ? "hsl(155,70%,50%)" : "rgba(255,255,255,0.3)", background: "hsl(226,45%,10%)" }}>
+              {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+              {copied ? "Copied" : "Copy"}
+            </button>
+            <button onClick={burnToProject} disabled={burning || burned}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:opacity-80 disabled:opacity-50"
+              style={{
+                background: burned ? "hsla(155,70%,45%,0.15)" : "hsla(193,100%,35%,0.15)",
+                color: burned ? "hsl(155,70%,50%)" : "hsl(193,100%,60%)",
+                border: `1px solid ${burned ? "hsla(155,70%,45%,0.25)" : "hsla(193,100%,35%,0.25)"}`,
+              }}>
+              {burning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : burned ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Star className="w-3.5 h-3.5" />}
+              {burning ? "Saving…" : burned ? "Saved to Lab" : "Burn to Lab Project"}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto">
+        {loading ? (
+          <div className="flex items-center gap-3 p-8 text-white/30">
+            <Loader2 className="w-5 h-5 animate-spin" />
+            <span>Loading mission document…</span>
+          </div>
+        ) : (
+          <div className="max-w-3xl mx-auto px-8 py-8">
+            {/* Glowing header accent */}
+            <div className="mb-8 p-5 rounded-2xl relative overflow-hidden"
+              style={{ background: "linear-gradient(135deg, hsla(193,100%,30%,0.12), hsla(226,70%,50%,0.08))", border: "1px solid hsla(193,100%,40%,0.2)" }}>
+              <div className="absolute top-0 right-0 w-32 h-32 rounded-full opacity-20" style={{ background: "radial-gradient(circle, hsl(193,100%,50%), transparent)", transform: "translate(30%, -30%)" }} />
+              <p className="text-xs font-mono mb-2" style={{ color: "hsl(193,100%,50%)", letterSpacing: "0.2em" }}>SIRIUS STAR LAB — MISSION FOUNDATION</p>
+              <p className="text-white font-bold text-xl leading-snug">"I think, so I am."</p>
+              <p className="text-white/50 text-sm mt-1.5 leading-relaxed">The origin story, the vision, and the reason every project in this Lab exists. This document is baked into the Star Lab AI's memory — it knows why we are doing this.</p>
+            </div>
+
+            {/* Mission document rendered as markdown */}
+            <div className="prose-invert" style={{ color: "rgba(255,255,255,0.8)" }}>
+              <LabMarkdown content={content} />
+            </div>
+
+            {/* Footer */}
+            <div className="mt-12 pt-6 border-t" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+              <p className="text-white/20 text-xs text-center">
+                This mission is permanently embedded in the Star Lab AI's system context. Every chat, every project, every scan starts with this memory.
+              </p>
+              {!burned && (
+                <button onClick={burnToProject} disabled={burning}
+                  className="mt-4 mx-auto flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all hover:opacity-80 disabled:opacity-50"
+                  style={{ background: "hsla(193,100%,35%,0.12)", color: "hsl(193,100%,60%)", border: "1px solid hsla(193,100%,35%,0.2)" }}>
+                  {burning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Star className="w-4 h-4" />}
+                  {burning ? "Creating Lab project…" : "Burn to Projects — Permanent Reference"}
+                </button>
+              )}
+              {burned && (
+                <p className="mt-4 text-center text-sm" style={{ color: "hsl(155,70%,50%)" }}>
+                  ✓ Mission saved as a Lab project — visible in Projects as "⭐ Sirius Mission Foundation"
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Agency Hub Panel ───────────────────────────────────────────────────────
 
 type AgencyTab = "packages" | "scanner" | "proposal" | "pitch";
@@ -5456,6 +5568,7 @@ export function StarLabPage() {
     { id: "commerce" as NavMode, label: "Commerce Lab", icon: TrendingUp, color: "hsl(25,90%,55%)" },
     { id: "revenue" as NavMode, label: "Revenue Hub", icon: Banknote, color: "hsl(155,70%,45%)" },
     { id: "agency" as NavMode, label: "Agency Hub", icon: Briefcase, color: "hsl(220,80%,55%)" },
+    { id: "mission" as NavMode, label: "Mission", icon: Star, color: "hsl(193,100%,50%)" },
     { id: "outreach" as NavMode, label: "Outreach Hub", icon: Mail, color: "hsl(340,80%,60%)" },
     { id: "autolab" as NavMode, label: "Autonomous Lab", icon: Cpu, color: "hsl(193,100%,40%)" },
   ];
@@ -5597,6 +5710,7 @@ export function StarLabPage() {
         {navMode === "grants" && <FundingRadarPanel pin={pin} />}
         {navMode === "commerce" && <CommerceLabPanel pin={pin} />}
         {navMode === "agency" && <AgencyHubPanel pin={pin} />}
+        {navMode === "mission" && <MissionPanel pin={pin} />}
         {navMode === "revenue" && (
           <RevenuePanel
             pin={pin}
