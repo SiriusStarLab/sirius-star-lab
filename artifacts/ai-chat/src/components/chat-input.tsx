@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, KeyboardEvent, useState, useCallback } from "react";
-import { Send, Square, Mic, MicOff, Paperclip, X, Loader2, Zap, FileText } from "lucide-react";
+import { Send, Square, Mic, MicOff, Paperclip, X, Loader2, Zap, FileText, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useSubscription } from "@/hooks/use-subscription";
@@ -18,13 +18,62 @@ const PLACEHOLDERS = [
 ];
 
 const MODES = [
-  { id: "guru",        label: "Guru",        emoji: "🧿", desc: "Deep expertise & thorough answers" },
-  { id: "coach",       label: "Coach",       emoji: "🏋️", desc: "Action plans & accountability" },
-  { id: "scientist",   label: "Scientist",   emoji: "🔬", desc: "Evidence-based & methodical" },
-  { id: "philosopher", label: "Philosopher", emoji: "🦉", desc: "Reflective & exploratory" },
-  { id: "creative",    label: "Creative",    emoji: "🎨", desc: "Imaginative & generative" },
-  { id: "friend",      label: "Friend",      emoji: "🤝", desc: "Warm, honest conversation" },
-  { id: "tutor",       label: "Tutor",       emoji: "🎓", desc: "Guides your thinking — asks questions, doesn't just give answers" },
+  {
+    id: "guru",
+    label: "Guru",
+    emoji: "🧿",
+    desc: "Deep expertise & thorough answers",
+    detail: "The default. Sirius gives you its full depth — comprehensive, well-structured, and thorough. Best when you want a complete picture of something.",
+    when: "Researching a topic, getting a full explanation, understanding something complex",
+  },
+  {
+    id: "coach",
+    label: "Coach",
+    emoji: "🏋️",
+    desc: "Action plans & accountability",
+    detail: "Direct, energising, and action-focused. Sirius cuts through vagueness, asks what you actually want, and ends every reply with a clear next step.",
+    when: "Feeling stuck, building habits, wanting to move forward on a goal",
+  },
+  {
+    id: "scientist",
+    label: "Scientist",
+    emoji: "🔬",
+    desc: "Evidence-based & methodical",
+    detail: "Everything must be evidenced. Sirius cites studies, separates strong consensus from weak findings, and is honest when the evidence is thin.",
+    when: "Health questions, understanding research, fact-checking, anything where accuracy matters",
+  },
+  {
+    id: "philosopher",
+    label: "Philosopher",
+    emoji: "🦉",
+    desc: "Reflective & exploratory",
+    detail: "Explores from first principles. Challenges your assumptions, draws on philosophy from across cultures, and sits comfortably with questions that don't have neat answers.",
+    when: "Big life questions, ethical dilemmas, understanding your own thinking, exploring meaning",
+  },
+  {
+    id: "creative",
+    label: "Creative",
+    emoji: "🎨",
+    desc: "Imaginative & generative",
+    detail: "Thinks laterally. Sirius deliberately avoids the obvious and comes at things from unexpected angles — using metaphor, imagination, and surprise.",
+    when: "Writing, brainstorming, creative projects, when you want the non-obvious take",
+  },
+  {
+    id: "friend",
+    label: "Friend",
+    emoji: "🤝",
+    desc: "Warm, honest conversation",
+    detail: "All formality dropped. Sirius talks like a present, warm friend — sharing its own view, being real, not lecturing. Just genuine conversation.",
+    when: "When you need to talk something through, want a honest opinion, or just want company",
+  },
+  {
+    id: "tutor",
+    label: "Tutor",
+    emoji: "🎓",
+    desc: "Guides your thinking — asks questions, doesn't just give answers",
+    detail: "Sirius won't hand you the answer. It asks what you already know, reveals things layer by layer, and checks your understanding. Based on the Socratic method.",
+    when: "Learning something new, studying, preparing for an exam, wanting to actually understand — not just be told",
+  },
 ];
 
 interface ChatInputProps {
@@ -45,6 +94,7 @@ export function ChatInput({ onSend, isTyping, onStop }: ChatInputProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [upgradingFromLimit, setUpgradingFromLimit] = useState(false);
+  const [showModeGuide, setShowModeGuide] = useState(false);
   const { status } = useSubscription();
   const userId = getUserId();
 
@@ -242,36 +292,101 @@ export function ChatInput({ onSend, isTyping, onStop }: ChatInputProps) {
     <div className="relative w-full max-w-3xl mx-auto">
 
       {/* Mode selector */}
-      <div className="flex items-center gap-1.5 mb-1.5 overflow-x-auto pb-0.5" style={{ scrollbarWidth: "none" }}>
-        {MODES.map((m) => {
-          const active = mode === m.id;
-          return (
-            <button
-              key={m.id}
-              onClick={() => { setMode(m.id); setTimeout(() => textareaRef.current?.focus(), 0); }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium whitespace-nowrap transition-all duration-200 shrink-0"
-              style={{
-                background: active ? "hsl(193 100% 52% / 0.12)" : "hsl(210 30% 95%)",
-                border: active ? "1px solid hsl(193 100% 52% / 0.5)" : "1px solid hsl(210 25% 87%)",
-                color: active ? "hsl(193 100% 35%)" : "hsl(220 20% 52%)",
-                boxShadow: active ? "0 0 12px hsl(193 100% 52% / 0.15)" : "none",
-              }}
-            >
-              <span>{m.emoji}</span>
-              <span>{m.label}</span>
-            </button>
-          );
-        })}
+      <div className="flex items-center gap-1.5 mb-1.5">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 flex-1" style={{ scrollbarWidth: "none" }}>
+          {MODES.map((m) => {
+            const active = mode === m.id;
+            return (
+              <button
+                key={m.id}
+                title={m.detail}
+                onClick={() => { setMode(m.id); setShowModeGuide(false); setTimeout(() => textareaRef.current?.focus(), 0); }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium whitespace-nowrap transition-all duration-200 shrink-0"
+                style={{
+                  background: active ? "hsl(193 100% 52% / 0.12)" : "hsl(210 30% 95%)",
+                  border: active ? "1px solid hsl(193 100% 52% / 0.5)" : "1px solid hsl(210 25% 87%)",
+                  color: active ? "hsl(193 100% 35%)" : "hsl(220 20% 52%)",
+                  boxShadow: active ? "0 0 12px hsl(193 100% 52% / 0.15)" : "none",
+                }}
+              >
+                <span>{m.emoji}</span>
+                <span>{m.label}</span>
+              </button>
+            );
+          })}
+        </div>
+        <button
+          onClick={() => setShowModeGuide(g => !g)}
+          title="What do these modes mean?"
+          className="shrink-0 flex items-center justify-center w-6 h-6 rounded-full transition-all duration-200"
+          style={{
+            background: showModeGuide ? "hsl(193 100% 52% / 0.12)" : "transparent",
+            border: showModeGuide ? "1px solid hsl(193 100% 52% / 0.4)" : "1px solid hsl(210 25% 87%)",
+            color: showModeGuide ? "hsl(193 100% 35%)" : "hsl(220 20% 55%)",
+          }}
+        >
+          <HelpCircle size={12} />
+        </button>
       </div>
+
+      {/* Mode guide panel */}
+      {showModeGuide && (
+        <div
+          className="mb-3 rounded-xl overflow-hidden"
+          style={{ border: "1px solid hsl(193 100% 52% / 0.2)", background: "hsl(210 40% 98%)" }}
+        >
+          <div className="px-4 py-3" style={{ borderBottom: "1px solid hsl(210 25% 92%)", background: "hsl(193 100% 52% / 0.06)" }}>
+            <p className="text-[11px] font-semibold tracking-widest uppercase" style={{ color: "hsl(193 100% 35%)" }}>
+              How Sirius thinks with you
+            </p>
+            <p className="text-[11px] mt-0.5" style={{ color: "hsl(220 15% 55%)" }}>
+              Pick a mode to shape how Sirius approaches your conversation. You can switch at any time.
+            </p>
+          </div>
+          <div className="divide-y" style={{ borderColor: "hsl(210 25% 92%)" }}>
+            {MODES.map((m) => (
+              <button
+                key={m.id}
+                onClick={() => { setMode(m.id); setShowModeGuide(false); setTimeout(() => textareaRef.current?.focus(), 0); }}
+                className="w-full text-left px-4 py-3 transition-all duration-150 group"
+                style={{ background: mode === m.id ? "hsl(193 100% 52% / 0.07)" : "transparent" }}
+              >
+                <div className="flex items-start gap-3">
+                  <span className="text-base mt-0.5 shrink-0">{m.emoji}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="text-[12px] font-semibold" style={{ color: mode === m.id ? "hsl(193 100% 35%)" : "hsl(220 15% 25%)" }}>
+                        {m.label}
+                      </span>
+                      {mode === m.id && (
+                        <span className="text-[9px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded-full" style={{ background: "hsl(193 100% 52% / 0.15)", color: "hsl(193 100% 35%)" }}>
+                          active
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] leading-relaxed" style={{ color: "hsl(220 15% 45%)" }}>{m.detail}</p>
+                    <p className="text-[10px] mt-1 font-medium" style={{ color: "hsl(193 100% 40% / 0.7)" }}>
+                      Best for: {m.when}
+                    </p>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Active mode description */}
-      <div className="mb-2.5 h-4 flex items-center">
-        {MODES.find(m => m.id === mode) && (
-          <p className="text-[10px] font-mono tracking-[0.18em] transition-all duration-200"
-            style={{ color: mode !== "guru" ? "hsl(193 100% 40% / 0.75)" : "hsl(220 14% 60% / 0.5)" }}>
-            ↳ {MODES.find(m => m.id === mode)?.desc}
-          </p>
-        )}
-      </div>
+      {!showModeGuide && (
+        <div className="mb-2.5 h-4 flex items-center">
+          {MODES.find(m => m.id === mode) && (
+            <p className="text-[10px] font-mono tracking-[0.18em] transition-all duration-200"
+              style={{ color: mode !== "guru" ? "hsl(193 100% 40% / 0.75)" : "hsl(220 14% 60% / 0.5)" }}>
+              ↳ {MODES.find(m => m.id === mode)?.desc}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Image preview strip */}
       {imagePreview && (
