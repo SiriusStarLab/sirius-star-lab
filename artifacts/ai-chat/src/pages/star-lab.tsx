@@ -61,7 +61,7 @@ type RankResult = {
   keyStrengths: string[]; estimatedMonthlyRevenue: string;
   buildEffort: string;
 };
-type NavMode = "projects" | "botlab" | "scout" | "feed" | "grants" | "commerce" | "outreach" | "autolab" | "revenue" | "agency" | "mission";
+type NavMode = "projects" | "botlab" | "scout" | "feed" | "grants" | "commerce" | "outreach" | "autolab" | "revenue" | "agency" | "mission" | "growth";
 
 const MAX_PIN_DIGITS = 8;
 const MAX_ATTEMPTS = 5;
@@ -4261,6 +4261,274 @@ function OutreachHubPanel({ pin }: { pin: string }) {
   );
 }
 
+// ─── Growth Engine Panel ────────────────────────────────────────────────────
+
+type GrowthResult = { format: string; label: string; subject: string; body: string; extra?: string };
+
+const GROWTH_FORMATS = [
+  { id: "linkedin", label: "LinkedIn", icon: "💼", color: "hsl(210,90%,55%)", desc: "Founder story post — reach 10k+ decision makers" },
+  { id: "twitter", label: "Twitter / X", icon: "𝕏", color: "hsl(220,15%,75%)", desc: "Thread format — shareable, indexable, viral potential" },
+  { id: "reddit", label: "Reddit", icon: "🔴", color: "hsl(14,100%,55%)", desc: "3 posts for r/artificial, r/entrepreneur, r/SideProject" },
+  { id: "producthunt", label: "Product Hunt", icon: "🔥", color: "hsl(25,90%,55%)", desc: "Full launch kit — tagline, description, maker comment" },
+  { id: "week", label: "Week Plan", icon: "📅", color: "hsl(280,70%,60%)", desc: "7-day content calendar with angles and hooks" },
+];
+
+function GrowthEnginePanel({ pin }: { pin: string }) {
+  const base = getApiBase();
+  const [activeFormat, setActiveFormat] = useState("linkedin");
+  const [results, setResults] = useState<Record<string, GrowthResult>>({});
+  const [generating, setGenerating] = useState<string | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
+
+  const generate = async (format: string) => {
+    if (generating) return;
+    setGenerating(format);
+    const r = await fetch(`${base}growth/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+      body: JSON.stringify({ format }),
+    });
+    const reader = r.body!.getReader(); const dec = new TextDecoder(); let buf = "";
+    while (true) {
+      const { done, value } = await reader.read(); if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const lines = buf.split("\n"); buf = lines.pop() || "";
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        try {
+          const d = JSON.parse(line.slice(6));
+          if (d.type === "result") {
+            setResults(prev => ({ ...prev, [d.format]: { format: d.format, label: d.label, subject: d.subject, body: d.body, extra: d.extra } }));
+          }
+        } catch { /* ignore */ }
+      }
+    }
+    setGenerating(null);
+  };
+
+  const generateAll = async () => {
+    for (const fmt of GROWTH_FORMATS) {
+      await generate(fmt.id);
+    }
+  };
+
+  const copyResult = (format: string) => {
+    const r = results[format];
+    if (!r) return;
+    const text = `${r.subject}\n\n${r.body}${r.extra ? "\n\n" + r.extra : ""}`;
+    navigator.clipboard.writeText(text);
+    setCopied(format);
+    setTimeout(() => setCopied(null), 2500);
+  };
+
+  const activeResult = results[activeFormat];
+  const activeFmt = GROWTH_FORMATS.find(f => f.id === activeFormat)!;
+  const discoverUrl = typeof window !== "undefined" ? `${window.location.origin}${import.meta.env.BASE_URL}discover` : "siriusai.app/discover";
+
+  return (
+    <div className="flex-1 flex flex-col min-h-0" style={{ background: "hsl(226,45%,5%)" }}>
+      {/* Header */}
+      <div className="px-6 pt-5 pb-4 border-b flex-shrink-0" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "linear-gradient(135deg, hsl(155,70%,30%), hsl(193,100%,35%))" }}>
+              <Globe className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h2 className="text-white font-bold text-lg leading-none">Growth Engine</h2>
+              <p className="text-white/30 text-xs mt-0.5">Generate ready-to-post content across every free channel — right now</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <a href="/discover" target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors"
+              style={{ color: "hsl(193,100%,55%)", background: "hsla(193,100%,35%,0.1)", border: "1px solid hsla(193,100%,35%,0.2)" }}>
+              <Globe className="w-3.5 h-3.5" /> Public Discover Page
+            </a>
+            <button onClick={generateAll} disabled={!!generating}
+              className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold transition-all hover:opacity-80 disabled:opacity-40"
+              style={{ background: "linear-gradient(135deg, hsl(155,70%,35%), hsl(193,100%,35%))", color: "white" }}>
+              {generating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+              {generating ? `Generating ${GROWTH_FORMATS.find(f => f.id === generating)?.label}…` : "Generate Everything"}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-1 min-h-0">
+        {/* Left: Format selector */}
+        <div className="w-64 flex-shrink-0 border-r overflow-y-auto p-3 space-y-1.5" style={{ borderColor: "rgba(255,255,255,0.06)", background: "hsl(226,45%,6%)" }}>
+          {/* Discover Page link */}
+          <div className="mb-3 p-3 rounded-2xl" style={{ background: "hsla(155,70%,40%,0.08)", border: "1px solid hsla(155,70%,40%,0.15)" }}>
+            <p className="text-xs font-semibold mb-1" style={{ color: "hsl(155,70%,55%)" }}>🌐 Public Discover Page</p>
+            <p className="text-white/40 text-xs leading-relaxed mb-2">Your live intelligence feed — publicly accessible, SEO-indexed, shareable link.</p>
+            <div className="text-xs break-all" style={{ color: "hsl(193,100%,55%)" }}>{discoverUrl}</div>
+            <button onClick={() => navigator.clipboard.writeText(discoverUrl)}
+              className="mt-2 w-full py-1.5 rounded-lg text-xs font-medium transition-all hover:opacity-80"
+              style={{ background: "hsla(155,70%,40%,0.15)", color: "hsl(155,70%,55%)" }}>
+              Copy Link
+            </button>
+          </div>
+
+          <p className="text-white/25 text-xs font-medium px-1 mb-2">CONTENT FORMATS</p>
+          {GROWTH_FORMATS.map(fmt => {
+            const done = !!results[fmt.id];
+            const isGenerating = generating === fmt.id;
+            return (
+              <button key={fmt.id} onClick={() => setActiveFormat(fmt.id)}
+                className="w-full text-left p-3 rounded-2xl transition-all"
+                style={{
+                  background: activeFormat === fmt.id ? "hsl(226,45%,12%)" : "transparent",
+                  border: `1px solid ${activeFormat === fmt.id ? "rgba(255,255,255,0.1)" : "transparent"}`,
+                }}>
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">{fmt.icon}</span>
+                    <span className="text-white text-xs font-semibold">{fmt.label}</span>
+                  </div>
+                  {done && !isGenerating && <CheckCircle2 className="w-3.5 h-3.5" style={{ color: "hsl(155,70%,50%)" }} />}
+                  {isGenerating && <Loader2 className="w-3.5 h-3.5 animate-spin text-white/40" />}
+                </div>
+                <p className="text-white/30 text-xs leading-relaxed">{fmt.desc}</p>
+              </button>
+            );
+          })}
+
+          <div className="pt-2 border-t" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+            <p className="text-white/20 text-xs px-1 mb-2">FREE CHANNELS TO HIT</p>
+            {[
+              { name: "LinkedIn", url: "https://linkedin.com", note: "Post yourself — reach 10k–100k" },
+              { name: "r/artificial", url: "https://reddit.com/r/artificial", note: "4.5M AI enthusiasts" },
+              { name: "r/entrepreneur", url: "https://reddit.com/r/entrepreneur", note: "2.5M builders" },
+              { name: "r/SideProject", url: "https://reddit.com/r/SideProject", note: "Indie founders" },
+              { name: "Product Hunt", url: "https://producthunt.com", note: "Launch day = thousands of visitors" },
+              { name: "Hacker News", url: "https://news.ycombinator.com/submit", note: "Show HN post" },
+            ].map(c => (
+              <a key={c.name} href={c.url} target="_blank" rel="noopener noreferrer"
+                className="flex items-start gap-2 px-2 py-1.5 rounded-lg hover:bg-white/5 transition-colors group">
+                <ExternalLink className="w-3 h-3 mt-0.5 flex-shrink-0 text-white/20 group-hover:text-white/50" />
+                <div>
+                  <p className="text-white/50 text-xs font-medium group-hover:text-white/70">{c.name}</p>
+                  <p className="text-white/20 text-xs">{c.note}</p>
+                </div>
+              </a>
+            ))}
+          </div>
+        </div>
+
+        {/* Right: Content area */}
+        <div className="flex-1 flex flex-col min-h-0 min-w-0">
+          {/* Format header */}
+          <div className="px-6 py-4 border-b flex items-center justify-between flex-shrink-0" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">{activeFmt.icon}</span>
+              <div>
+                <h3 className="text-white font-semibold">{activeFmt.label}</h3>
+                <p className="text-white/30 text-xs">{activeFmt.desc}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {activeResult && (
+                <button onClick={() => copyResult(activeFormat)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                  style={{ color: copied === activeFormat ? "hsl(155,70%,55%)" : "rgba(255,255,255,0.6)", background: "hsl(226,45%,12%)" }}>
+                  {copied === activeFormat ? <><Check className="w-3.5 h-3.5" /> Copied!</> : <><Copy className="w-3.5 h-3.5" /> Copy All</>}
+                </button>
+              )}
+              <button onClick={() => generate(activeFormat)} disabled={!!generating}
+                className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold transition-all hover:opacity-80 disabled:opacity-40"
+                style={{ background: activeFmt.color, color: "white" }}>
+                {generating === activeFormat ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Generating…</> : <><Sparkles className="w-3.5 h-3.5" /> Generate {activeFmt.label}</>}
+              </button>
+            </div>
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 overflow-y-auto p-6">
+            {!activeResult && generating !== activeFormat && (
+              <div className="h-full flex flex-col items-center justify-center text-center max-w-md mx-auto">
+                <div className="text-5xl mb-4">{activeFmt.icon}</div>
+                <h4 className="text-white font-semibold text-lg mb-2">{activeFmt.label} Content</h4>
+                <p className="text-white/40 text-sm leading-relaxed mb-6">{activeFmt.desc}. Click Generate and the AI writes it using the Mission story, real Lab discoveries, and the Sirius vision — ready to copy and paste directly.</p>
+                <button onClick={() => generate(activeFormat)}
+                  className="flex items-center gap-2 px-6 py-3 rounded-2xl text-sm font-semibold text-white transition-all hover:opacity-80"
+                  style={{ background: `linear-gradient(135deg, ${activeFmt.color}, hsl(226,70%,50%))` }}>
+                  <Sparkles className="w-4 h-4" /> Generate Now
+                </button>
+              </div>
+            )}
+
+            {generating === activeFormat && !activeResult && (
+              <div className="h-full flex flex-col items-center justify-center text-center gap-4">
+                <Loader2 className="w-10 h-10 animate-spin" style={{ color: activeFmt.color }} />
+                <div>
+                  <p className="text-white font-semibold">Writing your {activeFmt.label} content…</p>
+                  <p className="text-white/30 text-sm mt-1">Using real Lab discoveries + the Sirius mission story</p>
+                </div>
+              </div>
+            )}
+
+            {activeResult && (
+              <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+                {/* Subject/headline */}
+                {activeResult.subject && (
+                  <div>
+                    <p className="text-white/30 text-xs font-medium mb-2 uppercase tracking-wider">Headline / Hook</p>
+                    <div className="rounded-2xl p-4" style={{ background: `${activeFmt.color}12`, border: `1px solid ${activeFmt.color}25` }}>
+                      <p className="text-white font-semibold text-base leading-snug">{activeResult.subject}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Body */}
+                {activeResult.body && (
+                  <div>
+                    <p className="text-white/30 text-xs font-medium mb-2 uppercase tracking-wider">Content</p>
+                    <div className="rounded-2xl p-5 relative group" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                      <pre className="text-white/80 text-sm leading-relaxed whitespace-pre-wrap font-sans">{activeResult.body}</pre>
+                    </div>
+                  </div>
+                )}
+
+                {/* Hashtags/extras */}
+                {activeResult.extra && (
+                  <div>
+                    <p className="text-white/30 text-xs font-medium mb-2 uppercase tracking-wider">Hashtags / Tags</p>
+                    <div className="rounded-xl p-3" style={{ background: "hsl(226,45%,9%)" }}>
+                      <p className="text-white/50 text-sm">{activeResult.extra}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="flex flex-wrap gap-2 pt-2">
+                  <button onClick={() => copyResult(activeFormat)}
+                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all hover:opacity-80"
+                    style={{ background: copied === activeFormat ? "hsla(155,70%,45%,0.15)" : "hsl(226,45%,12%)", color: copied === activeFormat ? "hsl(155,70%,55%)" : "rgba(255,255,255,0.7)" }}>
+                    {copied === activeFormat ? <><Check className="w-4 h-4" /> Copied to clipboard</> : <><Copy className="w-4 h-4" /> Copy and paste</>}
+                  </button>
+                  <button onClick={() => generate(activeFormat)} disabled={!!generating}
+                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-medium transition-all hover:opacity-80 disabled:opacity-40"
+                    style={{ background: "hsl(226,45%,12%)", color: "rgba(255,255,255,0.5)" }}>
+                    <RotateCcw className="w-4 h-4" /> Regenerate
+                  </button>
+                </div>
+
+                {/* Reminder */}
+                <div className="rounded-xl p-3 mt-2" style={{ background: "hsla(45,100%,50%,0.06)", border: "1px solid hsla(45,100%,50%,0.12)" }}>
+                  <p className="text-xs" style={{ color: "hsl(45,100%,65%)" }}>
+                    ⚡ Post this yourself — Sirius can't click the button for you, but this is ready to go. The story is the product. One genuine post from you will outperform any ad campaign.
+                  </p>
+                </div>
+              </motion.div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Mission Foundation Panel ───────────────────────────────────────────────
 
 function MissionPanel({ pin }: { pin: string }) {
@@ -5761,6 +6029,7 @@ export function StarLabPage() {
     { id: "commerce" as NavMode, label: "Commerce Lab", icon: TrendingUp, color: "hsl(25,90%,55%)" },
     { id: "revenue" as NavMode, label: "Revenue Hub", icon: Banknote, color: "hsl(155,70%,45%)" },
     { id: "agency" as NavMode, label: "Agency Hub", icon: Briefcase, color: "hsl(220,80%,55%)" },
+    { id: "growth" as NavMode, label: "Growth Engine", icon: Globe, color: "hsl(155,70%,50%)" },
     { id: "mission" as NavMode, label: "Mission", icon: Star, color: "hsl(193,100%,50%)" },
     { id: "outreach" as NavMode, label: "Outreach Hub", icon: Mail, color: "hsl(340,80%,60%)" },
     { id: "autolab" as NavMode, label: "Autonomous Lab", icon: Cpu, color: "hsl(193,100%,40%)" },
@@ -5903,6 +6172,7 @@ export function StarLabPage() {
         {navMode === "grants" && <FundingRadarPanel pin={pin} />}
         {navMode === "commerce" && <CommerceLabPanel pin={pin} />}
         {navMode === "agency" && <AgencyHubPanel pin={pin} />}
+        {navMode === "growth" && <GrowthEnginePanel pin={pin} />}
         {navMode === "mission" && <MissionPanel pin={pin} />}
         {navMode === "revenue" && (
           <RevenuePanel

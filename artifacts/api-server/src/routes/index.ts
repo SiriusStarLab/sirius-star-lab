@@ -10,9 +10,11 @@ import outreachRouter from "./outreach";
 import learnRouter from "./learn";
 import revenueRouter from "./revenue";
 import agencyRouter from "./agency";
+import publicRouter from "./public";
 
 const router: IRouter = Router();
 
+router.use(publicRouter);
 router.use(healthRouter);
 router.use(openaiRouter);
 router.use(intelligenceRouter);
