@@ -24,6 +24,7 @@ const MODES = [
   { id: "philosopher", label: "Philosopher", emoji: "🦉", desc: "Reflective & exploratory" },
   { id: "creative",    label: "Creative",    emoji: "🎨", desc: "Imaginative & generative" },
   { id: "friend",      label: "Friend",      emoji: "🤝", desc: "Warm, honest conversation" },
+  { id: "tutor",       label: "Tutor",       emoji: "🎓", desc: "Guides your thinking — asks questions, doesn't just give answers" },
 ];
 
 interface ChatInputProps {
