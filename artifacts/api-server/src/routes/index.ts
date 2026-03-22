@@ -8,6 +8,7 @@ import labRouter from "./lab";
 import intelligenceFeedRouter from "./intelligence-feed";
 import outreachRouter from "./outreach";
 import learnRouter from "./learn";
+import revenueRouter from "./revenue";
 
 const router: IRouter = Router();
 
@@ -20,5 +21,6 @@ router.use(labRouter);
 router.use(intelligenceFeedRouter);
 router.use(outreachRouter);
 router.use(learnRouter);
+router.use(revenueRouter);
 
 export default router;

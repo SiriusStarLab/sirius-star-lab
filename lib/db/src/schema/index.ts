@@ -28,3 +28,4 @@ export * from "./ai_discoveries";
 export * from "./cad_files";
 export * from "./lab_scan_history";
 export * from "./study_plans";
+export * from "./lab_revenue";
