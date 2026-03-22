@@ -3257,7 +3257,7 @@ function OutreachHubPanel({ pin }: { pin: string }) {
     setMessages(recipients.map(r => ({ recipientId: r.id, subject: "", body: "", status: "pending" })));
 
     try {
-      const res = await fetch(`${base}/api/outreach/generate`, {
+      const res = await fetch(`${base}outreach/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-lab-pin": pin },
         body: JSON.stringify({ messageType: msgType, product, senderName, senderCompany, tone, subjectTemplate, recipients }),
@@ -3310,7 +3310,7 @@ function OutreachHubPanel({ pin }: { pin: string }) {
       return { to: r?.email, subject: m.subject, body: m.body };
     });
     try {
-      const res = await fetch(`${base}/api/outreach/send`, {
+      const res = await fetch(`${base}outreach/send`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-lab-pin": pin },
         body: JSON.stringify({ messages: payload, smtpHost, smtpPort, smtpUser, smtpPass, fromEmail, fromName }),
