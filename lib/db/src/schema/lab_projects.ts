@@ -38,6 +38,11 @@ export const labProjects = pgTable("lab_projects", {
   // Renders — JSON array of { url: string, label: string, type: "2d"|"3d"|"photo" }
   renders: text("renders").default("[]"),
 
+  // Funding analysis — auto-populated per project
+  fundingAnalysis: text("funding_analysis").default(""),
+  fundingStatus: text("funding_status").default(""),   // "" | "pending" | "complete" | "error"
+  fundingAnalysedAt: timestamp("funding_analysed_at", { withTimezone: true }),
+
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });

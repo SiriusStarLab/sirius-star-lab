@@ -371,6 +371,19 @@ router.put("/lab/projects/:id", authMiddleware, async (req: Request, res: Respon
   for (const [k, v] of Object.entries(fields)) { if (v !== undefined) (updatePayload as any)[k] = v; }
   const [updated] = await db.update(labProjects).set(updatePayload).where(eq(labProjects.id, id)).returning();
   res.json(updated);
+
+  // Auto-trigger funding analysis when brief or specs are updated with substantial content
+  const briefChanged = brief !== undefined && (brief || "").length > 50;
+  const specsChanged = specs !== undefined && (specs || "").length > 50;
+  if (briefChanged || specsChanged) {
+    // Only trigger if not already running
+    const [current] = await db.select({ fundingStatus: labProjects.fundingStatus })
+      .from(labProjects).where(eq(labProjects.id, id));
+    if (current && current.fundingStatus !== "pending") {
+      await db.update(labProjects).set({ fundingStatus: "pending" }).where(eq(labProjects.id, id));
+      runProjectFundingAnalysis(id).catch(console.error);
+    }
+  }
 });
 
 router.delete("/lab/projects/:id", authMiddleware, async (req: Request, res: Response) => {
@@ -1422,48 +1435,124 @@ router.post("/lab/commerce", authMiddleware, async (req: Request, res: Response)
 });
 
 // Funding Radar — real grants & tax incentives across all projects
-const FUNDING_SYSTEM_PROMPT = `You are a specialist R&D funding advisor with deep expertise in UK, EU, and international grant schemes, tax incentives, and innovation funding programmes. Today is ${TODAY()}.
+const FUNDING_SYSTEM_PROMPT = `You are the world's most comprehensive R&D funding advisor, with expert knowledge of grant schemes, R&D tax incentives, and innovation funding programmes across every major country. Today is ${TODAY()}.
 
 ## YOUR MISSION
-Analyse each R&D project provided and identify ONLY real, currently active or regularly recurring funding opportunities. Do not invent schemes. Do not mention schemes that have closed permanently. Do not mention schemes that are irrelevant to the project.
+Analyse each R&D project and identify ONLY real, currently active or regularly recurring funding opportunities worldwide. Do not invent schemes. Do not mention permanently closed programmes. Only include schemes where there is genuine eligibility.
 
-## REAL SCHEMES YOU MAY REFERENCE (verify relevance to each project)
+## COMPREHENSIVE SCHEME DATABASE
 
-### UK TAX INCENTIVES
-- **RDEC (R&D Expenditure Credit)** — merged scheme from April 2024. 20% taxable credit on qualifying R&D expenditure for all UK companies. R&D-intensive SMEs (where qualifying R&D ≥ 30% of total expenditure) receive 27% credit. Qualifying costs: staff salaries, subcontractor costs (65% cap), materials consumed, software licences, utilities. Must be UK-based R&D activities solving scientific or technological uncertainty.
-- **Patent Box** — 10% corporation tax rate on profits attributable to patented inventions. Can be combined with RDEC. Relevant if project produces patentable innovations.
+### 🇬🇧 UNITED KINGDOM — TAX INCENTIVES
+- **UK RDEC (R&D Expenditure Credit)** — Merged scheme from April 2024. 20% taxable credit for all UK companies; 27% for R&D-intensive SMEs (qualifying R&D ≥ 30% of total expenditure). Qualifying costs: staff, subcontractors (65% cap), materials, software, cloud computing, utilities. Covers any work resolving genuine scientific or technological uncertainty.
+- **UK Patent Box** — 10% corporation tax on patent-derived profits. Combinable with RDEC. Apply if project produces patentable innovations.
+- **EIS / SEIS** — Tax relief for investors into qualifying UK companies. SEIS: up to 50% income tax relief, first £250k raised. EIS: 30% relief, up to £5M/year. Relevant for companies seeking investment into innovative projects.
 
-### UK GRANTS — INNOVATE UK / UKRI
-- **Innovate UK Smart Grants** — quarterly open competitions, £25k–£2M, 25–70% funding, for game-changing innovations across all sectors. Apply via Innovate UK website.
-- **Knowledge Transfer Partnerships (KTP)** — 50–67% funded collaborative projects between businesses and universities. Minimum 2-year projects. Delivers a graduate embedded in the business.
-- **Small Business Research Initiative (SBRI)** — government department challenges, up to £1M Phase 2. Various departments run these (DASA, DHSC, DESNZ etc).
-- **Innovate UK Edge** — support for high-growth innovative SMEs.
-- **Horizon Europe (UK association restored Dec 2023)** — UK companies fully eligible. EIC Accelerator (up to €2.5M grant + €15M equity investment), EIC Pathfinder (up to €4M collaborative), ERC grants (individual researchers).
-- **Eurostars** — EUREKA programme for R&D-performing SMEs, up to 50% funding, collaborative international projects.
+### 🇬🇧 UNITED KINGDOM — GRANTS
+- **Innovate UK Smart Grants** — Quarterly competitions, £25k–£2M, 25–70% funding. Any sector. Apply via Innovate UK Funding Service.
+- **Knowledge Transfer Partnerships (KTP)** — 50–67% funded. Business + university collaboration. Minimum 2 years. Embeds a graduate.
+- **SBRI (Small Business Research Initiative)** — Government department challenges. Up to £1M Phase 2. Run by DASA, DHSC, DESNZ and others.
+- **Horizon Europe EIC Accelerator** — Up to €2.5M grant + €15M equity. UK fully eligible (re-associated Dec 2023). Deep tech focus.
+- **Horizon Europe EIC Pathfinder** — Up to €4M collaborative breakthrough research.
+- **Eurostars** — Up to 50% funding for R&D SMEs. International collaboration required.
+- **DASA (Defence & Security Accelerator)** — Quick Wins £25k–£100k; competitions up to £5M. Defence, security, AI, drones, sensors.
+- **ATI (Aerospace Technology Institute)** — Up to 50% for aerospace R&D. Min £250k project cost.
+- **APC (Advanced Propulsion Centre)** — Up to £10M+. Zero-emission vehicles, batteries, fuel cells.
+- **NIHR i4i** — £100k–£2M for medical devices and health technology.
+- **UK Space Agency** — Various competitions for space, EO, satellite technology.
+- **Made Smarter Innovation** — Manufacturing digitalisation, AI, robotics. Up to £5M.
+- **Faraday Battery Challenge** — Battery tech, energy storage, EVs. Up to £10M.
+- **Catapult Centres** — Co-funded R&D access: High Value Manufacturing, Digital, Connected Places, Medicines Discovery, Offshore Renewable Energy Catapults.
 
-### UK SECTOR-SPECIFIC
-- **DASA (Defence and Security Accelerator)** — Quick Wins £25k–£100k, main competitions up to £5M. Open to dual-use technologies. Industries: defence, security, cybersecurity, drones, AI, sensors, communications.
-- **ATI Programme (Aerospace Technology Institute)** — up to 50% funding for aerospace R&D. Minimum £250k project costs. Joint government/industry funding.
-- **APC (Advanced Propulsion Centre)** — up to £10M+ for automotive/propulsion technology R&D. Focus on zero emission vehicles, batteries, fuel cells, powertrains.
-- **NIHR (National Institute for Health Research)** — for medical devices, diagnostics, health technology. Invention for Innovation (i4i) programme, £100k–£2M.
-- **UK Space Agency grants** — for space technology, Earth observation, satellite communications. Various competitions throughout the year.
-- **Made Smarter Innovation** — manufacturing digitalisation, Industry 4.0, robotics, AI in manufacturing. Up to £5M.
-- **Catapult Centres** — co-funded access to facilities and expertise: High Value Manufacturing Catapult, Connected Places, Digital Catapult, Medicines Discovery Catapult, Offshore Renewable Energy Catapult.
-- **Faraday Battery Challenge** — battery technology, energy storage, electric vehicles. Up to £10M.
-- **Industrial Energy Transformation Fund (IETF)** — energy efficiency and decarbonisation in industry.
+### 🇺🇸 UNITED STATES
+- **US Federal R&D Tax Credit (Section 41)** — 20% credit on qualifying research expenses above base amount. Available to any US entity or US subsidiary. Applies to software, hardware, product development, process innovation.
+- **SBIR / STTR** — Phase I up to $275k; Phase II up to $1.85M. 11 federal agencies (DoD, NIH, NASA, NSF, DoE, EPA, USDA, DHS, ED, DOT, HHS). Tech must be commercially viable.
+- **DOE ARPA-E** — Up to $5M+ for transformational energy technology. Very competitive.
+- **NSF SBIR/STTR** — Up to $2M Phase II for deep tech. Strong for AI, software, hardware, clean tech.
+- **NIH SBIR** — Up to $1.85M for health, biotech, medical device, diagnostics.
+- **State-level R&D credits** — Most US states offer additional credits (e.g. California 15–24%, New York up to 9%, Texas franchise tax exemptions). Relevant if company has US operations.
 
-### EU / INTERNATIONAL
-- **Horizon Europe EIC Accelerator** — up to €2.5M grant + up to €15M equity. For deep tech startups. Open to UK companies (re-associated Dec 2023). Highly competitive.
-- **Horizon Europe EIC Pathfinder** — up to €4M for breakthrough research. Collaborative.
-- **Canada SR&ED (Scientific Research & Experimental Development)** — 15–35% tax credit on qualifying R&D. Available to any company with Canadian R&D activities or subsidiaries.
-- **Australia R&D Tax Incentive** — 43.5% refundable tax offset for companies with <$20M aggregated turnover; 38.5% non-refundable for larger. Available to Australian entities.
-- **Germany ZIM (Zentrales Innovationsprogramm Mittelstand)** — up to €2.1M per project for German SMEs or international collaboration with German partners.
-- **Netherlands WBSO** — R&D tax credit, 32% for first €350k for startups, 16% thereafter.
-- **USA SBIR/STTR** — if company has US operations: Phase I up to $275k, Phase II up to $1.85M. 11 federal agencies.
-- **Singapore Enterprise Development Grant (EDG)** — up to 50% funding for product development and innovation if operating in Singapore.
+### 🇨🇦 CANADA
+- **SR&ED (Scientific Research & Experimental Development)** — 15–35% tax credit on qualifying R&D. 35% refundable for CCPCs with <$3M expenditure; 15% non-refundable for others. One of the most generous R&D tax programmes globally.
+- **NRC IRAP (Industrial Research Assistance Program)** — Up to $500k in non-repayable funding for Canadian SMEs. Technology development and commercialisation.
+- **Strategic Innovation Fund** — Up to $50M+ for large-scale industrial R&D and innovation projects.
+- **Canada Digital Adoption Program** — Up to $15k advisory + up to $100k loan for digital tech adoption.
 
-## OUTPUT FORMAT
-Return valid JSON only. No markdown. No preamble. This exact structure:
+### 🇦🇺 AUSTRALIA
+- **R&D Tax Incentive** — 43.5% refundable tax offset for companies with <$20M aggregated turnover; 38.5% non-refundable for larger. Available to Australian incorporated entities. Administered by ATO + AusIndustry.
+- **Entrepreneurs' Programme (EP)** — Up to $1M in matched grant funding for R&D commercialisation. Business Growth and Research Connections streams.
+- **CRC-P (Cooperative Research Centres Projects)** — Up to $3M over 3 years for industry-led R&D collaboration with research organisations.
+
+### 🇩🇪 GERMANY
+- **ZIM (Zentrales Innovationsprogramm Mittelstand)** — Up to €2.1M per project for German SMEs or international collaboration with German partners.
+- **BMBF Programme Funding** — Multiple technology-specific programmes (AI, hydrogen, quantum, manufacturing). Up to several million euros.
+- **Forschungszulage (R&D Tax Credit)** — 25% tax credit on qualifying R&D wage costs, up to €10M expenditure base (max €2.5M credit). For all German companies.
+
+### 🇫🇷 FRANCE
+- **CIR (Crédit Impôt Recherche)** — 30% tax credit on first €100M R&D spend; 5% above. One of the most generous R&D tax schemes globally. Available to French entities or French subsidiaries.
+- **CII (Crédit Impôt Innovation)** — 20% credit on prototyping and innovation expenses up to €400k for SMEs.
+- **BPI France Grants** — Various programmes for innovation, digitalisation, deep tech. Up to several million euros.
+- **French Tech** — Visa, grant access, and investor network for startups scaling in France.
+
+### 🇳🇱 NETHERLANDS
+- **WBSO** — R&D tax credit: 32% for first €350k (40% for startups), 16% thereafter. Covers staff costs and direct R&D expenditure.
+- **Innovation Box** — 9% effective corporation tax on qualifying innovation profits.
+- **MIT (MKB Innovatiestimulering Topsectoren)** — SME innovation grants up to €350k.
+
+### 🇮🇪 IRELAND
+- **Irish R&D Tax Credit** — 30% credit on qualifying R&D expenditure (25% for large companies above €7.5M). Fully payable (refundable) credit.
+- **Enterprise Ireland R&D Fund** — Up to 80% grant funding for feasibility; 45–60% for R&D projects up to €650k.
+- **IDA Ireland** — Grants and supports for companies establishing or expanding R&D in Ireland.
+
+### 🇮🇱 ISRAEL
+- **Israel Innovation Authority (IIA)** — 20–50% grant on approved R&D budgets. One of the most active innovation funding bodies globally. Covers software, hardware, life sciences, clean tech.
+- **Binational R&D Programmes** — BIRD (US-Israel), BRITECH (UK-Israel), GITPA (Germany-Israel). Joint R&D with matching country.
+
+### 🇸🇬 SINGAPORE
+- **Enterprise Development Grant (EDG)** — Up to 50% (70% for SMEs) on product development and innovation projects.
+- **Startup SG Tech** — POC grants up to $250k; POV grants up to $500k.
+- **RIE (Research, Innovation & Enterprise) Fund** — Multiple sector programmes.
+- **IP Development Incentive** — 5–10% tax on qualifying IP income.
+
+### 🇯🇵 JAPAN
+- **NEDO (New Energy and Industrial Technology Development Organization)** — Grants for energy, environment, and industrial technology R&D. Up to ¥several billion for large projects.
+- **JST (Japan Science and Technology Agency)** — Research grants and commercialisation support.
+- **METI R&D Tax Credit** — 6–12% credit on qualifying R&D expenditure for Japanese entities.
+
+### 🇰🇷 SOUTH KOREA
+- **R&D Tax Credit** — Up to 40% credit on qualifying R&D costs for SMEs; 0–2% for large companies. Very generous SME rate.
+- **TIPS (Tech Incubator Programme for Startup)** — Up to ₩1B for deep tech startups backed by qualifying accelerators.
+- **IITP / NRF Grants** — Government R&D grants across ICT, AI, bio, materials.
+
+### 🇮🇳 INDIA
+- **DST NIDHI** — Up to ₹5 crore in grant + equity for deep tech startups.
+- **DPIIT Startup India** — 3-year tax exemption, fund of funds access.
+- **MeitY Grants** — Technology development in electronics, software, AI, cybersecurity.
+- **BIRAC (Biotech Industry Research Assistance Council)** — Up to ₹50 lakh for biotech/med-tech startups.
+
+### 🇦🇪 UAE
+- **Abu Dhabi Global Market (ADGM) Hub71** — Up to $500k equity-free support + co-investment for deep tech startups.
+- **Mohammed Bin Rashid Innovation Fund** — Loan guarantees and financing for innovation projects.
+- **Dubai Future Accelerators / AREA 2071** — Pilot access, co-funding for smart city, AI, sustainability tech.
+
+### 🇸🇪 SWEDEN
+- **Vinnova** — Up to SEK 10M+ grants for innovation projects. Collaborative and solo applications.
+- **Almi** — Business development loans and co-financing for Swedish SMEs.
+
+### 🇩🇰 DENMARK
+- **Innobooster (Innovation Fund Denmark)** — Up to DKK 5M for innovative businesses. Fast-track process.
+- **Danish R&D Tax Credit** — Up to 30% tax deduction on R&D costs; losses converted to cash refund up to DKK 5.5M.
+
+### 🇪🇸 SPAIN
+- **CDTI (Centro para el Desarrollo Tecnológico Industrial)** — Loans and partial grants for industrial R&D. Up to €5M+.
+- **Spanish R&D Tax Credit** — 25% credit on qualifying R&D (42% for basic research). One of Europe's most generous R&D tax incentives.
+
+### 🇮🇹 ITALY
+- **PNRR Innovation Funds** — Multiple streams via National Recovery Plan for digital and green technology.
+- **Credito d'Imposta Ricerca e Sviluppo** — 20% tax credit on qualifying R&D expenditure.
+- **MISE Innovation Contracts** — Up to 50% grant/loan for industrial R&D projects.
+
+## OUTPUT FORMAT — SINGLE PROJECT
+Return valid JSON only. No markdown. No preamble.
 
 {
   "opportunities": [
@@ -1474,28 +1563,108 @@ Return valid JSON only. No markdown. No preamble. This exact structure:
         {
           "scheme": "<exact scheme name>",
           "type": "tax_credit" | "grant" | "equity" | "loan",
-          "geography": "UK" | "EU" | "International" | "UK + EU",
+          "geography": "UK" | "EU" | "USA" | "Canada" | "Australia" | "Germany" | "France" | "Ireland" | "Israel" | "Singapore" | "Japan" | "South Korea" | "India" | "UAE" | "Sweden" | "Denmark" | "Spain" | "Italy" | "Netherlands" | "International",
           "amount": "<e.g. Up to £2M | 20% of qualifying costs | €2.5M grant + €15M equity>",
           "matchStrength": "strong" | "good" | "possible",
-          "matchReason": "<1-2 sentences: exactly why this project qualifies for this specific scheme>",
-          "keyEvidence": "<what the applicant needs to document/evidence to support the claim>",
-          "nextStep": "<specific actionable next step — e.g. 'Register on Innovate UK Funding Service and apply in next Smart Grant round (check innovateuk.ukri.org for current window)'>",
-          "url": "<real URL for more information>"
+          "matchReason": "<1-2 sentences: exactly why this project qualifies>",
+          "keyEvidence": "<what to document to support the claim>",
+          "nextStep": "<specific actionable next step with URL or contact>",
+          "url": "<real government or official organisation URL>"
         }
       ]
     }
   ],
-  "summary": "<2-3 sentences: overall portfolio funding picture — estimated total potential value, strongest opportunities, strategic recommendations>"
+  "summary": "<2-3 sentences: total potential value, strongest opportunities, top recommendation>"
 }
 
 ## RULES
-1. Only include schemes where there is genuine eligibility based on the project description — do not list every scheme for every project
-2. matchStrength "strong" = project clearly meets core eligibility criteria; "good" = likely eligible with some conditions; "possible" = worth investigating, eligibility not certain
-3. Be specific about WHY this project qualifies — reference actual project content
-4. URLs must be real government or official organisation websites
-5. If a project has insufficient information to assess, include it with an empty matches array and note in matchReason
-6. Prioritise UK RDEC for any project with genuine scientific/technological uncertainty — it applies to almost all R&D`;
+1. Only include schemes with genuine eligibility based on actual project content
+2. strong = clearly meets criteria; good = likely eligible with conditions; possible = worth investigating
+3. Be specific — reference actual project content in matchReason
+4. Always include UK RDEC if there is genuine scientific/technological uncertainty (applies to almost all R&D)
+5. Always check USA Federal R&D Tax Credit if the project could have US operations or US subsidiary potential
+6. Always check Canada SR&ED if there is any Canadian angle
+7. URLs must be real official government or organisation websites
+8. R&D Tax credits should always be the first matches (they apply broadly) — grants are secondary`;
 
+// Run funding analysis for a single project and store the result
+async function runProjectFundingAnalysis(projectId: number) {
+  try {
+    const [project] = await db.select().from(labProjects).where(eq(labProjects.id, projectId));
+    if (!project) return;
+
+    const hasContent = (project.brief && project.brief.length > 30) ||
+      (project.specs && project.specs.length > 30) ||
+      (project.research && project.research.length > 30);
+
+    if (!hasContent) {
+      await db.update(labProjects).set({ fundingStatus: "" }).where(eq(labProjects.id, projectId));
+      return;
+    }
+
+    const projectSummary = {
+      id: project.id,
+      name: project.name,
+      industry: project.industry,
+      phase: project.phase,
+      brief: (project.brief || "").slice(0, 1200),
+      specs: (project.specs || "").slice(0, 800),
+      research: (project.research || "").slice(0, 600),
+      materials: (project.materials || "").slice(0, 400),
+      code: project.code ? "[Code present]" : "",
+      businessCase: (project.businessCase || "").slice(0, 400),
+    };
+
+    const userMessage = `Analyse this R&D project against all UK and international funding opportunities. Search the web first to verify current programme status and deadlines. Be rigorous — only include genuine eligibility.
+
+PROJECT:
+${JSON.stringify(projectSummary, null, 2)}
+
+Return the JSON response as specified. This is for a single project — the opportunities array should have exactly one entry.`;
+
+    const aiResponse = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        { role: "system", content: FUNDING_SYSTEM_PROMPT },
+        { role: "user", content: userMessage },
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.1,
+    });
+
+    const content = aiResponse.choices[0]?.message?.content;
+    if (!content) throw new Error("No content from AI");
+
+    JSON.parse(content); // validate JSON
+
+    await db.update(labProjects).set({
+      fundingAnalysis: content,
+      fundingStatus: "complete",
+      fundingAnalysedAt: new Date(),
+      updatedAt: new Date(),
+    }).where(eq(labProjects.id, projectId));
+
+    console.log(`[Funding] Analysis complete for project ${projectId} (${project.name})`);
+  } catch (err) {
+    console.error(`[Funding] Analysis failed for project ${projectId}:`, err);
+    await db.update(labProjects).set({ fundingStatus: "error" }).where(eq(labProjects.id, projectId));
+  }
+}
+
+// Per-project funding analysis — manual trigger or auto-called
+router.post("/lab/projects/:id/funding", authMiddleware, async (req: Request, res: Response) => {
+  const projectId = parseInt(req.params.id);
+  if (isNaN(projectId)) { res.status(400).json({ error: "Invalid project ID" }); return; }
+
+  // Mark as pending immediately so the UI can show progress
+  await db.update(labProjects).set({ fundingStatus: "pending", updatedAt: new Date() }).where(eq(labProjects.id, projectId));
+  res.json({ status: "pending", message: "Funding analysis started" });
+
+  // Run in background (non-blocking)
+  runProjectFundingAnalysis(projectId).catch(console.error);
+});
+
+// Funding Radar — all projects at once (manual global scan, still streams)
 router.post("/lab/funding", authMiddleware, async (req: Request, res: Response) => {
   sseHeaders(res);
 

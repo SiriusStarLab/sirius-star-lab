@@ -38,6 +38,7 @@ type Project = {
   brochure: string; pitch: string; costToBuild: string; profitMargin: string;
   businessCase: string; goToMarket: string;
   renders: string; updatedAt: string;
+  fundingAnalysis: string; fundingStatus: string; fundingAnalysedAt: string | null;
   messages?: Message[];
 };
 type Message = { id: number; projectId: number; role: string; content: string; createdAt: string };
@@ -462,6 +463,7 @@ const ALL_TABS = [
   { id: "pitch", label: "Pitch", icon: TrendingUp, field: "pitch", phase: "complete", placeholder: "Investor/client pitch deck content...", generated: true },
   { id: "economics", label: "Economics", icon: Package, field: "costToBuild", phase: "complete", placeholder: "Cost to build, pricing, profit margin analysis...", generated: true },
   { id: "goToMarket", label: "Go-to-Market", icon: Globe, field: "goToMarket", phase: "complete", placeholder: "Launch strategy, channels, pricing, 90-day plan, KPIs...", generated: true },
+  { id: "funding", label: "Funding", icon: BadgeCheck, field: "fundingAnalysis", phase: "all", placeholder: "", generated: false },
 ];
 
 function StreamingText({ content, streaming }: { content: string; streaming: boolean }) {
@@ -1122,15 +1124,23 @@ function ProjectWorkspace({ project, pin, onUpdate }: { project: Project; pin: s
           <div className="w-px h-4 flex-shrink-0 mx-1" style={{ background: "rgba(255,255,255,0.1)" }} />
           {visibleTabs.map(t => {
             const Icon = t.icon;
-            const hasContent = t.field ? !!(project as any)[t.field] : t.id === "renders" ? renders.length > 0 : false;
-            const phaseColor = t.phase === "design" ? "hsl(193,100%,35%)" : t.phase === "production" ? "hsl(45,100%,45%)" : t.phase === "complete" ? "hsl(155,70%,45%)" : "rgba(255,255,255,0.5)";
+            const isFunding = t.id === "funding";
+            const hasContent = isFunding
+              ? project.fundingStatus === "complete"
+              : t.field ? !!(project as any)[t.field] : t.id === "renders" ? renders.length > 0 : false;
+            const phaseColor = t.phase === "design" ? "hsl(193,100%,35%)" : t.phase === "production" ? "hsl(45,100%,45%)" : t.phase === "complete" ? "hsl(155,70%,45%)" : "hsl(155,70%,45%)";
+            const fundingDotColor = project.fundingStatus === "complete" ? "hsl(155,70%,50%)"
+              : project.fundingStatus === "pending" ? "hsl(45,100%,55%)"
+              : project.fundingStatus === "error" ? "hsl(0,70%,60%)" : undefined;
             return (
               <button key={t.id} onClick={() => setActiveTab(t.id)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs flex-shrink-0 transition-all relative"
                 style={{ background: activeTab === t.id ? "hsl(226,45%,16%)" : "transparent", color: activeTab === t.id ? "white" : "rgba(255,255,255,0.4)", border: activeTab === t.id ? `1px solid ${phaseColor}40` : "1px solid transparent" }}>
                 <Icon className="w-3 h-3" style={{ color: activeTab === t.id ? phaseColor : undefined }} />
                 {t.label}
-                {hasContent && <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: phaseColor }} />}
+                {isFunding && project.fundingStatus === "pending" && <Loader2 className="w-2.5 h-2.5 animate-spin flex-shrink-0" style={{ color: "hsl(45,100%,55%)" }} />}
+                {isFunding && fundingDotColor && project.fundingStatus !== "pending" && <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: fundingDotColor }} />}
+                {!isFunding && hasContent && <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: phaseColor }} />}
               </button>
             );
           })}
@@ -1332,7 +1342,11 @@ function ProjectWorkspace({ project, pin, onUpdate }: { project: Project; pin: s
             <RendersTab project={project} pin={pin} onUpdate={onUpdate} />
           )}
 
-          {activeTab !== "overview" && activeTab !== "renders" && tab && (
+          {activeTab === "funding" && (
+            <FundingProjectTab project={project} pin={pin} onUpdate={onUpdate} />
+          )}
+
+          {activeTab !== "overview" && activeTab !== "renders" && activeTab !== "funding" && tab && (
             <div className="flex flex-col h-full">
               {tab.generated && (
                 <div className="px-4 py-2 border-b flex items-center justify-between flex-shrink-0"
@@ -1405,6 +1419,186 @@ function ProjectWorkspace({ project, pin, onUpdate }: { project: Project; pin: s
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function FundingProjectTab({ project, pin, onUpdate }: { project: Project; pin: string; onUpdate: (p: Project) => void }) {
+  const [running, setRunning] = useState(false);
+  const base = getApiBase();
+  const hdrs = () => ({ "Content-Type": "application/json", "x-lab-pin": pin });
+
+  const runAnalysis = async () => {
+    setRunning(true);
+    await fetch(`${base}lab/projects/${project.id}/funding`, { method: "POST", headers: hdrs() });
+    onUpdate({ ...project, fundingStatus: "pending" });
+    setRunning(false);
+  };
+
+  const fundingData = (() => {
+    try { return project.fundingAnalysis ? JSON.parse(project.fundingAnalysis) : null; } catch { return null; }
+  })();
+
+  const matches: FundingMatch[] = fundingData?.opportunities?.[0]?.matches ?? [];
+  const summary: string = fundingData?.summary ?? "";
+  const isPending = project.fundingStatus === "pending";
+  const isError = project.fundingStatus === "error";
+  const hasResults = project.fundingStatus === "complete" && matches.length > 0;
+
+  const STRENGTH = {
+    strong: { label: "Strong Match", color: "hsl(155,70%,45%)", bg: "hsla(155,70%,45%,0.1)", border: "hsla(155,70%,45%,0.25)" },
+    good:   { label: "Good Match", color: "hsl(45,100%,50%)", bg: "hsla(45,100%,50%,0.1)", border: "hsla(45,100%,50%,0.25)" },
+    possible: { label: "Possible", color: "hsl(210,80%,60%)", bg: "hsla(210,80%,60%,0.1)", border: "hsla(210,80%,60%,0.25)" },
+  };
+
+  const GEO_COLORS: Record<string, string> = {
+    UK: "hsl(193,100%,40%)", EU: "hsl(45,90%,50%)", USA: "hsl(220,80%,60%)",
+    Canada: "hsl(0,80%,60%)", Australia: "hsl(25,100%,55%)", Germany: "hsl(50,90%,55%)",
+    France: "hsl(210,70%,60%)", Ireland: "hsl(130,70%,50%)", Israel: "hsl(200,70%,60%)",
+    Singapore: "hsl(350,80%,60%)", Japan: "hsl(0,70%,55%)", "South Korea": "hsl(200,70%,55%)",
+    India: "hsl(30,90%,55%)", UAE: "hsl(145,70%,45%)", Sweden: "hsl(210,80%,60%)",
+    Denmark: "hsl(0,70%,60%)", Spain: "hsl(30,80%,55%)", Italy: "hsl(15,80%,55%)",
+    Netherlands: "hsl(25,85%,55%)", International: "hsl(280,60%,60%)",
+  };
+  const TYPE_LABELS: Record<string, string> = { tax_credit: "Tax Credit", grant: "Grant", equity: "Equity", loan: "Loan" };
+
+  const analysedAt = project.fundingAnalysedAt
+    ? new Date(project.fundingAnalysedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
+    : null;
+
+  return (
+    <div className="flex-1 overflow-y-auto p-5 space-y-5">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <BadgeCheck className="w-4 h-4" style={{ color: "hsl(155,70%,45%)" }} />
+            <span className="text-white font-semibold text-sm">Funding Intelligence</span>
+            {isPending && <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full" style={{ background: "hsla(45,100%,50%,0.12)", color: "hsl(45,100%,60%)" }}>
+              <Loader2 className="w-3 h-3 animate-spin" /> Analysing…
+            </span>}
+            {hasResults && <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: "hsla(155,70%,45%,0.12)", color: "hsl(155,70%,55%)" }}>
+              {matches.length} opportunit{matches.length === 1 ? "y" : "ies"}
+            </span>}
+          </div>
+          <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>
+            {analysedAt ? `Last analysed ${analysedAt}` : "Auto-runs when Brief or Specs are saved"}
+          </p>
+        </div>
+        <button onClick={runAnalysis} disabled={running || isPending}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex-shrink-0"
+          style={{ background: running || isPending ? "hsl(226,45%,12%)" : "hsl(155,70%,38%)", color: "white", border: "1px solid hsla(155,70%,45%,0.3)", opacity: running || isPending ? 0.6 : 1 }}>
+          {running || isPending ? <><Loader2 className="w-3 h-3 animate-spin" /> Running…</> : <><RefreshCw className="w-3 h-3" /> Re-run</>}
+        </button>
+      </div>
+
+      {/* Pending state */}
+      {isPending && !hasResults && (
+        <div className="flex flex-col items-center justify-center py-16 gap-4">
+          <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: "hsla(45,100%,50%,0.1)", border: "1px solid hsla(45,100%,50%,0.2)" }}>
+            <Globe className="w-6 h-6 animate-pulse" style={{ color: "hsl(45,100%,55%)" }} />
+          </div>
+          <div className="text-center space-y-1">
+            <p className="text-white text-sm font-medium">Scanning 20+ funding programmes…</p>
+            <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>UK RDEC · Innovate UK · Horizon Europe · US R&D Credit · SR&ED · CIR · and more</p>
+          </div>
+        </div>
+      )}
+
+      {/* Error state */}
+      {isError && (
+        <div className="flex flex-col items-center justify-center py-12 gap-3">
+          <AlertCircle className="w-8 h-8" style={{ color: "hsl(0,70%,60%)" }} />
+          <p className="text-white/50 text-sm">Analysis failed. Try re-running.</p>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!isPending && !isError && !hasResults && (
+        <div className="flex flex-col items-center justify-center py-16 gap-4">
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.07)" }}>
+            <BadgeCheck className="w-7 h-7" style={{ color: "hsl(155,70%,45%)" }} />
+          </div>
+          <div className="text-center space-y-1.5">
+            <p className="text-white font-medium text-sm">No analysis yet</p>
+            <p className="text-xs leading-relaxed max-w-xs" style={{ color: "rgba(255,255,255,0.3)" }}>
+              Add a Brief or Specs to this project and save — analysis runs automatically. Or trigger it manually now.
+            </p>
+          </div>
+          <button onClick={runAnalysis} disabled={running}
+            className="px-5 py-2.5 rounded-xl text-sm font-semibold transition-all"
+            style={{ background: "hsl(155,70%,38%)", color: "white", border: "1px solid hsla(155,70%,45%,0.3)" }}>
+            {running ? <><Loader2 className="w-3.5 h-3.5 inline animate-spin mr-1.5" />Running…</> : "Run Funding Analysis"}
+          </button>
+        </div>
+      )}
+
+      {/* Summary */}
+      {hasResults && summary && (
+        <div className="rounded-xl p-4" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.07)" }}>
+          <p className="text-xs leading-relaxed" style={{ color: "rgba(255,255,255,0.6)" }}>{summary}</p>
+        </div>
+      )}
+
+      {/* Match cards */}
+      {hasResults && (
+        <div className="space-y-3">
+          {/* Stats row */}
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { label: "Total", value: matches.length, color: "hsl(193,100%,50%)" },
+              { label: "Strong Matches", value: matches.filter(m => m.matchStrength === "strong").length, color: "hsl(155,70%,50%)" },
+              { label: "Tax Credits", value: matches.filter(m => m.type === "tax_credit").length, color: "hsl(45,100%,50%)" },
+            ].map(s => (
+              <div key={s.label} className="rounded-xl p-3 text-center" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                <p className="text-lg font-bold" style={{ color: s.color }}>{s.value}</p>
+                <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>{s.label}</p>
+              </div>
+            ))}
+          </div>
+
+          {matches.map((m, i) => {
+            const st = STRENGTH[m.matchStrength] || STRENGTH.possible;
+            const geo = m.geography?.split(" / ") ?? [m.geography];
+            return (
+              <div key={i} className="rounded-xl overflow-hidden" style={{ border: `1px solid ${st.border}`, background: st.bg }}>
+                <div className="p-3.5">
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                        {geo.map(g => (
+                          <span key={g} className="text-xs px-1.5 py-0.5 rounded-full font-medium" style={{ background: `${GEO_COLORS[g] || "hsl(280,60%,60%)"}22`, color: GEO_COLORS[g] || "hsl(280,60%,60%)" }}>{g}</span>
+                        ))}
+                        <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.4)" }}>{TYPE_LABELS[m.type] || m.type}</span>
+                      </div>
+                      <p className="text-white font-semibold text-sm leading-snug">{m.scheme}</p>
+                      <p className="text-xs mt-0.5" style={{ color: st.color }}>{st.label} · {m.amount}</p>
+                    </div>
+                  </div>
+                  <p className="text-xs leading-relaxed mb-2" style={{ color: "rgba(255,255,255,0.65)" }}>{m.matchReason}</p>
+                  <div className="space-y-1.5">
+                    <div className="flex gap-2 text-xs">
+                      <span style={{ color: "rgba(255,255,255,0.3)", flexShrink: 0 }}>Evidence:</span>
+                      <span style={{ color: "rgba(255,255,255,0.55)" }}>{m.keyEvidence}</span>
+                    </div>
+                    <div className="flex gap-2 text-xs">
+                      <span style={{ color: "rgba(255,255,255,0.3)", flexShrink: 0 }}>Next step:</span>
+                      <span style={{ color: "rgba(255,255,255,0.55)" }}>{m.nextStep}</span>
+                    </div>
+                  </div>
+                  {m.url && (
+                    <a href={m.url} target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 mt-2 text-xs font-medium transition-opacity hover:opacity-75"
+                      style={{ color: st.color }}>
+                      <ExternalLink className="w-3 h-3" /> More info
+                    </a>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -3081,6 +3275,8 @@ function OutreachHubPanel({ pin }: { pin: string }) {
   );
 }
 
+type FundingAlert = { id: string; projectName: string; count: number; timestamp: number };
+
 export function StarLabPage() {
   const [unlocked, setUnlocked] = useState(false);
   const [pin, setPin] = useState("");
@@ -3093,6 +3289,8 @@ export function StarLabPage() {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
   const [newIndustry, setNewIndustry] = useState("General");
+  const [fundingAlerts, setFundingAlerts] = useState<FundingAlert[]>([]);
+  const prevFundingStatus = useRef<Record<number, string>>({});
   const base = getApiBase();
 
   useEffect(() => {
@@ -3104,7 +3302,24 @@ export function StarLabPage() {
 
   const loadProjects = useCallback(async () => {
     const res = await fetch(`${base}lab/projects`, { headers: headers() });
-    if (res.ok) setProjects(await res.json());
+    if (!res.ok) return;
+    const fresh: Project[] = await res.json();
+    setProjects(fresh);
+
+    // Check for newly completed funding analyses
+    for (const p of fresh) {
+      const prev = prevFundingStatus.current[p.id];
+      if (prev === "pending" && p.fundingStatus === "complete") {
+        const matches = (() => { try { return JSON.parse(p.fundingAnalysis || "{}").opportunities?.[0]?.matches?.length ?? 0; } catch { return 0; } })();
+        const alert: FundingAlert = { id: `${p.id}-${Date.now()}`, projectName: p.name, count: matches, timestamp: Date.now() };
+        setFundingAlerts(prev => [...prev, alert]);
+        // Also update active project if it's this one
+        setActiveProject(cur => cur?.id === p.id ? { ...cur, fundingStatus: p.fundingStatus, fundingAnalysis: p.fundingAnalysis, fundingAnalysedAt: p.fundingAnalysedAt } : cur);
+        // Auto-dismiss after 8s
+        setTimeout(() => setFundingAlerts(prev => prev.filter(a => a.id !== alert.id)), 8000);
+      }
+      prevFundingStatus.current[p.id] = p.fundingStatus;
+    }
   }, [base, headers]);
 
   const loadProject = useCallback(async (id: number) => {
@@ -3113,6 +3328,13 @@ export function StarLabPage() {
   }, [base, headers]);
 
   useEffect(() => { if (unlocked) loadProjects(); }, [unlocked, loadProjects]);
+
+  // Poll every 30s to detect completed funding analyses
+  useEffect(() => {
+    if (!unlocked) return;
+    const interval = setInterval(loadProjects, 30000);
+    return () => clearInterval(interval);
+  }, [unlocked, loadProjects]);
 
   const onUnlock = (p: string) => { setPin(p); setUnlocked(true); };
 
@@ -3136,18 +3358,50 @@ export function StarLabPage() {
 
   if (!unlocked) return <PinGate onUnlock={onUnlock} userName={userName} />;
 
+  const anyPendingFunding = projects.some(p => p.fundingStatus === "pending");
   const NAV_ITEMS = [
     { id: "projects" as NavMode, label: "Projects", icon: FolderOpen, color: "hsl(193,100%,35%)" },
     { id: "botlab" as NavMode, label: "Bot Lab", icon: Bot, color: "hsl(280,70%,55%)" },
     { id: "scout" as NavMode, label: "Scout", icon: Telescope, color: "hsl(45,100%,45%)" },
     { id: "feed" as NavMode, label: "AI Intelligence", icon: Atom, color: "hsl(210,80%,55%)", badge: true },
-    { id: "grants" as NavMode, label: "Funding Radar", icon: BadgeCheck, color: "hsl(155,70%,45%)" },
+    { id: "grants" as NavMode, label: "Funding Radar", icon: BadgeCheck, color: "hsl(155,70%,45%)", pending: anyPendingFunding },
     { id: "commerce" as NavMode, label: "Commerce Lab", icon: TrendingUp, color: "hsl(25,90%,55%)" },
     { id: "outreach" as NavMode, label: "Outreach Hub", icon: Mail, color: "hsl(340,80%,60%)" },
   ];
 
   return (
-    <div className="min-h-screen flex" style={{ background: "hsl(226,45%,5%)" }}>
+    <div className="min-h-screen flex relative" style={{ background: "hsl(226,45%,5%)" }}>
+
+      {/* Funding alert toasts */}
+      <AnimatePresence>
+        {fundingAlerts.map(alert => (
+          <motion.div key={alert.id}
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            transition={{ duration: 0.2 }}
+            className="fixed bottom-5 right-5 z-50 flex items-start gap-3 rounded-2xl p-4 shadow-2xl"
+            style={{ background: "hsl(226,45%,11%)", border: "1px solid hsla(155,70%,45%,0.35)", boxShadow: "0 0 40px hsla(155,70%,40%,0.15), 0 8px 32px rgba(0,0,0,0.5)", maxWidth: "340px" }}>
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "hsla(155,70%,45%,0.15)" }}>
+              <BadgeCheck className="w-4 h-4" style={{ color: "hsl(155,70%,50%)" }} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-white font-semibold text-sm leading-snug">Funding analysis complete</p>
+              <p className="text-xs mt-0.5 leading-relaxed" style={{ color: "rgba(255,255,255,0.5)" }}>
+                <span className="text-white/70">{alert.projectName}</span> — {alert.count > 0 ? `${alert.count} funding opportunit${alert.count === 1 ? "y" : "ies"} found` : "No matching schemes found"}
+              </p>
+              <button onClick={() => { setNavMode("projects"); setFundingAlerts(prev => prev.filter(a => a.id !== alert.id)); }}
+                className="text-xs mt-2 font-medium transition-opacity hover:opacity-75" style={{ color: "hsl(155,70%,50%)" }}>
+                View project →
+              </button>
+            </div>
+            <button onClick={() => setFundingAlerts(prev => prev.filter(a => a.id !== alert.id))}
+              className="text-white/20 hover:text-white/50 transition-colors flex-shrink-0">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </motion.div>
+        ))}
+      </AnimatePresence>
       {/* SIDEBAR */}
       <div className="w-56 flex-shrink-0 flex flex-col border-r" style={{ borderColor: "rgba(255,255,255,0.06)", background: "hsl(226,45%,7%)" }}>
         {/* Logo */}
@@ -3179,6 +3433,9 @@ export function StarLabPage() {
                 <span className="text-sm flex-1" style={{ color: navMode === item.id ? "white" : "rgba(255,255,255,0.4)" }}>{item.label}</span>
                 {(item as any).badge && (
                   <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: item.color }} />
+                )}
+                {(item as any).pending && (
+                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 animate-pulse" style={{ background: "hsl(45,100%,55%)" }} />
                 )}
               </button>
             );

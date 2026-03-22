@@ -23,11 +23,13 @@ React + Vite frontend served at `/`. A full AI partnership platform — not a to
 
 **Sirius Star Lab** (private R&D, at `/star-lab`)
 - PIN-gated (default PIN: 2025, changeable via STAR_LAB_PIN env var)
-- Multi-project workspace: Brief, Research, Specs, Code, Drawings tabs per project
+- Multi-project workspace: Brief, Research, Specs, Code, Drawings, Funding tabs per project
 - Lab AI: engineering-focused, current tech only, web search, build-ready outputs
 - Opportunity Scout: scans industries + social media for product/business opportunities
 - CAD file storage per project: upload DWG, DXF, STEP, IGES, STL, OBJ, F3D files directly into Star Lab (stored in GCS object storage). Files are linked to the project and accessible from the Drawings tab.
 - Drawing notes + CAD files split view in the Drawings tab
+- **Auto Funding Analysis**: per-project R&D tax credits and grants evaluated automatically when Brief/Specs are saved. Covers 20+ countries: UK (RDEC, Innovate UK, DASA, EIS/SEIS), EU (Horizon Europe, EIC, Eurostars), USA (Section 41 R&D Credit, SBIR/STTR, ARPA-E), Canada (SR&ED, NRC IRAP), Australia (R&D Tax Incentive), Germany (ZIM, Forschungszulage), France (CIR/CII), Ireland, Israel (IIA), Singapore (EDG), Japan (NEDO), South Korea, India, UAE, Sweden, Denmark, Spain, Italy, Netherlands. Results stored in DB, displayed in per-project Funding tab. In-app toast notifications fire when analysis completes (polls every 30s). Sidebar badge pulses amber while any project is pending.
+- Funding Radar: global manual scan across all projects (streaming, Funding Radar nav section)
 - **Outreach Hub**: AI-personalised outreach campaigns — configure message type, tone, sender info, product; add recipients individually or via bulk paste (CSV); generates personalised messages per recipient via SSE stream; editable subject + body; copy all or send via SMTP. API routes: POST `/api/outreach/generate`, POST `/api/outreach/send`. SMTP config via env vars (SMTP_HOST, SMTP_USER, SMTP_PASS, SMTP_PORT, SMTP_FROM, SMTP_FROM_NAME) or entered inline.
 
 **Main site features**
