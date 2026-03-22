@@ -5,18 +5,11 @@ import { openai } from "@workspace/integrations-openai-ai-server";
 import { generateImageBuffer } from "@workspace/integrations-openai-ai-server/image";
 import { ObjectStorageService } from "../lib/objectStorage";
 import { runLabAutoScan, isLabScanRunning } from "../lib/lab-auto-scan.js";
+import { recordPinFailure, clearPinRecord, securityLog } from "../middlewares/security.js";
 
 const router: IRouter = Router();
 
 const LAB_PIN = process.env.STAR_LAB_PIN || "2025";
-
-const AUTH_MAX_ATTEMPTS = 10;
-const AUTH_LOCKOUT_MS = 5 * 60 * 1000; // 5 minutes
-const authAttempts = new Map<string, { count: number; lockedUntil: number }>();
-
-function getClientIp(req: Request): string {
-  return (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || "unknown";
-}
 
 const TODAY = () => new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
@@ -223,7 +216,18 @@ For every bot design request, produce:
 function authMiddleware(req: Request, res: Response, next: () => void) {
   const pin = req.headers["x-lab-pin"] as string;
   if (pin !== LAB_PIN) {
-    res.status(401).json({ error: "Unauthorised" });
+    // Track as PIN failure (brute force detection handled by security module)
+    const result = recordPinFailure(req);
+    if (result.banned) {
+      res.status(403).json({
+        error: "Access locked",
+        message: "Too many incorrect PIN attempts. Locked for 15 minutes.",
+        unlocksAt: result.banExpiresAt?.toISOString(),
+      });
+    } else {
+      securityLog("LAB_HEADER_AUTH_FAIL", req, `Invalid x-lab-pin header — ${result.remaining} attempts remaining`);
+      res.status(401).json({ error: "Unauthorised" });
+    }
     return;
   }
   next();
@@ -309,30 +313,28 @@ async function streamWithSearch(
   return fullContent;
 }
 
-// Auth
+// Auth — PIN checked here; brute-force handled by security middleware + recordPinFailure
 router.post("/lab/auth", (req: Request, res: Response) => {
-  const ip = getClientIp(req);
-  const now = Date.now();
-  const record = authAttempts.get(ip) || { count: 0, lockedUntil: 0 };
-
-  if (record.lockedUntil > now) {
-    const retryAfter = Math.ceil((record.lockedUntil - now) / 1000);
-    res.status(429).json({ error: "Too many attempts", retryAfter });
-    return;
-  }
-
   const { pin } = req.body;
+
   if (pin === LAB_PIN) {
-    authAttempts.delete(ip);
+    clearPinRecord(req);
+    securityLog("LAB_AUTH_SUCCESS", req);
     res.json({ success: true });
   } else {
-    const newCount = record.count + 1;
-    if (newCount >= AUTH_MAX_ATTEMPTS) {
-      authAttempts.set(ip, { count: newCount, lockedUntil: now + AUTH_LOCKOUT_MS });
+    const { banned, remaining, banExpiresAt } = recordPinFailure(req);
+    if (banned) {
+      res.status(403).json({
+        error: "Too many incorrect attempts — access locked for 15 minutes.",
+        unlocksAt: banExpiresAt?.toISOString(),
+      });
     } else {
-      authAttempts.set(ip, { count: newCount, lockedUntil: 0 });
+      res.status(401).json({
+        error: "Incorrect PIN",
+        attemptsLeft: remaining,
+        message: remaining <= 2 ? `Warning: ${remaining} attempt${remaining !== 1 ? "s" : ""} remaining before lockout.` : undefined,
+      });
     }
-    res.status(401).json({ error: "Invalid PIN", attemptsLeft: Math.max(0, AUTH_MAX_ATTEMPTS - newCount) });
   }
 });
 

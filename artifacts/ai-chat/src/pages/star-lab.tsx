@@ -271,15 +271,27 @@ function PinGate({ onUnlock, userName }: { onUnlock: (pin: string) => void; user
         sessionStorage.setItem("lab_pin", pin);
         onUnlock(pin);
       } else {
-        const newAttempts = attempts + 1;
-        setAttempts(newAttempts);
-        if (newAttempts >= MAX_ATTEMPTS) {
+        const body = await res.json().catch(() => ({}));
+        // Server-side lockout (403) — use server's unlock time if available
+        if (res.status === 403 && body.unlocksAt) {
           setStatus("locked");
-          setLockoutEnd(Date.now() + LOCKOUT_SECONDS * 1000);
+          setLockoutEnd(new Date(body.unlocksAt).getTime());
+          setAttempts(MAX_ATTEMPTS);
         } else {
-          setStatus("error");
-          triggerShake();
+          // Use server's remaining attempts count if provided
+          const newAttempts = body.attemptsLeft !== undefined
+            ? MAX_ATTEMPTS - body.attemptsLeft
+            : attempts + 1;
+          setAttempts(newAttempts);
+          if (newAttempts >= MAX_ATTEMPTS) {
+            setStatus("locked");
+            setLockoutEnd(Date.now() + LOCKOUT_SECONDS * 1000);
+          } else {
+            setStatus("error");
+            triggerShake();
+          }
         }
+        setDigits([]);
       }
     } catch {
       setStatus("error");

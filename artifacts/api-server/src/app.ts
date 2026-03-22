@@ -2,11 +2,26 @@ import express, { type Express } from "express";
 import cors from "cors";
 import path from "path";
 import router from "./routes";
+import {
+  helmetMiddleware,
+  generalRateLimit,
+  suspiciousRequestDetector,
+  payloadSizeGuard,
+  inputScanMiddleware,
+  pinBanMiddleware,
+  chatRateLimit,
+  imageGenRateLimit,
+  scanTriggerRateLimit,
+} from "./middlewares/security.js";
 
 const app: Express = express();
 
 const isDev = process.env.NODE_ENV !== "production";
 
+// ── 1. Security headers ───────────────────────────────────────────────────────
+app.use(helmetMiddleware);
+
+// ── 2. CORS — locked to known origins in production ──────────────────────────
 const allowedOrigins = isDev
   ? true
   : (process.env.REPLIT_DOMAINS || "")
@@ -23,12 +38,43 @@ app.use(cors({
   allowedHeaders: ["Content-Type", "Authorization", "x-lab-pin"],
 }));
 
-// Raw body for Stripe webhook signature verification — must come before JSON parser
+// ── 3. General rate limiting — all API routes ─────────────────────────────────
+app.use(generalRateLimit);
+
+// ── 4. Suspicious request detector (logging only — never blocks legitimate use) ──
+app.use(suspiciousRequestDetector);
+
+// ── 5. Payload size guard — before body parsers ───────────────────────────────
+app.use(payloadSizeGuard);
+
+// ── 6. Raw body for Stripe webhook — must come before JSON parser ─────────────
 app.use("/api/stripe/webhook", express.raw({ type: "application/json" }));
 
-app.use(express.json({ limit: "20mb" }));
-app.use(express.urlencoded({ extended: true, limit: "20mb" }));
+// ── 7. Body parsers ───────────────────────────────────────────────────────────
+app.use(express.json({ limit: "30mb" }));
+app.use(express.urlencoded({ extended: true, limit: "5mb" }));
 
+// ── 8. Input threat scanner — runs after body is parsed ──────────────────────
+app.use(inputScanMiddleware);
+
+// ── 9. Per-route rate limits ──────────────────────────────────────────────────
+
+// Star Lab — PIN brute-force check on ALL lab routes
+app.use("/api/lab", pinBanMiddleware);
+
+// Chat / streaming endpoints
+app.use("/api/openai/conversations/:id/messages", chatRateLimit);
+app.use("/api/lab/projects/:id/chat", chatRateLimit);
+app.use("/api/lab/projects/:id/complete-all", chatRateLimit);
+
+// Image generation — expensive, strictly limited
+app.use("/api/openai/image", imageGenRateLimit);
+app.use("/api/lab/projects/:id/render", imageGenRateLimit);
+
+// Scan trigger — max 3 manual runs per hour
+app.use("/api/lab/auto-scan/trigger", scanTriggerRateLimit);
+
+// ── 10. Mobile app download ───────────────────────────────────────────────────
 app.get("/api/download/sirius-mobile", (req, res) => {
   const file = path.join("/home/runner/workspace/artifacts/sirius-mobile.tar.gz");
   res.setHeader("Content-Type", "application/gzip");
@@ -36,6 +82,7 @@ app.get("/api/download/sirius-mobile", (req, res) => {
   res.download(file, "sirius-mobile.tar.gz");
 });
 
+// ── 11. All other routes ──────────────────────────────────────────────────────
 app.use("/api", router);
 
 export default app;
