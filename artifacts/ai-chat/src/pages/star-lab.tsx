@@ -3632,35 +3632,66 @@ function FundingRadarPanel({ pin }: { pin: string }) {
 type Recipient = { id: string; name: string; email: string; company: string; role: string; notes: string };
 type GeneratedMessage = { recipientId: string; subject: string; body: string; status: "pending" | "generating" | "done" | "error"; error?: string };
 
-const MSG_TYPES = ["Cold Email", "Follow-up", "Partnership", "Sales Pitch", "LinkedIn DM"];
-const TONES = ["Professional", "Friendly", "Direct", "Warm", "Confident"];
+// ─── Types for Outreach Engine ───────────────────────────────────────────────
+type OContact = {
+  id: number; name: string; email: string; company: string; role: string;
+  sector: string; website: string; location: string; companySize: string;
+  notes: string; source: string; status: string; createdAt: string;
+};
+type OCampaign = {
+  id: number; name: string; product: string; targetSectors: string;
+  messageType: string; tone: string; subjectTemplate: string;
+  senderName: string; senderCompany: string; fromEmail: string;
+  status: string; totalContacts: number; totalSent: number; createdAt: string;
+};
+type OSend = {
+  id: number; campaignId: number; contactId: number;
+  subject: string; body: string; status: string; contact?: OContact;
+};
+
+const SECTORS = ["Oil & Gas", "Aerospace", "Medical Devices", "Hydrogen", "SaaS", "Professional Services", "Manufacturing", "Construction", "Retail", "Finance", "Legal", "Marketing Agencies"];
+const MSG_TYPES = ["Cold Email", "Follow-Up", "Product Launch", "Partnership Offer", "Case Study"];
+const TONES = ["Professional", "Friendly", "Bold", "Concise", "Warm"];
+
+const STATUS_COLOR: Record<string, string> = {
+  prospect: "hsl(210,70%,55%)", contacted: "hsl(45,100%,55%)",
+  replied: "hsl(155,70%,50%)", converted: "hsl(155,100%,45%)", unsubscribed: "rgba(255,255,255,0.2)",
+};
 
 function OutreachHubPanel({ pin }: { pin: string }) {
   const base = getApiBase();
+  const [view, setView] = useState<"contacts" | "campaigns" | "sends" | "analytics">("contacts");
 
-  // Campaign config
-  const [msgType, setMsgType] = useState("Cold Email");
-  const [product, setProduct] = useState("");
-  const [senderName, setSenderName] = useState("");
-  const [senderCompany, setSenderCompany] = useState("");
-  const [tone, setTone] = useState("Professional");
-  const [subjectTemplate, setSubjectTemplate] = useState("");
-
-  // Recipient form
-  const [rName, setRName] = useState("");
-  const [rEmail, setREmail] = useState("");
-  const [rCompany, setRCompany] = useState("");
-  const [rRole, setRRole] = useState("");
-  const [rNotes, setRNotes] = useState("");
+  // --- Contacts state ---
+  const [contacts, setContacts] = useState<OContact[]>([]);
+  const [contactsLoading, setContactsLoading] = useState(true);
+  const [sectorFilter, setSectorFilter] = useState("All");
+  const [addOpen, setAddOpen] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [scanOpen, setScanOpen] = useState(false);
+  const [scanSector, setScanSector] = useState("Oil & Gas");
+  const [scanCount, setScanCount] = useState(10);
+  const [scanning, setScanning] = useState(false);
+  const [scanLog, setScanLog] = useState<string[]>([]);
   const [bulkText, setBulkText] = useState("");
-  const [showBulk, setShowBulk] = useState(false);
+  const [bulkSector, setBulkSector] = useState("General");
+  const [newC, setNewC] = useState({ name: "", email: "", company: "", role: "", sector: "Oil & Gas", website: "", location: "", notes: "" });
 
-  // Data
-  const [recipients, setRecipients] = useState<Recipient[]>([]);
-  const [messages, setMessages] = useState<GeneratedMessage[]>([]);
+  // --- Campaigns state ---
+  const [campaigns, setCampaigns] = useState<OCampaign[]>([]);
+  const [campaignsLoading, setCampaignsLoading] = useState(false);
+  const [newCamp, setNewCamp] = useState({ name: "", product: "Sirius AI", targetSectors: [] as string[], messageType: "Cold Email", tone: "Professional", subjectTemplate: "", senderName: "Garry Hutton", senderCompany: "Strategic Innovation Dundee Ltd", fromEmail: "" });
+  const [creating, setCreating] = useState(false);
+  const [showCreateCamp, setShowCreateCamp] = useState(false);
+
+  // --- Campaign sends (drill-in) ---
+  const [activeCampaign, setActiveCampaign] = useState<OCampaign | null>(null);
+  const [sends, setSends] = useState<OSend[]>([]);
   const [generating, setGenerating] = useState(false);
+  const [genLog, setGenLog] = useState<string[]>([]);
+  const [editSend, setEditSend] = useState<{ [id: number]: { subject: string; body: string } }>({});
 
-  // SMTP send modal
+  // --- SMTP send modal ---
   const [showSmtp, setShowSmtp] = useState(false);
   const [smtpHost, setSmtpHost] = useState("");
   const [smtpPort, setSmtpPort] = useState("587");
@@ -3668,8 +3699,170 @@ function OutreachHubPanel({ pin }: { pin: string }) {
   const [smtpPass, setSmtpPass] = useState("");
   const [fromEmail, setFromEmail] = useState("");
   const [fromName, setFromName] = useState("");
-  const [sending, setSending] = useState(false);
-  const [sendResult, setSendResult] = useState<{ sent: number; failed: number } | null>(null);
+  const [launching, setLaunching] = useState(false);
+  const [launchResult, setLaunchResult] = useState<{ sent: number; failed: number } | null>(null);
+
+  // --- Analytics ---
+  const [analytics, setAnalytics] = useState<any>(null);
+
+  // Load contacts
+  const loadContacts = useCallback(async () => {
+    setContactsLoading(true);
+    try {
+      const r = await fetch(`${base}outreach/contacts`, { headers: { "x-lab-pin": pin } });
+      setContacts(await r.json());
+    } catch { /* ignore */ }
+    setContactsLoading(false);
+  }, [base, pin]);
+
+  // Load campaigns
+  const loadCampaigns = useCallback(async () => {
+    setCampaignsLoading(true);
+    try {
+      const r = await fetch(`${base}outreach/campaigns`, { headers: { "x-lab-pin": pin } });
+      setCampaigns(await r.json());
+    } catch { /* ignore */ }
+    setCampaignsLoading(false);
+  }, [base, pin]);
+
+  // Load analytics
+  const loadAnalytics = useCallback(async () => {
+    try {
+      const r = await fetch(`${base}outreach/analytics`, { headers: { "x-lab-pin": pin } });
+      setAnalytics(await r.json());
+    } catch { /* ignore */ }
+  }, [base, pin]);
+
+  useEffect(() => { loadContacts(); loadCampaigns(); }, []);
+  useEffect(() => { if (view === "analytics") loadAnalytics(); }, [view]);
+
+  // Add contact
+  const addContact = async () => {
+    if (!newC.name.trim()) return;
+    const r = await fetch(`${base}outreach/contacts`, {
+      method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+      body: JSON.stringify(newC),
+    });
+    const c = await r.json();
+    setContacts(prev => [c, ...prev]);
+    setNewC({ name: "", email: "", company: "", role: "", sector: "Oil & Gas", website: "", location: "", notes: "" });
+    setAddOpen(false);
+  };
+
+  // Delete contact
+  const deleteContact = async (id: number) => {
+    await fetch(`${base}outreach/contacts/${id}`, { method: "DELETE", headers: { "x-lab-pin": pin } });
+    setContacts(prev => prev.filter(c => c.id !== id));
+  };
+
+  // Sector scan
+  const runSectorScan = async () => {
+    setScanning(true); setScanLog([]);
+    const r = await fetch(`${base}outreach/contacts/scan-sector`, {
+      method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+      body: JSON.stringify({ sector: scanSector, count: scanCount }),
+    });
+    const reader = r.body!.getReader(); const dec = new TextDecoder(); let buf = "";
+    while (true) {
+      const { done, value } = await reader.read(); if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const lines = buf.split("\n"); buf = lines.pop() || "";
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        try {
+          const d = JSON.parse(line.slice(6));
+          if (d.type === "contact" && d.contact) { setContacts(prev => [d.contact, ...prev]); setScanLog(prev => [...prev, `✓ ${d.contact.name} — ${d.contact.company}`]); }
+          if (d.type === "done") setScanLog(prev => [...prev, `\nDone — ${d.count} contacts added`]);
+          if (d.error) setScanLog(prev => [...prev, `Error: ${d.error}`]);
+        } catch { /* ignore */ }
+      }
+    }
+    setScanning(false);
+  };
+
+  // Bulk import
+  const runBulkImport = async () => {
+    if (!bulkText.trim()) return;
+    const r = await fetch(`${base}outreach/contacts/import`, {
+      method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+      body: JSON.stringify({ text: bulkText, sector: bulkSector }),
+    });
+    const d = await r.json();
+    if (d.contacts) setContacts(prev => [...d.contacts, ...prev]);
+    setBulkText(""); setBulkOpen(false);
+  };
+
+  // Create campaign
+  const createCampaign = async () => {
+    if (!newCamp.name.trim()) return;
+    setCreating(true);
+    const r = await fetch(`${base}outreach/campaigns`, {
+      method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+      body: JSON.stringify(newCamp),
+    });
+    const c = await r.json();
+    setCampaigns(prev => [c, ...prev]);
+    setShowCreateCamp(false);
+    setCreating(false);
+    openCampaign(c);
+  };
+
+  // Open campaign (drill in)
+  const openCampaign = async (camp: OCampaign) => {
+    setActiveCampaign(camp); setView("sends"); setSends([]); setGenLog([]);
+    const r = await fetch(`${base}outreach/campaigns/${camp.id}/sends`, { headers: { "x-lab-pin": pin } });
+    setSends(await r.json());
+  };
+
+  // Generate pitches for campaign
+  const generatePitches = async () => {
+    if (!activeCampaign || generating) return;
+    setGenerating(true); setSends([]); setGenLog(["Starting AI pitch generation…"]);
+    const r = await fetch(`${base}outreach/campaigns/${activeCampaign.id}/generate`, {
+      method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin }, body: "{}",
+    });
+    const reader = r.body!.getReader(); const dec = new TextDecoder(); let buf = "";
+    while (true) {
+      const { done, value } = await reader.read(); if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const lines = buf.split("\n"); buf = lines.pop() || "";
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        try {
+          const d = JSON.parse(line.slice(6));
+          if (d.type === "start") setGenLog(prev => [...prev, `Generating pitches for ${d.total} contacts…`]);
+          if (d.type === "pitch" && d.send) { setSends(prev => [...prev, d.send]); setGenLog(prev => [...prev, `✓ ${d.send.contact?.name || "Contact"} — pitch ready`]); }
+          if (d.type === "done") setGenLog(prev => [...prev, `\n✓ All ${d.total} pitches generated. Review and launch.`]);
+          if (d.error) setGenLog(prev => [...prev, `Error: ${d.error}`]);
+        } catch { /* ignore */ }
+      }
+    }
+    setGenerating(false);
+    loadCampaigns();
+  };
+
+  // Launch campaign
+  const launchCampaign = async () => {
+    if (!activeCampaign) return;
+    setLaunching(true); setLaunchResult(null);
+    const r = await fetch(`${base}outreach/campaigns/${activeCampaign.id}/launch`, {
+      method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+      body: JSON.stringify({ smtpHost, smtpPort, smtpUser, smtpPass, fromEmail, fromName }),
+    });
+    const d = await r.json();
+    setLaunchResult({ sent: d.sent || 0, failed: d.failed || 0 });
+    setLaunching(false); setShowSmtp(false);
+    loadCampaigns();
+  };
+
+  const filteredContacts = sectorFilter === "All" ? contacts : contacts.filter(c => c.sector === sectorFilter);
+  const allSectors = ["All", ...Array.from(new Set(contacts.map(c => c.sector)))];
+  const pendingSends = sends.filter(s => s.status === "pending");
+
+  // ─── INPUT STYLE ────────────────────────────────────────────────────────────
+  const inp = "w-full text-xs text-white placeholder-white/20 outline-none rounded-xl px-3 py-2 bg-[hsl(226,45%,12%)] border border-[rgba(255,255,255,0.07)]";
+
+  // ─── RENDER ─────────────────────────────────────────────────────────────────
 
   const addRecipient = () => {
     if (!rName.trim() || !rEmail.trim()) return;
