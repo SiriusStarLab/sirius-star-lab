@@ -1,5 +1,6 @@
 import app from "./app";
 import { startScheduledSweeps } from "./routes/intelligence-sweep.js";
+import { startLabAutoScanner } from "./lib/lab-auto-scan.js";
 
 const rawPort = process.env["PORT"];
 if (!rawPort) {
@@ -13,4 +14,5 @@ if (Number.isNaN(port) || port <= 0) {
 app.listen(port, () => {
   console.log(`Server listening on port ${port}`);
   startScheduledSweeps(6);
+  startLabAutoScanner(24);
 });

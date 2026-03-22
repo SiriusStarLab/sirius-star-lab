@@ -26,3 +26,4 @@ export * from "./lab_messages";
 export * from "./scout_reports";
 export * from "./ai_discoveries";
 export * from "./cad_files";
+export * from "./lab_scan_history";

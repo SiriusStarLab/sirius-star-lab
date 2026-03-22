@@ -38,6 +38,10 @@ export const labProjects = pgTable("lab_projects", {
   // Renders — JSON array of { url: string, label: string, type: "2d"|"3d"|"photo" }
   renders: text("renders").default("[]"),
 
+  // Autonomous lab — set when project was auto-created by the daily scanner
+  autoCreated: text("auto_created").default(""),   // "" | "auto"
+  autoScanId: text("auto_scan_id").default(""),
+
   // Funding analysis — auto-populated per project
   fundingAnalysis: text("funding_analysis").default(""),
   fundingStatus: text("funding_status").default(""),   // "" | "pending" | "complete" | "error"

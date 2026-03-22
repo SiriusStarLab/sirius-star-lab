@@ -1,9 +1,10 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { eq, desc } from "drizzle-orm";
-import { db, labProjects, labMessages, scoutReports, cadFiles } from "@workspace/db";
+import { db, labProjects, labMessages, scoutReports, cadFiles, labScanHistory } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { generateImageBuffer } from "@workspace/integrations-openai-ai-server/image";
 import { ObjectStorageService } from "../lib/objectStorage";
+import { runLabAutoScan, isLabScanRunning } from "../lib/lab-auto-scan.js";
 
 const router: IRouter = Router();
 
@@ -1801,4 +1802,28 @@ router.get("/lab/projects/:id/cad-files/:fileId/download-url", authMiddleware, a
   }
 });
 
+// ── Auto-scan history & manual trigger ────────────────────────────────────────
+
+router.get("/lab/scan-history", authMiddleware, async (_req: Request, res: Response) => {
+  const history = await db.select().from(labScanHistory)
+    .orderBy(desc(labScanHistory.startedAt))
+    .limit(20);
+  res.json(history);
+});
+
+router.post("/lab/auto-scan/trigger", authMiddleware, async (_req: Request, res: Response) => {
+  if (isLabScanRunning()) {
+    res.json({ status: "already_running", message: "A scan is already in progress." });
+    return;
+  }
+  res.json({ status: "started", message: "Autonomous scan started in background." });
+  // Fire and forget
+  runLabAutoScan().catch(err => console.error("[Lab Auto-Scan] Manual trigger error:", err));
+});
+
+router.get("/lab/auto-scan/status", authMiddleware, (_req: Request, res: Response) => {
+  res.json({ running: isLabScanRunning() });
+});
+
 export default router;
+

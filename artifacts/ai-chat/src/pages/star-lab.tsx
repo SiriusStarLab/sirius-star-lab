@@ -37,13 +37,20 @@ type Project = {
   workflows: string; industryProblem: string; uses: string;
   brochure: string; pitch: string; costToBuild: string; profitMargin: string;
   businessCase: string; goToMarket: string;
-  renders: string; updatedAt: string;
+  renders: string; updatedAt: string; createdAt: string;
+  autoCreated: string; autoScanId: string;
   fundingAnalysis: string; fundingStatus: string; fundingAnalysedAt: string | null;
   messages?: Message[];
 };
 type Message = { id: number; projectId: number; role: string; content: string; createdAt: string };
 type ScoutReport = { id: number; title: string; industry: string; opportunity: string; type: string; createdAt: string };
-type NavMode = "projects" | "botlab" | "scout" | "feed" | "grants" | "commerce" | "outreach";
+type ScanHistoryEntry = {
+  id: number; scanId: string; status: string;
+  opportunitiesFound: number; projectsCreated: number; upgradesApplied: number;
+  summary: string; items: string; error: string;
+  startedAt: string; completedAt: string | null;
+};
+type NavMode = "projects" | "botlab" | "scout" | "feed" | "grants" | "commerce" | "outreach" | "autolab";
 
 const MAX_PIN_DIGITS = 8;
 const MAX_ATTEMPTS = 5;
@@ -2554,6 +2561,248 @@ type FundingMatch = {
 type FundingOpportunity = { projectId: number; projectName: string; matches: FundingMatch[] };
 type FundingResult = { opportunities: FundingOpportunity[]; summary: string };
 
+// ── Auto Lab Panel ────────────────────────────────────────────────────────────
+
+function AutoLabPanel({ pin, projects, onSelectProject }: {
+  pin: string;
+  projects: Project[];
+  onSelectProject: (p: Project) => void;
+}) {
+  const [scanHistory, setScanHistory] = useState<ScanHistoryEntry[]>([]);
+  const [running, setRunning] = useState(false);
+  const [triggering, setTriggering] = useState(false);
+  const base = getApiBase();
+  const hdrs = () => ({ "Content-Type": "application/json", "x-lab-pin": pin });
+
+  const loadHistory = async () => {
+    const [histRes, statusRes] = await Promise.all([
+      fetch(`${base}lab/scan-history`, { headers: hdrs() }),
+      fetch(`${base}lab/auto-scan/status`, { headers: hdrs() }),
+    ]);
+    if (histRes.ok) setScanHistory(await histRes.json());
+    if (statusRes.ok) { const s = await statusRes.json(); setRunning(s.running); }
+  };
+
+  useEffect(() => {
+    loadHistory();
+    const interval = setInterval(loadHistory, 15000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const triggerScan = async () => {
+    setTriggering(true);
+    const res = await fetch(`${base}lab/auto-scan/trigger`, { method: "POST", headers: hdrs() });
+    if (res.ok) { setRunning(true); await loadHistory(); }
+    setTriggering(false);
+  };
+
+  const autoProjects = projects.filter(p => p.autoCreated === "auto")
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  const latestScan = scanHistory[0];
+  const nextScan = latestScan?.startedAt
+    ? new Date(new Date(latestScan.startedAt).getTime() + 24 * 60 * 60 * 1000)
+    : null;
+
+  const formatDate = (d: string | null | undefined) => {
+    if (!d) return "—";
+    return new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  };
+
+  const timeUntilNext = nextScan ? Math.max(0, nextScan.getTime() - Date.now()) : null;
+  const hoursUntil = timeUntilNext ? Math.floor(timeUntilNext / 3600000) : null;
+  const minutesUntil = timeUntilNext ? Math.floor((timeUntilNext % 3600000) / 60000) : null;
+
+  const totalCreated = scanHistory.reduce((s, h) => s + (h.projectsCreated || 0), 0);
+  const totalUpgraded = scanHistory.reduce((s, h) => s + (h.upgradesApplied || 0), 0);
+
+  return (
+    <div className="flex-1 flex flex-col min-h-0 overflow-y-auto" style={{ background: "hsl(226,45%,5%)" }}>
+
+      {/* Header */}
+      <div className="p-6 border-b flex-shrink-0" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2.5 mb-1">
+              <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: running ? "hsl(155,70%,50%)" : "rgba(255,255,255,0.15)", boxShadow: running ? "0 0 8px hsl(155,70%,50%)" : "none" }} />
+              <h2 className="text-white font-bold text-lg">Autonomous Lab</h2>
+              {running && <span className="text-xs px-2 py-0.5 rounded-full animate-pulse" style={{ background: "hsla(155,70%,45%,0.12)", color: "hsl(155,70%,55%)" }}>Scanning now…</span>}
+            </div>
+            <p className="text-xs" style={{ color: "rgba(255,255,255,0.35)", maxWidth: "480px" }}>
+              Runs every 24 hours — discovers new product opportunities worldwide and upgrades existing projects with the latest intelligence. Fully autonomous.
+            </p>
+          </div>
+          <button onClick={triggerScan} disabled={running || triggering}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold flex-shrink-0 transition-all"
+            style={{ background: running || triggering ? "hsl(226,45%,12%)" : "hsl(193,100%,32%)", color: "white", border: "1px solid hsla(193,100%,40%,0.3)", opacity: running || triggering ? 0.6 : 1 }}>
+            {running || triggering ? <><Loader2 className="w-4 h-4 animate-spin" /> Running…</> : <><Zap className="w-4 h-4" /> Run Now</>}
+          </button>
+        </div>
+
+        {/* Stats row */}
+        <div className="mt-4 grid grid-cols-4 gap-3">
+          {[
+            { label: "Scans Run", value: scanHistory.length, color: "hsl(193,100%,50%)" },
+            { label: "Projects Created", value: totalCreated, color: "hsl(155,70%,50%)" },
+            { label: "Upgrades Applied", value: totalUpgraded, color: "hsl(45,100%,50%)" },
+            { label: nextScan && !running ? "Next Scan" : running ? "Status" : "Next Scan",
+              value: running ? "Active" : hoursUntil !== null ? `${hoursUntil}h ${minutesUntil}m` : "Now",
+              color: running ? "hsl(155,70%,50%)" : "hsl(280,60%,65%)" },
+          ].map(s => (
+            <div key={s.label} className="rounded-xl p-3 text-center" style={{ background: "hsl(226,45%,8%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+              <p className="text-xl font-bold" style={{ color: s.color }}>{s.value}</p>
+              <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>{s.label}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex-1 p-6 space-y-6">
+
+        {/* Current / latest scan */}
+        {latestScan && (
+          <div>
+            <p className="text-white/30 text-xs font-semibold uppercase tracking-wider mb-3">Latest Scan</p>
+            <div className="rounded-2xl p-4" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <div>
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span className="w-2 h-2 rounded-full" style={{
+                      background: latestScan.status === "complete" ? "hsl(155,70%,50%)"
+                        : latestScan.status === "running" ? "hsl(45,100%,55%)"
+                        : "hsl(0,70%,55%)"
+                    }} />
+                    <span className="text-white text-sm font-medium capitalize">{latestScan.status === "running" ? "In progress…" : latestScan.status}</span>
+                  </div>
+                  <p className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>{formatDate(latestScan.startedAt)}</p>
+                </div>
+                <div className="flex gap-3 text-right">
+                  <div>
+                    <p className="text-white font-bold text-base">{latestScan.projectsCreated}</p>
+                    <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>Created</p>
+                  </div>
+                  <div>
+                    <p className="text-white font-bold text-base">{latestScan.upgradesApplied}</p>
+                    <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>Upgraded</p>
+                  </div>
+                </div>
+              </div>
+              {latestScan.summary && (
+                <p className="text-xs leading-relaxed" style={{ color: "rgba(255,255,255,0.5)" }}>{latestScan.summary}</p>
+              )}
+              {/* Activity items */}
+              {latestScan.items && (() => {
+                try {
+                  const items = JSON.parse(latestScan.items);
+                  if (!items.length) return null;
+                  return (
+                    <div className="mt-3 space-y-1.5">
+                      {items.slice(0, 6).map((item: any, i: number) => (
+                        <div key={i} className="flex items-start gap-2.5 text-xs rounded-lg px-2.5 py-1.5"
+                          style={{ background: item.type === "new" ? "hsla(193,100%,40%,0.08)" : "hsla(45,100%,50%,0.08)" }}>
+                          <span className="mt-0.5 flex-shrink-0" style={{ color: item.type === "new" ? "hsl(193,100%,50%)" : "hsl(45,100%,55%)" }}>
+                            {item.type === "new" ? "+" : "↑"}
+                          </span>
+                          <span className="text-white/70 font-medium flex-shrink-0">{item.projectName}</span>
+                          <span style={{ color: "rgba(255,255,255,0.35)" }}>{item.action}</span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                } catch { return null; }
+              })()}
+            </div>
+          </div>
+        )}
+
+        {/* Auto-created projects */}
+        {autoProjects.length > 0 && (
+          <div>
+            <p className="text-white/30 text-xs font-semibold uppercase tracking-wider mb-3">
+              Auto-Created Projects ({autoProjects.length})
+            </p>
+            <div className="space-y-2">
+              {autoProjects.map(p => (
+                <div key={p.id} onClick={() => onSelectProject(p)}
+                  className="rounded-xl p-3.5 cursor-pointer transition-all hover:opacity-90"
+                  style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className="text-xs px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: "hsla(193,100%,40%,0.12)", color: "hsl(193,100%,55%)" }}>AUTO</span>
+                        <p className="text-white text-sm font-medium truncate">{p.name}</p>
+                      </div>
+                      <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>{p.industry} · Created {formatDate(p.createdAt)}</p>
+                      {p.brief && <p className="text-xs mt-1.5 line-clamp-2 leading-relaxed" style={{ color: "rgba(255,255,255,0.5)" }}>{p.brief.slice(0, 140)}…</p>}
+                    </div>
+                    {p.fundingStatus === "complete" && (
+                      <span className="text-xs px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: "hsla(155,70%,45%,0.12)", color: "hsl(155,70%,55%)" }}>
+                        Funding ✓
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Scan history */}
+        {scanHistory.length > 1 && (
+          <div>
+            <p className="text-white/30 text-xs font-semibold uppercase tracking-wider mb-3">Scan History</p>
+            <div className="space-y-2">
+              {scanHistory.slice(1).map(scan => (
+                <div key={scan.id} className="flex items-center gap-3 rounded-xl px-3.5 py-2.5"
+                  style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{
+                    background: scan.status === "complete" ? "hsl(155,70%,50%)" : scan.status === "error" ? "hsl(0,70%,55%)" : "hsl(45,100%,55%)"
+                  }} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-white/60">{formatDate(scan.startedAt)}</p>
+                    <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>{scan.projectsCreated} created · {scan.upgradesApplied} upgraded</p>
+                  </div>
+                  <span className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>#{scan.scanId}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Empty state */}
+        {scanHistory.length === 0 && !running && (
+          <div className="flex flex-col items-center justify-center py-20 gap-4">
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <Cpu className="w-8 h-8" style={{ color: "hsl(193,100%,40%)" }} />
+            </div>
+            <div className="text-center space-y-1.5">
+              <p className="text-white font-semibold text-base">Autonomous Lab is active</p>
+              <p className="text-xs leading-relaxed max-w-sm" style={{ color: "rgba(255,255,255,0.3)" }}>
+                The first scan runs on startup. After that it repeats every 24 hours — discovering products, creating projects, and upgrading your existing ones with the latest intelligence.
+              </p>
+            </div>
+            <button onClick={triggerScan} disabled={triggering}
+              className="px-6 py-3 rounded-xl font-semibold text-sm transition-all"
+              style={{ background: "hsl(193,100%,32%)", color: "white", border: "1px solid hsla(193,100%,40%,0.3)" }}>
+              {triggering ? "Starting…" : "Run First Scan Now"}
+            </button>
+          </div>
+        )}
+
+        {running && scanHistory.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-16 gap-4">
+            <Loader2 className="w-10 h-10 animate-spin" style={{ color: "hsl(193,100%,50%)" }} />
+            <div className="text-center space-y-1">
+              <p className="text-white font-medium">Scanning now…</p>
+              <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>Searching for product opportunities across all industries. This takes 2–3 minutes.</p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function FundingRadarPanel({ pin }: { pin: string }) {
   const [result, setResult] = useState<FundingResult | null>(null);
   const [running, setRunning] = useState(false);
@@ -3367,6 +3616,7 @@ export function StarLabPage() {
     { id: "grants" as NavMode, label: "Funding Radar", icon: BadgeCheck, color: "hsl(155,70%,45%)", pending: anyPendingFunding },
     { id: "commerce" as NavMode, label: "Commerce Lab", icon: TrendingUp, color: "hsl(25,90%,55%)" },
     { id: "outreach" as NavMode, label: "Outreach Hub", icon: Mail, color: "hsl(340,80%,60%)" },
+    { id: "autolab" as NavMode, label: "Autonomous Lab", icon: Cpu, color: "hsl(193,100%,40%)" },
   ];
 
   return (
@@ -3506,6 +3756,13 @@ export function StarLabPage() {
         {navMode === "grants" && <FundingRadarPanel pin={pin} />}
         {navMode === "commerce" && <CommerceLabPanel pin={pin} />}
         {navMode === "outreach" && <OutreachHubPanel pin={pin} />}
+        {navMode === "autolab" && (
+          <AutoLabPanel
+            pin={pin}
+            projects={projects}
+            onSelectProject={p => { setActiveProject(p); setNavMode("projects"); }}
+          />
+        )}
         {navMode === "projects" && (
           activeProject
             ? <ProjectWorkspace project={activeProject} pin={pin} onUpdate={p => setActiveProject(p)} />
