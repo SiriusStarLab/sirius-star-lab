@@ -62,6 +62,7 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
   const [aiName, setAiName] = useState("");
   const [aiPersonality, setAiPersonality] = useState("");
   const [preferredLanguage, setPreferredLanguage] = useState("auto");
+  const [displayName, setDisplayName] = useState("");
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
@@ -70,9 +71,17 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
       setAiPersonality(profile.aiPersonality || "");
       setPreferredLanguage(profile.preferredLanguage || "auto");
     }
+    // Load display name from localStorage
+    setDisplayName(localStorage.getItem("sirius_display_name") || "");
   }, [profile, isLoading]);
 
   const handleSave = async () => {
+    // Persist display name to localStorage
+    if (displayName.trim()) {
+      localStorage.setItem("sirius_display_name", displayName.trim());
+    } else {
+      localStorage.removeItem("sirius_display_name");
+    }
     await saveProfile({ aiName, aiPersonality, preferredLanguage });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
@@ -127,6 +136,24 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 space-y-8">
+              <section>
+                <div className="flex items-center gap-2 mb-3">
+                  <User className="w-4 h-4 text-primary" />
+                  <h3 className="text-sm font-semibold text-foreground">Your name</h3>
+                </div>
+                <p className="text-xs text-muted-foreground mb-3">
+                  How should Sirius address you? Used in Star Lab and personal greetings.
+                </p>
+                <input
+                  type="text"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder="e.g. Alex, Maya, Dr. Singh..."
+                  maxLength={50}
+                  className="w-full rounded-xl bg-accent border border-border px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
+                />
+              </section>
+
               <section>
                 <div className="flex items-center gap-2 mb-3">
                   <User className="w-4 h-4 text-primary" />

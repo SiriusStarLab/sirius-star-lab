@@ -48,7 +48,141 @@ const MAX_PIN_DIGITS = 8;
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_SECONDS = 60;
 
-function PinGate({ onUnlock }: { onUnlock: (pin: string) => void }) {
+/* ─── Cinematic greeting shown before the PIN pad ─────────────────────── */
+function StarLabGreeting({ userName, onComplete }: { userName?: string; onComplete: () => void }) {
+  const [visibleCount, setVisibleCount] = useState(0);
+  const [showButton, setShowButton] = useState(false);
+
+  const lines = [
+    userName ? { text: `Hi ${userName},`, big: true } : null,
+    { text: "You are now entering", big: false },
+    { text: "Sirius Star Labs.", big: false, accent: true },
+    { text: "This is a restricted area.", big: false },
+    { text: "Please enter your access code.", big: false, dim: true },
+  ].filter(Boolean) as { text: string; big?: boolean; accent?: boolean; dim?: boolean }[];
+
+  useEffect(() => {
+    const DELAYS = [700, 1300, 1900, 2650, 3400];
+    const timers = DELAYS.slice(0, lines.length).map((delay, i) =>
+      setTimeout(() => setVisibleCount(i + 1), delay)
+    );
+    const btnTimer = setTimeout(() => setShowButton(true), DELAYS[lines.length - 1] + 900);
+    return () => { timers.forEach(clearTimeout); clearTimeout(btnTimer); };
+  }, []);
+
+  return (
+    <div
+      className="min-h-screen flex flex-col items-center justify-center relative overflow-hidden"
+      style={{ background: "hsl(226,50%,3%)" }}
+    >
+      {/* Grid overlay */}
+      <div className="absolute inset-0 pointer-events-none opacity-[0.025]"
+        style={{ backgroundImage: "linear-gradient(hsl(193,100%,60%) 1px, transparent 1px), linear-gradient(90deg, hsl(193,100%,60%) 1px, transparent 1px)", backgroundSize: "40px 40px" }} />
+
+      {/* Corner brackets */}
+      {[["top-8 left-8","border-t-2 border-l-2"],["top-8 right-8","border-t-2 border-r-2"],["bottom-8 left-8","border-b-2 border-l-2"],["bottom-8 right-8","border-b-2 border-r-2"]].map(([pos, border], i) => (
+        <div key={i} className={`absolute w-8 h-8 ${pos} ${border} opacity-20`} style={{ borderColor: "hsl(193,100%,50%)" }} />
+      ))}
+
+      {/* Status bar */}
+      <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-6 py-3 text-xs font-mono"
+        style={{ color: "hsl(193,100%,40%)", borderBottom: "1px solid rgba(0,255,200,0.05)" }}>
+        <span>SIRIUS STAR LAB</span>
+        <span className="flex items-center gap-2">
+          <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "hsl(193,100%,50%)" }} />
+          SECURE TERMINAL v2.0
+        </span>
+        <span>{new Date().toLocaleTimeString("en-GB", { hour12: false })}</span>
+      </div>
+
+      <div className="flex flex-col items-center gap-10 relative z-10 px-8 text-center">
+
+        {/* Twins logo — large, with glow rings */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.7 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+          className="relative flex items-center justify-center"
+          style={{ width: 150, height: 150 }}
+        >
+          {/* Outer slow-spin ring */}
+          <div className="ai-ring-outer absolute inset-0 rounded-full"
+            style={{ border: "1px dashed hsl(193,100%,52% / 0.35)" }} />
+          <div className="absolute inset-3 rounded-full"
+            style={{ border: "1px solid hsl(193,100%,52% / 0.20)" }} />
+          {/* Glow halo */}
+          <div className="absolute inset-0 rounded-full"
+            style={{ background: "radial-gradient(circle, hsl(193,100%,52% / 0.22) 0%, transparent 68%)", filter: "blur(12px)" }} />
+          {/* Logo image */}
+          <div className="relative z-10 rounded-full overflow-hidden"
+            style={{
+              width: 118, height: 118,
+              border: "2px solid hsl(193,100%,52% / 0.50)",
+              boxShadow: "0 0 36px hsl(193,100%,52% / 0.45), 0 0 90px hsl(193,100%,52% / 0.18)",
+            }}>
+            <img src="/logo-v2.png" alt="Sirius AI" className="w-full h-full object-cover"
+              style={{ filter: "brightness(1.15) contrast(1.08) saturate(1.2)" }} />
+          </div>
+        </motion.div>
+
+        {/* Lines revealing one by one */}
+        <div className="space-y-2 min-h-[140px] flex flex-col items-center justify-center">
+          {lines.map((line, i) => (
+            <AnimatePresence key={i}>
+              {visibleCount > i && (
+                <motion.p
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, ease: "easeOut" }}
+                  className="font-mono"
+                  style={{
+                    fontSize: line.big ? "1.5rem" : "0.875rem",
+                    fontWeight: line.big ? 700 : 400,
+                    color: line.big
+                      ? "#fff"
+                      : line.accent
+                      ? "hsl(193,100%,60%)"
+                      : line.dim
+                      ? "rgba(255,255,255,0.35)"
+                      : "rgba(255,255,255,0.70)",
+                    letterSpacing: line.big ? "-0.01em" : "0.15em",
+                    textTransform: line.big ? "none" : "uppercase",
+                  }}
+                >
+                  {line.text}
+                </motion.p>
+              )}
+            </AnimatePresence>
+          ))}
+        </div>
+
+        {/* Enter code button */}
+        <AnimatePresence>
+          {showButton && (
+            <motion.button
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              onClick={onComplete}
+              className="px-8 py-3 rounded-xl font-mono text-sm tracking-[0.2em] uppercase transition-all duration-200 active:scale-95 hover:brightness-110"
+              style={{
+                background: "linear-gradient(135deg, hsl(193,100%,22%), hsl(193,100%,16%))",
+                border: "1px solid hsl(193,100%,38%)",
+                color: "hsl(193,100%,70%)",
+                boxShadow: "0 0 24px hsl(193,100%,35% / 0.35)",
+              }}
+            >
+              Enter Code →
+            </motion.button>
+          )}
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+}
+
+function PinGate({ onUnlock, userName }: { onUnlock: (pin: string) => void; userName?: string }) {
+  const [phase, setPhase] = useState<"greeting" | "pin">("greeting");
   const [digits, setDigits] = useState<string[]>([]);
   const [status, setStatus] = useState<"idle" | "loading" | "error" | "locked">("idle");
   const [attempts, setAttempts] = useState(0);
@@ -139,7 +273,27 @@ function PinGate({ onUnlock }: { onUnlock: (pin: string) => void }) {
   const attemptsLeft = MAX_ATTEMPTS - attempts;
   const PIN_DISPLAY_LENGTH = Math.max(4, digits.length + (digits.length < MAX_PIN_DIGITS ? 1 : 0));
 
+  // Show cinematic greeting before the PIN pad
+  if (phase === "greeting") {
+    return (
+      <motion.div
+        key="greeting"
+        initial={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.4 }}
+      >
+        <StarLabGreeting userName={userName} onComplete={() => setPhase("pin")} />
+      </motion.div>
+    );
+  }
+
   return (
+    <motion.div
+      key="pin"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.5 }}
+    >
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden"
       style={{ background: "hsl(226,50%,3%)" }}>
 
@@ -282,6 +436,7 @@ function PinGate({ onUnlock }: { onUnlock: (pin: string) => void }) {
         </p>
       </motion.div>
     </div>
+    </motion.div>
   );
 }
 
@@ -2929,6 +3084,9 @@ function OutreachHubPanel({ pin }: { pin: string }) {
 export function StarLabPage() {
   const [unlocked, setUnlocked] = useState(false);
   const [pin, setPin] = useState("");
+  const userName = typeof window !== "undefined"
+    ? (localStorage.getItem("sirius_display_name") || "").trim() || undefined
+    : undefined;
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeProject, setActiveProject] = useState<Project | null>(null);
   const [navMode, setNavMode] = useState<NavMode>("projects");
@@ -2976,7 +3134,7 @@ export function StarLabPage() {
     loadProjects();
   };
 
-  if (!unlocked) return <PinGate onUnlock={onUnlock} />;
+  if (!unlocked) return <PinGate onUnlock={onUnlock} userName={userName} />;
 
   const NAV_ITEMS = [
     { id: "projects" as NavMode, label: "Projects", icon: FolderOpen, color: "hsl(193,100%,35%)" },
