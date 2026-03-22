@@ -3,6 +3,7 @@ import { getUserId } from "@/lib/user-id";
 
 export type UserProfile = {
   userId: string;
+  displayName: string;
   aiName: string;
   aiPersonality: string;
   memories: string;
@@ -11,6 +12,7 @@ export type UserProfile = {
 
 const DEFAULT_PROFILE: UserProfile = {
   userId: "",
+  displayName: "",
   aiName: "Sirius",
   aiPersonality: "",
   memories: "",
@@ -42,7 +44,7 @@ export function useProfile() {
     fetchProfile();
   }, [fetchProfile]);
 
-  const saveProfile = useCallback(async (updates: { aiName?: string; aiPersonality?: string; preferredLanguage?: string }) => {
+  const saveProfile = useCallback(async (updates: { displayName?: string; aiName?: string; aiPersonality?: string; preferredLanguage?: string }) => {
     setIsSaving(true);
     try {
       const res = await fetch(`/api/openai/profiles/${userId}`, {

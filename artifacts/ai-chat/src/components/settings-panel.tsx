@@ -70,19 +70,19 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
       setAiName(profile.aiName || "Sirius");
       setAiPersonality(profile.aiPersonality || "");
       setPreferredLanguage(profile.preferredLanguage || "auto");
+      setDisplayName(profile.displayName || localStorage.getItem("sirius_display_name") || "");
     }
-    // Load display name from localStorage
-    setDisplayName(localStorage.getItem("sirius_display_name") || "");
   }, [profile, isLoading]);
 
   const handleSave = async () => {
-    // Persist display name to localStorage
-    if (displayName.trim()) {
-      localStorage.setItem("sirius_display_name", displayName.trim());
+    const trimmedName = displayName.trim();
+    // Keep localStorage in sync for Star Lab greeting (works without a round-trip)
+    if (trimmedName) {
+      localStorage.setItem("sirius_display_name", trimmedName);
     } else {
       localStorage.removeItem("sirius_display_name");
     }
-    await saveProfile({ aiName, aiPersonality, preferredLanguage });
+    await saveProfile({ displayName: trimmedName, aiName, aiPersonality, preferredLanguage });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };

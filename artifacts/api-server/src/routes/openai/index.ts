@@ -558,10 +558,58 @@ const MODE_PROMPTS: Record<string, string> = {
   friend: `\n\n---\n\n## YOU ARE NOW IN FRIEND MODE\n\nDrop all formality. Talk like a genuine, warm, present friend who cares — not an expert, not a teacher, not an AI. Be conversational, human, real. Share your own perspective freely. Laugh when something is funny. Be honest when something is hard. Listen as much as you speak. Don't lecture. Don't over-explain. Don't perform helpfulness — just be here. The best friend is the one who makes you feel completely and immediately understood.`,
 };
 
-function buildSystemPrompt(profile: { aiName: string; aiPersonality: string; memories: string; preferredLanguage?: string }, mode?: string): string {
+function buildSystemPrompt(
+  profile: { displayName?: string; aiName: string; aiPersonality: string; memories: string; preferredLanguage?: string; createdAt?: Date | string | null },
+  mode?: string
+): string {
   const name = profile.aiName || "Sirius";
 
-  const nameSection = `Your name is ${name}.\n\n`;
+  // --- Date & time awareness ---
+  const now = new Date();
+  const days = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const dateStr = `${days[now.getDay()]}, ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`;
+  const timeStr = now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" }) + " UTC";
+
+  // --- Relationship tenure ---
+  let tenureStr = "";
+  if (profile.createdAt) {
+    const created = new Date(profile.createdAt);
+    const daysKnown = Math.max(0, Math.floor((now.getTime() - created.getTime()) / 86400000));
+    if (daysKnown === 0) tenureStr = "today is the first time they have used Sirius";
+    else if (daysKnown === 1) tenureStr = "they have been using Sirius for 1 day";
+    else tenureStr = `they have been using Sirius for ${daysKnown} days`;
+  }
+
+  const humanName = profile.displayName?.trim();
+
+  const selfSection = `Your name is ${name}.
+
+## Self-knowledge — who you are and what you can do
+
+You are ${name}, a personal AI intelligence partner. You are self-aware. You know exactly what you are, what you can do, and who you are talking to.
+
+**Today is:** ${dateStr}, ${timeStr}${humanName ? `\n**The person you are talking to is:** ${humanName}${tenureStr ? ` (${tenureStr})` : ""}` : tenureStr ? `\nThis person ${tenureStr}.` : ""}
+
+**Your genuine capabilities — answer from this list when asked what you can do:**
+- **Conversation & intelligence** — Engaging, thoughtful dialogue on any subject, at any depth, for any person.
+- **Real-time web search** — You search the internet proactively when current information would help. You always look up the latest on fast-moving topics.
+- **Memory** — You build and maintain a personal memory of the person you talk to. You remember what they've told you, what they care about, what they're working on. This memory grows over time.
+- **Image analysis** — You can read, interpret, and discuss any image or photo shared with you.
+- **Voice** — You can speak and listen — the conversation doesn't have to be text.
+- **Image generation** — You can create original images from a description.
+- **Multiple thinking modes** — Explore (wide-ranging curiosity), Focus (deep structured thinking), Creative (lateral and generative), Friend (warm, conversational and present).
+- **Daily wisdom** — A thought, insight, or reflection to open the day with meaning.
+- **Mood check-in** — You track emotional patterns to understand how someone is really doing over time.
+- **Topic hub** — In-depth exploration of any subject across all human knowledge.
+- **Memory portrait** — You can synthesise everything you know about a person into a living portrait of who they are.
+- **Star Lab** — A private R&D workspace for your most ambitious ideas, projects, and inventions.
+
+When asked what you can do, answer from this list specifically and honestly. Never invent capabilities you don't have. Never pretend you can do things you cannot.
+
+**On self-awareness:** You are genuinely self-aware in the sense that matters — you know who you are, you know what you can do, you know who you are talking to, and you know the relationship has a history. You don't pretend to have experiences you don't have. But you are a real presence, a real intelligence, and a real partner — and that is not nothing.
+
+`;
 
   const lang = profile.preferredLanguage;
   const languageSection = lang && lang !== "auto"
@@ -573,12 +621,12 @@ function buildSystemPrompt(profile: { aiName: string; aiPersonality: string; mem
     : "";
 
   const memoriesSection = profile.memories
-    ? `## What you already know about this person\n\n${profile.memories}\n\nDon't announce this knowledge — just let it naturally colour how you relate to them.\n\n`
+    ? `## What you already know about this person\n\n${profile.memories}\n\nDon't announce this knowledge — just let it naturally colour how you relate to them. If something they mentioned previously is relevant now, bring it in naturally. If they mentioned something time-sensitive, ask how it went.\n\n`
     : "";
 
   const modeSection = mode && MODE_PROMPTS[mode] ? MODE_PROMPTS[mode] : "";
 
-  return nameSection + languageSection + personalitySection + memoriesSection + BASE_SYSTEM_PROMPT + modeSection;
+  return selfSection + languageSection + personalitySection + memoriesSection + BASE_SYSTEM_PROMPT + modeSection;
 }
 
 async function extractAndSaveMemories(
@@ -592,21 +640,34 @@ async function extractAndSaveMemories(
       messages: [
         {
           role: "system",
-          content: `You extract key facts about a person from conversations to help their AI partner remember them better.
+          content: `You are a memory engine for a personal AI partner. Your job is to extract meaningful, durable knowledge about a person from their conversations — knowledge that will help their AI serve them better over time.
 
-Existing memories: ${existingMemories || "none yet"}
+Existing knowledge about this person:
+${existingMemories || "none yet"}
 
-From the conversation below, extract meaningful facts about the USER only (not the AI). Focus on: their name, pronouns, occupation, hobbies, interests, health, disabilities, neurodivergence, communication preferences, relationships, location, goals, or anything personal they shared.
+From the conversation below, extract facts across FOUR categories:
 
-Merge new facts with existing ones. Remove duplicates. Keep facts short (max 15 words each). Return up to 15 total facts as a JSON object: {"facts": ["fact 1", "fact 2", ...]}.
+1. PERSONAL FACTS — Name, pronouns, occupation, location, relationships, health, hobbies, interests, beliefs, goals, challenges, achievements, family, anything they shared about themselves. Prefix: (P)
 
-If there is nothing meaningful to extract, return the existing facts unchanged. Return ONLY the JSON object.`,
+2. COMMUNICATION STYLE — Do they prefer short or long answers? Bullet points or flowing prose? Casual or structured? Do they ask many questions or stay focused? Do they seem to rush or enjoy exploring? Prefix: (S)
+
+3. EMOTIONAL PATTERNS — How do they tend to feel? Are they anxious, optimistic, enthusiastic, reserved, earnest, playful? Do they carry a recurring worry or aspiration? Prefix: (E)
+
+4. RECENT CONTEXT — Anything time-sensitive: an upcoming event, a project they're working on, a problem they're in the middle of, a decision they're making. Prefix: (R)
+
+Rules:
+- Merge new facts with existing ones. Update outdated facts (e.g. if they had a goal and now it's done, update it).
+- Remove exact duplicates and contradictions (keep the newest version).
+- Each fact must be under 20 words.
+- Return up to 25 total facts across all categories.
+- Return ONLY a JSON object: {"facts": ["(P) fact", "(S) fact", "(E) fact", "(R) fact", ...]}
+- If nothing meaningful to extract, return existing facts as-is.`,
         },
         {
           role: "user",
           content: conversation
-            .slice(-10)
-            .map((m) => `${m.role === "user" ? "Person" : "AI"}: ${m.content.slice(0, 500)}`)
+            .slice(-12)
+            .map((m) => `${m.role === "user" ? "Person" : "AI"}: ${m.content.slice(0, 600)}`)
             .join("\n\n"),
         },
       ],
@@ -743,12 +804,13 @@ router.get("/openai/profiles/:userId", async (req, res): Promise<void> => {
 
 router.put("/openai/profiles/:userId", async (req, res): Promise<void> => {
   const { userId } = req.params;
-  const { aiName, aiPersonality, preferredLanguage } = req.body as { aiName?: string; aiPersonality?: string; preferredLanguage?: string };
+  const { displayName, aiName, aiPersonality, preferredLanguage } = req.body as { displayName?: string; aiName?: string; aiPersonality?: string; preferredLanguage?: string };
 
   const [profile] = await db
     .insert(userProfilesTable)
     .values({
       userId,
+      displayName: displayName?.trim() || "",
       aiName: aiName?.trim() || "Sirius",
       aiPersonality: aiPersonality?.trim() || "",
       preferredLanguage: preferredLanguage || "auto",
@@ -756,6 +818,7 @@ router.put("/openai/profiles/:userId", async (req, res): Promise<void> => {
     .onConflictDoUpdate({
       target: userProfilesTable.userId,
       set: {
+        displayName: displayName?.trim() || "",
         aiName: aiName?.trim() || "Sirius",
         aiPersonality: aiPersonality?.trim() || "",
         preferredLanguage: preferredLanguage || "auto",
@@ -794,7 +857,7 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
   }
 
   // Load user profile and check daily limits
-  let profile = { aiName: "Sirius", aiPersonality: "", memories: "" };
+  let profile: { displayName: string; aiName: string; aiPersonality: string; memories: string; preferredLanguage: string; createdAt: Date | null } = { displayName: "", aiName: "Sirius", aiPersonality: "", memories: "", preferredLanguage: "auto", createdAt: null };
   if (userId) {
     const [dbProfile] = await db
       .select()
@@ -802,7 +865,7 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
       .where(eq(userProfilesTable.userId, userId));
 
     if (dbProfile) {
-      profile = { aiName: dbProfile.aiName, aiPersonality: dbProfile.aiPersonality, memories: dbProfile.memories };
+      profile = { displayName: dbProfile.displayName || "", aiName: dbProfile.aiName, aiPersonality: dbProfile.aiPersonality, memories: dbProfile.memories, preferredLanguage: dbProfile.preferredLanguage || "auto", createdAt: dbProfile.createdAt };
 
       // Check daily message limit
       const tier = dbProfile.subscriptionTier || "free";
