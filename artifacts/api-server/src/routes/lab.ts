@@ -1861,5 +1861,77 @@ router.get("/lab/auto-scan/status", authMiddleware, (_req: Request, res: Respons
   res.json({ running: isLabScanRunning() });
 });
 
+router.post("/lab/rank-opportunities", authMiddleware, async (_req: Request, res: Response) => {
+  try {
+    const pending = await db.select().from(labProjects).where(eq(labProjects.approvalStatus, "pending"));
+    if (pending.length === 0) {
+      return res.json({ rankings: [] });
+    }
+
+    const projectSummaries = pending.map((p, i) => `
+PROJECT ${i + 1}:
+ID: ${p.id}
+Name: ${p.name}
+Industry: ${p.industry}
+Brief: ${(p.brief || "").slice(0, 400)}
+Business Case: ${(p.businessCase || "").slice(0, 300)}
+`).join("\n---\n");
+
+    const today = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o",
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content: `You are a commercial strategy expert ranking product opportunities for Strategic Innovation Dundee Ltd — a precision engineering business (sliding head CNC lathes, EDM wire cutting) that also develops autonomous AI/marketing bot products. Today is ${today}.
+
+Your job: rank these pending projects strictly by how quickly and easily the owner can make real money from them. Think like an investor who needs returns fast.
+
+Scoring criteria:
+- Speed to first paying customer (weighted heavily)
+- Size and accessibility of the market RIGHT NOW
+- Build complexity vs revenue potential ratio
+- How clear and proven the customer pain is
+- Whether customers already exist and are ready to pay
+
+Return a JSON object with this exact structure:
+{
+  "rankings": [
+    {
+      "projectId": <number>,
+      "name": "<project name>",
+      "rank": <1 = best>,
+      "monetisationScore": <0-100, where 100 = immediate guaranteed revenue>,
+      "timeToFirstRevenue": "<e.g. 2-4 weeks / 1-2 months / 3-6 months>",
+      "revenueConfidence": "<Very High / High / Medium / Low>",
+      "verdict": "<One punchy sentence: why this ranks here and what the revenue opportunity actually is>",
+      "keyStrengths": ["<strength 1>", "<strength 2>", "<strength 3>"],
+      "estimatedMonthlyRevenue": "<realistic monthly revenue estimate by month 6, e.g. £5,000-15,000/mo>",
+      "buildEffort": "<Low / Medium / High>"
+    }
+  ]
+}
+
+Be honest. If something will take 18 months to generate revenue, say so. Rank 1 must be the genuinely best opportunity to monetise fast.`,
+        },
+        {
+          role: "user",
+          content: `Rank these ${pending.length} pending project opportunities:\n\n${projectSummaries}`,
+        },
+      ],
+      temperature: 0.3,
+    });
+
+    const raw = completion.choices[0]?.message?.content || "{}";
+    const data = JSON.parse(raw);
+    res.json(data);
+  } catch (err) {
+    console.error("[Rank Opportunities]", err);
+    res.status(500).json({ error: "Failed to rank opportunities" });
+  }
+});
+
 export default router;
 

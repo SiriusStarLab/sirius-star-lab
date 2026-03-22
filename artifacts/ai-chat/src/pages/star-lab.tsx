@@ -51,6 +51,13 @@ type ScanHistoryEntry = {
   summary: string; items: string; error: string;
   startedAt: string; completedAt: string | null;
 };
+type RankResult = {
+  projectId: number; name: string; rank: number;
+  monetisationScore: number; timeToFirstRevenue: string;
+  revenueConfidence: string; verdict: string;
+  keyStrengths: string[]; estimatedMonthlyRevenue: string;
+  buildEffort: string;
+};
 type NavMode = "projects" | "botlab" | "scout" | "feed" | "grants" | "commerce" | "outreach" | "autolab";
 
 const MAX_PIN_DIGITS = 8;
@@ -2576,6 +2583,8 @@ function AutoLabPanel({ pin, onSelectProject }: {
   const [triggering, setTriggering] = useState(false);
   const [actioningId, setActioningId] = useState<number | null>(null);
   const [expandedBiz, setExpandedBiz] = useState<number | null>(null);
+  const [rankResults, setRankResults] = useState<RankResult[] | null>(null);
+  const [isRanking, setIsRanking] = useState(false);
   const base = getApiBase();
   const hdrs = () => ({ "Content-Type": "application/json", "x-lab-pin": pin });
 
@@ -2626,7 +2635,22 @@ function AutoLabPanel({ pin, onSelectProject }: {
     setActioningId(id);
     await fetch(`${base}lab/projects/${id}/reject`, { method: "POST", headers: hdrs() });
     setPendingProjects(prev => prev.filter(p => p.id !== id));
+    setRankResults(prev => prev ? prev.filter(r => r.projectId !== id) : null);
     setActioningId(null);
+  };
+
+  const rankOpportunities = async () => {
+    setIsRanking(true);
+    try {
+      const res = await fetch(`${base}lab/rank-opportunities`, { method: "POST", headers: hdrs() });
+      if (res.ok) {
+        const data = await res.json();
+        const sorted = (data.rankings || []).sort((a: RankResult, b: RankResult) => a.rank - b.rank);
+        setRankResults(sorted);
+      }
+    } finally {
+      setIsRanking(false);
+    }
   };
 
   const latestScan = scanHistory[0];
@@ -2697,78 +2721,192 @@ function AutoLabPanel({ pin, onSelectProject }: {
         {/* ── APPROVAL QUEUE ─────────────────────────────────────── */}
         {pendingProjects.length > 0 && (
           <div>
-            <div className="flex items-center gap-2.5 mb-4">
-              <div className="w-2 h-2 rounded-full animate-pulse flex-shrink-0" style={{ background: "hsl(25,90%,60%)" }} />
-              <p className="text-white font-semibold text-sm">Awaiting Your Approval — {pendingProjects.length} new project{pendingProjects.length !== 1 ? "s" : ""}</p>
+            <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+              <div className="flex items-center gap-2.5">
+                <div className="w-2 h-2 rounded-full animate-pulse flex-shrink-0" style={{ background: "hsl(25,90%,60%)" }} />
+                <p className="text-white font-semibold text-sm">
+                  Awaiting Your Approval — {pendingProjects.length} new project{pendingProjects.length !== 1 ? "s" : ""}
+                </p>
+              </div>
+              <button
+                onClick={rankResults ? () => setRankResults(null) : rankOpportunities}
+                disabled={isRanking}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all flex-shrink-0"
+                style={{
+                  background: rankResults ? "hsla(155,70%,40%,0.15)" : "hsla(280,70%,55%,0.15)",
+                  border: rankResults ? "1px solid hsla(155,70%,50%,0.35)" : "1px solid hsla(280,70%,55%,0.35)",
+                  color: rankResults ? "hsl(155,70%,60%)" : "hsl(280,70%,70%)",
+                }}>
+                {isRanking
+                  ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Ranking…</>
+                  : rankResults
+                  ? <><RotateCcw className="w-3.5 h-3.5" /> Show All</>
+                  : <><TrendingUp className="w-3.5 h-3.5" /> Rank by Opportunity</>
+                }
+              </button>
             </div>
-            <div className="space-y-3">
-              {pendingProjects.map(p => {
-                const cap = capLabel(p);
-                const isExpanded = expandedBiz === p.id;
-                return (
-                  <div key={p.id} className="rounded-2xl overflow-hidden"
-                    style={{ background: "hsl(226,45%,9%)", border: "1px solid hsla(25,90%,55%,0.2)" }}>
-                    <div className="p-4">
-                      <div className="flex items-start gap-3 mb-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1 flex-wrap">
-                            <span className="text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0"
-                              style={{ background: `${cap.color}18`, color: cap.color, border: `1px solid ${cap.color}30` }}>
-                              {cap.label}
-                            </span>
-                            <p className="text-white font-semibold text-sm leading-snug">{p.name}</p>
+
+            {/* ── RANKED VIEW ── */}
+            {rankResults && (
+              <div className="mb-6">
+                <div className="rounded-2xl overflow-hidden mb-3" style={{ background: "hsl(226,45%,7%)", border: "1px solid hsla(280,70%,55%,0.2)" }}>
+                  <div className="px-4 py-3 flex items-center gap-2" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)", background: "hsla(280,70%,55%,0.08)" }}>
+                    <TrendingUp className="w-4 h-4" style={{ color: "hsl(280,70%,65%)" }} />
+                    <p className="text-sm font-semibold" style={{ color: "hsl(280,70%,70%)" }}>Opportunity Ranking — Best to Monetise First</p>
+                  </div>
+                  <div className="divide-y" style={{ borderColor: "rgba(255,255,255,0.04)" }}>
+                    {rankResults.map((r) => {
+                      const project = pendingProjects.find(p => p.id === r.projectId);
+                      const isActioning = actioningId === r.projectId;
+                      const scoreColor = r.monetisationScore >= 80 ? "hsl(155,70%,55%)" : r.monetisationScore >= 60 ? "hsl(45,100%,55%)" : "hsl(25,90%,60%)";
+                      const confidenceColor = r.revenueConfidence === "Very High" ? "hsl(155,70%,55%)" : r.revenueConfidence === "High" ? "hsl(193,100%,55%)" : r.revenueConfidence === "Medium" ? "hsl(45,100%,55%)" : "hsl(25,90%,60%)";
+                      return (
+                        <div key={r.projectId} className="p-4">
+                          <div className="flex items-start gap-4">
+                            {/* Rank badge */}
+                            <div className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center font-bold text-lg"
+                              style={{
+                                background: r.rank === 1 ? "linear-gradient(135deg, hsl(45,100%,50%), hsl(35,100%,45%))" : r.rank === 2 ? "hsl(226,45%,14%)" : "hsl(226,45%,11%)",
+                                color: r.rank === 1 ? "#000" : "rgba(255,255,255,0.5)",
+                                border: r.rank === 1 ? "none" : "1px solid rgba(255,255,255,0.08)",
+                                boxShadow: r.rank === 1 ? "0 0 16px hsla(45,100%,50%,0.4)" : "none",
+                              }}>
+                              #{r.rank}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-white font-semibold text-sm mb-1 leading-snug">{r.name}</p>
+                              <p className="text-xs leading-relaxed mb-3" style={{ color: "rgba(255,255,255,0.5)" }}>{r.verdict}</p>
+
+                              {/* Score row */}
+                              <div className="grid grid-cols-2 gap-2 mb-3">
+                                <div className="rounded-xl p-2.5 text-center" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                                  <p className="text-lg font-bold" style={{ color: scoreColor }}>{r.monetisationScore}%</p>
+                                  <p className="text-[10px] mt-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>Revenue Score</p>
+                                </div>
+                                <div className="rounded-xl p-2.5 text-center" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                                  <p className="text-sm font-bold" style={{ color: confidenceColor }}>{r.revenueConfidence}</p>
+                                  <p className="text-[10px] mt-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>Confidence</p>
+                                </div>
+                              </div>
+
+                              {/* Key info */}
+                              <div className="flex flex-wrap gap-1.5 mb-3">
+                                <span className="text-[10px] px-2 py-1 rounded-lg font-medium" style={{ background: "hsla(193,100%,50%,0.1)", color: "hsl(193,100%,60%)", border: "1px solid hsla(193,100%,50%,0.2)" }}>
+                                  ⏱ {r.timeToFirstRevenue}
+                                </span>
+                                <span className="text-[10px] px-2 py-1 rounded-lg font-medium" style={{ background: "hsla(155,70%,50%,0.1)", color: "hsl(155,70%,60%)", border: "1px solid hsla(155,70%,50%,0.2)" }}>
+                                  £ {r.estimatedMonthlyRevenue}
+                                </span>
+                                <span className="text-[10px] px-2 py-1 rounded-lg font-medium" style={{ background: "hsla(280,70%,55%,0.1)", color: "hsl(280,70%,65%)", border: "1px solid hsla(280,70%,55%,0.2)" }}>
+                                  Build: {r.buildEffort}
+                                </span>
+                              </div>
+
+                              {/* Strengths */}
+                              {r.keyStrengths?.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mb-3">
+                                  {r.keyStrengths.map((s, i) => (
+                                    <span key={i} className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.4)" }}>
+                                      {s}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+
+                              {/* Approve / Reject */}
+                              {project && (
+                                <div className="flex gap-2">
+                                  <button onClick={() => approve(project)} disabled={isActioning}
+                                    className="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold transition-all"
+                                    style={{ background: isActioning ? "hsl(226,45%,12%)" : "hsl(155,70%,32%)", color: "white", border: "1px solid hsla(155,70%,40%,0.4)" }}>
+                                    {isActioning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                                    Approve — Open in Workspace
+                                  </button>
+                                  <button onClick={() => reject(r.projectId)} disabled={isActioning}
+                                    className="px-3 py-2 rounded-xl text-xs font-medium transition-all"
+                                    style={{ background: "hsla(0,70%,50%,0.1)", color: "hsl(0,70%,60%)", border: "1px solid hsla(0,70%,50%,0.2)" }}>
+                                    Reject
+                                  </button>
+                                </div>
+                              )}
+                            </div>
                           </div>
-                          <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>{p.industry} · Found {formatDate(p.createdAt)}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── STANDARD LIST VIEW (when not ranked) ── */}
+            {!rankResults && (
+              <div className="space-y-3">
+                {pendingProjects.map(p => {
+                  const cap = capLabel(p);
+                  const isExpanded = expandedBiz === p.id;
+                  return (
+                    <div key={p.id} className="rounded-2xl overflow-hidden"
+                      style={{ background: "hsl(226,45%,9%)", border: "1px solid hsla(25,90%,55%,0.2)" }}>
+                      <div className="p-4">
+                        <div className="flex items-start gap-3 mb-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                              <span className="text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0"
+                                style={{ background: `${cap.color}18`, color: cap.color, border: `1px solid ${cap.color}30` }}>
+                                {cap.label}
+                              </span>
+                              <p className="text-white font-semibold text-sm leading-snug">{p.name}</p>
+                            </div>
+                            <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>{p.industry} · Found {formatDate(p.createdAt)}</p>
+                          </div>
+                        </div>
+
+                        {p.brief && (
+                          <p className="text-xs leading-relaxed mb-3 line-clamp-3" style={{ color: "rgba(255,255,255,0.55)" }}>
+                            {p.brief.slice(0, 280)}…
+                          </p>
+                        )}
+
+                        {p.businessCase && (
+                          <button onClick={() => setExpandedBiz(isExpanded ? null : p.id)}
+                            className="flex items-center gap-1.5 text-xs mb-3 transition-all"
+                            style={{ color: "hsl(193,100%,55%)" }}>
+                            <Lightbulb className="w-3.5 h-3.5" />
+                            {isExpanded ? "Hide" : "Show"} Business Case
+                            {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                          </button>
+                        )}
+
+                        <AnimatePresence>
+                          {isExpanded && p.businessCase && (
+                            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
+                              className="mb-3 rounded-xl p-3 text-xs leading-relaxed overflow-hidden"
+                              style={{ background: "hsl(226,45%,6%)", border: "1px solid rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.6)" }}>
+                              {p.businessCase}
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+
+                        <div className="flex gap-2">
+                          <button onClick={() => approve(p)} disabled={actioningId === p.id}
+                            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-all"
+                            style={{ background: actioningId === p.id ? "hsl(226,45%,12%)" : "hsl(155,70%,32%)", color: "white", border: "1px solid hsla(155,70%,40%,0.4)" }}>
+                            {actioningId === p.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                            Approve — Open in Workspace
+                          </button>
+                          <button onClick={() => reject(p.id)} disabled={actioningId === p.id}
+                            className="px-4 py-2.5 rounded-xl text-sm font-medium transition-all"
+                            style={{ background: "hsla(0,70%,50%,0.1)", color: "hsl(0,70%,60%)", border: "1px solid hsla(0,70%,50%,0.2)" }}>
+                            Reject
+                          </button>
                         </div>
                       </div>
-
-                      {/* Brief preview */}
-                      {p.brief && (
-                        <p className="text-xs leading-relaxed mb-3 line-clamp-3" style={{ color: "rgba(255,255,255,0.55)" }}>
-                          {p.brief.slice(0, 280)}…
-                        </p>
-                      )}
-
-                      {/* Business case toggle */}
-                      {p.businessCase && (
-                        <button onClick={() => setExpandedBiz(isExpanded ? null : p.id)}
-                          className="flex items-center gap-1.5 text-xs mb-3 transition-all"
-                          style={{ color: "hsl(193,100%,55%)" }}>
-                          <Lightbulb className="w-3.5 h-3.5" />
-                          {isExpanded ? "Hide" : "Show"} Business Case
-                          {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                        </button>
-                      )}
-
-                      <AnimatePresence>
-                        {isExpanded && p.businessCase && (
-                          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
-                            className="mb-3 rounded-xl p-3 text-xs leading-relaxed overflow-hidden"
-                            style={{ background: "hsl(226,45%,6%)", border: "1px solid rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.6)" }}>
-                            {p.businessCase}
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-
-                      {/* Approve / Reject */}
-                      <div className="flex gap-2">
-                        <button onClick={() => approve(p)} disabled={actioningId === p.id}
-                          className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-all"
-                          style={{ background: actioningId === p.id ? "hsl(226,45%,12%)" : "hsl(155,70%,32%)", color: "white", border: "1px solid hsla(155,70%,40%,0.4)" }}>
-                          {actioningId === p.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                          Approve — Open in Workspace
-                        </button>
-                        <button onClick={() => reject(p.id)} disabled={actioningId === p.id}
-                          className="px-4 py-2.5 rounded-xl text-sm font-medium transition-all"
-                          style={{ background: "hsla(0,70%,50%,0.1)", color: "hsl(0,70%,60%)", border: "1px solid hsla(0,70%,50%,0.2)" }}>
-                          Reject
-                        </button>
-                      </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
