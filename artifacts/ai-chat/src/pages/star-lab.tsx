@@ -6734,7 +6734,13 @@ type LabChatMsg = { role: "user" | "assistant"; content: string; actions?: Actio
 
 function SiriusLabChatPanel({ pin, accessLevel }: { pin: string; accessLevel: AccessRole }) {
   const base = getApiBase();
-  const [messages, setMessages] = useState<LabChatMsg[]>([]);
+  const CHAT_STORAGE_KEY = `lab_chat_${accessLevel}`;
+  const [messages, setMessages] = useState<LabChatMsg[]>(() => {
+    try {
+      const saved = sessionStorage.getItem(CHAT_STORAGE_KEY);
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [streamingText, setStreamingText] = useState("");
@@ -6742,9 +6748,17 @@ function SiriusLabChatPanel({ pin, accessLevel }: { pin: string; accessLevel: Ac
   const [thinkingText, setThinkingText] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [voiceSupported, setVoiceSupported] = useState(false);
+  const [voiceHint, setVoiceHint] = useState("");
   const recognitionRef = useRef<any>(null);
+  const messagesRef = useRef<LabChatMsg[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Keep ref in sync for stale-closure-safe reads (e.g. inside voice callbacks)
+  useEffect(() => {
+    messagesRef.current = messages;
+    try { sessionStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages)); } catch { /* ignore */ }
+  }, [messages, CHAT_STORAGE_KEY]);
 
   // Check for Web Speech API support
   useEffect(() => {
@@ -6754,26 +6768,50 @@ function SiriusLabChatPanel({ pin, accessLevel }: { pin: string; accessLevel: Ac
 
   const startVoice = () => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition || streaming) return;
+    if (!SpeechRecognition) return;
+    if (streaming) {
+      setVoiceHint("Sirius is thinking — wait until she finishes before speaking.");
+      setTimeout(() => setVoiceHint(""), 3000);
+      return;
+    }
+    let gotResult = false;
     const recognition = new SpeechRecognition();
     recognition.lang = "en-GB";
     recognition.continuous = false;
     recognition.interimResults = false;
-    recognition.onstart = () => setIsRecording(true);
-    recognition.onend = () => setIsRecording(false);
-    recognition.onerror = () => setIsRecording(false);
+    recognition.onstart = () => { setIsRecording(true); setVoiceHint("Listening…"); };
+    recognition.onend = () => {
+      setIsRecording(false);
+      if (!gotResult) {
+        setVoiceHint("Nothing captured — tap the mic and speak clearly.");
+        setTimeout(() => setVoiceHint(""), 3500);
+      } else {
+        setVoiceHint("");
+      }
+    };
+    recognition.onerror = (e: any) => {
+      setIsRecording(false);
+      const msg = e.error === "no-speech" ? "No speech detected — try again." : e.error === "not-allowed" ? "Microphone access denied." : "Voice error — try again.";
+      setVoiceHint(msg);
+      setTimeout(() => setVoiceHint(""), 3500);
+    };
     recognition.onresult = (event: any) => {
+      gotResult = true;
       const transcript = event.results[0]?.[0]?.transcript || "";
       if (transcript.trim()) {
         setInput(transcript.trim());
-        // Auto-send after a brief delay so user can see what was transcribed
+        setVoiceHint(`Heard: "${transcript.trim().slice(0, 60)}${transcript.length > 60 ? "…" : ""}"`);
         setTimeout(() => {
           setInput("");
+          setVoiceHint("");
           const userMsg: LabChatMsg = { role: "user", content: transcript.trim() };
-          const apiMessages = [...messages, userMsg].map(m => ({ role: m.role, content: m.content }));
+          const currentMsgs = messagesRef.current;
+          const apiMessages = [...currentMsgs, userMsg].map(m => ({ role: m.role, content: m.content }));
           setMessages(prev => [...prev, userMsg]);
           sendWithMessages(apiMessages);
-        }, 400);
+        }, 500);
+      } else {
+        gotResult = false;
       }
     };
     recognitionRef.current = recognition;
@@ -6799,18 +6837,25 @@ function SiriusLabChatPanel({ pin, accessLevel }: { pin: string; accessLevel: Ac
     const actions: ActionCard[] = [];
 
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 120_000); // 2-min safety net
+
       const res = await fetch(`${base}lab/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-lab-pin": pin },
         body: JSON.stringify({ messages: apiMessages }),
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
+
       if (!res.ok) throw new Error("Chat failed");
 
       const reader = res.body!.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
+      let streamDone = false;
 
-      while (true) {
+      while (!streamDone) {
         const { done, value } = await reader.read();
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
@@ -6820,7 +6865,7 @@ function SiriusLabChatPanel({ pin, accessLevel }: { pin: string; accessLevel: Ac
         for (const line of lines) {
           if (!line.startsWith("data: ")) continue;
           const raw = line.slice(6).trim();
-          if (raw === "[DONE]") break;
+          if (raw === "[DONE]") { streamDone = true; break; }
           try {
             const evt = JSON.parse(raw);
             if (evt.type === "text" && evt.delta) {
@@ -6833,14 +6878,19 @@ function SiriusLabChatPanel({ pin, accessLevel }: { pin: string; accessLevel: Ac
               setStreamingActions([...actions]);
             } else if (evt.type === "thinking") {
               setThinkingText(evt.text || "");
+            } else if (evt.type === "error") {
+              fullText = evt.message || "Something went wrong.";
+              streamDone = true;
             }
           } catch { /* skip malformed */ }
         }
       }
 
-      setMessages(prev => [...prev, { role: "assistant", content: fullText, actions: actions.length > 0 ? [...actions] : undefined }]);
-    } catch {
-      setMessages(prev => [...prev, { role: "assistant", content: "Something went wrong — try again." }]);
+      reader.cancel().catch(() => {});
+      setMessages(prev => [...prev, { role: "assistant", content: fullText || "No response — please try again.", actions: actions.length > 0 ? [...actions] : undefined }]);
+    } catch (err: any) {
+      const msg = err?.name === "AbortError" ? "Request timed out — Sirius took too long. Try again." : "Something went wrong — try again.";
+      setMessages(prev => [...prev, { role: "assistant", content: msg }]);
     } finally {
       setStreaming(false);
       setStreamingText("");
@@ -6902,32 +6952,40 @@ function SiriusLabChatPanel({ pin, accessLevel }: { pin: string; accessLevel: Ac
         </div>
         <div className="flex items-center gap-2">
           {voiceSupported && (
-            <button onClick={isRecording ? stopVoice : startVoice} disabled={streaming}
-              className="w-8 h-8 rounded-xl flex items-center justify-center transition-all disabled:opacity-30"
-              title={isRecording ? "Stop recording" : "Speak to Sirius"}
+            <button onClick={isRecording ? stopVoice : startVoice}
+              className="w-8 h-8 rounded-xl flex items-center justify-center transition-all"
+              title={isRecording ? "Stop recording" : streaming ? "Sirius is thinking…" : "Speak to Sirius"}
               style={{
-                background: isRecording ? "hsl(0,75%,45%)" : "#F1F5F9",
+                background: isRecording ? "hsl(0,75%,45%)" : streaming ? "rgba(15,23,42,0.05)" : "#F1F5F9",
                 border: isRecording ? "1px solid hsl(0,75%,55%)" : "1px solid rgba(15,23,42,0.1)",
                 boxShadow: isRecording ? "0 0 12px hsl(0,75%,40%)" : "none",
+                opacity: streaming ? 0.5 : 1,
               }}>
               {isRecording ? <MicOff className="w-3.5 h-3.5 text-white" /> : <Mic className="w-3.5 h-3.5" style={{ color: "rgba(15,23,42,0.45)" }} />}
             </button>
           )}
           {messages.length > 0 && (
-            <button onClick={() => setMessages([])}
-              className="text-xs text-white/20 hover:text-white/50 transition-colors px-2 py-1 rounded-lg hover:bg-slate-900/5">
+            <button onClick={() => { setMessages([]); try { sessionStorage.removeItem(CHAT_STORAGE_KEY); } catch {} }}
+              className="text-xs hover:text-white/50 transition-colors px-2 py-1 rounded-lg hover:bg-slate-900/5"
+              style={{ color: "rgba(15,23,42,0.3)" }}>
               Clear
             </button>
           )}
         </div>
       </div>
 
-      {/* Recording indicator */}
-      {isRecording && (
+      {/* Voice status bar */}
+      {(isRecording || voiceHint) && (
         <div className="flex items-center justify-center gap-2 py-2 text-xs font-medium"
-          style={{ background: "hsl(0,75%,20%)", color: "hsl(0,75%,75%)", borderBottom: "1px solid hsl(0,75%,35%)" }}>
-          <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-          Listening… speak now
+          style={{
+            background: isRecording ? "hsl(0,75%,20%)" : "rgba(15,23,42,0.06)",
+            color: isRecording ? "hsl(0,75%,75%)" : "rgba(15,23,42,0.55)",
+            borderBottom: `1px solid ${isRecording ? "hsl(0,75%,35%)" : "rgba(15,23,42,0.08)"}`,
+          }}>
+          {isRecording
+            ? <><div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" /> Listening… speak now</>
+            : <><span>ⓘ</span> {voiceHint}</>
+          }
         </div>
       )}
 
@@ -7048,11 +7106,12 @@ function SiriusLabChatPanel({ pin, accessLevel }: { pin: string; accessLevel: Ac
             transition: "border-color 0.3s"
           }}>
           {voiceSupported && (
-            <button onClick={isRecording ? stopVoice : startVoice} disabled={streaming}
-              className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center transition-all disabled:opacity-30"
+            <button onClick={isRecording ? stopVoice : startVoice}
+              className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center transition-all"
               style={{
                 background: isRecording ? "hsl(0,75%,45%)" : "transparent",
                 boxShadow: isRecording ? "0 0 8px hsl(0,75%,40%)" : "none",
+                opacity: streaming ? 0.4 : 1,
               }}>
               {isRecording
                 ? <MicOff className="w-3.5 h-3.5 text-white" />
@@ -7061,7 +7120,8 @@ function SiriusLabChatPanel({ pin, accessLevel }: { pin: string; accessLevel: Ac
           )}
           <input
             ref={inputRef}
-            className="flex-1 bg-transparent text-white text-sm placeholder-slate-400 outline-none"
+            className="flex-1 bg-transparent text-sm placeholder-slate-400 outline-none"
+            style={{ color: "#0F172A" }}
             value={isRecording ? "🎤 Listening…" : input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
