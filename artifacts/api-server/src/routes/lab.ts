@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { eq, desc } from "drizzle-orm";
-import { db, labProjects, labMessages, scoutReports, cadFiles, labScanHistory, userProfilesTable, mediaOutlets } from "@workspace/db";
+import { db, labProjects, labMessages, scoutReports, cadFiles, labScanHistory, userProfilesTable, mediaOutlets, appBuilderSessions } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { generateImageBuffer } from "@workspace/integrations-openai-ai-server/image";
 import { ObjectStorageService } from "../lib/objectStorage";
@@ -3410,7 +3410,166 @@ const APP_AGENTS = [
   { id: "backend",     name: "Backend Agent",     emoji: "⚙️", color: "hsl(193,100%,40%)", role: "server & API" },
   { id: "database",    name: "Database Agent",    emoji: "🗄️", color: "hsl(280,70%,55%)",  role: "data & schema" },
   { id: "integration", name: "Integration Agent", emoji: "🔗", color: "hsl(155,70%,45%)",  role: "glue & config" },
+  { id: "monitoring",  name: "Monitoring Agent",  emoji: "📡", color: "hsl(340,80%,55%)",  role: "observability & ops" },
 ];
+
+// ─── Session Management ────────────────────────────────────────────────────────
+
+// List all sessions for a PIN
+router.post("/lab/app-builder/sessions", authMiddleware, async (req: Request, res: Response) => {
+  const { pin } = req.body as { pin: string };
+  try {
+    const sessions = await db
+      .select({ id: appBuilderSessions.id, appName: appBuilderSessions.appName, status: appBuilderSessions.status, phase: appBuilderSessions.phase, createdAt: appBuilderSessions.createdAt, updatedAt: appBuilderSessions.updatedAt })
+      .from(appBuilderSessions)
+      .where(eq(appBuilderSessions.pin, pin))
+      .orderBy(desc(appBuilderSessions.updatedAt))
+      .limit(20);
+    res.json(sessions);
+  } catch (err: any) { res.status(500).json({ error: err?.message }); }
+});
+
+// Load a specific session
+router.get("/lab/app-builder/sessions/:id", authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const session = await db.select().from(appBuilderSessions).where(eq(appBuilderSessions.id, parseInt(req.params.id))).limit(1);
+    if (!session[0]) return res.status(404).json({ error: "Session not found" });
+    const s = session[0];
+    res.json({
+      ...s,
+      requirements: JSON.parse(s.requirements || "{}"),
+      plan: JSON.parse(s.plan || "[]"),
+      files: JSON.parse(s.files || "{}"),
+      bugs: JSON.parse(s.bugs || "[]"),
+      architectLog: JSON.parse(s.architectLog || "[]"),
+      buildQueue: JSON.parse(s.buildQueue || "[]"),
+      thinkingLog: JSON.parse(s.thinkingLog || "[]"),
+    });
+  } catch (err: any) { res.status(500).json({ error: err?.message }); }
+});
+
+// Save / upsert a session
+router.post("/lab/app-builder/sessions/save", authMiddleware, async (req: Request, res: Response) => {
+  const { pin, sessionId, appName, status, phase, requirements, plan, files, bugs, architectLog, buildQueue, thinkingLog, buildLog } = req.body as {
+    pin: string; sessionId?: number; appName?: string; status?: string; phase?: number;
+    requirements?: object; plan?: unknown[]; files?: object; bugs?: unknown[];
+    architectLog?: unknown[]; buildQueue?: unknown[]; thinkingLog?: unknown[]; buildLog?: string;
+  };
+  try {
+    const payload = {
+      pin,
+      appName: appName || "Untitled App",
+      status: status || "draft",
+      phase: phase ?? 1,
+      requirements: JSON.stringify(requirements || {}),
+      plan: JSON.stringify(plan || []),
+      files: JSON.stringify(files || {}),
+      bugs: JSON.stringify(bugs || []),
+      architectLog: JSON.stringify(architectLog || []),
+      buildQueue: JSON.stringify(buildQueue || []),
+      thinkingLog: JSON.stringify(thinkingLog || []),
+      buildLog: buildLog || "",
+      updatedAt: new Date(),
+    };
+
+    if (sessionId) {
+      await db.update(appBuilderSessions).set(payload).where(eq(appBuilderSessions.id, sessionId));
+      res.json({ id: sessionId });
+    } else {
+      const result = await db.insert(appBuilderSessions).values(payload).returning({ id: appBuilderSessions.id });
+      res.json({ id: result[0].id });
+    }
+  } catch (err: any) { res.status(500).json({ error: err?.message }); }
+});
+
+// Delete a session
+router.delete("/lab/app-builder/sessions/:id", authMiddleware, async (req: Request, res: Response) => {
+  try {
+    await db.delete(appBuilderSessions).where(eq(appBuilderSessions.id, parseInt(req.params.id)));
+    res.json({ ok: true });
+  } catch (err: any) { res.status(500).json({ error: err?.message }); }
+});
+
+// ─── Architect Sub-Agent (Extended Thinking) ───────────────────────────────────
+
+router.post("/lab/app-builder/architect", authMiddleware, async (req: Request, res: Response) => {
+  const { message, history, requirements, files } = req.body as {
+    message: string;
+    history: Array<{ role: string; content: string }>;
+    requirements?: object;
+    files?: Record<string, string>;
+  };
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  const send = (data: object) => { try { res.write(`data: ${JSON.stringify(data)}\n\n`); } catch {} };
+
+  try {
+    const fileList = files ? Object.keys(files).join(", ") : "none";
+    const reqContext = requirements ? JSON.stringify(requirements, null, 2) : "{}";
+
+    // Extended thinking: first reason through the problem
+    send({ type: "thinking_start" });
+
+    const thinkingStream = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        {
+          role: "system",
+          content: `You are the Architect sub-agent within Sirius Star Lab. You specialise in complex software architectural decisions for engineering-grade applications.
+
+Your capabilities:
+- System design and architectural patterns (microservices, monolith, event-driven, CQRS, etc.)
+- Technology stack evaluation with reasoning
+- Security architecture (auth, RBAC, OAuth, JWT, API keys)
+- Database design (normalisation, indexing, caching strategies)
+- Deployment architecture (CI/CD, containers, serverless, edge)
+- API design (REST, GraphQL, WebSockets, gRPC)
+- Integration patterns (third-party APIs, webhooks, queues)
+- Performance and scalability planning
+- Cost optimisation
+
+Current project context:
+Requirements: ${reqContext}
+Generated files: ${fileList}
+
+Think deeply and methodically. Start your response with your REASONING (show your thinking process step by step), then give your RECOMMENDATION.
+
+Format your response as:
+## 🧠 Architect Reasoning
+[Step-by-step thinking through the problem]
+
+## ✅ Recommendation
+[Concrete architectural guidance with code examples where relevant]
+
+## ⚠️ Tradeoffs
+[What you're trading off and why this is still the right call]`
+        },
+        ...history.map(h => ({ role: h.role as "user" | "assistant", content: h.content })),
+        { role: "user" as const, content: message },
+      ],
+      stream: true,
+      max_tokens: 3000,
+    });
+
+    let thinkingBuffer = "";
+    for await (const chunk of thinkingStream) {
+      const delta = chunk.choices[0]?.delta?.content || "";
+      if (delta) {
+        thinkingBuffer += delta;
+        send({ type: "thinking_delta", content: delta });
+      }
+    }
+
+    send({ type: "thinking_done", content: thinkingBuffer });
+  } catch (err: any) {
+    console.error("[AppBuilder/architect]", err?.message);
+    send({ type: "error", error: err?.message });
+  } finally {
+    res.end();
+  }
+});
 
 function buildAgentPrompt(
   agentId: string,
@@ -3497,6 +3656,26 @@ Review all the files created and produce the final integration files:
 - Any missing config files that tie the system together
 
 Also write a final DEPLOYMENT.md with step-by-step deployment instructions for Vercel, Railway, or Fly.io depending on the tech stack.`,
+
+    monitoring: `${base}
+
+Your role: Monitoring & Observability Agent
+Your job is to make this application production-observable and resilient. Create:
+1. src/middleware/logger.ts — structured request/response logging (using pino or winston)
+2. src/middleware/errorHandler.ts — global error handler with stack traces, error codes
+3. src/health.ts — health check endpoint at /health (checks DB, external deps, memory)
+4. src/metrics.ts — app metrics collection (request count, latency, error rate)
+5. monitoring/alerts.yml — alert rules for critical thresholds
+6. scripts/healthcheck.sh — CLI health check script
+7. MONITORING.md — guide to reading logs, setting up Grafana/Datadog/Sentry
+
+Also add to the existing server entry:
+- Rate limiting middleware
+- Graceful shutdown handler (SIGTERM/SIGINT)
+- Uncaught exception / unhandled rejection handlers
+- Request correlation IDs for tracing
+
+Make the application production-hardened, not just functional.`,
   };
 
   return prompts[agentId] || base;

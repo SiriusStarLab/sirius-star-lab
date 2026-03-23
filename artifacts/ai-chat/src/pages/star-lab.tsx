@@ -3571,7 +3571,11 @@ const BUILDER_AGENTS: AgentStatus[] = [
   { id: "backend",     name: "Backend Agent",     emoji: "⚙️", color: "hsl(193,100%,40%)", status: "waiting", output: "", files: [] },
   { id: "database",    name: "Database Agent",    emoji: "🗄️", color: "hsl(280,70%,55%)",  status: "waiting", output: "", files: [] },
   { id: "integration", name: "Integration Agent", emoji: "🔗", color: "hsl(155,70%,45%)",  status: "waiting", output: "", files: [] },
+  { id: "monitoring",  name: "Monitoring Agent",  emoji: "📡", color: "hsl(340,80%,55%)",  status: "waiting", output: "", files: [] },
 ];
+
+type SessionSummary = { id: number; appName: string; status: string; phase: number; updatedAt: string };
+type ArchitectMessage = { role: "user" | "assistant"; content: string; thinking?: string };
 
 function AppBuilderPanel({ pin }: { pin: string }) {
   const API = getApiBase();
@@ -3590,8 +3594,161 @@ function AppBuilderPanel({ pin }: { pin: string }) {
   const [buildLog, setBuildLog] = useState("");
   const outputRef = useRef<HTMLDivElement>(null);
 
+  // Session persistence
+  const [sessionId, setSessionId] = useState<number | null>(null);
+  const [sessions, setSessions] = useState<SessionSummary[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+
+  // Architect sub-agent
+  const [architectOpen, setArchitectOpen] = useState(false);
+  const [architectMessages, setArchitectMessages] = useState<ArchitectMessage[]>([]);
+  const [architectInput, setArchitectInput] = useState("");
+  const [architectLoading, setArchitectLoading] = useState(false);
+  const architectRef = useRef<HTMLDivElement>(null);
+
+  // Build queue
+  const [buildQueue, setBuildQueue] = useState<string[]>([]);
+  const [queueInput, setQueueInput] = useState("");
+
+  // Extended thinking log
+  const [thinkingLog, setThinkingLog] = useState<string[]>([]);
+
   const scrollToBottom = () => {
     setTimeout(() => { outputRef.current?.scrollTo({ top: outputRef.current.scrollHeight, behavior: "smooth" }); }, 50);
+  };
+
+  // Load sessions on mount
+  useEffect(() => {
+    setSessionsLoading(true);
+    fetch(`${API}/lab/app-builder/sessions`, {
+      method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+      body: JSON.stringify({ pin }),
+    })
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data)) setSessions(data); })
+      .catch(() => {})
+      .finally(() => setSessionsLoading(false));
+  }, [pin]);
+
+  // Auto-save session after phase transitions
+  const saveSession = useCallback(async (overrides?: Partial<{
+    phase: number; status: string; requirements: AppRequirements | null;
+    plan: BuildTask[]; files: Record<string, string>; bugs: Bug[]; architectLog: ArchitectMessage[];
+    buildQueue: string[]; thinkingLog: string[]; buildLog: string;
+  }>) => {
+    if (!reqs?.appName && !overrides?.requirements?.appName) return;
+    try {
+      const body = {
+        pin, sessionId,
+        appName: (overrides?.requirements ?? reqs)?.appName || "Untitled App",
+        status: overrides?.status ?? (phase >= 7 ? "done" : phase >= 4 ? "building" : "draft"),
+        phase: overrides?.phase ?? phase,
+        requirements: overrides?.requirements ?? reqs,
+        plan: overrides?.plan ?? plan,
+        files: overrides?.files ?? allFiles,
+        bugs: overrides?.bugs ?? bugs,
+        architectLog: overrides?.architectLog ?? architectMessages,
+        buildQueue: overrides?.buildQueue ?? buildQueue,
+        thinkingLog: overrides?.thinkingLog ?? thinkingLog,
+        buildLog: overrides?.buildLog ?? buildLog,
+      };
+      const res = await fetch(`${API}/lab/app-builder/sessions/save`, {
+        method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (data.id && !sessionId) setSessionId(data.id);
+    } catch {}
+  }, [pin, sessionId, reqs, phase, plan, allFiles, bugs, architectMessages, buildQueue, thinkingLog, buildLog]);
+
+  // Load an existing session
+  const loadSession = async (id: number) => {
+    try {
+      const res = await fetch(`${API}/lab/app-builder/sessions/${id}`, {
+        headers: { "x-lab-pin": pin },
+      });
+      const data = await res.json();
+      if (data.error) return;
+      setSessionId(data.id);
+      setReqs(data.requirements?.appName ? data.requirements : null);
+      setPlan(data.plan || []);
+      setAllFiles(data.files || {});
+      setBugs(data.bugs || []);
+      setArchitectMessages(data.architectLog || []);
+      setBuildQueue(data.buildQueue || []);
+      setThinkingLog(data.thinkingLog || []);
+      setBuildLog(data.buildLog || "");
+      setPhase(data.phase || 1);
+    } catch {}
+  };
+
+  // Delete a session
+  const deleteSession = async (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await fetch(`${API}/lab/app-builder/sessions/${id}`, { method: "DELETE", headers: { "x-lab-pin": pin } });
+      setSessions(prev => prev.filter(s => s.id !== id));
+      if (sessionId === id) { setSessionId(null); setPhase(1); }
+    } catch {}
+  };
+
+  // Architect sub-agent with extended thinking
+  const handleArchitectChat = async () => {
+    if (!architectInput.trim() || architectLoading) return;
+    const userMsg = architectInput.trim();
+    setArchitectInput("");
+    const updatedHistory: ArchitectMessage[] = [...architectMessages, { role: "user", content: userMsg }];
+    setArchitectMessages(updatedHistory);
+    setArchitectLoading(true);
+
+    let thinkingContent = "";
+    const assistantMsg: ArchitectMessage = { role: "assistant", content: "", thinking: "" };
+    const newMessages = [...updatedHistory, assistantMsg];
+    setArchitectMessages(newMessages);
+
+    try {
+      const res = await fetch(`${API}/lab/app-builder/architect`, {
+        method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+        body: JSON.stringify({ message: userMsg, history: updatedHistory.map(m => ({ role: m.role, content: m.content })), requirements: reqs, files: allFiles, pin }),
+      });
+      if (!res.body) return;
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let buf = "";
+      let fullContent = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop() || "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const evt = JSON.parse(line.slice(6));
+            if (evt.type === "thinking_delta") {
+              thinkingContent += evt.content;
+              fullContent += evt.content;
+              setArchitectMessages(prev => {
+                const updated = [...prev];
+                updated[updated.length - 1] = { ...updated[updated.length - 1], content: fullContent, thinking: thinkingContent };
+                return updated;
+              });
+              setTimeout(() => architectRef.current?.scrollTo({ top: architectRef.current.scrollHeight, behavior: "smooth" }), 50);
+            }
+          } catch {}
+        }
+      }
+      setThinkingLog(prev => [...prev, `Q: ${userMsg}\n\n${fullContent}`]);
+      await saveSession({ architectLog: [...updatedHistory, { role: "assistant" as const, content: fullContent, thinking: thinkingContent }] });
+    } catch (e: any) {
+      setArchitectMessages(prev => {
+        const updated = [...prev];
+        updated[updated.length - 1] = { ...updated[updated.length - 1], content: `Error: ${e.message}` };
+        return updated;
+      });
+    } finally { setArchitectLoading(false); }
   };
 
   // Phase 1 → 2: Interpret prompt
@@ -3600,13 +3757,14 @@ function AppBuilderPanel({ pin }: { pin: string }) {
     setLoading(true); setError("");
     try {
       const res = await fetch(`${API}/lab/app-builder/interpret`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
         body: JSON.stringify({ prompt, pin }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       setReqs(data);
       setPhase(2);
+      await saveSession({ phase: 2, requirements: data, status: "draft" });
     } catch (e: any) { setError(e.message); }
     finally { setLoading(false); }
   };
@@ -3617,13 +3775,15 @@ function AppBuilderPanel({ pin }: { pin: string }) {
     setLoading(true); setError("");
     try {
       const res = await fetch(`${API}/lab/app-builder/plan`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
         body: JSON.stringify({ requirements: reqs, pin }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      setPlan((data.tasks || []).map((t: BuildTask) => ({ ...t, status: "pending" })));
+      const tasks = (data.tasks || []).map((t: BuildTask) => ({ ...t, status: "pending" }));
+      setPlan(tasks);
       setPhase(3);
+      await saveSession({ phase: 3, plan: tasks });
     } catch (e: any) { setError(e.message); }
     finally { setLoading(false); }
   };
@@ -3637,7 +3797,7 @@ function AppBuilderPanel({ pin }: { pin: string }) {
     const collectedFiles: Record<string, string> = {};
 
     const res = await fetch(`${API}/lab/build-app`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
+      method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
       body: JSON.stringify({ appName: reqs.appName, description: reqs.summary, appType: reqs.appType, techStack: reqs.techStack, features: reqs.coreFeatures, pin }),
     });
     if (!res.body) { setError("No stream"); return; }
@@ -3679,7 +3839,12 @@ function AppBuilderPanel({ pin }: { pin: string }) {
     }
     if (Object.keys(collectedFiles).length > 0) {
       setAllFiles({ ...collectedFiles });
-      setPhase(5); // move to self-test phase
+      setPhase(5);
+      saveSession({ phase: 5, status: "testing", files: collectedFiles });
+      if (buildQueue.length > 0) {
+        const [, ...rest] = buildQueue;
+        setBuildQueue(rest);
+      }
     }
   };
 
@@ -3689,7 +3854,7 @@ function AppBuilderPanel({ pin }: { pin: string }) {
     const collectedBugs: Bug[] = [];
 
     const res = await fetch(`${API}/lab/app-builder/test`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
+      method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
       body: JSON.stringify({ files: allFiles, appName: reqs?.appName, techStack: reqs?.techStack, pin }),
     });
     if (!res.body) { setLoading(false); return; }
@@ -3713,6 +3878,7 @@ function AppBuilderPanel({ pin }: { pin: string }) {
           } else if (evt.type === "test_done") {
             if (evt.bugs) { collectedBugs.push(...evt.bugs); setBugs([...collectedBugs]); }
             setPhase(6);
+            saveSession({ phase: 6, bugs: evt.bugs || [] });
           }
         } catch {}
       }
@@ -3726,7 +3892,7 @@ function AppBuilderPanel({ pin }: { pin: string }) {
     setLoading(true); setDebugOutput(""); setError("");
 
     const res = await fetch(`${API}/lab/app-builder/debug`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
+      method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
       body: JSON.stringify({ files: allFiles, bugs, appName: reqs?.appName, pin }),
     });
     if (!res.body) { setLoading(false); setPhase(7); return; }
@@ -3749,8 +3915,10 @@ function AppBuilderPanel({ pin }: { pin: string }) {
           } else if (evt.type === "debug_patched") {
             setDebugOutput(prev => prev + `\n✓ Patched ${evt.filename}\n`);
           } else if (evt.type === "debug_done") {
-            if (evt.patchedFiles) setAllFiles(prev => ({ ...prev, ...evt.patchedFiles }));
+            const merged = evt.patchedFiles ? { ...allFiles, ...evt.patchedFiles } : allFiles;
+            if (evt.patchedFiles) setAllFiles(merged);
             setPhase(7);
+            saveSession({ phase: 7, status: "done", files: merged });
           }
         } catch {}
       }
@@ -3786,8 +3954,16 @@ function AppBuilderPanel({ pin }: { pin: string }) {
             <h2 className="text-xl font-bold" style={{ color: "rgba(15,23,42,0.85)" }}>App Builder</h2>
             <p className="text-sm mt-0.5" style={{ color: "rgba(15,23,42,0.5)" }}>Autonomous 6-phase AI build system — describe it, approve the plan, watch agents build it</p>
           </div>
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold" style={{ background: "hsla(193,100%,40%,0.1)", color: "hsl(193,100%,35%)" }}>
-            <Cpu className="w-3.5 h-3.5" /> Phase {Math.min(phase, 6)}/6 — {phaseLabel}
+          <div className="flex items-center gap-2">
+            <button onClick={() => setArchitectOpen(o => !o)}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all"
+              style={{ background: architectOpen ? "hsla(45,90%,50%,0.15)" : "rgba(15,23,42,0.06)", color: architectOpen ? "hsl(45,80%,40%)" : "rgba(15,23,42,0.55)", border: architectOpen ? "1px solid hsla(45,90%,50%,0.3)" : "1px solid transparent" }}>
+              🏛️ Ask Architect
+              {architectMessages.length > 0 && <span className="w-4 h-4 rounded-full text-[9px] flex items-center justify-center font-bold" style={{ background: "hsl(45,90%,50%)", color: "white" }}>{architectMessages.filter(m => m.role === "assistant").length}</span>}
+            </button>
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold" style={{ background: "hsla(193,100%,40%,0.1)", color: "hsl(193,100%,35%)" }}>
+              <Cpu className="w-3.5 h-3.5" /> Phase {Math.min(phase, 6)}/6 — {phaseLabel}
+            </div>
           </div>
         </div>
 
@@ -3870,6 +4046,37 @@ function AppBuilderPanel({ pin }: { pin: string }) {
                 </button>
               ))}
             </div>
+
+            {/* Previous Sessions */}
+            {sessions.length > 0 && (
+              <div className="mt-5">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "rgba(15,23,42,0.45)" }}>Previous Builds</p>
+                  <span className="text-[10px]" style={{ color: "rgba(15,23,42,0.35)" }}>Click to resume</span>
+                </div>
+                <div className="space-y-2">
+                  {sessions.map(s => (
+                    <div key={s.id} onClick={() => loadSession(s.id)}
+                      className="flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all hover:shadow-sm"
+                      style={{ background: "white", border: "1px solid rgba(15,23,42,0.08)" }}>
+                      <div className="w-8 h-8 rounded-lg flex items-center justify-center text-sm flex-shrink-0"
+                        style={{ background: s.status === "done" ? "hsla(155,70%,45%,0.1)" : s.status === "building" ? "hsla(193,100%,40%,0.1)" : "rgba(15,23,42,0.05)" }}>
+                        {s.status === "done" ? "✓" : s.status === "building" ? "⚙️" : "📝"}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold truncate" style={{ color: "rgba(15,23,42,0.75)" }}>{s.appName}</p>
+                        <p className="text-[10px]" style={{ color: "rgba(15,23,42,0.4)" }}>
+                          Phase {s.phase}/7 · {s.status} · {new Date(s.updatedAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <button onClick={(e) => deleteSession(s.id, e)} className="p-1.5 rounded-lg transition-all hover:opacity-75 flex-shrink-0" style={{ color: "rgba(15,23,42,0.3)" }}>
+                        <Trash className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -4031,7 +4238,7 @@ function AppBuilderPanel({ pin }: { pin: string }) {
               </div>
             </div>
 
-            {/* Live output */}
+            {/* Live output + build queue */}
             <div className="flex-1 flex flex-col min-w-0">
               <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: "1px solid rgba(15,23,42,0.08)" }}>
                 <div className="flex items-center gap-2">
@@ -4042,6 +4249,37 @@ function AppBuilderPanel({ pin }: { pin: string }) {
               </div>
               <div ref={outputRef} className="flex-1 overflow-auto p-4 font-mono text-xs leading-relaxed" style={{ background: "rgba(15,23,42,0.02)", color: "rgba(15,23,42,0.65)", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
                 {buildLog || "Initialising agents…"}
+              </div>
+              {/* Build Queue */}
+              <div className="flex-shrink-0" style={{ borderTop: "1px solid rgba(15,23,42,0.08)" }}>
+                <div className="px-4 py-2 flex items-center gap-2">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "rgba(15,23,42,0.4)" }}>Build Queue</span>
+                  {buildQueue.length > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold" style={{ background: "hsla(193,100%,40%,0.12)", color: "hsl(193,100%,35%)" }}>{buildQueue.length}</span>}
+                </div>
+                {buildQueue.length > 0 && (
+                  <div className="px-4 pb-2 space-y-1 max-h-20 overflow-auto">
+                    {buildQueue.map((q, i) => (
+                      <div key={i} className="flex items-center gap-2 text-[10px] p-1.5 rounded-lg" style={{ background: "rgba(15,23,42,0.04)", color: "rgba(15,23,42,0.55)" }}>
+                        <span className="font-mono" style={{ color: "rgba(15,23,42,0.35)" }}>#{i + 1}</span>
+                        <span className="truncate flex-1">{q}</span>
+                        <button onClick={() => setBuildQueue(prev => prev.filter((_, idx) => idx !== i))} style={{ color: "rgba(15,23,42,0.3)" }}><X className="w-2.5 h-2.5" /></button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="px-4 pb-3 flex gap-2">
+                  <input value={queueInput} onChange={e => setQueueInput(e.target.value)}
+                    placeholder="Queue another build request…"
+                    className="flex-1 text-[10px] px-3 py-1.5 rounded-lg outline-none"
+                    style={{ background: "rgba(15,23,42,0.04)", border: "1px solid rgba(15,23,42,0.08)", color: "rgba(15,23,42,0.7)" }}
+                    onKeyDown={e => { if (e.key === "Enter" && queueInput.trim()) { setBuildQueue(prev => [...prev, queueInput.trim()]); setQueueInput(""); }}}
+                  />
+                  <button onClick={() => { if (queueInput.trim()) { setBuildQueue(prev => [...prev, queueInput.trim()]); setQueueInput(""); }}}
+                    className="px-3 py-1.5 rounded-lg text-[10px] font-semibold"
+                    style={{ background: "hsla(193,100%,40%,0.12)", color: "hsl(193,100%,35%)" }}>
+                    + Queue
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -4211,6 +4449,98 @@ function AppBuilderPanel({ pin }: { pin: string }) {
           </div>
         )}
       </div>
+
+      {/* ── Floating Architect Sub-Agent Panel ── */}
+      <AnimatePresence>
+        {architectOpen && (
+          <motion.div
+            initial={{ opacity: 0, x: 400 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 400 }}
+            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+            className="absolute right-0 top-0 bottom-0 flex flex-col shadow-2xl z-30"
+            style={{ width: "380px", background: "white", borderLeft: "1px solid rgba(15,23,42,0.1)" }}>
+            {/* Architect header */}
+            <div className="flex items-center justify-between px-4 py-3 flex-shrink-0" style={{ borderBottom: "1px solid rgba(15,23,42,0.08)", background: "hsla(45,90%,50%,0.06)" }}>
+              <div className="flex items-center gap-2">
+                <span className="text-lg">🏛️</span>
+                <div>
+                  <p className="text-sm font-bold" style={{ color: "rgba(15,23,42,0.8)" }}>Architect Sub-Agent</p>
+                  <p className="text-[10px]" style={{ color: "rgba(15,23,42,0.45)" }}>Extended thinking mode · Step-by-step reasoning</p>
+                </div>
+              </div>
+              <button onClick={() => setArchitectOpen(false)} className="p-1.5 rounded-lg hover:bg-black/5 transition-colors"><X className="w-4 h-4" style={{ color: "rgba(15,23,42,0.4)" }} /></button>
+            </div>
+
+            {/* Capabilities */}
+            {architectMessages.length === 0 && (
+              <div className="p-4 flex-shrink-0">
+                <p className="text-xs mb-3" style={{ color: "rgba(15,23,42,0.5)" }}>Ask anything about architecture. I reason step-by-step before answering.</p>
+                <div className="grid grid-cols-1 gap-1.5">
+                  {[
+                    "What database should I use and why?",
+                    "How should I structure authentication?",
+                    "Monolith or microservices for this scale?",
+                    "What third-party APIs do I need?",
+                    "How do I handle deployment and scaling?",
+                  ].map(q => (
+                    <button key={q} onClick={() => setArchitectInput(q)}
+                      className="text-left text-[10px] p-2 rounded-lg transition-all hover:opacity-75"
+                      style={{ background: "rgba(15,23,42,0.04)", color: "rgba(15,23,42,0.6)", border: "1px solid rgba(15,23,42,0.06)" }}>
+                      {q}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Messages */}
+            <div ref={architectRef} className="flex-1 overflow-auto p-4 space-y-3 min-h-0">
+              {architectMessages.map((msg, i) => (
+                <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                  {msg.role === "assistant" ? (
+                    <div className="max-w-full">
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <span className="text-xs">🏛️</span>
+                        <span className="text-[10px] font-semibold" style={{ color: "hsl(45,80%,40%)" }}>Architect · Extended Thinking</span>
+                      </div>
+                      <div className="rounded-xl p-3 text-xs leading-relaxed" style={{ background: "hsla(45,90%,50%,0.06)", border: "1px solid hsla(45,90%,50%,0.15)", color: "rgba(15,23,42,0.75)" }}>
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                        {architectLoading && i === architectMessages.length - 1 && <span className="inline-block w-1 h-3 ml-1 animate-pulse rounded" style={{ background: "hsl(45,90%,50%)" }} />}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-xl px-3 py-2 text-xs max-w-[85%]" style={{ background: "hsl(193,100%,40%)", color: "white" }}>
+                      {msg.content}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Input */}
+            <div className="flex-shrink-0 p-3" style={{ borderTop: "1px solid rgba(15,23,42,0.08)" }}>
+              <div className="flex gap-2 items-end">
+                <textarea
+                  value={architectInput}
+                  onChange={e => setArchitectInput(e.target.value)}
+                  placeholder="Ask about architecture, tech stack, patterns…"
+                  rows={2}
+                  className="flex-1 text-xs px-3 py-2 rounded-xl resize-none outline-none"
+                  style={{ background: "rgba(15,23,42,0.04)", border: "1px solid rgba(15,23,42,0.1)", color: "rgba(15,23,42,0.8)" }}
+                  onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleArchitectChat(); }}}
+                />
+                <button onClick={handleArchitectChat} disabled={architectLoading || !architectInput.trim()}
+                  className="p-2.5 rounded-xl flex-shrink-0 transition-all disabled:opacity-40"
+                  style={{ background: "hsl(45,90%,50%)", color: "white" }}>
+                  {architectLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                </button>
+              </div>
+              {reqs && <p className="text-[9px] mt-1.5 text-center" style={{ color: "rgba(15,23,42,0.3)" }}>Context: {reqs.appName} · {reqs.techStack}</p>}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
