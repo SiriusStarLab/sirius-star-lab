@@ -13,7 +13,7 @@ import {
   Mail, UserPlus, Users, Settings2, AtSign, Building2, Briefcase, StickyNote, CheckCircle2, AlertCircle,
   Banknote, CreditCard, ShoppingBag, BarChart3, ArrowRight, FileSearch, Hammer, ClipboardList,
   Brain, MessageSquare, Activity, Target, Building, Mic, MicOff, ShieldAlert, Rocket,
-  LayoutDashboard, ArrowLeft, Clock, Award, Layers3
+  LayoutDashboard, ArrowLeft, Clock, Award, Layers3, Share
 } from "lucide-react";
 import { getApiBase } from "@/lib/api-base";
 
@@ -3613,6 +3613,31 @@ function AppBuilderPanel({ pin }: { pin: string }) {
   // Extended thinking log
   const [thinkingLog, setThinkingLog] = useState<string[]>([]);
 
+  // Ghostwriter — inline code assistant
+  const [ghostwriterOpen, setGhostwriterOpen] = useState(false);
+  const [ghostMessages, setGhostMessages] = useState<Array<{ role: "user" | "assistant"; content: string; updatedCode?: string | null }>>([]);
+  const [ghostInput, setGhostInput] = useState("");
+  const [ghostLoading, setGhostLoading] = useState(false);
+  const ghostRef = useRef<HTMLDivElement>(null);
+
+  // Figma Import
+  const [phase1Tab, setPhase1Tab] = useState<"describe" | "figma">("describe");
+  const [figmaUrl, setFigmaUrl] = useState("");
+  const [figmaImageUrl, setFigmaImageUrl] = useState("");
+  const [figmaDescription, setFigmaDescription] = useState("");
+  const [figmaComponentName, setFigmaComponentName] = useState("");
+  const [figmaLoading, setFigmaLoading] = useState(false);
+  const [figmaResult, setFigmaResult] = useState<{ filename: string; content: string } | null>(null);
+  const [figmaOutput, setFigmaOutput] = useState("");
+
+  // Tools panel
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const [toolsTab, setToolsTab] = useState<"packages" | "env" | "schema" | "deploy">("packages");
+
+  // Share session
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [shareCopied, setShareCopied] = useState(false);
+
   const scrollToBottom = () => {
     setTimeout(() => { outputRef.current?.scrollTo({ top: outputRef.current.scrollHeight, behavior: "smooth" }); }, 50);
   };
@@ -3945,6 +3970,166 @@ function AppBuilderPanel({ pin }: { pin: string }) {
   const phaseLabel = phase === 1 ? "Describe" : phase === 2 ? "Review" : phase === 3 ? "Approve Plan"
     : phase === 4 ? "Building" : phase === 5 ? "Self-Testing" : phase === 6 ? "Self-Debugging" : "Done";
 
+  // ── Ghostwriter ─────────────────────────────────────────────────────────────
+  const handleGhostwrite = async (instruction: string) => {
+    if (!instruction.trim() || !activeFile || ghostLoading) return;
+    const userMsg = { role: "user" as const, content: instruction };
+    setGhostMessages(prev => [...prev, userMsg]);
+    setGhostInput("");
+    setGhostLoading(true);
+    setTimeout(() => ghostRef.current?.scrollTo({ top: ghostRef.current.scrollHeight, behavior: "smooth" }), 50);
+
+    const base = API.endsWith("/") ? API : API + "/";
+    let response = "";
+    setGhostMessages(prev => [...prev, { role: "assistant", content: "" }]);
+    try {
+      const es = await fetch(`${base}lab/app-builder/ghostwrite`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+        body: JSON.stringify({
+          filename: activeFile,
+          fileContent: generatedFiles[activeFile] || "",
+          instruction,
+          history: ghostMessages,
+          allFiles: Object.fromEntries(Object.keys(generatedFiles).map(k => [k, ""])),
+        }),
+      });
+      const reader = es.body!.getReader();
+      const dec = new TextDecoder();
+      let buf = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const parts = buf.split("\n\n");
+        buf = parts.pop()!;
+        for (const part of parts) {
+          if (!part.startsWith("data:")) continue;
+          try {
+            const ev = JSON.parse(part.slice(5).trim());
+            if (ev.type === "delta") {
+              response += ev.content;
+              setGhostMessages(prev => {
+                const msgs = [...prev];
+                msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], content: response };
+                return msgs;
+              });
+              setTimeout(() => ghostRef.current?.scrollTo({ top: ghostRef.current.scrollHeight, behavior: "smooth" }), 30);
+            } else if (ev.type === "done") {
+              if (ev.updatedCode) {
+                setGeneratedFiles(prev => ({ ...prev, [activeFile]: ev.updatedCode }));
+                setGhostMessages(prev => {
+                  const msgs = [...prev];
+                  msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], content: response, updatedCode: ev.updatedCode };
+                  return msgs;
+                });
+              }
+            }
+          } catch {}
+        }
+      }
+    } catch (err: any) {
+      setGhostMessages(prev => {
+        const msgs = [...prev];
+        msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], content: "Error: " + err.message };
+        return msgs;
+      });
+    } finally { setGhostLoading(false); }
+  };
+
+  // ── Figma Import ─────────────────────────────────────────────────────────────
+  const handleFigmaImport = async () => {
+    if (figmaLoading) return;
+    setFigmaLoading(true);
+    setFigmaOutput("");
+    setFigmaResult(null);
+
+    const base = API.endsWith("/") ? API : API + "/";
+    try {
+      const res = await fetch(`${base}lab/app-builder/figma`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+        body: JSON.stringify({ figmaUrl, imageUrl: figmaImageUrl, description: figmaDescription, componentName: figmaComponentName, techStack: reqs?.techStack }),
+      });
+      const reader = res.body!.getReader();
+      const dec = new TextDecoder();
+      let buf = "";
+      let out = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const parts = buf.split("\n\n");
+        buf = parts.pop()!;
+        for (const part of parts) {
+          if (!part.startsWith("data:")) continue;
+          try {
+            const ev = JSON.parse(part.slice(5).trim());
+            if (ev.type === "start") setFigmaOutput("Analysing design…\n");
+            else if (ev.type === "delta") { out += ev.content; setFigmaOutput(out); }
+            else if (ev.type === "done") setFigmaResult({ filename: ev.filename, content: ev.content });
+          } catch {}
+        }
+      }
+    } catch (err: any) { setFigmaOutput("Error: " + err.message); }
+    finally { setFigmaLoading(false); }
+  };
+
+  const addFigmaToProject = () => {
+    if (!figmaResult) return;
+    setGeneratedFiles(prev => ({ ...prev, [figmaResult!.filename]: figmaResult!.content }));
+    setActiveFile(figmaResult.filename);
+    setPhase(7);
+  };
+
+  // ── Share Session ──────────────────────────────────────────────────────────
+  const handleShare = async () => {
+    if (!sessionId) return;
+    const base = API.endsWith("/") ? API : API + "/";
+    try {
+      const res = await fetch(`${base}lab/app-builder/share`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+        body: JSON.stringify({ sessionId }),
+      });
+      const data = await res.json();
+      const url = `${window.location.origin}${window.location.pathname}${data.shareUrl}`;
+      setShareUrl(url);
+      await navigator.clipboard.writeText(url);
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 3000);
+    } catch {}
+  };
+
+  // ── Tools: parse generated files ──────────────────────────────────────────
+  const toolsData = (() => {
+    const pkgFile = generatedFiles["package.json"] || generatedFiles["client/package.json"] || "";
+    const envFile = generatedFiles[".env.example"] || generatedFiles[".env"] || "";
+    const schemaFile = Object.entries(generatedFiles).find(([k]) => k.includes("schema"))?.[1] || "";
+
+    let packages: string[] = [];
+    try {
+      const pkg = JSON.parse(pkgFile);
+      packages = [
+        ...Object.entries(pkg.dependencies || {}).map(([k, v]) => `${k}@${v}`),
+        ...Object.entries(pkg.devDependencies || {}).map(([k, v]) => `${k}@${v} (dev)`),
+      ];
+    } catch {}
+
+    const envVars = envFile.split("\n").filter(l => l.includes("=")).map(l => {
+      const [k, ...rest] = l.split("=");
+      return { key: k.trim(), value: rest.join("=").trim() };
+    });
+
+    const schemaTables = (schemaFile.match(/export const (\w+)/g) || []).map(m => m.replace("export const ", ""));
+
+    const deployFiles = Object.keys(generatedFiles).filter(f =>
+      f.includes("Dockerfile") || f.includes(".github") || f.includes("docker-compose") || f.includes("nginx") || f.includes("deploy")
+    );
+
+    return { packages, envVars, schemaTables, deployFiles };
+  })();
+
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
       {/* Header */}
@@ -3961,6 +4146,20 @@ function AppBuilderPanel({ pin }: { pin: string }) {
               🏛️ Ask Architect
               {architectMessages.length > 0 && <span className="w-4 h-4 rounded-full text-[9px] flex items-center justify-center font-bold" style={{ background: "hsl(45,90%,50%)", color: "white" }}>{architectMessages.filter(m => m.role === "assistant").length}</span>}
             </button>
+            {Object.keys(generatedFiles).length > 0 && (
+              <button onClick={() => setToolsOpen(o => !o)}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all"
+                style={{ background: toolsOpen ? "hsla(155,70%,45%,0.15)" : "rgba(15,23,42,0.06)", color: toolsOpen ? "hsl(155,70%,35%)" : "rgba(15,23,42,0.55)", border: toolsOpen ? "1px solid hsla(155,70%,45%,0.3)" : "1px solid transparent" }}>
+                🔧 Tools
+              </button>
+            )}
+            {sessionId && (
+              <button onClick={handleShare}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all"
+                style={{ background: shareCopied ? "hsla(193,100%,40%,0.15)" : "rgba(15,23,42,0.06)", color: shareCopied ? "hsl(193,100%,35%)" : "rgba(15,23,42,0.55)" }}>
+                {shareCopied ? <><Check className="w-3 h-3" /> Copied!</> : <><Share className="w-3 h-3" /> Share</>}
+              </button>
+            )}
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold" style={{ background: "hsla(193,100%,40%,0.1)", color: "hsl(193,100%,35%)" }}>
               <Cpu className="w-3.5 h-3.5" /> Phase {Math.min(phase, 6)}/6 — {phaseLabel}
             </div>
@@ -4001,6 +4200,18 @@ function AppBuilderPanel({ pin }: { pin: string }) {
         {/* ── Phase 1: Describe ── */}
         {phase === 1 && (
           <div className="p-6 max-w-2xl mx-auto">
+            {/* Tab switcher */}
+            <div className="flex gap-1 p-1 rounded-xl mb-4" style={{ background: "rgba(15,23,42,0.05)", width: "fit-content" }}>
+              {(["describe", "figma"] as const).map(t => (
+                <button key={t} onClick={() => setPhase1Tab(t)}
+                  className="px-4 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                  style={{ background: phase1Tab === t ? "white" : "transparent", color: phase1Tab === t ? "rgba(15,23,42,0.85)" : "rgba(15,23,42,0.45)", boxShadow: phase1Tab === t ? "0 1px 4px rgba(0,0,0,0.1)" : "none" }}>
+                  {t === "describe" ? "✍️ Describe" : "🎨 Import Design"}
+                </button>
+              ))}
+            </div>
+
+            {phase1Tab === "describe" && (
             <div className="rounded-2xl p-6" style={{ background: "white", border: "1px solid rgba(15,23,42,0.08)", boxShadow: "0 2px 12px rgba(0,0,0,0.04)" }}>
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ background: "hsla(193,100%,40%,0.1)" }}>🔍</div>
@@ -4030,6 +4241,82 @@ function AppBuilderPanel({ pin }: { pin: string }) {
                 </button>
               </div>
             </div>
+            )}
+
+            {/* ── Figma Import Tab ── */}
+            {phase1Tab === "figma" && (
+            <div className="rounded-2xl p-6" style={{ background: "white", border: "1px solid rgba(15,23,42,0.08)", boxShadow: "0 2px 12px rgba(0,0,0,0.04)" }}>
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ background: "hsla(260,80%,60%,0.1)" }}>🎨</div>
+                <div>
+                  <h3 className="font-bold text-slate-800">Import from Figma / Design</h3>
+                  <p className="text-xs" style={{ color: "rgba(15,23,42,0.5)" }}>Paste a design image URL or describe your mockup — GPT-4o Vision converts it to a React component</p>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-semibold block mb-1" style={{ color: "rgba(15,23,42,0.6)" }}>Component Name</label>
+                  <input value={figmaComponentName} onChange={e => setFigmaComponentName(e.target.value)}
+                    placeholder="e.g. DashboardCard, HeroSection, PricingTable"
+                    className="w-full rounded-xl px-4 py-2.5 text-sm outline-none transition-all"
+                    style={{ background: "rgba(15,23,42,0.03)", border: "1px solid rgba(15,23,42,0.12)", color: "rgba(15,23,42,0.8)" }} />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold block mb-1" style={{ color: "rgba(15,23,42,0.6)" }}>Design Image URL <span style={{ color: "rgba(15,23,42,0.35)" }}>(Figma export, Imgur, or any public image)</span></label>
+                  <input value={figmaImageUrl} onChange={e => setFigmaImageUrl(e.target.value)}
+                    placeholder="https://... (paste a publicly accessible design screenshot)"
+                    className="w-full rounded-xl px-4 py-2.5 text-sm outline-none transition-all"
+                    style={{ background: "rgba(15,23,42,0.03)", border: "1px solid rgba(15,23,42,0.12)", color: "rgba(15,23,42,0.8)" }} />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold block mb-1" style={{ color: "rgba(15,23,42,0.6)" }}>Figma Share URL <span style={{ color: "rgba(15,23,42,0.35)" }}>(for reference)</span></label>
+                  <input value={figmaUrl} onChange={e => setFigmaUrl(e.target.value)}
+                    placeholder="https://www.figma.com/file/..."
+                    className="w-full rounded-xl px-4 py-2.5 text-sm outline-none transition-all"
+                    style={{ background: "rgba(15,23,42,0.03)", border: "1px solid rgba(15,23,42,0.12)", color: "rgba(15,23,42,0.8)" }} />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold block mb-1" style={{ color: "rgba(15,23,42,0.6)" }}>Description / Additional Context</label>
+                  <textarea value={figmaDescription} onChange={e => setFigmaDescription(e.target.value)}
+                    placeholder="Describe the component — layout, purpose, interactions, colours, typography. The more detail, the closer the output."
+                    rows={3}
+                    className="w-full rounded-xl px-4 py-2.5 text-sm resize-none outline-none transition-all"
+                    style={{ background: "rgba(15,23,42,0.03)", border: "1px solid rgba(15,23,42,0.12)", color: "rgba(15,23,42,0.8)", lineHeight: 1.6 }} />
+                </div>
+              </div>
+
+              {/* Output */}
+              {figmaOutput && !figmaResult && (
+                <div className="mt-4 rounded-xl p-4 font-mono text-xs overflow-auto max-h-40" style={{ background: "rgba(15,23,42,0.04)", color: "rgba(15,23,42,0.65)", whiteSpace: "pre-wrap" }}>
+                  {figmaOutput}
+                </div>
+              )}
+              {figmaResult && (
+                <div className="mt-4 rounded-xl overflow-hidden" style={{ border: "1px solid rgba(15,23,42,0.08)" }}>
+                  <div className="flex items-center justify-between px-4 py-2.5" style={{ background: "rgba(15,23,42,0.04)" }}>
+                    <span className="text-xs font-semibold" style={{ color: "rgba(15,23,42,0.7)" }}>📄 {figmaResult.filename}</span>
+                    <button onClick={addFigmaToProject}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                      style={{ background: "hsl(193,100%,40%)", color: "white" }}>
+                      <Plus className="w-3 h-3" /> Add to Project
+                    </button>
+                  </div>
+                  <pre className="p-4 text-xs overflow-auto max-h-48 font-mono" style={{ color: "rgba(15,23,42,0.75)", whiteSpace: "pre-wrap", background: "white" }}>
+                    {figmaResult.content.slice(0, 800)}{figmaResult.content.length > 800 ? "\n…" : ""}
+                  </pre>
+                </div>
+              )}
+
+              <div className="flex items-center justify-end mt-4">
+                <button onClick={handleFigmaImport} disabled={figmaLoading || (!figmaImageUrl && !figmaDescription && !figmaUrl)}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all disabled:opacity-40"
+                  style={{ background: "hsl(260,80%,60%)", color: "white" }}>
+                  {figmaLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                  {figmaLoading ? "Converting…" : "Convert to React →"}
+                </button>
+              </div>
+            </div>
+            )}
 
             <div className="mt-4 grid grid-cols-3 gap-3">
               {[
@@ -4431,19 +4718,95 @@ function AppBuilderPanel({ pin }: { pin: string }) {
                   <p className="text-xs mt-4" style={{ color: "rgba(15,23,42,0.35)" }}>Check README.md and DEPLOYMENT.md in your downloaded files for setup instructions</p>
                 </div>
               ) : (
-                <>
-                  <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: "1px solid rgba(15,23,42,0.08)" }}>
+                <div className="flex flex-col flex-1 min-h-0">
+                  {/* File header */}
+                  <div className="px-4 py-3 flex items-center justify-between flex-shrink-0" style={{ borderBottom: "1px solid rgba(15,23,42,0.08)" }}>
                     <span className="text-xs font-mono font-semibold" style={{ color: "rgba(15,23,42,0.7)" }}>📄 {activeFile}</span>
-                    <button onClick={() => { navigator.clipboard.writeText(allFiles[activeFile] || ""); }}
-                      className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-all hover:opacity-75"
-                      style={{ background: "rgba(15,23,42,0.06)", color: "rgba(15,23,42,0.55)" }}>
-                      <Copy className="w-3 h-3" /> Copy
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => { setGhostwriterOpen(o => !o); if (!ghostwriterOpen) setGhostMessages([]); }}
+                        className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-all"
+                        style={{ background: ghostwriterOpen ? "hsla(260,80%,60%,0.15)" : "rgba(15,23,42,0.06)", color: ghostwriterOpen ? "hsl(260,80%,50%)" : "rgba(15,23,42,0.55)", border: ghostwriterOpen ? "1px solid hsla(260,80%,60%,0.3)" : "1px solid transparent" }}>
+                        ⚡ Ghostwriter
+                      </button>
+                      <button onClick={() => { navigator.clipboard.writeText(allFiles[activeFile] || ""); }}
+                        className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-all hover:opacity-75"
+                        style={{ background: "rgba(15,23,42,0.06)", color: "rgba(15,23,42,0.55)" }}>
+                        <Copy className="w-3 h-3" /> Copy
+                      </button>
+                    </div>
                   </div>
+
+                  {/* Code area */}
                   <div className="flex-1 overflow-auto p-4 font-mono text-xs leading-relaxed" style={{ background: "rgba(15,23,42,0.02)", color: "rgba(15,23,42,0.72)", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
                     {allFiles[activeFile]}
                   </div>
-                </>
+
+                  {/* Ghostwriter chat panel */}
+                  {ghostwriterOpen && (
+                    <div className="flex-shrink-0 flex flex-col" style={{ height: 300, borderTop: "2px solid hsla(260,80%,60%,0.3)", background: "white" }}>
+                      <div className="flex items-center justify-between px-4 py-2.5 flex-shrink-0" style={{ borderBottom: "1px solid rgba(15,23,42,0.08)", background: "hsla(260,80%,60%,0.06)" }}>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold" style={{ color: "hsl(260,80%,50%)" }}>⚡ Ghostwriter</span>
+                          <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: "hsla(260,80%,60%,0.15)", color: "hsl(260,80%,45%)" }}>AI Code Assistant</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {ghostMessages.length > 0 && (
+                            <button onClick={() => setGhostMessages([])} className="text-[10px] px-2 py-1 rounded-lg" style={{ color: "rgba(15,23,42,0.4)", background: "rgba(15,23,42,0.05)" }}>Clear</button>
+                          )}
+                          <button onClick={() => setGhostwriterOpen(false)} className="p-1 rounded-lg hover:bg-black/5"><X className="w-3.5 h-3.5" style={{ color: "rgba(15,23,42,0.4)" }} /></button>
+                        </div>
+                      </div>
+
+                      {/* Ghost message history */}
+                      <div ref={ghostRef} className="flex-1 overflow-auto p-3 space-y-2.5">
+                        {ghostMessages.length === 0 ? (
+                          <div className="space-y-2">
+                            <p className="text-xs" style={{ color: "rgba(15,23,42,0.45)" }}>Ask anything about <span className="font-mono font-semibold">{activeFile}</span> — explain code, fix bugs, add types, refactor, write tests…</p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {["Explain this file", "Fix any bugs", "Add TypeScript types", "Improve performance", "Write unit tests"].map(s => (
+                                <button key={s} onClick={() => handleGhostwrite(s)}
+                                  className="text-[10px] px-2.5 py-1 rounded-lg transition-all"
+                                  style={{ background: "hsla(260,80%,60%,0.1)", color: "hsl(260,80%,45%)" }}>
+                                  {s}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          ghostMessages.map((m, i) => (
+                            <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                              <div className="max-w-[85%] rounded-xl px-3 py-2 text-xs leading-relaxed"
+                                style={{ background: m.role === "user" ? "hsl(260,80%,60%)" : "rgba(15,23,42,0.05)", color: m.role === "user" ? "white" : "rgba(15,23,42,0.8)", whiteSpace: "pre-wrap" }}>
+                                {m.content || (ghostLoading && i === ghostMessages.length - 1 ? <span className="animate-pulse">…</span> : "")}
+                                {m.updatedCode && (
+                                  <div className="mt-1.5 text-[10px] px-2 py-0.5 rounded-md" style={{ background: "hsla(155,70%,45%,0.2)", color: "hsl(155,70%,35%)" }}>
+                                    ✓ File updated in editor
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+
+                      {/* Ghost input */}
+                      <div className="px-3 pb-3 flex-shrink-0">
+                        <div className="flex gap-2 items-end">
+                          <input value={ghostInput} onChange={e => setGhostInput(e.target.value)}
+                            onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleGhostwrite(ghostInput); } }}
+                            placeholder="Ask Ghostwriter anything about this file…"
+                            className="flex-1 rounded-xl px-3 py-2 text-xs outline-none transition-all"
+                            style={{ background: "rgba(15,23,42,0.05)", border: "1px solid rgba(15,23,42,0.1)", color: "rgba(15,23,42,0.8)" }} />
+                          <button onClick={() => handleGhostwrite(ghostInput)} disabled={!ghostInput.trim() || ghostLoading}
+                            className="flex-shrink-0 p-2 rounded-xl transition-all disabled:opacity-40"
+                            style={{ background: "hsl(260,80%,60%)", color: "white" }}>
+                            {ghostLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           </div>
@@ -4452,6 +4815,133 @@ function AppBuilderPanel({ pin }: { pin: string }) {
 
       {/* ── Floating Architect Sub-Agent Panel ── */}
       <AnimatePresence>
+        {/* ── Tools Panel ── */}
+        {toolsOpen && (
+          <motion.div
+            initial={{ opacity: 0, x: 400 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 400 }}
+            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+            className="absolute right-0 top-0 bottom-0 flex flex-col shadow-2xl z-30"
+            style={{ width: "380px", background: "white", borderLeft: "1px solid rgba(15,23,42,0.1)" }}>
+            <div className="flex items-center justify-between px-4 py-3 flex-shrink-0" style={{ borderBottom: "1px solid rgba(15,23,42,0.08)", background: "hsla(155,70%,45%,0.06)" }}>
+              <div className="flex items-center gap-2">
+                <span className="text-lg">🔧</span>
+                <div>
+                  <p className="text-sm font-bold" style={{ color: "rgba(15,23,42,0.8)" }}>Built-in Tools</p>
+                  <p className="text-[10px]" style={{ color: "rgba(15,23,42,0.45)" }}>Packages · Environment · Schema · Deploy</p>
+                </div>
+              </div>
+              <button onClick={() => setToolsOpen(false)} className="p-1.5 rounded-lg hover:bg-black/5"><X className="w-4 h-4" style={{ color: "rgba(15,23,42,0.4)" }} /></button>
+            </div>
+            {/* Tabs */}
+            <div className="flex border-b" style={{ borderColor: "rgba(15,23,42,0.08)" }}>
+              {(["packages", "env", "schema", "deploy"] as const).map(t => (
+                <button key={t} onClick={() => setToolsTab(t)}
+                  className="flex-1 py-2 text-[11px] font-semibold capitalize transition-all"
+                  style={{ borderBottom: toolsTab === t ? "2px solid hsl(155,70%,45%)" : "2px solid transparent", color: toolsTab === t ? "hsl(155,70%,40%)" : "rgba(15,23,42,0.45)", background: "transparent" }}>
+                  {t === "packages" ? "📦" : t === "env" ? "🔐" : t === "schema" ? "🗄️" : "🚀"} {t}
+                </button>
+              ))}
+            </div>
+            <div className="flex-1 overflow-auto p-4">
+              {toolsTab === "packages" && (
+                <div>
+                  <p className="text-xs font-semibold mb-3" style={{ color: "rgba(15,23,42,0.55)" }}>Dependencies from package.json</p>
+                  {toolsData.packages.length === 0 ? (
+                    <p className="text-xs" style={{ color: "rgba(15,23,42,0.35)" }}>No package.json found yet — run the build to generate.</p>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {toolsData.packages.map((pkg, i) => (
+                        <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: "rgba(15,23,42,0.03)", border: "1px solid rgba(15,23,42,0.06)" }}>
+                          <span className="text-xs font-mono flex-1" style={{ color: "rgba(15,23,42,0.75)" }}>{pkg}</span>
+                          {pkg.includes("(dev)") && <span className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: "rgba(15,23,42,0.08)", color: "rgba(15,23,42,0.45)" }}>dev</span>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              {toolsTab === "env" && (
+                <div>
+                  <p className="text-xs font-semibold mb-3" style={{ color: "rgba(15,23,42,0.55)" }}>Environment variables from .env.example</p>
+                  {toolsData.envVars.length === 0 ? (
+                    <p className="text-xs" style={{ color: "rgba(15,23,42,0.35)" }}>No .env.example found yet.</p>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {toolsData.envVars.map((v, i) => (
+                        <div key={i} className="px-3 py-2 rounded-lg" style={{ background: "rgba(15,23,42,0.03)", border: "1px solid rgba(15,23,42,0.06)" }}>
+                          <div className="text-xs font-mono font-semibold" style={{ color: "hsl(155,70%,40%)" }}>{v.key}</div>
+                          {v.value && <div className="text-[10px] mt-0.5 font-mono" style={{ color: "rgba(15,23,42,0.4)" }}>{v.value.startsWith("#") ? v.value : "••••••"}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              {toolsTab === "schema" && (
+                <div>
+                  <p className="text-xs font-semibold mb-3" style={{ color: "rgba(15,23,42,0.55)" }}>Database tables from schema files</p>
+                  {toolsData.schemaTables.length === 0 ? (
+                    <p className="text-xs" style={{ color: "rgba(15,23,42,0.35)" }}>No schema file detected yet.</p>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {toolsData.schemaTables.map((t, i) => (
+                        <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: "rgba(15,23,42,0.03)", border: "1px solid rgba(15,23,42,0.06)" }}>
+                          <span className="text-sm">🗄️</span>
+                          <span className="text-xs font-mono" style={{ color: "rgba(15,23,42,0.75)" }}>{t}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="mt-4">
+                    <p className="text-xs font-semibold mb-2" style={{ color: "rgba(15,23,42,0.55)" }}>Schema files</p>
+                    {Object.keys(generatedFiles).filter(f => f.includes("schema") || f.includes("migration") || f.includes("model")).map(f => (
+                      <button key={f} onClick={() => { setActiveFile(f); setToolsOpen(false); }}
+                        className="w-full text-left px-3 py-1.5 rounded-lg text-xs font-mono mb-1 transition-all hover:opacity-75"
+                        style={{ background: "rgba(15,23,42,0.04)", color: "rgba(15,23,42,0.65)" }}>
+                        📄 {f}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {toolsTab === "deploy" && (
+                <div>
+                  <p className="text-xs font-semibold mb-3" style={{ color: "rgba(15,23,42,0.55)" }}>Deployment configuration files</p>
+                  {toolsData.deployFiles.length === 0 ? (
+                    <p className="text-xs" style={{ color: "rgba(15,23,42,0.35)" }}>No deployment files found yet.</p>
+                  ) : (
+                    <div className="space-y-1.5 mb-4">
+                      {toolsData.deployFiles.map(f => (
+                        <button key={f} onClick={() => { setActiveFile(f); setToolsOpen(false); }}
+                          className="w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg transition-all hover:shadow-sm"
+                          style={{ background: "rgba(15,23,42,0.03)", border: "1px solid rgba(15,23,42,0.06)" }}>
+                          <span className="text-sm">📄</span>
+                          <span className="text-xs font-mono" style={{ color: "rgba(15,23,42,0.7)" }}>{f}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <p className="text-xs font-semibold mb-3 mt-4" style={{ color: "rgba(15,23,42,0.55)" }}>One-click deploy targets</p>
+                  <div className="space-y-2">
+                    {[
+                      { icon: "▲", label: "Vercel", url: "https://vercel.com/new", color: "hsl(0,0%,10%)" },
+                      { icon: "🚂", label: "Railway", url: "https://railway.app/new", color: "hsl(280,70%,55%)" },
+                      { icon: "🪰", label: "Fly.io", url: "https://fly.io/docs/getting-started", color: "hsl(193,100%,40%)" },
+                      { icon: "☁️", label: "AWS Amplify", url: "https://aws.amazon.com", color: "hsl(25,90%,50%)" },
+                    ].map(d => (
+                      <a key={d.label} href={d.url} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90"
+                        style={{ background: d.color }}>
+                        <span>{d.icon}</span> Deploy to {d.label}
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+
         {architectOpen && (
           <motion.div
             initial={{ opacity: 0, x: 400 }}

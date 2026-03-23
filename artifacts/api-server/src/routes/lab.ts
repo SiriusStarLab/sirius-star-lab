@@ -3931,7 +3931,212 @@ Fix ALL listed bugs. Do not add new features. Output only the file, nothing else
   }
 });
 
-// Phase 3 — Build: 5 specialist agents build the code (SSE)
+// ─── Ghostwriter — Inline AI Code Assistant (SSE) ──────────────────────────
+router.post("/lab/app-builder/ghostwrite", authMiddleware, async (req: Request, res: Response) => {
+  const { filename, fileContent, instruction, history, allFiles } = req.body as {
+    filename: string; fileContent: string; instruction: string;
+    history: Array<{ role: string; content: string }>;
+    allFiles?: Record<string, string>;
+  };
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  const send = (data: object) => { try { res.write(`data: ${JSON.stringify(data)}\n\n`); } catch {} };
+
+  try {
+    const fileContext = allFiles
+      ? Object.keys(allFiles).filter(f => f !== filename).slice(0, 5).map(f => `// ${f} (exists in project)`).join("\n")
+      : "";
+
+    const systemPrompt = `You are Ghostwriter — an expert AI coding assistant embedded inside the Sirius App Builder.
+
+You are currently editing: ${filename}
+
+Other files in this project:
+${fileContext || "None loaded yet"}
+
+Current file content:
+\`\`\`
+${fileContent.slice(0, 3000)}${fileContent.length > 3000 ? "\n...(truncated)" : ""}
+\`\`\`
+
+Your capabilities:
+- Explain any code selection in plain English
+- Suggest completions and improvements
+- Generate new functions, hooks, or components
+- Fix bugs in the file
+- Refactor for readability, performance, or security
+- Add TypeScript types
+- Write tests for functions
+
+When generating code changes, always output the COMPLETE modified file wrapped in:
+\`\`\`filename
+[complete file content]
+\`\`\`
+
+For explanations or suggestions, respond in clear Markdown.`;
+
+    const stream = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        { role: "system", content: systemPrompt },
+        ...history.slice(-6).map(h => ({ role: h.role as "user" | "assistant", content: h.content })),
+        { role: "user" as const, content: instruction },
+      ],
+      stream: true,
+      max_tokens: 3000,
+    });
+
+    let full = "";
+    for await (const chunk of stream) {
+      const delta = chunk.choices[0]?.delta?.content || "";
+      if (delta) { full += delta; send({ type: "delta", content: delta }); }
+    }
+
+    // Extract updated file content if present
+    const codeMatch = full.match(/```[\w.\-/]*\n([\s\S]*?)```/);
+    const updatedCode = codeMatch ? codeMatch[1].trim() : null;
+
+    send({ type: "done", content: full, updatedCode });
+  } catch (err: any) {
+    console.error("[Ghostwriter]", err?.message);
+    send({ type: "error", error: err?.message });
+  } finally { res.end(); }
+});
+
+// ─── Figma → React Component Converter ────────────────────────────────────────
+router.post("/lab/app-builder/figma", authMiddleware, async (req: Request, res: Response) => {
+  const { figmaUrl, imageUrl, description, componentName, techStack } = req.body as {
+    figmaUrl?: string; imageUrl?: string; description?: string;
+    componentName?: string; techStack?: string;
+  };
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  const send = (data: object) => { try { res.write(`data: ${JSON.stringify(data)}\n\n`); } catch {} };
+
+  try {
+    send({ type: "start", message: "Analysing design…" });
+
+    const name = componentName || "GeneratedComponent";
+    const stack = techStack || "React + TypeScript + Tailwind CSS";
+
+    const messages: any[] = [];
+
+    if (imageUrl) {
+      // Vision mode — analyse design image
+      messages.push({
+        role: "user",
+        content: [
+          {
+            type: "image_url",
+            image_url: { url: imageUrl, detail: "high" },
+          },
+          {
+            type: "text",
+            text: `Convert this design into a complete, pixel-accurate React component.
+
+Component name: ${name}
+Tech stack: ${stack}
+${description ? `Additional context: ${description}` : ""}
+
+Requirements:
+1. Match the visual design exactly — layout, spacing, colours, typography, sizing
+2. Extract all colours as CSS variables or Tailwind classes
+3. Make it fully responsive
+4. Use semantic HTML
+5. Include all interactive states (hover, focus, active) you can infer
+6. Add TypeScript props interface
+7. Component must be self-contained with no missing imports
+
+Output ONLY the complete component file:
+### FILE: src/components/${name}.tsx ###
+[complete component code]
+### END FILE ###`,
+          },
+        ],
+      });
+    } else {
+      // Text description mode
+      const prompt = description || figmaUrl
+        ? `Design to convert: ${description || ""}${figmaUrl ? `\nFigma reference: ${figmaUrl}` : ""}`
+        : "A modern dashboard card component";
+
+      messages.push({
+        role: "user",
+        content: `Convert this design specification into a complete React component.
+
+Component name: ${name}
+Tech stack: ${stack}
+Design specification: ${prompt}
+
+Requirements:
+1. Modern, production-quality UI
+2. Pixel-perfect layout with proper spacing and typography
+3. Full TypeScript types
+4. Responsive design (mobile-first)
+5. All hover/focus states included
+6. Self-contained — no missing imports
+7. Use Tailwind CSS or inline styles that match the design intent
+
+Output ONLY the file:
+### FILE: src/components/${name}.tsx ###
+[complete component code]
+### END FILE ###`,
+      });
+    }
+
+    const stream = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages,
+      stream: true,
+      max_tokens: 3000,
+    });
+
+    let full = "";
+    for await (const chunk of stream) {
+      const delta = chunk.choices[0]?.delta?.content || "";
+      if (delta) { full += delta; send({ type: "delta", content: delta }); }
+    }
+
+    const fileMatch = full.match(/### FILE: (.+?) ###\n([\s\S]*?)### END FILE ###/);
+    if (fileMatch) {
+      send({ type: "done", filename: fileMatch[1].trim(), content: fileMatch[2].trim() });
+    } else {
+      const codeMatch = full.match(/```(?:tsx|jsx|typescript)?\n([\s\S]*?)```/);
+      send({ type: "done", filename: `src/components/${name}.tsx`, content: codeMatch ? codeMatch[1].trim() : full });
+    }
+  } catch (err: any) {
+    console.error("[Figma→React]", err?.message);
+    send({ type: "error", error: err?.message });
+  } finally { res.end(); }
+});
+
+// ─── Session Share — generate read-only access token ──────────────────────────
+router.post("/lab/app-builder/share", authMiddleware, async (req: Request, res: Response) => {
+  const { sessionId } = req.body as { sessionId: number };
+  try {
+    const session = await db.select({ id: appBuilderSessions.id, appName: appBuilderSessions.appName, phase: appBuilderSessions.phase, status: appBuilderSessions.status })
+      .from(appBuilderSessions).where(eq(appBuilderSessions.id, sessionId)).limit(1);
+    if (!session[0]) return res.status(404).json({ error: "Session not found" });
+    // Return share URL using session ID (read-only; viewer can only see files)
+    res.json({ shareUrl: `?view-session=${sessionId}`, sessionName: session[0].appName });
+  } catch (err: any) { res.status(500).json({ error: err?.message }); }
+});
+
+// ─── Session View — load session without PIN (read-only share) ─────────────────
+router.get("/lab/app-builder/view/:id", async (req: Request, res: Response) => {
+  try {
+    const session = await db.select({ id: appBuilderSessions.id, appName: appBuilderSessions.appName, phase: appBuilderSessions.phase, status: appBuilderSessions.status, files: appBuilderSessions.files })
+      .from(appBuilderSessions).where(eq(appBuilderSessions.id, parseInt(req.params.id))).limit(1);
+    if (!session[0]) return res.status(404).json({ error: "Session not found" });
+    res.json({ ...session[0], files: JSON.parse(session[0].files || "{}") });
+  } catch (err: any) { res.status(500).json({ error: err?.message }); }
+});
+
+// Phase 3 — Build: 6 specialist agents build the code (SSE)
 router.post("/lab/build-app", authMiddleware, async (req: Request, res: Response) => {
   const { appName, description, appType, techStack, features } = req.body as {
     appName: string; description: string; appType: string;
