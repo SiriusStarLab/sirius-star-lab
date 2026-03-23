@@ -36,6 +36,8 @@ function Router() {
       <Route path="/admin" component={StarLabPage} />
       <Route path="/learn" component={LearnPage} />
       <Route path="/why-sirius" component={MarketingPage} />
+      <Route path="/agency" component={MarketingPage} />
+      <Route path="/pricing" component={MarketingPage} />
       <Route path="/compare" component={ComparePage} />
       <Route path="/discover" component={DiscoverPage} />
       {/*

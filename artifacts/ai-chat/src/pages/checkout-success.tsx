@@ -45,9 +45,19 @@ export function CheckoutSuccessPage() {
     return () => clearInterval(timer);
   }, [activated]);
 
-  const tierLabel = tier === "pro" ? "Pro" : tier === "plus" ? "Plus" : "Premium";
-  const tierColor = tier === "pro" ? "#f59e0b" : "#00d4ff";
-  const tierFeatures = tier === "pro"
+  const isAgency = tier?.startsWith("agency_");
+  const agencyPkg = tier?.replace("agency_", "") || "";
+  const AGENCY_META: Record<string, { label: string; color: string; features: string[] }> = {
+    social:    { label: "Social AI",         color: "hsl(280,70%,65%)", features: ["30 AI posts/month across all platforms", "Engagement reply drafts", "Competitor content analysis", "Monthly performance report"] },
+    sales:     { label: "Sales Intelligence", color: "hsl(193,100%,50%)", features: ["AI cold email sequences (5-step)", "Lead intelligence briefs", "Sales call prep briefs", "Pipeline analysis report"] },
+    fullstack: { label: "Full Operations",    color: "hsl(45,100%,55%)", features: ["Everything in Social AI + Sales Intelligence", "AI customer service drafts", "Monthly blog posts + newsletter", "Quarterly market intelligence report"] },
+  };
+  const agencyMeta = AGENCY_META[agencyPkg];
+  const tierLabel = isAgency ? `Sirius ${agencyMeta?.label || "Agency"}` : (tier === "pro" ? "Pro" : tier === "plus" ? "Plus" : "Premium");
+  const tierColor = isAgency ? (agencyMeta?.color || "#00d4ff") : (tier === "pro" ? "#f59e0b" : "#00d4ff");
+  const tierFeatures = isAgency
+    ? (agencyMeta?.features || [])
+    : tier === "pro"
     ? ["Unlimited messages", "Unlimited image generation", "Deep memory & personalisation", "Priority speed", "Early access to features"]
     : ["200 messages per day", "Image generation", "Sirius remembers you", "Full conversation history"];
 

@@ -1,5 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { openai } from "@workspace/integrations-openai-ai-server";
+import Stripe from "stripe";
 
 const router = Router();
 const LAB_PIN = process.env.STAR_LAB_PIN || "2025";
@@ -78,6 +79,67 @@ router.get("/lab/agency/packages", (_req: Request, res: Response) => {
       roi: "Replaces £6,000–£10,000/month of agency, tool, and headcount costs",
     },
   ]);
+});
+
+// ─── Public Stripe Checkout for Agency Packages ────────────────────
+
+const AGENCY_PACKAGES: Record<string, { name: string; price: number; tagline: string }> = {
+  social:    { name: "Sirius Social AI",         price: 79900,  tagline: "Your entire social presence, run by AI" },
+  sales:     { name: "Sirius Sales Intelligence", price: 129900, tagline: "AI-powered sales engine that never sleeps" },
+  fullstack: { name: "Sirius Full Operations",    price: 249900, tagline: "Complete AI intelligence layer for your business" },
+};
+
+function getStripe() {
+  const key = (process.env.STRIPE_SECRET_KEY ?? "").trim();
+  if (!key) throw new Error("STRIPE_SECRET_KEY not set");
+  return new Stripe(key, { apiVersion: "2024-06-20" as any });
+}
+
+function getBaseUrl(req: Request): string {
+  const proto = (req.headers["x-forwarded-proto"] as string) || req.protocol;
+  const host  = (req.headers["x-forwarded-host"]  as string) || req.get("host");
+  return `${proto}://${host}`;
+}
+
+// POST /api/agency/checkout — public, no PIN needed
+router.post("/agency/checkout", async (req: Request, res: Response) => {
+  try {
+    const { package: pkg, email, companyName } = req.body as { package?: string; email?: string; companyName?: string };
+    if (!pkg || !AGENCY_PACKAGES[pkg]) {
+      return res.status(400).json({ error: "Invalid package. Choose: social, sales, or fullstack" });
+    }
+    const stripe = getStripe();
+    const baseUrl = getBaseUrl(req);
+    const pkgDetails = AGENCY_PACKAGES[pkg];
+
+    const sessionParams: Stripe.Checkout.SessionCreateParams = {
+      mode: "subscription",
+      payment_method_types: ["card"],
+      line_items: [{
+        price_data: {
+          currency: "gbp",
+          product_data: {
+            name: pkgDetails.name,
+            description: pkgDetails.tagline,
+            images: [],
+          },
+          unit_amount: pkgDetails.price,
+          recurring: { interval: "month" },
+        },
+        quantity: 1,
+      }],
+      success_url: `${baseUrl}/checkout/success?tier=agency_${pkg}&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url:  `${baseUrl}/why-sirius#pricing`,
+      metadata: { package: pkg, companyName: companyName || "", email: email || "" },
+      ...(email ? { customer_email: email } : {}),
+    };
+
+    const session = await stripe.checkout.sessions.create(sessionParams);
+    return res.json({ url: session.url });
+  } catch (err: any) {
+    console.error("[Agency checkout]", err.message);
+    return res.status(500).json({ error: err.message || "Checkout failed" });
+  }
 });
 
 // ─── Prospect Scanner ──────────────────────────────────────────────
