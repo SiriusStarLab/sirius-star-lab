@@ -12,7 +12,8 @@ import {
   ChevronUp, BadgeCheck, Lightbulb, Atom, Upload, Download,
   Mail, UserPlus, Users, Settings2, AtSign, Building2, Briefcase, StickyNote, CheckCircle2, AlertCircle,
   Banknote, CreditCard, ShoppingBag, BarChart3, ArrowRight, FileSearch, Hammer, ClipboardList,
-  Brain, MessageSquare, Activity, Target, Building, Mic, MicOff, ShieldAlert, Rocket
+  Brain, MessageSquare, Activity, Target, Building, Mic, MicOff, ShieldAlert, Rocket,
+  LayoutDashboard, ArrowLeft, Clock, Award, Layers3
 } from "lucide-react";
 import { getApiBase } from "@/lib/api-base";
 
@@ -64,7 +65,7 @@ type RankResult = {
   keyStrengths: string[]; estimatedMonthlyRevenue: string;
   buildEffort: string;
 };
-type NavMode = "projects" | "botlab" | "scout" | "feed" | "grants" | "commerce" | "outreach" | "autolab" | "revenue" | "agency" | "mission" | "growth" | "brain" | "research" | "docs" | "labchat";
+type NavMode = "dashboard" | "projects" | "botlab" | "scout" | "feed" | "grants" | "commerce" | "outreach" | "autolab" | "revenue" | "agency" | "mission" | "growth" | "brain" | "research" | "docs" | "labchat";
 
 const MAX_PIN_DIGITS = 8;
 const MAX_ATTEMPTS = 5;
@@ -3536,6 +3537,240 @@ type FundingMatch = {
 };
 type FundingOpportunity = { projectId: number; projectName: string; matches: FundingMatch[] };
 type FundingResult = { opportunities: FundingOpportunity[]; summary: string };
+
+// ── Star Lab Dashboard ────────────────────────────────────────────────────────
+
+function DashboardPanel({ projects, pin, onNavigate, onOpenProject }: {
+  projects: Project[];
+  pin: string;
+  onNavigate: (m: NavMode) => void;
+  onOpenProject: (p: Project) => void;
+}) {
+  const hour = new Date().getHours();
+  const timeGreet = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  const today = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+
+  // Compute stats from projects
+  const activeProjects   = projects.filter(p => p.status === "active" || !p.status);
+  const pendingApprovals = projects.filter(p => p.approvalStatus === "pending");
+  const recentProjects   = [...projects].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()).slice(0, 5);
+
+  // Aggregate funding across all projects
+  const allFundingMatches: (FundingMatch & { projectName: string })[] = [];
+  for (const p of projects) {
+    if (!p.fundingAnalysis) continue;
+    try {
+      const d = JSON.parse(p.fundingAnalysis);
+      const matches: FundingMatch[] = d?.opportunities?.[0]?.matches ?? [];
+      matches.filter(m => m.matchStrength === "strong" || m.matchStrength === "good").forEach(m => allFundingMatches.push({ ...m, projectName: p.name }));
+    } catch {}
+  }
+  const totalFundingOpps = allFundingMatches.length;
+  const strongFunding    = allFundingMatches.filter(m => m.matchStrength === "strong").length;
+
+  // Count drafted applications
+  const totalDrafted = projects.reduce((sum, p) => {
+    try { return sum + Object.keys(JSON.parse(p.fundingApplications || "{}")).length; } catch { return sum; }
+  }, 0);
+
+  // Pending funding analyses
+  const pendingFunding = projects.filter(p => p.fundingStatus === "pending").length;
+
+  const STATS = [
+    { label: "Projects",         value: projects.length,     color: "hsl(193,100%,40%)", icon: FolderOpen,       action: () => onNavigate("projects") },
+    { label: "Active",           value: activeProjects.length, color: "hsl(155,70%,45%)", icon: Activity,        action: () => onNavigate("projects") },
+    { label: "Pending Approval", value: pendingApprovals.length, color: pendingApprovals.length > 0 ? "hsl(25,90%,60%)" : "rgba(15,23,42,0.3)", icon: ClipboardList, action: () => onNavigate("autolab") },
+    { label: "Funding Opps",     value: totalFundingOpps,    color: "hsl(155,70%,45%)", icon: BadgeCheck,        action: () => onNavigate("grants") },
+    { label: "Drafted Apps",     value: totalDrafted,        color: "hsl(45,100%,50%)", icon: FileText,          action: () => onNavigate("grants") },
+  ];
+
+  const QUICK_ACTIONS: { icon: React.ElementType; label: string; desc: string; color: string; mode: NavMode }[] = [
+    { icon: MessageSquare, label: "Chat with Sirius",  desc: "Your intelligence partner",    color: "hsl(193,100%,38%)", mode: "labchat"  },
+    { icon: FolderOpen,    label: "Projects",           desc: "Open your R&D workspace",      color: "hsl(193,100%,32%)", mode: "projects" },
+    { icon: Telescope,     label: "Market Scout",       desc: "Scan for opportunities",        color: "hsl(45,100%,42%)", mode: "scout"    },
+    { icon: BadgeCheck,    label: "Funding Radar",      desc: `${totalFundingOpps} open opps`, color: "hsl(155,70%,45%)", mode: "grants"   },
+    { icon: Cpu,           label: "Autonomous Lab",     desc: `${pendingApprovals.length} awaiting approval`, color: "hsl(193,100%,40%)", mode: "autolab" },
+    { icon: Atom,          label: "AI Intelligence",    desc: "Live strategic feed",            color: "hsl(210,80%,55%)", mode: "feed"     },
+    { icon: Banknote,      label: "Revenue Hub",        desc: "Sales and pipeline",             color: "hsl(155,70%,45%)", mode: "revenue"  },
+    { icon: Bot,           label: "Bot Lab",            desc: "Design AI automations",          color: "hsl(280,70%,55%)", mode: "botlab"   },
+  ];
+
+  return (
+    <div className="flex-1 overflow-y-auto" style={{ background: "#F8FAFC" }}>
+      {/* Header */}
+      <div className="px-8 pt-8 pb-6" style={{ borderBottom: "1px solid rgba(15,23,42,0.07)", background: "#FFFFFF" }}>
+        <div className="flex items-start justify-between">
+          <div>
+            <p className="text-xs font-mono mb-1" style={{ color: "rgba(15,23,42,0.3)", letterSpacing: "0.15em" }}>{today.toUpperCase()}</p>
+            <h1 className="text-slate-800 font-bold text-2xl mb-1">{timeGreet}, Garry.</h1>
+            <p className="text-sm" style={{ color: "rgba(15,23,42,0.45)" }}>
+              Strategic Innovation Dundee Ltd · Sirius Star Lab Command Centre
+            </p>
+          </div>
+          <div className="flex items-center gap-2 text-xs" style={{ color: "rgba(15,23,42,0.35)" }}>
+            <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "hsl(155,70%,55%)" }} />
+            All systems online
+          </div>
+        </div>
+      </div>
+
+      <div className="px-8 py-6 space-y-7">
+        {/* Stats row */}
+        <div className="grid grid-cols-5 gap-3">
+          {STATS.map(s => {
+            const Icon = s.icon;
+            return (
+              <button key={s.label} onClick={s.action}
+                className="rounded-2xl p-4 text-left transition-all hover:scale-[1.02] active:scale-[0.98]"
+                style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.07)", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: `${s.color}14` }}>
+                    <Icon className="w-4 h-4" style={{ color: s.color }} />
+                  </div>
+                  <ArrowRight className="w-3.5 h-3.5" style={{ color: "rgba(15,23,42,0.2)" }} />
+                </div>
+                <p className="text-2xl font-bold" style={{ color: s.value > 0 ? s.color : "rgba(15,23,42,0.25)" }}>{s.value}</p>
+                <p className="text-xs mt-0.5" style={{ color: "rgba(15,23,42,0.4)" }}>{s.label}</p>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="grid grid-cols-2 gap-5">
+          {/* Recent Projects */}
+          <div className="rounded-2xl overflow-hidden" style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.07)" }}>
+            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid rgba(15,23,42,0.06)" }}>
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4" style={{ color: "hsl(193,100%,40%)" }} />
+                <span className="text-slate-800 font-semibold text-sm">Recent Projects</span>
+              </div>
+              <button onClick={() => onNavigate("projects")} className="text-xs transition-opacity hover:opacity-75" style={{ color: "hsl(193,100%,45%)" }}>
+                View all →
+              </button>
+            </div>
+            <div className="p-3">
+              {recentProjects.length === 0 && (
+                <p className="text-center py-6 text-sm" style={{ color: "rgba(15,23,42,0.3)" }}>No projects yet</p>
+              )}
+              {recentProjects.map(p => {
+                const updatedAgo = (() => {
+                  const diff = Date.now() - new Date(p.updatedAt).getTime();
+                  const mins = Math.floor(diff / 60000);
+                  const hrs = Math.floor(mins / 60);
+                  const days = Math.floor(hrs / 24);
+                  if (days > 0) return `${days}d ago`;
+                  if (hrs > 0) return `${hrs}h ago`;
+                  return `${Math.max(1, mins)}m ago`;
+                })();
+                const fundingCount = (() => { try { return JSON.parse(p.fundingAnalysis || "{}").opportunities?.[0]?.matches?.length ?? 0; } catch { return 0; } })();
+                return (
+                  <div key={p.id} onClick={() => { onOpenProject(p); onNavigate("projects"); }}
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all mb-0.5"
+                    style={{ border: "1px solid transparent" }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#F8FAFC"; (e.currentTarget as HTMLElement).style.borderColor = "rgba(15,23,42,0.07)"; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.borderColor = "transparent"; }}>
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "hsla(193,100%,35%,0.1)" }}>
+                      <FolderOpen className="w-4 h-4" style={{ color: "hsl(193,100%,40%)" }} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-slate-800 text-sm font-medium truncate">{p.name}</p>
+                      <p className="text-xs truncate" style={{ color: "rgba(15,23,42,0.35)" }}>{p.industry} · {updatedAgo}</p>
+                    </div>
+                    {fundingCount > 0 && (
+                      <span className="text-xs px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: "hsla(155,70%,45%,0.1)", color: "hsl(155,70%,45%)" }}>
+                        {fundingCount} funding
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Top Funding Opportunities */}
+          <div className="rounded-2xl overflow-hidden" style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.07)" }}>
+            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid rgba(15,23,42,0.06)" }}>
+              <div className="flex items-center gap-2">
+                <Award className="w-4 h-4" style={{ color: "hsl(155,70%,45%)" }} />
+                <span className="text-slate-800 font-semibold text-sm">Top Funding Opportunities</span>
+                {strongFunding > 0 && (
+                  <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: "hsla(155,70%,45%,0.1)", color: "hsl(155,70%,55%)" }}>{strongFunding} strong</span>
+                )}
+              </div>
+              <button onClick={() => onNavigate("grants")} className="text-xs transition-opacity hover:opacity-75" style={{ color: "hsl(155,70%,45%)" }}>
+                View all →
+              </button>
+            </div>
+            <div className="p-3">
+              {allFundingMatches.length === 0 && (
+                <div className="py-6 text-center">
+                  <p className="text-sm mb-1" style={{ color: "rgba(15,23,42,0.3)" }}>No funding data yet</p>
+                  <button onClick={() => onNavigate("grants")} className="text-xs transition-opacity hover:opacity-75" style={{ color: "hsl(155,70%,45%)" }}>Run Funding Radar →</button>
+                </div>
+              )}
+              {allFundingMatches.slice(0, 5).map((m, i) => (
+                <div key={i} onClick={() => onNavigate("grants")}
+                  className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl cursor-pointer transition-all mb-0.5"
+                  style={{ border: "1px solid transparent" }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#F8FAFC"; (e.currentTarget as HTMLElement).style.borderColor = "rgba(15,23,42,0.07)"; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.borderColor = "transparent"; }}>
+                  <div className="w-2 h-2 rounded-full flex-shrink-0 mt-1.5" style={{ background: m.matchStrength === "strong" ? "hsl(155,70%,55%)" : "hsl(45,100%,55%)" }} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-slate-800 text-xs font-semibold truncate">{m.scheme}</p>
+                    <p className="text-xs truncate" style={{ color: "rgba(15,23,42,0.35)" }}>{m.projectName} · {m.amount}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Quick Actions */}
+        <div>
+          <p className="text-xs font-mono mb-3" style={{ color: "rgba(15,23,42,0.3)", letterSpacing: "0.15em" }}>QUICK ACTIONS</p>
+          <div className="grid grid-cols-4 gap-3">
+            {QUICK_ACTIONS.map(a => {
+              const Icon = a.icon;
+              return (
+                <button key={a.mode} onClick={() => onNavigate(a.mode)}
+                  className="flex items-center gap-3 p-4 rounded-2xl text-left transition-all hover:scale-[1.02] active:scale-[0.98]"
+                  style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.07)", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = `${a.color}40`; (e.currentTarget as HTMLElement).style.background = `${a.color}06`; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "rgba(15,23,42,0.07)"; (e.currentTarget as HTMLElement).style.background = "#FFFFFF"; }}>
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${a.color}14` }}>
+                    <Icon className="w-4.5 h-4.5" style={{ color: a.color, width: 18, height: 18 }} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-slate-800 font-semibold text-sm leading-tight">{a.label}</p>
+                    <p className="text-xs leading-tight mt-0.5 truncate" style={{ color: "rgba(15,23,42,0.35)" }}>{a.desc}</p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Pending Approvals alert */}
+        {pendingApprovals.length > 0 && (
+          <div onClick={() => onNavigate("autolab")}
+            className="flex items-center gap-4 p-4 rounded-2xl cursor-pointer transition-all"
+            style={{ background: "hsla(25,90%,55%,0.07)", border: "1px solid hsla(25,90%,55%,0.2)" }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "hsla(25,90%,55%,0.12)"; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "hsla(25,90%,55%,0.07)"; }}>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "hsla(25,90%,55%,0.15)" }}>
+              <ClipboardList className="w-5 h-5" style={{ color: "hsl(25,90%,55%)" }} />
+            </div>
+            <div className="flex-1">
+              <p className="text-slate-800 font-semibold text-sm">{pendingApprovals.length} project{pendingApprovals.length !== 1 ? "s" : ""} awaiting your approval</p>
+              <p className="text-xs" style={{ color: "rgba(15,23,42,0.45)" }}>The Autonomous Lab has identified new opportunities — review and approve to add them to your workspace</p>
+            </div>
+            <ArrowRight className="w-4 h-4 flex-shrink-0" style={{ color: "hsl(25,90%,55%)" }} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // ── Auto Lab Panel ────────────────────────────────────────────────────────────
 
@@ -7286,6 +7521,7 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
 
 // ─── Interactive post-login voice assistant ──────────────────────────────────
 const NAV_DESTINATIONS: { mode: NavMode; label: string; icon: string; color: string; desc: string; keywords: string[] }[] = [
+  { mode: "dashboard", label: "Dashboard",        icon: "🏠", color: "hsl(193,100%,45%)", desc: "Your command centre overview", keywords: ["dashboard","home","overview","summary","main","start","back","return"] },
   { mode: "labchat",  label: "Chat with Sirius", icon: "💬", color: "hsl(193,100%,38%)", desc: "Talk to me directly", keywords: ["chat","talk","speak","converse","sirius","question","ask","help","conversation"] },
   { mode: "projects", label: "Projects",          icon: "📁", color: "hsl(193,100%,32%)", desc: "Your R&D project workspace", keywords: ["project","projects","work","build","engineering","design","product"] },
   { mode: "botlab",   label: "Bot Lab",           icon: "🤖", color: "hsl(280,70%,55%)", desc: "Design AI automations", keywords: ["bot","automation","bots","automate","bot lab","workflow","script"] },
@@ -7981,7 +8217,7 @@ export function StarLabPage() {
     : "Garry";
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeProject, setActiveProject] = useState<Project | null>(null);
-  const [navMode, setNavMode] = useState<NavMode>("projects");
+  const [navMode, setNavMode] = useState<NavMode>("dashboard");
   const [revenueInitialTab, setRevenueInitialTab] = useState<RevenueTab | undefined>();
   const [pendingReportSession, setPendingReportSession] = useState<string | undefined>();
   const [pendingCommissionSession, setPendingCommissionSession] = useState<string | undefined>();
@@ -8077,6 +8313,7 @@ export function StarLabPage() {
   const isGuest = accessLevel === "guest";
 
   const ALL_NAV_ITEMS = [
+    { id: "dashboard" as NavMode, label: "Dashboard", icon: LayoutDashboard, color: "hsl(193,100%,45%)", guestAllowed: true },
     { id: "projects" as NavMode, label: "Projects", icon: FolderOpen, color: "hsl(193,100%,35%)", guestAllowed: true },
     { id: "botlab" as NavMode, label: "Bot Lab", icon: Bot, color: "hsl(280,70%,55%)", guestAllowed: false },
     { id: "scout" as NavMode, label: "Scout", icon: Telescope, color: "hsl(45,100%,45%)", guestAllowed: true },
@@ -8244,6 +8481,48 @@ export function StarLabPage() {
 
       {/* MAIN */}
       <div className="flex-1 flex flex-col min-w-0 min-h-0">
+
+        {/* Global breadcrumb / back bar — shown on every panel except dashboard */}
+        {navMode !== "dashboard" && (
+          <div className="flex items-center gap-2 px-4 py-2 flex-shrink-0"
+            style={{ borderBottom: "1px solid rgba(15,23,42,0.07)", background: "#FFFFFF" }}>
+            <button onClick={() => { setNavMode("dashboard"); setActiveProject(null); }}
+              className="flex items-center gap-1.5 text-xs font-medium transition-colors rounded-lg px-2 py-1"
+              style={{ color: "rgba(15,23,42,0.4)" }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "hsl(193,100%,40%)"; (e.currentTarget as HTMLElement).style.background = "#F1F5F9"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "rgba(15,23,42,0.4)"; (e.currentTarget as HTMLElement).style.background = "transparent"; }}>
+              <LayoutDashboard className="w-3 h-3" />
+              Dashboard
+            </button>
+            <ChevronRight className="w-3 h-3" style={{ color: "rgba(15,23,42,0.2)" }} />
+            {activeProject && navMode === "projects" ? (
+              <>
+                <button onClick={() => setActiveProject(null)}
+                  className="text-xs font-medium transition-colors rounded-lg px-2 py-1"
+                  style={{ color: "rgba(15,23,42,0.4)" }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "hsl(193,100%,40%)"; (e.currentTarget as HTMLElement).style.background = "#F1F5F9"; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "rgba(15,23,42,0.4)"; (e.currentTarget as HTMLElement).style.background = "transparent"; }}>
+                  Projects
+                </button>
+                <ChevronRight className="w-3 h-3" style={{ color: "rgba(15,23,42,0.2)" }} />
+                <span className="text-xs font-semibold text-slate-700 px-2 py-1 rounded-lg" style={{ background: "#F1F5F9" }}>{activeProject.name}</span>
+              </>
+            ) : (
+              <span className="text-xs font-semibold text-slate-700 px-2 py-1 rounded-lg" style={{ background: "#F1F5F9" }}>
+                {ALL_NAV_ITEMS.find(n => n.id === navMode)?.label ?? navMode}
+              </span>
+            )}
+          </div>
+        )}
+
+        {navMode === "dashboard" && (
+          <DashboardPanel
+            projects={projects}
+            pin={pin}
+            onNavigate={m => setNavMode(m)}
+            onOpenProject={p => { loadProject(p.id); }}
+          />
+        )}
         {navMode === "feed" && <FeedPanel pin={pin} />}
         {navMode === "scout" && <ScoutPanel pin={pin} />}
         {navMode === "botlab" && <BotLabPanel pin={pin} />}
