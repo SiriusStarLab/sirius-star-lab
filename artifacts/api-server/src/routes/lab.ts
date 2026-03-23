@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { eq, desc } from "drizzle-orm";
-import { db, labProjects, labMessages, scoutReports, cadFiles, labScanHistory, userProfilesTable } from "@workspace/db";
+import { db, labProjects, labMessages, scoutReports, cadFiles, labScanHistory, userProfilesTable, mediaOutlets } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { generateImageBuffer } from "@workspace/integrations-openai-ai-server/image";
 import { ObjectStorageService } from "../lib/objectStorage";
@@ -627,6 +627,55 @@ router.get("/lab/projects/:id/messages", authMiddleware, async (req: Request, re
 });
 
 // Lab AI Chat — gpt-5.2 with full project context
+// Writable project fields accessible by the in-project chat
+const PROJECT_WRITABLE_FIELDS: Record<string, { label: string; dbCol: string }> = {
+  brief:          { label: "Brief",          dbCol: "brief" },
+  research:       { label: "Research",       dbCol: "research" },
+  specs:          { label: "Specs",          dbCol: "specs" },
+  materials:      { label: "Materials",      dbCol: "materials" },
+  code:           { label: "Code",           dbCol: "code" },
+  drawingNotes:   { label: "Drawing Notes",  dbCol: "drawing_notes" },
+  workflows:      { label: "Workflows",      dbCol: "workflows" },
+  industryProblem:{ label: "Market & Uses",  dbCol: "industry_problem" },
+  businessCase:   { label: "Business Case",  dbCol: "business_case" },
+  brochure:       { label: "Brochure",       dbCol: "brochure" },
+  pitch:          { label: "Pitch",          dbCol: "pitch" },
+  costToBuild:    { label: "Economics",      dbCol: "cost_to_build" },
+  goToMarket:     { label: "Go-to-Market",   dbCol: "go_to_market" },
+};
+
+const PROJECT_CHAT_TOOLS: any[] = [
+  {
+    type: "function",
+    function: {
+      name: "save_to_project",
+      description: "Save generated content directly into a specific section of the project. Use this whenever you write complete content for a section, or when the user asks you to update, write, or save any project field. Always call this after generating section content so it's automatically saved.",
+      parameters: {
+        type: "object",
+        properties: {
+          field: { type: "string", enum: Object.keys(PROJECT_WRITABLE_FIELDS), description: "Which project field to save into" },
+          content: { type: "string", description: "The complete content to save into this field. Write the full section — do not truncate." },
+        },
+        required: ["field", "content"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "generate_render",
+      description: "Request an AI visual render or 2D/3D image for this project. Use when the user asks for a visualisation, render, image, diagram, or 3D concept.",
+      parameters: {
+        type: "object",
+        properties: {
+          description: { type: "string", description: "Detailed description of what to visualise — include product name, materials, form, environment, style (photorealistic/technical drawing/3D render)" },
+        },
+        required: ["description"],
+      },
+    },
+  },
+];
+
 router.post("/lab/projects/:id/chat", authMiddleware, async (req: Request, res: Response) => {
   const projectId = parseInt(req.params.id);
   const { message, tab, mode } = req.body;
@@ -640,59 +689,134 @@ router.post("/lab/projects/:id/chat", authMiddleware, async (req: Request, res: 
 
   await db.insert(labMessages).values({ projectId, role: "user", content: message });
 
-  const projectContext = `
----
-## THIS PROJECT: ${project.name.toUpperCase()}
-**Industry:** ${project.industry}
-**Phase:** ${project.phase || "design"} | **Status:** ${project.status || "active"} | **Current tab focus:** ${tab || "general"}
+  const projectContext = `## PROJECT: ${project.name.toUpperCase()}
+Industry: ${project.industry} | Phase: ${project.phase || "design"} | Current focus: ${tab || "general"}
 
-### What's already been written:
-- **Brief:** ${project.brief ? `✓ Written (${project.brief.split(" ").length} words)` : "✗ Not yet written"}
-- **Research:** ${project.research ? `✓ Written (${project.research.split(" ").length} words)` : "✗ Not yet written"}
-- **Specs:** ${project.specs ? `✓ Written (${project.specs.split(" ").length} words)` : "✗ Not yet written"}
-- **Materials:** ${project.materials ? `✓ Written` : "✗ Not yet written"}
-- **Code:** ${project.code ? `✓ Written (${project.code.split("\n").length} lines)` : "✗ Not yet written"}
-- **Drawings:** ${project.drawingNotes ? `✓ Written` : "✗ Not yet written"}
-- **Workflows:** ${project.workflows ? `✓ Written` : "✗ Not yet written"}
-- **Market & Uses:** ${project.industryProblem ? `✓ Written` : "✗ Not yet written"}
-- **Business Case:** ${project.businessCase ? `✓ Written` : "✗ Not yet written"}
-- **Brochure:** ${project.brochure ? `✓ Written` : "✗ Not yet written"}
-- **Pitch:** ${project.pitch ? `✓ Written` : "✗ Not yet written"}
-- **Economics:** ${project.costToBuild ? `✓ Written` : "✗ Not yet written"}
-- **Go-to-Market:** ${project.goToMarket ? `✓ Written` : "✗ Not yet written"}
+SECTION STATUS:
+${Object.entries(PROJECT_WRITABLE_FIELDS).map(([key, { label }]) => {
+  const val = (project as any)[key];
+  return `- ${label}: ${val ? `✓ Written (${val.split?.(" ")?.length || 0} words)` : "✗ Empty"}`;
+}).join("\n")}
 
-### Full content of written sections:
-${project.brief ? `**BRIEF:**\n${project.brief}\n` : ""}
-${project.research ? `**RESEARCH:**\n${project.research}\n` : ""}
-${project.specs ? `**SPECS:**\n${project.specs}\n` : ""}
-${project.materials ? `**MATERIALS:**\n${project.materials}\n` : ""}
-${project.code ? `**CODE:** (${project.code.split("\n").length} lines — available on request)\n` : ""}
-${project.industryProblem ? `**MARKET & USES:**\n${project.industryProblem}\n` : ""}
-${project.businessCase ? `**BUSINESS CASE:**\n${project.businessCase}\n` : ""}
-${project.costToBuild ? `**ECONOMICS:**\n${project.costToBuild}\n` : ""}
-${project.goToMarket ? `**GO-TO-MARKET:**\n${project.goToMarket}\n` : ""}
+EXISTING CONTENT:
+${project.brief ? `BRIEF:\n${project.brief}\n\n` : ""}${project.research ? `RESEARCH:\n${project.research}\n\n` : ""}${project.specs ? `SPECS:\n${project.specs}\n\n` : ""}${project.businessCase ? `BUSINESS CASE:\n${project.businessCase}\n\n` : ""}${project.goToMarket ? `GO-TO-MARKET:\n${project.goToMarket}\n\n` : ""}`;
 
-### Your job in this chat:
-- Answer questions about the project with full expertise
-- Generate any section content when asked — write it completely, ready to copy and use
-- Proactively spot gaps, risks, or improvements you notice in the existing content
-- If asked to generate an image or render, respond with: [IMAGE_REQUEST: description of what to visualise]
-- Search the web for any current data relevant to this project before stating facts`;
+  const systemPrompt = (mode === "bot" ? BOT_DESIGN_PROMPT() : LAB_SYSTEM_PROMPT()) + `
 
-  const systemPrompt = mode === "bot"
-    ? BOT_DESIGN_PROMPT() + "\n\n" + projectContext
-    : LAB_SYSTEM_PROMPT() + "\n\n" + projectContext;
+${projectContext}
+
+CRITICAL INSTRUCTIONS:
+- When you generate content for ANY project section, ALWAYS call save_to_project immediately to save it. Do not just show it in the chat — SAVE it.
+- When the user says "write the brief", "update the specs", "generate the pitch", "change the materials to...", etc. — generate it AND call save_to_project.
+- When the user asks for a visual, render, diagram, or 3D image, call generate_render.
+- After saving, confirm what was saved in your response. Be brief — "Saved to Specs ✓" is enough.
+- You can save multiple fields in one conversation turn if asked.
+- Today: ${TODAY()}.`;
 
   sseHeaders(res);
 
   try {
-    const fullContent = await streamChatResponse(
-      res, systemPrompt, message,
-      history.map(m => ({ role: m.role, content: m.content }))
-    );
+    const chatHistory: any[] = history.map(m => ({ role: m.role as "user" | "assistant", content: m.content }));
+    const chatMessages: any[] = [
+      { role: "system", content: systemPrompt },
+      ...chatHistory,
+      { role: "user", content: message },
+    ];
 
-    await db.insert(labMessages).values({ projectId, role: "assistant", content: fullContent });
-    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+    // Phase 1: stream with tools
+    const phase1 = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: chatMessages,
+      tools: PROJECT_CHAT_TOOLS,
+      tool_choice: "auto",
+      temperature: 0.7,
+      max_tokens: 3000,
+      stream: true,
+    });
+
+    let contentBuffer = "";
+    const toolCallBuffers: Record<number, { id: string; name: string; arguments: string }> = {};
+    let finishReason = "";
+
+    for await (const chunk of phase1) {
+      const choice = chunk.choices?.[0];
+      if (!choice) continue;
+      finishReason = choice.finish_reason || finishReason;
+      if (choice.delta?.content) {
+        contentBuffer += choice.delta.content;
+        res.write(`data: ${JSON.stringify({ content: choice.delta.content })}\n\n`);
+      }
+      if (choice.delta?.tool_calls) {
+        for (const tc of choice.delta.tool_calls) {
+          const idx = tc.index ?? 0;
+          if (!toolCallBuffers[idx]) toolCallBuffers[idx] = { id: "", name: "", arguments: "" };
+          if (tc.id) toolCallBuffers[idx].id = tc.id;
+          if (tc.function?.name) toolCallBuffers[idx].name = tc.function.name;
+          if (tc.function?.arguments) toolCallBuffers[idx].arguments += tc.function.arguments;
+        }
+      }
+    }
+
+    const toolCalls = Object.values(toolCallBuffers);
+    const toolResults: any[] = [];
+    const savedFields: string[] = [];
+
+    if (finishReason === "tool_calls" && toolCalls.length > 0) {
+      for (const tc of toolCalls) {
+        let args: any = {};
+        try { args = JSON.parse(tc.arguments); } catch { /* ignore */ }
+
+        if (tc.name === "save_to_project") {
+          const { field, content } = args;
+          const fieldMeta = PROJECT_WRITABLE_FIELDS[field];
+          if (fieldMeta && content) {
+            await db.update(labProjects).set({ [field]: content, updatedAt: new Date() }).where(eq(labProjects.id, projectId));
+            savedFields.push(field);
+            res.write(`data: ${JSON.stringify({ type: "field_saved", field, label: fieldMeta.label, preview: content.slice(0, 120) })}\n\n`);
+          }
+          toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: fieldMeta ? `Saved ${fieldMeta.label} successfully.` : "Unknown field." });
+        } else if (tc.name === "generate_render") {
+          const { description } = args;
+          res.write(`data: ${JSON.stringify({ type: "render_queued", description })}\n\n`);
+          toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: `Render request queued: "${description}". The image will appear in the Renders tab.` });
+
+          // Fire-and-forget render generation
+          setImmediate(async () => {
+            try {
+              const generateRes = await fetch(`http://localhost:${process.env.PORT || 3001}/lab/projects/${projectId}/render`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "x-lab-pin": LAB_PIN },
+                body: JSON.stringify({ prompt: description, type: "render" }),
+              });
+              await generateRes.json(); // consume
+            } catch { /* silently ignore */ }
+          });
+        }
+      }
+
+      // Phase 2: stream final response
+      const phase2Messages = [
+        ...chatMessages,
+        { role: "assistant" as const, content: contentBuffer || null, tool_calls: toolCalls.map(tc => ({ id: tc.id, type: "function" as const, function: { name: tc.name, arguments: tc.arguments } })) },
+        ...toolResults,
+      ];
+      const phase2 = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: phase2Messages,
+        temperature: 0.7,
+        max_tokens: 800,
+        stream: true,
+      });
+      let finalText = "";
+      for await (const chunk of phase2) {
+        const delta = chunk.choices?.[0]?.delta?.content;
+        if (delta) { finalText += delta; res.write(`data: ${JSON.stringify({ content: delta })}\n\n`); }
+      }
+      contentBuffer += finalText;
+    }
+
+    await db.insert(labMessages).values({ projectId, role: "assistant", content: contentBuffer });
+    res.write(`data: ${JSON.stringify({ done: true, savedFields })}\n\n`);
   } catch (err: any) {
     res.write(`data: ${JSON.stringify({ error: err.message || "Stream failed" })}\n\n`);
   }
@@ -2838,6 +2962,201 @@ Return ONLY valid JSON, no markdown code blocks.`
   } catch (err: any) {
     res.status(500).json({ error: "Document analysis failed", detail: err?.message });
   }
+});
+
+// ─── Social Post Generation ────────────────────────────────────────────────────
+
+const SOCIAL_PLATFORMS = [
+  { id: "linkedin",      label: "LinkedIn",       maxChars: 3000, style: "professional founder story, business insight, clear value proposition. Use line breaks for readability. End with a question or call to action." },
+  { id: "twitter",       label: "Twitter / X",    maxChars: 280,  style: "punchy, to the point. Max 280 chars. Hook in the first 5 words. Use 1-2 hashtags." },
+  { id: "instagram",     label: "Instagram",      maxChars: 2200, style: "visual storytelling. Lead with the hook, build the story, use line breaks, end with 10-15 hashtags. Emojis allowed." },
+  { id: "facebook",      label: "Facebook",       maxChars: 1500, style: "conversational, community-focused. Tell the story, explain the benefit, invite engagement." },
+  { id: "pressRelease",  label: "Press Release",  maxChars: 600,  style: "formal press release — headline, dateline (Strategic Innovation Dundee, Scotland), opening paragraph with 5 Ws, quote from founder, boilerplate. Ready to send to journalists." },
+];
+
+router.post("/lab/projects/:id/social-posts/generate", authMiddleware, async (req: Request, res: Response) => {
+  const projectId = parseInt(req.params.id);
+  const [project] = await db.select().from(labProjects).where(eq(labProjects.id, projectId));
+  if (!project) { res.status(404).json({ error: "Project not found" }); return; }
+
+  const projectSummary = [
+    project.brief, project.pitch, project.goToMarket, project.businessCase, project.industryProblem,
+  ].filter(Boolean).join("\n\n").slice(0, 6000);
+
+  if (!projectSummary) {
+    res.status(400).json({ error: "Project needs at least a brief or pitch before generating posts" });
+    return;
+  }
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        {
+          role: "system",
+          content: `You are a world-class copywriter and growth strategist. Generate platform-specific social media posts for a product launch. Write compelling, genuine content — not corporate waffle. The company is Strategic Innovation Dundee Ltd, a precision engineering and AI technology business in Scotland.`,
+        },
+        {
+          role: "user",
+          content: `PROJECT: ${project.name}
+INDUSTRY: ${project.industry}
+
+CONTENT:
+${projectSummary}
+
+Generate a JSON object with keys for each platform. Write the post content as the VALUE (just the text, ready to copy). Use this exact structure:
+{
+  "linkedin": "<post>",
+  "twitter": "<post — max 280 chars>",
+  "instagram": "<post with hashtags>",
+  "facebook": "<post>",
+  "pressRelease": "<full press release>"
+}
+
+Style guidelines:
+- LinkedIn: ${SOCIAL_PLATFORMS[0].style}
+- Twitter/X: ${SOCIAL_PLATFORMS[1].style}
+- Instagram: ${SOCIAL_PLATFORMS[2].style}
+- Facebook: ${SOCIAL_PLATFORMS[3].style}
+- Press Release: ${SOCIAL_PLATFORMS[4].style}
+
+Be authentic, specific to this product, and commercially sharp.`,
+        },
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.8,
+      max_tokens: 3000,
+    });
+
+    let posts: any = {};
+    try { posts = JSON.parse(completion.choices[0]?.message?.content || "{}"); } catch { /* ignore */ }
+
+    // Save to project
+    await db.update(labProjects).set({ socialPosts: JSON.stringify(posts), launchStatus: "draft", updatedAt: new Date() }).where(eq(labProjects.id, projectId));
+
+    res.json({ ok: true, posts });
+  } catch (err: any) {
+    res.status(500).json({ error: "Failed to generate posts", detail: err?.message });
+  }
+});
+
+// Update social posts + launch platforms
+router.put("/lab/projects/:id/social-posts", authMiddleware, async (req: Request, res: Response) => {
+  const projectId = parseInt(req.params.id);
+  const { posts, platforms, launchStatus } = req.body;
+  const updates: any = { updatedAt: new Date() };
+  if (posts !== undefined) updates.socialPosts = JSON.stringify(posts);
+  if (platforms !== undefined) updates.launchPlatforms = JSON.stringify(platforms);
+  if (launchStatus !== undefined) updates.launchStatus = launchStatus;
+  await db.update(labProjects).set(updates).where(eq(labProjects.id, projectId));
+  res.json({ ok: true });
+});
+
+// ─── Media Outlet Database ─────────────────────────────────────────────────────
+
+const SEED_OUTLETS = [
+  // Tech / AI / Software
+  { name: "TechCrunch", type: "news", categories: ["tech","ai","software"], url: "https://techcrunch.com", submitUrl: "https://techcrunch.com/tips/", region: "USA", description: "Leading tech and startup news", audience: "Tech founders, investors, developers" },
+  { name: "Wired UK", type: "magazine", categories: ["tech","ai","engineering"], url: "https://www.wired.co.uk", submitUrl: "https://www.wired.co.uk/tips", region: "UK", description: "Technology, culture and business", audience: "Tech professionals and executives" },
+  { name: "VentureBeat", type: "news", categories: ["tech","ai","software"], url: "https://venturebeat.com", submitUrl: "https://venturebeat.com/news-tips/", region: "USA", description: "AI and technology business news", audience: "Enterprise tech decision makers" },
+  { name: "The Register", type: "news", categories: ["tech","software","engineering"], url: "https://www.theregister.com", submitUrl: "https://www.theregister.com/Profile/contact_us/", region: "UK", description: "IT and technology news", audience: "IT professionals and engineers" },
+  { name: "Computing.co.uk", type: "news", categories: ["tech","software","ai"], url: "https://www.computing.co.uk", submitUrl: "https://www.computing.co.uk/contact", region: "UK", description: "UK enterprise computing and IT", audience: "UK IT and business decision makers" },
+  { name: "Tech Round", type: "news", categories: ["tech","ai","software"], url: "https://techround.co.uk", submitUrl: "https://techround.co.uk/submit-your-startup/", region: "UK", description: "UK startup and tech news", audience: "UK tech founders and investors" },
+  { name: "Ars Technica", type: "news", categories: ["tech","engineering","software"], url: "https://arstechnica.com", submitUrl: "https://arstechnica.com/contact-us/", region: "USA", description: "Deep technology journalism", audience: "Engineers and tech enthusiasts" },
+  // Engineering / Manufacturing
+  { name: "The Engineer", type: "magazine", categories: ["engineering","manufacturing","aerospace","oil_gas"], url: "https://www.theengineer.co.uk", submitUrl: "https://www.theengineer.co.uk/contact-us/", region: "UK", description: "UK engineering news and analysis", audience: "UK engineers and manufacturers" },
+  { name: "Engineering & Technology (IET)", type: "journal", categories: ["engineering","tech","manufacturing"], url: "https://eandt.theiet.org", submitUrl: "https://eandt.theiet.org/contact/", region: "UK", description: "IET's flagship publication", audience: "UK engineers and technologists" },
+  { name: "Manufacturing Global", type: "magazine", categories: ["manufacturing","engineering"], url: "https://manufacturingglobal.com", submitUrl: "https://manufacturingglobal.com/contact", region: "Global", description: "Global manufacturing industry news", audience: "Manufacturing executives worldwide" },
+  { name: "The Manufacturer", type: "magazine", categories: ["manufacturing","engineering"], url: "https://www.themanufacturer.com", submitUrl: "https://www.themanufacturer.com/contact-us/", region: "UK", description: "UK manufacturing news and insight", audience: "UK manufacturing decision makers" },
+  { name: "Machinery", type: "magazine", categories: ["manufacturing","engineering"], url: "https://www.machinery.co.uk", submitUrl: "https://www.machinery.co.uk/contact/", region: "UK", description: "Machine tools and precision engineering", audience: "UK precision engineers and machinists" },
+  // Aerospace
+  { name: "Aerospace Technology", type: "news", categories: ["aerospace","engineering","manufacturing"], url: "https://www.aerospace-technology.com", submitUrl: "https://www.aerospace-technology.com/contact/", region: "Global", description: "Aerospace industry news and projects", audience: "Aerospace engineers and procurement" },
+  { name: "Aviation Week", type: "magazine", categories: ["aerospace","engineering"], url: "https://aviationweek.com", submitUrl: "https://aviationweek.com/contact-us", region: "USA", description: "Leading aerospace and defence news", audience: "Aviation and aerospace professionals" },
+  { name: "Flight International", type: "magazine", categories: ["aerospace"], url: "https://www.flightglobal.com", submitUrl: "https://www.flightglobal.com/contact", region: "UK", description: "Aerospace, aviation and defence", audience: "Aerospace professionals globally" },
+  // Oil & Gas
+  { name: "Offshore Engineer", type: "magazine", categories: ["oil_gas","engineering"], url: "https://www.oedigital.com", submitUrl: "https://www.oedigital.com/contact/", region: "Global", description: "Offshore oil and gas engineering", audience: "Offshore engineers and operators" },
+  { name: "Energy Voice", type: "news", categories: ["oil_gas","engineering"], url: "https://www.energyvoice.com", submitUrl: "https://www.energyvoice.com/contact/", region: "UK", description: "North Sea and global energy news (Aberdeen)", audience: "Oil & gas professionals in Scotland and globally" },
+  { name: "Oil & Gas Journal", type: "magazine", categories: ["oil_gas","engineering"], url: "https://www.ogj.com", submitUrl: "https://www.ogj.com/contact-us.html", region: "USA", description: "Oil and gas industry news and data", audience: "O&G engineers, executives and analysts" },
+  { name: "New Civil Engineer", type: "magazine", categories: ["engineering","oil_gas","manufacturing"], url: "https://www.newcivilengineer.com", submitUrl: "https://www.newcivilengineer.com/contact/", region: "UK", description: "Civil and structural engineering news", audience: "UK civil and structural engineers" },
+  // Medical / Healthcare
+  { name: "Medical Device Network", type: "news", categories: ["medical","healthcare","engineering"], url: "https://www.medicaldevice-network.com", submitUrl: "https://www.medicaldevice-network.com/contact/", region: "Global", description: "Medical device industry news", audience: "Medical device manufacturers and procurement" },
+  { name: "The Medical Device Manufacturer", type: "magazine", categories: ["medical","engineering"], url: "https://www.themanufacturer.com/sectors/medical/", submitUrl: "https://www.themanufacturer.com/contact-us/", region: "UK", description: "Medical device manufacturing", audience: "UK medical device manufacturers" },
+  { name: "Health Service Journal", type: "journal", categories: ["healthcare","medical"], url: "https://www.hsj.co.uk", submitUrl: "https://www.hsj.co.uk/contactus", region: "UK", description: "NHS and healthcare management", audience: "NHS managers and healthcare executives" },
+  { name: "Medical Plastics News", type: "magazine", categories: ["medical","manufacturing"], url: "https://www.medicalplasticsnews.com", submitUrl: "https://www.medicalplasticsnews.com/contact/", region: "UK", description: "Medical plastics and device manufacturing", audience: "Medical manufacturers" },
+  // Hydrogen / Clean Energy
+  { name: "Hydrogen Fuel News", type: "news", categories: ["hydrogen","energy","tech"], url: "https://www.hydrogenfuelnews.com", submitUrl: "https://www.hydrogenfuelnews.com/contact/", region: "USA", description: "Hydrogen fuel cell news", audience: "Energy professionals and investors" },
+  { name: "H2 View", type: "news", categories: ["hydrogen","energy"], url: "https://www.h2-view.com", submitUrl: "https://www.h2-view.com/contact-us/", region: "UK", description: "Global hydrogen industry news", audience: "Hydrogen industry professionals" },
+  { name: "Energy Monitor", type: "news", categories: ["hydrogen","energy","oil_gas"], url: "https://www.energymonitor.ai", submitUrl: "https://www.energymonitor.ai/contact/", region: "Global", description: "Clean energy transition news", audience: "Energy sector professionals and investors" },
+  // Scotland / Regional
+  { name: "Business Insider Scotland", type: "news", categories: ["tech","manufacturing","engineering"], url: "https://www.insider.co.uk", submitUrl: "https://www.insider.co.uk/contact/", region: "UK", description: "Scottish business news", audience: "Scottish business community" },
+  { name: "The Herald (Business)", type: "news", categories: ["tech","manufacturing","engineering"], url: "https://www.heraldscotland.com", submitUrl: "https://www.heraldscotland.com/contacts/", region: "UK", description: "Scottish newspaper — business section", audience: "Scottish business leaders" },
+];
+
+// Seed media outlets on first run
+async function seedMediaOutlets() {
+  const existing = await db.select().from(mediaOutlets).limit(1);
+  if (existing.length > 0) return; // already seeded
+  await db.insert(mediaOutlets).values(
+    SEED_OUTLETS.map(o => ({
+      name: o.name, type: o.type,
+      categories: JSON.stringify(o.categories),
+      url: o.url, submitUrl: o.submitUrl,
+      region: o.region, description: o.description,
+      audience: o.audience || "",
+      contactEmail: "",
+    }))
+  );
+}
+
+// Run seed at startup
+seedMediaOutlets().catch(() => {});
+
+// Get media outlets (optionally filtered by category)
+router.get("/lab/media-outlets", authMiddleware, async (req: Request, res: Response) => {
+  const cats = (req.query.categories as string || "").split(",").map(c => c.trim().toLowerCase()).filter(Boolean);
+  const all = await db.select().from(mediaOutlets).where(eq(mediaOutlets.active, "true"));
+  const parsed = all.map(o => ({ ...o, categories: (() => { try { return JSON.parse(o.categories || "[]"); } catch { return []; } })() }));
+  const filtered = cats.length > 0 ? parsed.filter(o => cats.some((c: string) => o.categories.includes(c))) : parsed;
+  res.json(filtered);
+});
+
+// AI-match outlets to a project
+router.post("/lab/projects/:id/media-match", authMiddleware, async (req: Request, res: Response) => {
+  const projectId = parseInt(req.params.id);
+  const [project] = await db.select().from(labProjects).where(eq(labProjects.id, projectId));
+  if (!project) { res.status(404).json({ error: "Project not found" }); return; }
+
+  const all = await db.select().from(mediaOutlets).where(eq(mediaOutlets.active, "true"));
+  const parsed = all.map(o => ({ ...o, categories: (() => { try { return JSON.parse(o.categories || "[]"); } catch { return []; } })() }));
+
+  // Simple category matching from project industry
+  const industry = (project.industry || "").toLowerCase();
+  const INDUSTRY_CATEGORY_MAP: Record<string, string[]> = {
+    "oil & gas": ["oil_gas", "engineering"], "oil and gas": ["oil_gas", "engineering"],
+    "aerospace": ["aerospace", "engineering", "manufacturing"],
+    "medical": ["medical", "healthcare", "engineering"], "medical devices": ["medical", "healthcare"],
+    "healthcare": ["healthcare", "medical"],
+    "hydrogen": ["hydrogen", "energy"],
+    "manufacturing": ["manufacturing", "engineering"],
+    "tech": ["tech", "ai", "software"], "ai": ["ai", "tech", "software"],
+    "software": ["software", "tech", "ai"],
+    "engineering": ["engineering", "manufacturing"],
+  };
+
+  const cats: string[] = [];
+  for (const [k, v] of Object.entries(INDUSTRY_CATEGORY_MAP)) {
+    if (industry.includes(k)) cats.push(...v);
+  }
+  if (cats.length === 0) cats.push("tech", "engineering");
+
+  const matched = parsed.filter(o => cats.some(c => o.categories.includes(c)));
+  const sorted = matched.sort((a, b) => {
+    const aScore = a.categories.filter((c: string) => cats.includes(c)).length;
+    const bScore = b.categories.filter((c: string) => cats.includes(c)).length;
+    return bScore - aScore;
+  });
+
+  res.json(sorted.slice(0, 12));
 });
 
 export default router;

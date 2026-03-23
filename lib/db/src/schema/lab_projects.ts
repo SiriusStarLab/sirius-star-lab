@@ -45,6 +45,11 @@ export const labProjects = pgTable("lab_projects", {
   // Approval workflow — auto-created projects start as "pending"
   approvalStatus: text("approval_status").default(""),  // "" | "pending" | "approved" | "rejected"
 
+  // Launch / social media
+  socialPosts: text("social_posts").default("{}"),   // JSON: { linkedin: "", twitter: "", instagram: "", facebook: "", pressRelease: "" }
+  launchPlatforms: text("launch_platforms").default("[]"), // JSON: string[] of selected platform IDs
+  launchStatus: text("launch_status").default(""),   // "" | "draft" | "approved" | "launched"
+
   // Funding analysis — auto-populated per project
   fundingAnalysis: text("funding_analysis").default(""),
   fundingStatus: text("funding_status").default(""),   // "" | "pending" | "complete" | "error"

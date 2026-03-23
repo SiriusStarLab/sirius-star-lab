@@ -12,7 +12,7 @@ import {
   ChevronUp, BadgeCheck, Lightbulb, Atom, Upload, Download,
   Mail, UserPlus, Users, Settings2, AtSign, Building2, Briefcase, StickyNote, CheckCircle2, AlertCircle,
   Banknote, CreditCard, ShoppingBag, BarChart3, ArrowRight, FileSearch, Hammer, ClipboardList,
-  Brain, MessageSquare, Activity, Target, Building, Mic, MicOff, ShieldAlert
+  Brain, MessageSquare, Activity, Target, Building, Mic, MicOff, ShieldAlert, Rocket
 } from "lucide-react";
 import { getApiBase } from "@/lib/api-base";
 
@@ -45,6 +45,7 @@ type Project = {
   autoCreated: string; autoScanId: string;
   approvalStatus: string;
   fundingAnalysis: string; fundingStatus: string; fundingAnalysedAt: string | null;
+  socialPosts: string; launchPlatforms: string; launchStatus: string;
   messages?: Message[];
 };
 type Message = { id: number; projectId: number; role: string; content: string; createdAt: string };
@@ -500,6 +501,7 @@ const ALL_TABS = [
   { id: "economics", label: "Economics", icon: Package, field: "costToBuild", phase: "complete", placeholder: "Cost to build, pricing, profit margin analysis...", generated: true },
   { id: "goToMarket", label: "Go-to-Market", icon: Globe, field: "goToMarket", phase: "complete", placeholder: "Launch strategy, channels, pricing, 90-day plan, KPIs...", generated: true },
   { id: "funding", label: "Funding", icon: BadgeCheck, field: "fundingAnalysis", phase: "all", placeholder: "", generated: false },
+  { id: "launch", label: "Launch", icon: Send, field: null, phase: "all", placeholder: "", generated: false },
 ];
 
 // ── Lab Markdown Renderer ─────────────────────────────────────────────────
@@ -687,16 +689,20 @@ function CompleteAllModal({ project, pin, onClose, onDone }: { project: Project;
   );
 }
 
-function ChatPanel({ project, pin, mode }: { project: Project; pin: string; mode: "engineering" | "bot" }) {
-  const [messages, setMessages] = useState<{ role: string; content: string; copied?: boolean }[]>([]);
+function ChatPanel({ project, pin, mode, onUpdate }: { project: Project; pin: string; mode: "engineering" | "bot"; onUpdate?: (p: Project) => void }) {
+  const [messages, setMessages] = useState<{ role: string; content: string; copied?: boolean; savedFields?: string[] }[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [searching, setSearching] = useState(false);
   const [activeTab, setActiveTab] = useState("brief");
   const [showCompleteAll, setShowCompleteAll] = useState(false);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+  const [lastSaved, setLastSaved] = useState<{ field: string; label: string } | null>(null);
+  const projectRef = useRef(project);
   const bottomRef = useRef<HTMLDivElement>(null);
   const base = getApiBase();
+
+  useEffect(() => { projectRef.current = project; }, [project]);
 
   useEffect(() => {
     if (project.messages) setMessages(project.messages.map(m => ({ role: m.role, content: m.content })));
@@ -725,6 +731,7 @@ function ChatPanel({ project, pin, mode }: { project: Project; pin: string; mode
     setInput(""); setStreaming(true); setSearching(false);
     setMessages(prev => [...prev, { role: "user", content: msg }, { role: "assistant", content: "" }]);
     let assistant = "";
+    const savedFieldLabels: string[] = [];
     try {
       const res = await fetch(`${base}lab/projects/${project.id}/chat`, {
         method: "POST",
@@ -732,8 +739,8 @@ function ChatPanel({ project, pin, mode }: { project: Project; pin: string; mode
         body: JSON.stringify({ message: msg, tab: activeTab, mode: mode === "bot" ? "bot" : "engineering" }),
       });
       const reader = res.body!.getReader(); const decoder = new TextDecoder();
-      let buf = "";
-      while (true) {
+      let buf = ""; let streamDone = false;
+      while (!streamDone) {
         const { done, value } = await reader.read(); if (done) break;
         buf += decoder.decode(value, { stream: true });
         const lines = buf.split("\n"); buf = lines.pop() || "";
@@ -742,10 +749,27 @@ function ChatPanel({ project, pin, mode }: { project: Project; pin: string; mode
           try {
             const d = JSON.parse(line.slice(6));
             if (d.type === "searching") { setSearching(true); }
-            if (d.content) { setSearching(false); assistant += d.content; setMessages(prev => { const u = [...prev]; u[u.length - 1] = { role: "assistant", content: assistant }; return u; }); }
+            if (d.content) {
+              setSearching(false); assistant += d.content;
+              setMessages(prev => { const u = [...prev]; u[u.length - 1] = { role: "assistant", content: assistant }; return u; });
+            }
+            if (d.type === "field_saved" && d.field && d.label) {
+              savedFieldLabels.push(d.label);
+              setLastSaved({ field: d.field, label: d.label });
+              setTimeout(() => setLastSaved(null), 3000);
+              // Update the parent project state so the tab shows updated content
+              if (onUpdate && d.preview !== undefined) {
+                onUpdate({ ...projectRef.current, [d.field]: d.preview + "…(saved)" });
+              }
+            }
+            if (d.type === "render_queued") {
+              setMessages(prev => { const u = [...prev]; u[u.length - 1] = { role: "assistant", content: assistant + "\n\n🎨 Render queued — check the Renders tab in ~30 seconds." }; return u; });
+            }
+            if (d.done) { streamDone = true; }
           } catch {}
         }
       }
+      reader.cancel().catch(() => {});
     } catch {}
     setStreaming(false); setSearching(false);
   };
@@ -860,14 +884,20 @@ function ChatPanel({ project, pin, mode }: { project: Project; pin: string; mode
           <div ref={bottomRef} />
         </div>
 
+        {lastSaved && (
+          <div className="flex items-center gap-2 px-3 py-1.5 border-t text-xs" style={{ borderColor: "rgba(15,23,42,0.06)", background: "hsl(155,70%,97%)" }}>
+            <Check className="w-3 h-3 flex-shrink-0" style={{ color: "hsl(155,70%,45%)" }} />
+            <span style={{ color: "hsl(155,60%,35%)" }}>Saved to <strong>{lastSaved.label}</strong></span>
+          </div>
+        )}
         <div className="p-3 border-t flex-shrink-0" style={{ borderColor: "rgba(15,23,42,0.06)" }}>
           <div className="flex gap-2">
             <textarea value={input} onChange={e => setInput(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-              placeholder={mode === "bot" ? "Ask the bot architect…" : "Ask the Lab Intelligence — GPT-4o + live web search…"}
+              placeholder={mode === "bot" ? "Ask the bot architect…" : "Write the brief · Update the specs · Generate the pitch · Ask anything…"}
               rows={2}
-              className="flex-1 px-3 py-2 rounded-xl text-white text-xs placeholder-slate-400 resize-none outline-none"
-              style={{ background: "#F8FAFC", border: "1px solid rgba(15,23,42,0.09)" }} />
+              className="flex-1 px-3 py-2 rounded-xl text-xs placeholder-slate-400 resize-none outline-none"
+              style={{ background: "#F8FAFC", border: "1px solid rgba(15,23,42,0.09)", color: "#0F172A" }} />
             <button onClick={() => send()} disabled={streaming || !input.trim()}
               className="w-9 h-9 rounded-xl flex items-center justify-center self-end transition-all flex-shrink-0"
               style={{ background: "hsl(193,100%,35%)", opacity: streaming || !input.trim() ? 0.3 : 1 }}>
@@ -875,7 +905,7 @@ function ChatPanel({ project, pin, mode }: { project: Project; pin: string; mode
             </button>
           </div>
           <p className="text-xs text-center mt-1.5" style={{ color: "rgba(15,23,42,0.15)" }}>
-            Shift+Enter for new line · GPT-4o · Live web search
+            Sirius can write and save any section · Shift+Enter for new line
           </p>
         </div>
       </div>
@@ -1206,7 +1236,7 @@ function CadFilesPanel({ project, pin }: { project: Project; pin: string }) {
   );
 }
 
-function ProjectWorkspace({ project, pin, onUpdate }: { project: Project; pin: string; onUpdate: (p: Project) => void }) {
+function ProjectWorkspace({ project, pin, onUpdate, onBack }: { project: Project; pin: string; onUpdate: (p: Project) => void; onBack: () => void }) {
   const [activeTab, setActiveTab] = useState("overview");
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -1344,6 +1374,12 @@ function ProjectWorkspace({ project, pin, onUpdate }: { project: Project; pin: s
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-2.5 border-b flex-shrink-0"
         style={{ borderColor: "rgba(15,23,42,0.07)" }}>
+        {/* Back button */}
+        <button onClick={onBack} title="Back to projects"
+          className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center transition-all hover:bg-slate-900/8"
+          style={{ border: "1px solid rgba(15,23,42,0.1)" }}>
+          <ChevronRight className="w-3.5 h-3.5 rotate-180" style={{ color: "rgba(15,23,42,0.4)" }} />
+        </button>
         {editingName ? (
           <div className="flex items-center gap-2 flex-1">
             <input autoFocus value={editName} onChange={e => setEditName(e.target.value)}
@@ -1641,7 +1677,11 @@ function ProjectWorkspace({ project, pin, onUpdate }: { project: Project; pin: s
             <FundingProjectTab project={project} pin={pin} onUpdate={onUpdate} />
           )}
 
-          {activeTab !== "overview" && activeTab !== "renders" && activeTab !== "funding" && tab && (
+          {activeTab === "launch" && (
+            <LaunchPanel project={project} pin={pin} onUpdate={onUpdate} />
+          )}
+
+          {activeTab !== "overview" && activeTab !== "renders" && activeTab !== "funding" && activeTab !== "launch" && tab && (
             <div className="flex flex-col h-full">
               {tab.generated && (
                 <div className="px-4 py-2 border-b flex items-center justify-between flex-shrink-0"
@@ -1710,7 +1750,7 @@ function ProjectWorkspace({ project, pin, onUpdate }: { project: Project; pin: s
             </div>
           </div>
           <div className="flex-1 min-h-0 overflow-hidden">
-            <ChatPanel project={project} pin={pin} mode={labMode} />
+            <ChatPanel project={project} pin={pin} mode={labMode} onUpdate={onUpdate} />
           </div>
         </div>
       </div>
@@ -2044,6 +2084,280 @@ function BotLabPanel({ pin }: { pin: string }) {
             </div>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+type SocialPosts = { linkedin?: string; twitter?: string; instagram?: string; facebook?: string; pressRelease?: string; [key: string]: string | undefined };
+type MediaOutlet = { id: number; name: string; type: string; categories: string[]; url: string; submitUrl: string; region: string; description: string; audience: string };
+
+const LAUNCH_PLATFORMS = [
+  { key: "linkedin", label: "LinkedIn", icon: "💼", charLimit: 3000 },
+  { key: "twitter", label: "Twitter / X", icon: "🐦", charLimit: 280 },
+  { key: "instagram", label: "Instagram", icon: "📸", charLimit: 2200 },
+  { key: "facebook", label: "Facebook", icon: "👥", charLimit: 63206 },
+  { key: "pressRelease", label: "Press Release", icon: "📰", charLimit: 99999 },
+];
+
+function LaunchPanel({ project, pin, onUpdate }: { project: Project; pin: string; onUpdate: (p: Project) => void }) {
+  const [posts, setPosts] = useState<SocialPosts>(() => { try { return JSON.parse(project.socialPosts || "{}"); } catch { return {}; } });
+  const [platforms, setPlatforms] = useState<string[]>(() => { try { return JSON.parse(project.launchPlatforms || '["linkedin","twitter"]'); } catch { return ["linkedin","twitter"]; } });
+  const [launchStatus, setLaunchStatus] = useState(project.launchStatus || "draft");
+  const [generating, setGenerating] = useState(false);
+  const [matching, setMatching] = useState(false);
+  const [outlets, setOutlets] = useState<MediaOutlet[]>([]);
+  const [savedOutletIds, setSavedOutletIds] = useState<number[]>([]);
+  const [activePost, setActivePost] = useState("linkedin");
+  const [saving, setSaving] = useState(false);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [error, setError] = useState("");
+  const base = getApiBase();
+
+  const hasPosts = Object.keys(posts).length > 0 && Object.values(posts).some(v => v && v.length > 0);
+
+  const generatePosts = async () => {
+    setGenerating(true); setError("");
+    try {
+      const res = await fetch(`${base}lab/projects/${project.id}/social-posts/generate`, {
+        method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || "Failed to generate posts"); }
+      else {
+        setPosts(data.posts || {}); setLaunchStatus("draft");
+        onUpdate({ ...project, socialPosts: JSON.stringify(data.posts), launchStatus: "draft" });
+      }
+    } catch { setError("Network error — please try again"); }
+    setGenerating(false);
+  };
+
+  const savePosts = async (updatedPosts: SocialPosts, updatedStatus?: string) => {
+    setSaving(true);
+    try {
+      await fetch(`${base}lab/projects/${project.id}/social-posts`, {
+        method: "PUT", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+        body: JSON.stringify({ posts: updatedPosts, platforms, launchStatus: updatedStatus ?? launchStatus }),
+      });
+      onUpdate({ ...project, socialPosts: JSON.stringify(updatedPosts), launchPlatforms: JSON.stringify(platforms), launchStatus: updatedStatus ?? launchStatus });
+    } catch {}
+    setSaving(false);
+  };
+
+  const matchOutlets = async () => {
+    setMatching(true); setError("");
+    try {
+      const res = await fetch(`${base}lab/projects/${project.id}/media-match`, {
+        method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+      });
+      const data = await res.json();
+      if (res.ok) setOutlets(Array.isArray(data) ? data : (data.outlets || []));
+      else setError(data.error || "Failed to match outlets");
+    } catch { setError("Network error"); }
+    setMatching(false);
+  };
+
+  const copyPost = (key: string) => {
+    const text = posts[key] || "";
+    navigator.clipboard.writeText(text);
+    setCopiedKey(key); setTimeout(() => setCopiedKey(null), 2000);
+  };
+
+  const downloadLaunchPack = () => {
+    const lines: string[] = [`# ${project.name} — Launch Pack\n`];
+    LAUNCH_PLATFORMS.forEach(p => {
+      if (posts[p.key]) lines.push(`## ${p.label}\n\n${posts[p.key]}\n\n---\n`);
+    });
+    if (outlets.length > 0) {
+      lines.push("## Matched Media Outlets\n");
+      outlets.forEach(o => lines.push(`- **${o.name}** (${o.region}) — ${o.description}\n  Submit: ${o.submitUrl}\n`));
+    }
+    const blob = new Blob([lines.join("\n")], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = `${project.name.replace(/\s+/g, "-")}-launch-pack.md`; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const togglePlatform = (key: string) => {
+    const next = platforms.includes(key) ? platforms.filter(p => p !== key) : [...platforms, key];
+    setPlatforms(next);
+  };
+
+  const currentPost = posts[activePost] || "";
+  const charLimit = LAUNCH_PLATFORMS.find(p => p.key === activePost)?.charLimit || 99999;
+  const isOverLimit = currentPost.length > charLimit;
+
+  return (
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* Header bar */}
+      <div className="px-4 py-3 border-b flex items-center justify-between flex-shrink-0" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
+        <div className="flex items-center gap-2">
+          <Rocket className="w-4 h-4" style={{ color: "hsl(193,100%,45%)" }} />
+          <span className="text-sm font-semibold" style={{ color: "#0F172A" }}>Launch Centre</span>
+          {launchStatus === "approved" && (
+            <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "hsl(155,70%,92%)", color: "hsl(155,60%,35%)" }}>Approved</span>
+          )}
+          {launchStatus === "draft" && hasPosts && (
+            <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: "hsl(45,100%,95%)", color: "hsl(45,80%,35%)" }}>Draft</span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {saving && <span className="text-xs" style={{ color: "rgba(15,23,42,0.35)" }}>Saving…</span>}
+          {hasPosts && (
+            <>
+              <button onClick={downloadLaunchPack} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all" style={{ background: "#F1F5F9", color: "rgba(15,23,42,0.6)", border: "1px solid rgba(15,23,42,0.09)" }}>
+                <Download className="w-3 h-3" /> Launch Pack
+              </button>
+              {launchStatus !== "approved" && (
+                <button onClick={() => { setLaunchStatus("approved"); savePosts(posts, "approved"); }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-white transition-all"
+                  style={{ background: "hsl(155,70%,42%)" }}>
+                  <Check className="w-3 h-3" /> Approve All
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+        {/* Left: Platform selector + post editor */}
+        <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+          {!hasPosts ? (
+            /* Empty state */
+            <div className="flex flex-col items-center justify-center flex-1 px-8 text-center gap-4">
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: "hsl(193,100%,95%)" }}>
+                <Rocket className="w-7 h-7" style={{ color: "hsl(193,100%,38%)" }} />
+              </div>
+              <div>
+                <p className="font-semibold text-sm mb-1" style={{ color: "#0F172A" }}>Ready to launch?</p>
+                <p className="text-xs leading-relaxed" style={{ color: "rgba(15,23,42,0.45)" }}>
+                  Sirius will write platform-specific posts for LinkedIn, Twitter/X, Instagram, Facebook and a full press release — tailored to {project.name}.
+                </p>
+              </div>
+              {error && <p className="text-xs px-3 py-2 rounded-lg" style={{ background: "hsl(0,100%,97%)", color: "hsl(0,70%,50%)" }}>{error}</p>}
+              <button onClick={generatePosts} disabled={generating}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm text-white font-medium transition-all"
+                style={{ background: "hsl(193,100%,35%)", opacity: generating ? 0.6 : 1 }}>
+                {generating ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating posts…</> : <><Sparkles className="w-4 h-4" /> Generate Launch Posts</>}
+              </button>
+              {!project.brief && !project.pitch && (
+                <p className="text-xs" style={{ color: "rgba(15,23,42,0.3)" }}>Tip: Add a project brief or pitch first for best results</p>
+              )}
+            </div>
+          ) : (
+            <>
+              {/* Platform tabs */}
+              <div className="flex border-b flex-shrink-0 overflow-x-auto" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
+                {LAUNCH_PLATFORMS.map(p => (
+                  <button key={p.key} onClick={() => setActivePost(p.key)}
+                    className="flex items-center gap-1.5 px-4 py-2.5 text-xs whitespace-nowrap flex-shrink-0 border-b-2 transition-all"
+                    style={{
+                      borderBottomColor: activePost === p.key ? "hsl(193,100%,40%)" : "transparent",
+                      color: activePost === p.key ? "hsl(193,100%,38%)" : "rgba(15,23,42,0.5)",
+                      fontWeight: activePost === p.key ? 600 : 400,
+                    }}>
+                    <span>{p.icon}</span> {p.label}
+                    {posts[p.key] && <span className="w-1.5 h-1.5 rounded-full ml-0.5" style={{ background: "hsl(155,70%,52%)", display: "inline-block" }} />}
+                  </button>
+                ))}
+              </div>
+
+              {/* Post editor */}
+              <div className="flex-1 flex flex-col min-h-0 p-4 gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium" style={{ color: "rgba(15,23,42,0.4)" }}>
+                    {LAUNCH_PLATFORMS.find(p => p.key === activePost)?.icon} {LAUNCH_PLATFORMS.find(p => p.key === activePost)?.label}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs" style={{ color: isOverLimit ? "hsl(0,70%,55%)" : "rgba(15,23,42,0.3)" }}>
+                      {currentPost.length}{charLimit < 99999 ? ` / ${charLimit}` : ""}
+                    </span>
+                    <button onClick={() => copyPost(activePost)}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs transition-all"
+                      style={{ background: copiedKey === activePost ? "hsl(155,70%,92%)" : "#F1F5F9", color: copiedKey === activePost ? "hsl(155,60%,35%)" : "rgba(15,23,42,0.55)", border: "1px solid rgba(15,23,42,0.09)" }}>
+                      {copiedKey === activePost ? <><Check className="w-3 h-3" /> Copied!</> : <><Copy className="w-3 h-3" /> Copy</>}
+                    </button>
+                  </div>
+                </div>
+                <textarea
+                  value={currentPost}
+                  onChange={e => { const next = { ...posts, [activePost]: e.target.value }; setPosts(next); }}
+                  onBlur={() => savePosts(posts)}
+                  className="flex-1 p-3 rounded-xl resize-none outline-none text-sm leading-relaxed"
+                  style={{
+                    background: "#F8FAFC", border: `1px solid ${isOverLimit ? "hsl(0,100%,80%)" : "rgba(15,23,42,0.09)"}`,
+                    color: "#0F172A", fontFamily: activePost === "pressRelease" ? "inherit" : "inherit",
+                    minHeight: "180px",
+                  }}
+                />
+              </div>
+
+              {/* Regenerate row */}
+              <div className="px-4 pb-3 flex-shrink-0 flex items-center gap-2">
+                <button onClick={generatePosts} disabled={generating}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all"
+                  style={{ background: "#F1F5F9", color: "rgba(15,23,42,0.6)", border: "1px solid rgba(15,23,42,0.09)", opacity: generating ? 0.5 : 1 }}>
+                  {generating ? <><Loader2 className="w-3 h-3 animate-spin" /> Regenerating…</> : <><Sparkles className="w-3 h-3" /> Regenerate All</>}
+                </button>
+                {error && <span className="text-xs" style={{ color: "hsl(0,70%,50%)" }}>{error}</span>}
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Right: Media outlets panel */}
+        <div className="w-60 border-l flex flex-col flex-shrink-0" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
+          <div className="px-3 py-2.5 border-b flex-shrink-0 flex items-center justify-between" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
+            <div className="flex items-center gap-1.5">
+              <Globe className="w-3.5 h-3.5" style={{ color: "hsl(193,100%,45%)" }} />
+              <span className="text-xs font-semibold" style={{ color: "#0F172A" }}>Media Targets</span>
+            </div>
+            <button onClick={matchOutlets} disabled={matching}
+              className="text-xs px-2 py-1 rounded-lg transition-all"
+              style={{ background: "hsl(193,100%,35%)", color: "white", opacity: matching ? 0.5 : 1 }}>
+              {matching ? "…" : outlets.length > 0 ? "Refresh" : "Match"}
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto">
+            {outlets.length === 0 && !matching ? (
+              <div className="flex flex-col items-center justify-center h-full px-4 text-center gap-2">
+                <Globe className="w-6 h-6" style={{ color: "rgba(15,23,42,0.12)" }} />
+                <p className="text-xs leading-relaxed" style={{ color: "rgba(15,23,42,0.35)" }}>
+                  Match relevant media outlets for {project.industry || "your industry"} — press, journals, and trade publications to pitch.
+                </p>
+              </div>
+            ) : (
+              <div className="p-2 space-y-1.5">
+                {outlets.map(o => {
+                  const saved = savedOutletIds.includes(o.id);
+                  return (
+                    <div key={o.id} className="p-2.5 rounded-xl" style={{ background: saved ? "hsl(193,60%,97%)" : "#F8FAFC", border: `1px solid ${saved ? "hsl(193,60%,86%)" : "rgba(15,23,42,0.07)"}` }}>
+                      <div className="flex items-start justify-between gap-1 mb-0.5">
+                        <a href={o.url} target="_blank" rel="noopener noreferrer"
+                          className="text-xs font-semibold hover:underline flex-1 leading-tight"
+                          style={{ color: "hsl(193,100%,35%)" }}>{o.name}</a>
+                        <span className="text-xs flex-shrink-0 px-1.5 py-0.5 rounded-full" style={{ background: "rgba(15,23,42,0.06)", color: "rgba(15,23,42,0.45)" }}>{o.region}</span>
+                      </div>
+                      <p className="text-xs mb-1.5 leading-snug" style={{ color: "rgba(15,23,42,0.5)" }}>{o.description}</p>
+                      <div className="flex items-center justify-between">
+                        <a href={o.submitUrl} target="_blank" rel="noopener noreferrer"
+                          className="text-xs hover:underline"
+                          style={{ color: "hsl(193,100%,40%)" }}>Submit →</a>
+                        <button onClick={() => setSavedOutletIds(prev => prev.includes(o.id) ? prev.filter(x => x !== o.id) : [...prev, o.id])}
+                          className="text-xs px-1.5 py-0.5 rounded-lg transition-all"
+                          style={{ background: saved ? "hsl(193,100%,35%)" : "rgba(15,23,42,0.06)", color: saved ? "white" : "rgba(15,23,42,0.5)" }}>
+                          {saved ? "✓" : "Save"}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -7453,7 +7767,7 @@ export function StarLabPage() {
         )}
         {navMode === "projects" && (
           activeProject
-            ? <ProjectWorkspace project={activeProject} pin={pin} onUpdate={p => setActiveProject(p)} />
+            ? <ProjectWorkspace project={activeProject} pin={pin} onUpdate={p => setActiveProject(p)} onBack={() => setActiveProject(null)} />
             : (
               <div className="flex-1 flex items-center justify-center">
                 <div className="text-center max-w-md px-8">

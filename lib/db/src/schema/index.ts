@@ -30,3 +30,4 @@ export * from "./lab_scan_history";
 export * from "./study_plans";
 export * from "./lab_revenue";
 export * from "./outreach_engine";
+export * from "./media_outlets";
