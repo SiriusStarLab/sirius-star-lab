@@ -81,21 +81,24 @@ function speakText(text: string, onDone?: () => void, rate = 0.85) {
   utter.volume = 0.95;
   const trySpeak = () => {
     const voices = window.speechSynthesis.getVoices();
-    // Prefer soft female UK/EN voices, strictly avoiding male voices
+    // Prefer soft female voices — covers macOS, Windows, Android, Chrome, iOS
+    const KNOWN_MALE = ["Daniel", "Arthur", "Malcolm", "Google UK English Male", "Microsoft David", "Microsoft Mark", "Microsoft George", "Microsoft James", "Alex", "Fred", "Ralph", "Bruce", "Junior"];
     const femalePreference = [
+      // Chrome / Android
       "Google UK English Female",
-      "Samantha",           // macOS US female
-      "Karen",              // macOS Australian female
-      "Moira",              // macOS Irish female
-      "Fiona",              // macOS Scottish female
-      "Victoria",           // macOS US female
-      "Serena",             // macOS UK female
-      "Google US English",  // Google US (often female)
+      "Google US English",
+      // macOS
+      "Samantha", "Karen", "Moira", "Fiona", "Victoria", "Serena", "Tessa",
+      // Windows — most common female voices
+      "Microsoft Hazel", "Microsoft Susan", "Microsoft Zira", "Microsoft Libby",
+      "Microsoft Mia", "Microsoft Nora", "Microsoft Aria", "Microsoft Jenny",
+      "Microsoft Sonia", "Microsoft Clara", "Microsoft Leah",
     ];
     const preferred =
       voices.find(v => femalePreference.includes(v.name)) ||
-      voices.find(v => v.lang.startsWith("en-GB") && !v.name.toLowerCase().includes("male") && !["Daniel", "Arthur", "Malcolm", "Google UK English Male"].includes(v.name)) ||
-      voices.find(v => v.lang.startsWith("en") && !v.name.toLowerCase().includes("male") && !["Daniel", "Arthur", "Malcolm", "Google UK English Male"].includes(v.name)) ||
+      voices.find(v => v.lang.startsWith("en-GB") && !KNOWN_MALE.includes(v.name) && !v.name.toLowerCase().includes("male")) ||
+      voices.find(v => v.lang.startsWith("en-US") && !KNOWN_MALE.includes(v.name) && !v.name.toLowerCase().includes("male")) ||
+      voices.find(v => v.lang.startsWith("en") && !KNOWN_MALE.includes(v.name) && !v.name.toLowerCase().includes("male")) ||
       voices.find(v => v.lang.startsWith("en"));
     if (preferred) utter.voice = preferred;
     utter.onend = () => onDone?.();
@@ -269,7 +272,7 @@ function StarLabGreeting({ userName, onComplete }: { userName?: string; onComple
         </div>
 
         {/* Subtle status */}
-        <p className="font-mono text-xs" style={{ color: "rgba(15,23,42,0.2)", letterSpacing: "0.2em" }}>
+        <p className="font-mono text-xs" style={{ color: "rgba(15,23,42,0.5)", letterSpacing: "0.2em" }}>
           {speechDone ? "TRANSITIONING…" : isSpeaking ? "SIRIUS SPEAKING…" : "INITIALISING…"}
         </p>
       </div>
@@ -533,7 +536,7 @@ function PinGate({ onUnlock, userName }: { onUnlock: (pin: string, role: AccessR
           <div className="text-center">
             <p className="font-mono text-xs mb-1" style={{ color: "hsl(193,100%,40%)", letterSpacing: "0.25em" }}>CLASSIFIED ACCESS</p>
             <h1 className="text-slate-800 text-xl font-bold tracking-tight">Sirius Star Lab</h1>
-            <p className="text-xs mt-1" style={{ color: "rgba(15,23,42,0.35)" }}>Private R&D Intelligence</p>
+            <p className="text-xs mt-1" style={{ color: "rgba(15,23,42,0.6)" }}>Private R&D Intelligence</p>
           </div>
         </div>
 
@@ -666,7 +669,7 @@ function PinGate({ onUnlock, userName }: { onUnlock: (pin: string, role: AccessR
           </button>
         )}
 
-        <p className="font-mono text-xs" style={{ color: "rgba(15,23,42,0.12)", letterSpacing: "0.15em" }}>
+        <p className="font-mono text-xs" style={{ color: "rgba(15,23,42,0.45)", letterSpacing: "0.15em" }}>
           AUTHORISED PERSONNEL ONLY
         </p>
       </motion.div>
@@ -718,7 +721,7 @@ function LabMarkdown({ content, streaming }: { content: string; streaming: boole
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          h1: ({ children }) => <h1 className="text-base font-bold text-slate-800 mb-2 mt-3 first:mt-0 border-b pb-1" style={{ borderColor: "rgba(15,23,42,0.12)" }}>{children}</h1>,
+          h1: ({ children }) => <h1 className="text-base font-bold text-slate-800 mb-2 mt-3 first:mt-0 border-b pb-1" style={{ borderColor: "rgba(15,23,42,0.45)" }}>{children}</h1>,
           h2: ({ children }) => <h2 className="text-sm font-bold mb-1.5 mt-3 first:mt-0" style={{ color: "hsl(193,100%,65%)" }}>{children}</h2>,
           h3: ({ children }) => <h3 className="text-xs font-semibold mb-1 mt-2 first:mt-0" style={{ color: "rgba(15,23,42,0.76)" }}>{children}</h3>,
           p: ({ children }) => <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>,
@@ -838,7 +841,7 @@ function CompleteAllModal({ project, pin, onClose, onDone }: { project: Project;
 
   const statusIcon = (status: string) => {
     if (status === "done") return <Check className="w-3.5 h-3.5" style={{ color: "hsl(155,70%,55%)" }} />;
-    if (status === "skip") return <Check className="w-3.5 h-3.5" style={{ color: "rgba(15,23,42,0.2)" }} />;
+    if (status === "skip") return <Check className="w-3.5 h-3.5" style={{ color: "rgba(15,23,42,0.5)" }} />;
     if (status === "running") return <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: "hsl(193,100%,55%)" }} />;
     if (status === "error") return <AlertCircle className="w-3.5 h-3.5" style={{ color: "hsl(0,80%,60%)" }} />;
     return <div className="w-3.5 h-3.5 rounded-full border" style={{ borderColor: "rgba(15,23,42,0.13)" }} />;
@@ -864,10 +867,10 @@ function CompleteAllModal({ project, pin, onClose, onDone }: { project: Project;
           {progress.map(p => (
             <div key={p.section} className="flex items-center gap-3 py-1.5 px-2 rounded-lg" style={{ background: p.status === "running" ? "rgba(0,198,255,0.06)" : "transparent" }}>
               {statusIcon(p.status)}
-              <span className="text-xs flex-1" style={{ color: p.status === "skip" ? "rgba(15,23,42,0.2)" : p.status === "running" ? "hsl(193,100%,70%)" : p.status === "done" ? "rgba(15,23,42,0.8)" : "rgba(15,23,42,0.5)" }}>
+              <span className="text-xs flex-1" style={{ color: p.status === "skip" ? "rgba(15,23,42,0.5)" : p.status === "running" ? "hsl(193,100%,70%)" : p.status === "done" ? "rgba(15,23,42,0.8)" : "rgba(15,23,42,0.5)" }}>
                 {p.label}
               </span>
-              {p.status === "skip" && <span className="text-xs" style={{ color: "rgba(15,23,42,0.15)" }}>already written</span>}
+              {p.status === "skip" && <span className="text-xs" style={{ color: "rgba(15,23,42,0.45)" }}>already written</span>}
               {p.status === "running" && <span className="text-xs" style={{ color: "hsl(193,100%,55%)" }}>writing…</span>}
               {p.status === "done" && <span className="text-xs" style={{ color: "hsl(155,70%,55%)" }}>complete</span>}
             </div>
@@ -878,7 +881,7 @@ function CompleteAllModal({ project, pin, onClose, onDone }: { project: Project;
             <div className="h-1 rounded-full overflow-hidden" style={{ background: "rgba(15,23,42,0.07)" }}>
               <div className="h-full rounded-full transition-all duration-500" style={{ width: `${total === 0 ? 0 : (done / total) * 100}%`, background: "hsl(193,100%,40%)" }} />
             </div>
-            <p className="text-xs text-center mt-2" style={{ color: "rgba(15,23,42,0.35)" }}>{done} of {total} sections complete — this takes a few minutes</p>
+            <p className="text-xs text-center mt-2" style={{ color: "rgba(15,23,42,0.6)" }}>{done} of {total} sections complete — this takes a few minutes</p>
           </div>
         )}
       </div>
@@ -996,7 +999,7 @@ function ChatPanel({ project, pin, mode, onUpdate }: { project: Project; pin: st
             {ALL_TABS.filter(t => t.id !== "overview" && t.id !== "renders").map(t => (
               <button key={t.id} onClick={() => setActiveTab(t.id)}
                 className="text-xs px-2.5 py-1 rounded-lg transition-all whitespace-nowrap flex-shrink-0"
-                style={{ background: activeTab === t.id ? "hsl(193,100%,35%)" : "transparent", color: activeTab === t.id ? "white" : "rgba(15,23,42,0.35)" }}>
+                style={{ background: activeTab === t.id ? "hsl(193,100%,35%)" : "transparent", color: activeTab === t.id ? "white" : "rgba(15,23,42,0.6)" }}>
                 {t.label}
               </button>
             ))}
@@ -1061,7 +1064,7 @@ function ChatPanel({ project, pin, mode, onUpdate }: { project: Project; pin: st
                   <div className="flex items-center gap-2 mt-1 px-1">
                     <button onClick={() => copyMessage(m.content, i)}
                       className="flex items-center gap-1 text-xs transition-all"
-                      style={{ color: copiedIdx === i ? "hsl(155,70%,55%)" : "rgba(15,23,42,0.15)" }}>
+                      style={{ color: copiedIdx === i ? "hsl(155,70%,55%)" : "rgba(15,23,42,0.45)" }}>
                       {copiedIdx === i ? <><Check className="w-2.5 h-2.5" /> Copied</> : <><Copy className="w-2.5 h-2.5" /> Copy</>}
                     </button>
                   </div>
@@ -1104,7 +1107,7 @@ function ChatPanel({ project, pin, mode, onUpdate }: { project: Project; pin: st
               {streaming ? <Loader2 className="w-3.5 h-3.5 text-slate-800 animate-spin" /> : <Send className="w-3.5 h-3.5 text-slate-800" />}
             </button>
           </div>
-          <p className="text-xs text-center mt-1.5" style={{ color: "rgba(15,23,42,0.15)" }}>
+          <p className="text-xs text-center mt-1.5" style={{ color: "rgba(15,23,42,0.45)" }}>
             Sirius can write and save any section · Shift+Enter for new line
           </p>
         </div>
@@ -1373,7 +1376,7 @@ function CadFilesPanel({ project, pin }: { project: Project; pin: string }) {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div>
           <p style={{ color: "rgba(15,23,42,0.67)", fontSize: "0.8rem", fontWeight: 600, marginBottom: "1px" }}>CAD Files</p>
-          <p style={{ color: "rgba(15,23,42,0.2)", fontSize: "0.68rem" }}>
+          <p style={{ color: "rgba(15,23,42,0.5)", fontSize: "0.68rem" }}>
             {files.length === 0 ? "No files stored yet" : `${files.length} file${files.length !== 1 ? "s" : ""} stored in Star Lab`}
           </p>
         </div>
@@ -1392,9 +1395,9 @@ function CadFilesPanel({ project, pin }: { project: Project; pin: string }) {
         onDrop={handleDrop}
         onClick={() => !uploading && fileInputRef.current?.click()}
         style={{ border: `2px dashed ${dragging ? "hsl(193,100%,50%)" : "rgba(15,23,42,0.1)"}`, borderRadius: "12px", padding: "18px", textAlign: "center", cursor: uploading ? "not-allowed" : "pointer", background: dragging ? "rgba(0,180,216,0.05)" : "transparent", transition: "all 0.2s" }}>
-        <Upload size={16} style={{ color: "rgba(15,23,42,0.15)", margin: "0 auto 6px" }} />
-        <p style={{ color: "rgba(15,23,42,0.35)", fontSize: "0.75rem" }}>Drag & drop a CAD file here or click to browse</p>
-        <p style={{ color: "rgba(15,23,42,0.15)", fontSize: "0.65rem", marginTop: "3px" }}>DWG · DXF · STEP · IGES · STL · OBJ · F3D · 3DM</p>
+        <Upload size={16} style={{ color: "rgba(15,23,42,0.45)", margin: "0 auto 6px" }} />
+        <p style={{ color: "rgba(15,23,42,0.6)", fontSize: "0.75rem" }}>Drag & drop a CAD file here or click to browse</p>
+        <p style={{ color: "rgba(15,23,42,0.45)", fontSize: "0.65rem", marginTop: "3px" }}>DWG · DXF · STEP · IGES · STL · OBJ · F3D · 3DM</p>
       </div>
 
       <input
@@ -1406,7 +1409,7 @@ function CadFilesPanel({ project, pin }: { project: Project; pin: string }) {
       />
 
       {loading ? (
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", justifyContent: "center", padding: "12px", color: "rgba(15,23,42,0.15)", fontSize: "0.75rem" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", justifyContent: "center", padding: "12px", color: "rgba(15,23,42,0.45)", fontSize: "0.75rem" }}>
           <Loader2 size={12} style={{ animation: "spin 1s linear infinite" }} /> Loading files…
         </div>
       ) : files.length === 0 ? null : (
@@ -1418,7 +1421,7 @@ function CadFilesPanel({ project, pin }: { project: Project; pin: string }) {
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ color: "rgba(15,23,42,0.8)", fontSize: "0.78rem", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.fileName}</p>
-                <p style={{ color: "rgba(15,23,42,0.2)", fontSize: "0.65rem" }}>
+                <p style={{ color: "rgba(15,23,42,0.5)", fontSize: "0.65rem" }}>
                   {formatSize(f.fileSize)} · {new Date(f.uploadedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
                 </p>
               </div>
@@ -1606,7 +1609,7 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack }: { project: Project
             {(["design", "production", "complete"] as const).map(p => (
               <button key={p} onClick={() => setPhase(p)}
                 className="px-2.5 py-1 rounded-lg text-xs transition-all capitalize"
-                style={{ background: phase === p ? phaseConfig.color : "transparent", color: phase === p ? "white" : "rgba(15,23,42,0.35)", fontWeight: phase === p ? "600" : "400" }}>
+                style={{ background: phase === p ? phaseConfig.color : "transparent", color: phase === p ? "white" : "rgba(15,23,42,0.6)", fontWeight: phase === p ? "600" : "400" }}>
                 {p}
               </button>
             ))}
@@ -1614,7 +1617,7 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack }: { project: Project
 
           {completeness && (
             <div className="flex items-center gap-1.5">
-              <div className="w-16 h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(15,23,42,0.12)" }}>
+              <div className="w-16 h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(15,23,42,0.08)" }}>
                 <div className="h-full rounded-full transition-all" style={{ width: `${completeness.pct}%`, background: completeness.pct === 100 ? "hsl(155,70%,45%)" : phaseConfig.color }} />
               </div>
               <span className="text-slate-400 text-xs">{completeness.pct}%</span>
@@ -1648,11 +1651,11 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack }: { project: Project
           {PHASE_TABS.map(pt => (
             <button key={pt.id} onClick={() => setPhaseFilter(pt.id)}
               className="text-xs px-2.5 py-1 rounded-full flex-shrink-0 transition-all"
-              style={{ background: phaseFilter === pt.id ? "rgba(15,23,42,0.12)" : "transparent", color: phaseFilter === pt.id ? "rgba(15,23,42,0.9)" : "rgba(15,23,42,0.35)" }}>
+              style={{ background: phaseFilter === pt.id ? "rgba(15,23,42,0.1)" : "transparent", color: phaseFilter === pt.id ? "rgba(15,23,42,0.9)" : "rgba(15,23,42,0.6)" }}>
               {pt.label}
             </button>
           ))}
-          <div className="w-px h-4 flex-shrink-0 mx-1" style={{ background: "rgba(15,23,42,0.12)" }} />
+          <div className="w-px h-4 flex-shrink-0 mx-1" style={{ background: "rgba(15,23,42,0.1)" }} />
           {visibleTabs.map(t => {
             const Icon = t.icon;
             const isFunding = t.id === "funding";
@@ -1700,7 +1703,7 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack }: { project: Project
                       <React.Fragment key={p}>
                         <div className="flex-1">
                           <button onClick={() => setPhase(p)} className="w-full py-2 rounded-xl text-xs font-semibold transition-all"
-                            style={{ background: phase === p ? cfg.color : done ? cfg.color + "30" : "#F1F5F9", color: done ? "white" : "rgba(15,23,42,0.35)" }}>
+                            style={{ background: phase === p ? cfg.color : done ? cfg.color + "30" : "#F1F5F9", color: done ? "white" : "rgba(15,23,42,0.6)" }}>
                             {cfg.label}
                           </button>
                         </div>
@@ -1726,10 +1729,10 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack }: { project: Project
                       const color = c.phase === "design" ? "hsl(193,100%,35%)" : c.phase === "production" ? "hsl(45,100%,45%)" : "hsl(155,70%,45%)";
                       return (
                         <div key={c.key} className="flex items-center gap-2 text-xs">
-                          <div className="w-2.5 h-2.5 rounded-full flex-shrink-0 flex items-center justify-center" style={{ background: c.filled ? color : "rgba(15,23,42,0.12)" }}>
+                          <div className="w-2.5 h-2.5 rounded-full flex-shrink-0 flex items-center justify-center" style={{ background: c.filled ? color : "rgba(15,23,42,0.1)" }}>
                             {c.filled && <Check className="w-1.5 h-1.5 text-slate-800" />}
                           </div>
-                          <span style={{ color: c.filled ? "rgba(15,23,42,0.72)" : "rgba(15,23,42,0.2)" }}>{c.label}</span>
+                          <span style={{ color: c.filled ? "rgba(15,23,42,0.72)" : "rgba(15,23,42,0.5)" }}>{c.label}</span>
                         </div>
                       );
                     })}
@@ -2158,7 +2161,7 @@ function FundingProjectTab({ project, pin, onUpdate }: { project: Project; pin: 
             {/* Footer note */}
             {!applicationModal.streaming && (
               <div className="px-5 py-3 flex-shrink-0" style={{ borderTop: "1px solid rgba(15,23,42,0.06)", background: "#F8FAFC" }}>
-                <p className="text-xs" style={{ color: "rgba(15,23,42,0.35)" }}>
+                <p className="text-xs" style={{ color: "rgba(15,23,42,0.6)" }}>
                   This is an AI-drafted document. Review all details and consult your R&D advisor or accountant before formal submission.
                 </p>
               </div>
@@ -2180,7 +2183,7 @@ function FundingProjectTab({ project, pin, onUpdate }: { project: Project; pin: 
               {matches.length} opportunit{matches.length === 1 ? "y" : "ies"}
             </span>}
           </div>
-          <p className="text-xs" style={{ color: "rgba(15,23,42,0.35)" }}>
+          <p className="text-xs" style={{ color: "rgba(15,23,42,0.6)" }}>
             {analysedAt ? `Last analysed ${analysedAt}` : "Auto-runs when Brief or Specs are saved"}
           </p>
         </div>
@@ -2199,7 +2202,7 @@ function FundingProjectTab({ project, pin, onUpdate }: { project: Project; pin: 
           </div>
           <div className="text-center space-y-1">
             <p className="text-slate-800 text-sm font-medium">Scanning 20+ funding programmes…</p>
-            <p className="text-xs" style={{ color: "rgba(15,23,42,0.35)" }}>UK RDEC · Innovate UK · Horizon Europe · US R&D Credit · SR&ED · CIR · and more</p>
+            <p className="text-xs" style={{ color: "rgba(15,23,42,0.6)" }}>UK RDEC · Innovate UK · Horizon Europe · US R&D Credit · SR&ED · CIR · and more</p>
           </div>
         </div>
       )}
@@ -2220,7 +2223,7 @@ function FundingProjectTab({ project, pin, onUpdate }: { project: Project; pin: 
           </div>
           <div className="text-center space-y-1.5">
             <p className="text-slate-800 font-medium text-sm">No analysis yet</p>
-            <p className="text-xs leading-relaxed max-w-xs" style={{ color: "rgba(15,23,42,0.35)" }}>
+            <p className="text-xs leading-relaxed max-w-xs" style={{ color: "rgba(15,23,42,0.6)" }}>
               Add a Brief or Specs to this project and save — analysis runs automatically. Or trigger it manually now.
             </p>
           </div>
@@ -2251,7 +2254,7 @@ function FundingProjectTab({ project, pin, onUpdate }: { project: Project; pin: 
             ].map(s => (
               <div key={s.label} className="rounded-xl p-3 text-center" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.07)" }}>
                 <p className="text-lg font-bold" style={{ color: s.color }}>{s.value}</p>
-                <p className="text-xs mt-0.5" style={{ color: "rgba(15,23,42,0.35)" }}>{s.label}</p>
+                <p className="text-xs mt-0.5" style={{ color: "rgba(15,23,42,0.6)" }}>{s.label}</p>
               </div>
             ))}
           </div>
@@ -2281,7 +2284,7 @@ function FundingProjectTab({ project, pin, onUpdate }: { project: Project; pin: 
                   <p className="text-xs leading-relaxed mb-2.5" style={{ color: "rgba(15,23,42,0.67)" }}>{m.matchReason}</p>
                   <div className="space-y-1.5 mb-3">
                     <div className="flex gap-2 text-xs">
-                      <span style={{ color: "rgba(15,23,42,0.35)", flexShrink: 0 }}>Evidence needed:</span>
+                      <span style={{ color: "rgba(15,23,42,0.6)", flexShrink: 0 }}>Evidence needed:</span>
                       <span style={{ color: "rgba(15,23,42,0.58)" }}>{m.keyEvidence}</span>
                     </div>
                   </div>
@@ -2577,7 +2580,7 @@ function LaunchPanel({ project, pin, onUpdate }: { project: Project; pin: string
           )}
         </div>
         <div className="flex items-center gap-2">
-          {saving && <span className="text-xs" style={{ color: "rgba(15,23,42,0.35)" }}>Saving…</span>}
+          {saving && <span className="text-xs" style={{ color: "rgba(15,23,42,0.6)" }}>Saving…</span>}
           {hasPosts && (
             <>
               <button onClick={downloadLaunchPack} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all" style={{ background: "#F1F5F9", color: "rgba(15,23,42,0.6)", border: "1px solid rgba(15,23,42,0.09)" }}>
@@ -2617,7 +2620,7 @@ function LaunchPanel({ project, pin, onUpdate }: { project: Project; pin: string
                 {generating ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating posts…</> : <><Sparkles className="w-4 h-4" /> Generate Launch Posts</>}
               </button>
               {!project.brief && !project.pitch && (
-                <p className="text-xs" style={{ color: "rgba(15,23,42,0.3)" }}>Tip: Add a project brief or pitch first for best results</p>
+                <p className="text-xs" style={{ color: "rgba(15,23,42,0.55)" }}>Tip: Add a project brief or pitch first for best results</p>
               )}
             </div>
           ) : (
@@ -2645,7 +2648,7 @@ function LaunchPanel({ project, pin, onUpdate }: { project: Project; pin: string
                     {LAUNCH_PLATFORMS.find(p => p.key === activePost)?.icon} {LAUNCH_PLATFORMS.find(p => p.key === activePost)?.label}
                   </span>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs" style={{ color: isOverLimit ? "hsl(0,70%,55%)" : "rgba(15,23,42,0.3)" }}>
+                    <span className="text-xs" style={{ color: isOverLimit ? "hsl(0,70%,55%)" : "rgba(15,23,42,0.55)" }}>
                       {currentPost.length}{charLimit < 99999 ? ` / ${charLimit}` : ""}
                     </span>
                     <button onClick={() => copyPost(activePost)}
@@ -2698,8 +2701,8 @@ function LaunchPanel({ project, pin, onUpdate }: { project: Project; pin: string
           <div className="flex-1 overflow-y-auto">
             {outlets.length === 0 && !matching ? (
               <div className="flex flex-col items-center justify-center h-full px-4 text-center gap-2">
-                <Globe className="w-6 h-6" style={{ color: "rgba(15,23,42,0.12)" }} />
-                <p className="text-xs leading-relaxed" style={{ color: "rgba(15,23,42,0.35)" }}>
+                <Globe className="w-6 h-6" style={{ color: "rgba(15,23,42,0.45)" }} />
+                <p className="text-xs leading-relaxed" style={{ color: "rgba(15,23,42,0.6)" }}>
                   Match relevant media outlets for {project.industry || "your industry"} — press, journals, and trade publications to pitch.
                 </p>
               </div>
@@ -3046,7 +3049,7 @@ function DiscoveryCard({ d, pin, onUpdate, onDelete }: {
                 </button>
                 <button onClick={() => onDelete(d.id)}
                   className="ml-auto flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs transition-all"
-                  style={{ color: "rgba(15,23,42,0.15)" }}>
+                  style={{ color: "rgba(15,23,42,0.45)" }}>
                   <Trash className="w-3 h-3" />
                 </button>
               </div>
@@ -3231,7 +3234,7 @@ function FeedPanel({ pin }: { pin: string }) {
               <div className="flex flex-wrap gap-1">
                 <button onClick={() => setFilterCategory("all")}
                   className="text-xs px-2 py-0.5 rounded-full transition-all"
-                  style={{ background: filterCategory === "all" ? "rgba(15,23,42,0.15)" : "transparent", color: filterCategory === "all" ? "white" : "rgba(15,23,42,0.4)" }}>
+                  style={{ background: filterCategory === "all" ? "rgba(15,23,42,0.1)" : "transparent", color: filterCategory === "all" ? "rgba(15,23,42,0.85)" : "rgba(15,23,42,0.5)" }}>
                   All
                 </button>
                 {categories.map(cat => {
@@ -3383,7 +3386,7 @@ function CommerceLabPanel({ pin }: { pin: string }) {
       {/* Tool selector */}
       <div className="border-b flex-shrink-0" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
         <div className="px-4 py-3">
-          <p className="text-[10px] font-mono mb-2.5" style={{ color: "rgba(15,23,42,0.2)", letterSpacing: "0.15em" }}>COMMERCE LAB — SELECT TOOL</p>
+          <p className="text-[10px] font-mono mb-2.5" style={{ color: "rgba(15,23,42,0.5)", letterSpacing: "0.15em" }}>COMMERCE LAB — SELECT TOOL</p>
           <div className="grid grid-cols-3 gap-2">
             {COMMERCE_TOOLS.map(t => {
               const Icon = t.icon;
@@ -3396,9 +3399,9 @@ function CommerceLabPanel({ pin }: { pin: string }) {
                     border: `1px solid ${active ? t.color + "50" : "rgba(15,23,42,0.07)"}`,
                     boxShadow: active ? `0 0 16px ${t.color}20` : "none",
                   }}>
-                  <Icon className="w-4 h-4" style={{ color: active ? t.color : "rgba(15,23,42,0.35)" }} />
+                  <Icon className="w-4 h-4" style={{ color: active ? t.color : "rgba(15,23,42,0.6)" }} />
                   <span className="text-xs font-semibold leading-tight" style={{ color: active ? "rgba(15,23,42,0.85)" : "rgba(15,23,42,0.55)" }}>{t.label}</span>
-                  <span className="text-[10px] leading-tight" style={{ color: active ? "rgba(15,23,42,0.5)" : "rgba(15,23,42,0.15)" }}>{t.desc}</span>
+                  <span className="text-[10px] leading-tight" style={{ color: active ? "rgba(15,23,42,0.5)" : "rgba(15,23,42,0.45)" }}>{t.desc}</span>
                 </button>
               );
             })}
@@ -3438,7 +3441,7 @@ function CommerceLabPanel({ pin }: { pin: string }) {
             </label>
             <select value={platform} onChange={e => setPlatform(e.target.value)}
               className="w-full rounded-xl px-3 py-2.5 text-xs outline-none appearance-none"
-              style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.1)", color: platform ? "rgba(15,23,42,0.8)" : "rgba(15,23,42,0.35)" }}>
+              style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.1)", color: platform ? "rgba(15,23,42,0.8)" : "rgba(15,23,42,0.6)" }}>
               <option value="">Auto-select best platform</option>
               {PLATFORM_OPTIONS[activeTool].map(p => <option key={p} value={p}>{p}</option>)}
             </select>
@@ -3450,7 +3453,7 @@ function CommerceLabPanel({ pin }: { pin: string }) {
             </label>
             <select value={tone} onChange={e => setTone(e.target.value)}
               className="w-full rounded-xl px-3 py-2.5 text-xs outline-none appearance-none"
-              style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.1)", color: tone ? "rgba(15,23,42,0.8)" : "rgba(15,23,42,0.35)" }}>
+              style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.1)", color: tone ? "rgba(15,23,42,0.8)" : "rgba(15,23,42,0.6)" }}>
               <option value="">Auto-match to product</option>
               {TONE_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
@@ -3461,7 +3464,7 @@ function CommerceLabPanel({ pin }: { pin: string }) {
             style={{
               background: !description.trim() || generating ? "#F1F5F9" : `linear-gradient(135deg, ${tool.color}cc, ${tool.color}88)`,
               border: `1px solid ${tool.color}40`,
-              color: !description.trim() ? "rgba(15,23,42,0.15)" : "white",
+              color: !description.trim() ? "rgba(15,23,42,0.25)" : "white",
               boxShadow: description.trim() && !generating ? `0 0 20px ${tool.color}30` : "none",
             }}>
             {generating
@@ -3471,7 +3474,7 @@ function CommerceLabPanel({ pin }: { pin: string }) {
           </button>
 
           {output && (
-            <div className="text-xs space-y-1" style={{ color: "rgba(15,23,42,0.35)" }}>
+            <div className="text-xs space-y-1" style={{ color: "rgba(15,23,42,0.6)" }}>
               <p className="font-mono" style={{ fontSize: "10px", letterSpacing: "0.1em" }}>OUTPUT STATS</p>
               <p>{output.split(" ").length.toLocaleString()} words</p>
               <p>{output.length.toLocaleString()} characters</p>
@@ -3579,7 +3582,7 @@ function DashboardPanel({ projects, pin, onNavigate, onOpenProject }: {
   const STATS = [
     { label: "Projects",         value: projects.length,     color: "hsl(193,100%,40%)", icon: FolderOpen,       action: () => onNavigate("projects") },
     { label: "Active",           value: activeProjects.length, color: "hsl(155,70%,45%)", icon: Activity,        action: () => onNavigate("projects") },
-    { label: "Pending Approval", value: pendingApprovals.length, color: pendingApprovals.length > 0 ? "hsl(25,90%,60%)" : "rgba(15,23,42,0.3)", icon: ClipboardList, action: () => onNavigate("autolab") },
+    { label: "Pending Approval", value: pendingApprovals.length, color: pendingApprovals.length > 0 ? "hsl(25,90%,60%)" : "rgba(15,23,42,0.55)", icon: ClipboardList, action: () => onNavigate("autolab") },
     { label: "Funding Opps",     value: totalFundingOpps,    color: "hsl(155,70%,45%)", icon: BadgeCheck,        action: () => onNavigate("grants") },
     { label: "Drafted Apps",     value: totalDrafted,        color: "hsl(45,100%,50%)", icon: FileText,          action: () => onNavigate("grants") },
   ];
@@ -3601,13 +3604,13 @@ function DashboardPanel({ projects, pin, onNavigate, onOpenProject }: {
       <div className="px-8 pt-8 pb-6" style={{ borderBottom: "1px solid rgba(15,23,42,0.07)", background: "#FFFFFF" }}>
         <div className="flex items-start justify-between">
           <div>
-            <p className="text-xs font-mono mb-1" style={{ color: "rgba(15,23,42,0.3)", letterSpacing: "0.15em" }}>{today.toUpperCase()}</p>
+            <p className="text-xs font-mono mb-1" style={{ color: "rgba(15,23,42,0.55)", letterSpacing: "0.15em" }}>{today.toUpperCase()}</p>
             <h1 className="text-slate-800 font-bold text-2xl mb-1">{timeGreet}, Garry.</h1>
             <p className="text-sm" style={{ color: "rgba(15,23,42,0.45)" }}>
               Strategic Innovation Dundee Ltd · Sirius Star Lab Command Centre
             </p>
           </div>
-          <div className="flex items-center gap-2 text-xs" style={{ color: "rgba(15,23,42,0.35)" }}>
+          <div className="flex items-center gap-2 text-xs" style={{ color: "rgba(15,23,42,0.6)" }}>
             <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "hsl(155,70%,55%)" }} />
             All systems online
           </div>
@@ -3627,7 +3630,7 @@ function DashboardPanel({ projects, pin, onNavigate, onOpenProject }: {
                   <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: `${s.color}14` }}>
                     <Icon className="w-4 h-4" style={{ color: s.color }} />
                   </div>
-                  <ArrowRight className="w-3.5 h-3.5" style={{ color: "rgba(15,23,42,0.2)" }} />
+                  <ArrowRight className="w-3.5 h-3.5" style={{ color: "rgba(15,23,42,0.5)" }} />
                 </div>
                 <p className="text-2xl font-bold" style={{ color: s.value > 0 ? s.color : "rgba(15,23,42,0.25)" }}>{s.value}</p>
                 <p className="text-xs mt-0.5" style={{ color: "rgba(15,23,42,0.4)" }}>{s.label}</p>
@@ -3650,7 +3653,7 @@ function DashboardPanel({ projects, pin, onNavigate, onOpenProject }: {
             </div>
             <div className="p-3">
               {recentProjects.length === 0 && (
-                <p className="text-center py-6 text-sm" style={{ color: "rgba(15,23,42,0.3)" }}>No projects yet</p>
+                <p className="text-center py-6 text-sm" style={{ color: "rgba(15,23,42,0.55)" }}>No projects yet</p>
               )}
               {recentProjects.map(p => {
                 const updatedAgo = (() => {
@@ -3674,7 +3677,7 @@ function DashboardPanel({ projects, pin, onNavigate, onOpenProject }: {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-slate-800 text-sm font-medium truncate">{p.name}</p>
-                      <p className="text-xs truncate" style={{ color: "rgba(15,23,42,0.35)" }}>{p.industry} · {updatedAgo}</p>
+                      <p className="text-xs truncate" style={{ color: "rgba(15,23,42,0.6)" }}>{p.industry} · {updatedAgo}</p>
                     </div>
                     {fundingCount > 0 && (
                       <span className="text-xs px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: "hsla(155,70%,45%,0.1)", color: "hsl(155,70%,45%)" }}>
@@ -3704,7 +3707,7 @@ function DashboardPanel({ projects, pin, onNavigate, onOpenProject }: {
             <div className="p-3">
               {allFundingMatches.length === 0 && (
                 <div className="py-6 text-center">
-                  <p className="text-sm mb-1" style={{ color: "rgba(15,23,42,0.3)" }}>No funding data yet</p>
+                  <p className="text-sm mb-1" style={{ color: "rgba(15,23,42,0.55)" }}>No funding data yet</p>
                   <button onClick={() => onNavigate("grants")} className="text-xs transition-opacity hover:opacity-75" style={{ color: "hsl(155,70%,45%)" }}>Run Funding Radar →</button>
                 </div>
               )}
@@ -3717,7 +3720,7 @@ function DashboardPanel({ projects, pin, onNavigate, onOpenProject }: {
                   <div className="w-2 h-2 rounded-full flex-shrink-0 mt-1.5" style={{ background: m.matchStrength === "strong" ? "hsl(155,70%,55%)" : "hsl(45,100%,55%)" }} />
                   <div className="flex-1 min-w-0">
                     <p className="text-slate-800 text-xs font-semibold truncate">{m.scheme}</p>
-                    <p className="text-xs truncate" style={{ color: "rgba(15,23,42,0.35)" }}>{m.projectName} · {m.amount}</p>
+                    <p className="text-xs truncate" style={{ color: "rgba(15,23,42,0.6)" }}>{m.projectName} · {m.amount}</p>
                   </div>
                 </div>
               ))}
@@ -3727,7 +3730,7 @@ function DashboardPanel({ projects, pin, onNavigate, onOpenProject }: {
 
         {/* Quick Actions */}
         <div>
-          <p className="text-xs font-mono mb-3" style={{ color: "rgba(15,23,42,0.3)", letterSpacing: "0.15em" }}>QUICK ACTIONS</p>
+          <p className="text-xs font-mono mb-3" style={{ color: "rgba(15,23,42,0.55)", letterSpacing: "0.15em" }}>QUICK ACTIONS</p>
           <div className="grid grid-cols-4 gap-3">
             {QUICK_ACTIONS.map(a => {
               const Icon = a.icon;
@@ -3742,7 +3745,7 @@ function DashboardPanel({ projects, pin, onNavigate, onOpenProject }: {
                   </div>
                   <div className="min-w-0">
                     <p className="text-slate-800 font-semibold text-sm leading-tight">{a.label}</p>
-                    <p className="text-xs leading-tight mt-0.5 truncate" style={{ color: "rgba(15,23,42,0.35)" }}>{a.desc}</p>
+                    <p className="text-xs leading-tight mt-0.5 truncate" style={{ color: "rgba(15,23,42,0.6)" }}>{a.desc}</p>
                   </div>
                 </button>
               );
@@ -3919,7 +3922,7 @@ function AutoLabPanel({ pin, onSelectProject }: {
           ].map(s => (
             <div key={s.label} className="rounded-xl p-3 text-center" style={{ background: "#F8FAFC", border: "1px solid rgba(15,23,42,0.07)" }}>
               <p className="text-xl font-bold" style={{ color: s.color }}>{s.value}</p>
-              <p className="text-xs mt-0.5" style={{ color: "rgba(15,23,42,0.35)" }}>{s.label}</p>
+              <p className="text-xs mt-0.5" style={{ color: "rgba(15,23,42,0.6)" }}>{s.label}</p>
             </div>
           ))}
         </div>
@@ -3929,7 +3932,7 @@ function AutoLabPanel({ pin, onSelectProject }: {
 
         {/* ── SCAN INTELLIGENCE PASSES ─────────────────────────────── */}
         <div>
-          <p className="text-xs font-semibold mb-3 uppercase tracking-wider" style={{ color: "rgba(15,23,42,0.2)" }}>What Each Scan Covers</p>
+          <p className="text-xs font-semibold mb-3 uppercase tracking-wider" style={{ color: "rgba(15,23,42,0.5)" }}>What Each Scan Covers</p>
           <div className="grid grid-cols-1 gap-2">
             {[
               { pass: "1", label: "Bot & Automation", color: "hsl(280,70%,60%)", sectors: "Legal, HR, Finance, Insurance · Healthcare, NHS, Pharmacy, Vets · Retail, eCommerce, Hospitality, Food · Construction, Agriculture, Logistics, Manufacturing" },
@@ -3942,7 +3945,7 @@ function AutoLabPanel({ pin, onSelectProject }: {
                 <div className="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5 text-xs font-bold" style={{ background: p.color + "22", color: p.color }}>{p.pass}</div>
                 <div className="min-w-0">
                   <p className="text-xs font-semibold mb-0.5" style={{ color: p.color }}>{p.label}</p>
-                  <p className="text-xs leading-relaxed" style={{ color: "rgba(15,23,42,0.35)" }}>{p.sectors}</p>
+                  <p className="text-xs leading-relaxed" style={{ color: "rgba(15,23,42,0.6)" }}>{p.sectors}</p>
                 </div>
               </div>
             ))}
@@ -4012,11 +4015,11 @@ function AutoLabPanel({ pin, onSelectProject }: {
                               <div className="grid grid-cols-2 gap-2 mb-3">
                                 <div className="rounded-xl p-2.5 text-center" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.06)" }}>
                                   <p className="text-lg font-bold" style={{ color: scoreColor }}>{r.monetisationScore}%</p>
-                                  <p className="text-[10px] mt-0.5" style={{ color: "rgba(15,23,42,0.35)" }}>Revenue Score</p>
+                                  <p className="text-[10px] mt-0.5" style={{ color: "rgba(15,23,42,0.6)" }}>Revenue Score</p>
                                 </div>
                                 <div className="rounded-xl p-2.5 text-center" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.06)" }}>
                                   <p className="text-sm font-bold" style={{ color: confidenceColor }}>{r.revenueConfidence}</p>
-                                  <p className="text-[10px] mt-0.5" style={{ color: "rgba(15,23,42,0.35)" }}>Confidence</p>
+                                  <p className="text-[10px] mt-0.5" style={{ color: "rgba(15,23,42,0.6)" }}>Confidence</p>
                                 </div>
                               </div>
 
@@ -4089,7 +4092,7 @@ function AutoLabPanel({ pin, onSelectProject }: {
                               </span>
                               <p className="text-slate-800 font-semibold text-sm leading-snug">{p.name}</p>
                             </div>
-                            <p className="text-xs" style={{ color: "rgba(15,23,42,0.35)" }}>{p.industry} · Found {formatDate(p.createdAt)}</p>
+                            <p className="text-xs" style={{ color: "rgba(15,23,42,0.6)" }}>{p.industry} · Found {formatDate(p.createdAt)}</p>
                           </div>
                         </div>
 
@@ -4148,7 +4151,7 @@ function AutoLabPanel({ pin, onSelectProject }: {
             <BadgeCheck className="w-8 h-8" style={{ color: "hsl(155,70%,50%)" }} />
             <div className="text-center">
               <p className="text-slate-800 font-medium text-sm">All caught up</p>
-              <p className="text-xs mt-0.5" style={{ color: "rgba(15,23,42,0.35)" }}>No projects awaiting approval.</p>
+              <p className="text-xs mt-0.5" style={{ color: "rgba(15,23,42,0.6)" }}>No projects awaiting approval.</p>
             </div>
           </div>
         )}
@@ -4158,7 +4161,7 @@ function AutoLabPanel({ pin, onSelectProject }: {
             <Loader2 className="w-8 h-8 animate-spin" style={{ color: "hsl(193,100%,50%)" }} />
             <div className="text-center">
               <p className="text-slate-800 font-medium text-sm">Scanning now…</p>
-              <p className="text-xs mt-0.5" style={{ color: "rgba(15,23,42,0.35)" }}>Checking for marketing bots, engineering products, and funding opportunities. Takes 2–3 minutes.</p>
+              <p className="text-xs mt-0.5" style={{ color: "rgba(15,23,42,0.6)" }}>Checking for marketing bots, engineering products, and funding opportunities. Takes 2–3 minutes.</p>
             </div>
           </div>
         )}
@@ -4177,7 +4180,7 @@ function AutoLabPanel({ pin, onSelectProject }: {
                     <BadgeCheck className="w-4 h-4 flex-shrink-0" style={{ color: "hsl(155,70%,50%)" }} />
                     <div className="flex-1 min-w-0">
                       <p className="text-slate-800 text-sm font-medium truncate">{p.name}</p>
-                      <p className="text-xs" style={{ color: "rgba(15,23,42,0.35)" }}>{p.industry}</p>
+                      <p className="text-xs" style={{ color: "rgba(15,23,42,0.6)" }}>{p.industry}</p>
                     </div>
                     <span className="text-xs px-2 py-0.5 rounded-full flex-shrink-0"
                       style={{ background: `${cap.color}15`, color: cap.color }}>{cap.label}</span>
@@ -4201,11 +4204,11 @@ function AutoLabPanel({ pin, onSelectProject }: {
                     }} />
                     <span className="text-slate-800 text-sm font-medium capitalize">{latestScan.status === "running" ? "In progress…" : latestScan.status}</span>
                   </div>
-                  <p className="text-xs" style={{ color: "rgba(15,23,42,0.35)" }}>{formatDate(latestScan.startedAt)}</p>
+                  <p className="text-xs" style={{ color: "rgba(15,23,42,0.6)" }}>{formatDate(latestScan.startedAt)}</p>
                 </div>
                 <div className="flex gap-4 text-right">
-                  <div><p className="text-slate-800 font-bold">{latestScan.projectsCreated}</p><p className="text-xs" style={{ color: "rgba(15,23,42,0.35)" }}>Created</p></div>
-                  <div><p className="text-slate-800 font-bold">{latestScan.upgradesApplied}</p><p className="text-xs" style={{ color: "rgba(15,23,42,0.35)" }}>Upgraded</p></div>
+                  <div><p className="text-slate-800 font-bold">{latestScan.projectsCreated}</p><p className="text-xs" style={{ color: "rgba(15,23,42,0.6)" }}>Created</p></div>
+                  <div><p className="text-slate-800 font-bold">{latestScan.upgradesApplied}</p><p className="text-xs" style={{ color: "rgba(15,23,42,0.6)" }}>Upgraded</p></div>
                 </div>
               </div>
               {latestScan.summary && <p className="text-xs leading-relaxed mb-2" style={{ color: "rgba(15,23,42,0.5)" }}>{latestScan.summary}</p>}
@@ -4243,9 +4246,9 @@ function AutoLabPanel({ pin, onSelectProject }: {
                   }} />
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-slate-500">{formatDate(scan.startedAt)}</p>
-                    <p className="text-xs" style={{ color: "rgba(15,23,42,0.35)" }}>{scan.projectsCreated} created · {scan.upgradesApplied} upgraded</p>
+                    <p className="text-xs" style={{ color: "rgba(15,23,42,0.6)" }}>{scan.projectsCreated} created · {scan.upgradesApplied} upgraded</p>
                   </div>
-                  <span className="text-xs font-mono" style={{ color: "rgba(15,23,42,0.15)" }}>#{scan.scanId}</span>
+                  <span className="text-xs font-mono" style={{ color: "rgba(15,23,42,0.45)" }}>#{scan.scanId}</span>
                 </div>
               ))}
             </div>
@@ -4260,7 +4263,7 @@ function AutoLabPanel({ pin, onSelectProject }: {
             </div>
             <div className="text-center space-y-2 max-w-sm">
               <p className="text-slate-800 font-semibold text-base">Autonomous Lab is ready</p>
-              <p className="text-xs leading-relaxed" style={{ color: "rgba(15,23,42,0.35)" }}>
+              <p className="text-xs leading-relaxed" style={{ color: "rgba(15,23,42,0.6)" }}>
                 Scans every 24 hours. Each scan finds 6 social media / marketing bot opportunities and 4 precision engineering products (oil & gas, aerospace, medical, hydrogen) manufacturable at Strategic Innovation Dundee. Every new project is sent to you for approval.
               </p>
             </div>
@@ -4420,7 +4423,7 @@ function FundingRadarPanel({ pin }: { pin: string }) {
             </p>
             {rawStream && (
               <div className="max-w-md w-full rounded-xl p-4 font-mono text-xs leading-relaxed"
-                style={{ background: "#F8FAFC", color: "rgba(15,23,42,0.35)", border: "1px solid rgba(15,23,42,0.07)", maxHeight: "120px", overflow: "hidden" }}>
+                style={{ background: "#F8FAFC", color: "rgba(15,23,42,0.6)", border: "1px solid rgba(15,23,42,0.07)", maxHeight: "120px", overflow: "hidden" }}>
                 {rawStream.slice(-400)}
               </div>
             )}
@@ -4450,14 +4453,14 @@ function FundingRadarPanel({ pin }: { pin: string }) {
                   {f === "all" ? "All Regions" : f}
                 </button>
               ))}
-              <span className="ml-auto text-xs" style={{ color: "rgba(15,23,42,0.2)" }}>
+              <span className="ml-auto text-xs" style={{ color: "rgba(15,23,42,0.5)" }}>
                 {filteredOpportunities.reduce((s, o) => s + o.matches.length, 0)} opportunities shown
               </span>
             </div>
 
             {/* Opportunities by project */}
             {filteredOpportunities.length === 0 && (
-              <p className="text-center py-12 text-sm" style={{ color: "rgba(15,23,42,0.35)" }}>
+              <p className="text-center py-12 text-sm" style={{ color: "rgba(15,23,42,0.6)" }}>
                 No opportunities found for the selected region filter.
               </p>
             )}
@@ -4512,7 +4515,7 @@ function FundingRadarPanel({ pin }: { pin: string }) {
                             </div>
                           </div>
                           <ChevronDown className="w-4 h-4 flex-shrink-0 transition-transform mt-0.5"
-                            style={{ color: "rgba(15,23,42,0.35)", transform: expanded ? "rotate(180deg)" : "rotate(0deg)" }} />
+                            style={{ color: "rgba(15,23,42,0.6)", transform: expanded ? "rotate(180deg)" : "rotate(0deg)" }} />
                         </div>
                         {/* Match reason — always shown */}
                         <p className="text-xs mt-2 leading-relaxed" style={{ color: "rgba(15,23,42,0.58)" }}>
@@ -4525,7 +4528,7 @@ function FundingRadarPanel({ pin }: { pin: string }) {
                         <div className="px-4 pb-4 space-y-3 border-t" style={{ borderColor: "rgba(15,23,42,0.06)" }}>
                           <div className="pt-3 space-y-3">
                             <div className="rounded-lg p-3" style={{ background: "#F8FAFC", border: "1px solid rgba(15,23,42,0.06)" }}>
-                              <p className="text-[10px] font-mono mb-1" style={{ color: "rgba(15,23,42,0.35)", letterSpacing: "0.1em" }}>EVIDENCE NEEDED</p>
+                              <p className="text-[10px] font-mono mb-1" style={{ color: "rgba(15,23,42,0.6)", letterSpacing: "0.1em" }}>EVIDENCE NEEDED</p>
                               <p className="text-xs leading-relaxed" style={{ color: "rgba(15,23,42,0.67)" }}>{match.keyEvidence}</p>
                             </div>
                             <div className="rounded-lg p-3" style={{ background: "hsla(155,70%,35%,0.08)", border: "1px solid hsla(155,70%,35%,0.2)" }}>
@@ -4584,7 +4587,7 @@ const TONES = ["Professional", "Friendly", "Bold", "Concise", "Warm"];
 
 const STATUS_COLOR: Record<string, string> = {
   prospect: "hsl(210,70%,55%)", contacted: "hsl(45,100%,55%)",
-  replied: "hsl(155,70%,50%)", converted: "hsl(155,100%,45%)", unsubscribed: "rgba(15,23,42,0.15)",
+  replied: "hsl(155,70%,50%)", converted: "hsl(155,100%,45%)", unsubscribed: "rgba(15,23,42,0.45)",
 };
 
 function OutreachHubPanel({ pin }: { pin: string }) {
@@ -4849,7 +4852,7 @@ function OutreachHubPanel({ pin }: { pin: string }) {
                 {allSectors.map(s => (
                   <button key={s} onClick={() => setSectorFilter(s)}
                     className="px-2.5 py-1 rounded-lg text-xs transition-all"
-                    style={{ background: sectorFilter === s ? "hsl(193,100%,30%)" : "#F1F5F9", color: sectorFilter === s ? "white" : "rgba(15,23,42,0.35)" }}>
+                    style={{ background: sectorFilter === s ? "hsl(193,100%,30%)" : "#F1F5F9", color: sectorFilter === s ? "white" : "rgba(15,23,42,0.6)" }}>
                     {s}
                   </button>
                 ))}
@@ -5767,7 +5770,7 @@ function DocIntelPanel({ pin }: { pin: string }) {
             </div>
             <div className="flex gap-2 flex-wrap justify-center">
               {["PDF", "CSV", "TXT", "Markdown", "JSON"].map(t => (
-                <span key={t} className="text-xs px-2.5 py-1 rounded-lg" style={{ background: "rgba(15,23,42,0.06)", color: "rgba(15,23,42,0.35)", border: "1px solid rgba(15,23,42,0.09)" }}>{t}</span>
+                <span key={t} className="text-xs px-2.5 py-1 rounded-lg" style={{ background: "rgba(15,23,42,0.06)", color: "rgba(15,23,42,0.6)", border: "1px solid rgba(15,23,42,0.09)" }}>{t}</span>
               ))}
             </div>
           </div>
@@ -5978,7 +5981,7 @@ function GrowthEnginePanel({ pin }: { pin: string }) {
                 className="w-full text-left p-3 rounded-2xl transition-all"
                 style={{
                   background: activeFormat === fmt.id ? "#F1F5F9" : "transparent",
-                  border: `1px solid ${activeFormat === fmt.id ? "rgba(15,23,42,0.12)" : "transparent"}`,
+                  border: `1px solid ${activeFormat === fmt.id ? "rgba(15,23,42,0.45)" : "transparent"}`,
                 }}>
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-2">
@@ -6173,7 +6176,7 @@ function MissionPanel({ pin }: { pin: string }) {
           <div className="ml-auto flex items-center gap-2">
             <button onClick={() => { navigator.clipboard.writeText(content); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors"
-              style={{ color: copied ? "hsl(155,70%,50%)" : "rgba(15,23,42,0.35)", background: "#FFFFFF" }}>
+              style={{ color: copied ? "hsl(155,70%,50%)" : "rgba(15,23,42,0.6)", background: "#FFFFFF" }}>
               {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
               {copied ? "Copied" : "Copy"}
             </button>
@@ -6547,7 +6550,7 @@ function AgencyHubPanel({ pin }: { pin: string }) {
                   <p className="text-slate-800 font-semibold text-sm">Prospect Analysis</p>
                   <button onClick={() => copyText(scanOutput, setScanCopied)}
                     className="flex items-center gap-1.5 text-xs transition-colors"
-                    style={{ color: scanCopied ? "hsl(155,70%,50%)" : "rgba(15,23,42,0.35)" }}>
+                    style={{ color: scanCopied ? "hsl(155,70%,50%)" : "rgba(15,23,42,0.6)" }}>
                     {scanCopied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
                     {scanCopied ? "Copied" : "Copy"}
                   </button>
@@ -6654,7 +6657,7 @@ function AgencyHubPanel({ pin }: { pin: string }) {
                     <span className="text-xs text-slate-300">{PKG_LABELS[propPackage]}</span>
                     <button onClick={() => copyText(propOutput, setPropCopied)}
                       className="flex items-center gap-1.5 text-xs transition-colors"
-                      style={{ color: propCopied ? "hsl(155,70%,50%)" : "rgba(15,23,42,0.35)" }}>
+                      style={{ color: propCopied ? "hsl(155,70%,50%)" : "rgba(15,23,42,0.6)" }}>
                       {propCopied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
                       {propCopied ? "Copied" : "Copy all"}
                     </button>
@@ -6738,7 +6741,7 @@ function AgencyHubPanel({ pin }: { pin: string }) {
                   <p className="text-slate-800 font-semibold text-sm">{pitchFormat} — {pitchCompany}</p>
                   <button onClick={() => copyText(pitchOutput, setPitchCopied)}
                     className="flex items-center gap-1.5 text-xs transition-colors"
-                    style={{ color: pitchCopied ? "hsl(155,70%,50%)" : "rgba(15,23,42,0.35)" }}>
+                    style={{ color: pitchCopied ? "hsl(155,70%,50%)" : "rgba(15,23,42,0.6)" }}>
                     {pitchCopied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
                     {pitchCopied ? "Copied" : "Copy"}
                   </button>
@@ -6748,7 +6751,7 @@ function AgencyHubPanel({ pin }: { pin: string }) {
                 </div>
                 <button onClick={runPitch} disabled={pitching}
                   className="flex items-center gap-1.5 text-xs transition-colors mt-2"
-                  style={{ color: "rgba(15,23,42,0.35)" }}>
+                  style={{ color: "rgba(15,23,42,0.6)" }}>
                   <RotateCcw className="w-3 h-3" /> Regenerate
                 </button>
               </div>
@@ -7145,7 +7148,7 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
                         .slice(0, 6)
                         .map((item, i) => (
                           <div key={i} className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.06)" }}>
-                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ background: "rgba(15,23,42,0.06)", color: "rgba(15,23,42,0.35)" }}>{item.type}</span>
+                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ background: "rgba(15,23,42,0.06)", color: "rgba(15,23,42,0.6)" }}>{item.type}</span>
                             <span className="text-slate-500 text-sm flex-1 truncate">{item.label}</span>
                             <span className="text-xs font-mono" style={{ color: statusColor(item.status) }}>{item.status}</span>
                             <span className="text-slate-800 font-semibold text-sm">{item.amount}</span>
@@ -7492,7 +7495,7 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
                             <p className="text-slate-800 font-semibold text-sm">{bp.title}</p>
-                            <span className="text-[10px] px-1.5 py-0.5 rounded font-mono" style={{ background: "rgba(15,23,42,0.06)", color: "rgba(15,23,42,0.35)" }}>{bp.category}</span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded font-mono" style={{ background: "rgba(15,23,42,0.06)", color: "rgba(15,23,42,0.6)" }}>{bp.category}</span>
                           </div>
                           <p className="text-slate-400 text-xs leading-relaxed">{bp.description}</p>
                           <p className="text-slate-300 text-[10px] mt-2">{bp.salesCount} sale{bp.salesCount !== 1 ? "s" : ""}</p>
@@ -8025,7 +8028,7 @@ function SiriusLabChatPanel({ pin, accessLevel }: { pin: string; accessLevel: Ac
           {messages.length > 0 && (
             <button onClick={() => { setMessages([]); try { sessionStorage.removeItem(CHAT_STORAGE_KEY); } catch {} }}
               className="text-xs hover:text-slate-500 transition-colors px-2 py-1 rounded-lg hover:bg-slate-900/5"
-              style={{ color: "rgba(15,23,42,0.3)" }}>
+              style={{ color: "rgba(15,23,42,0.55)" }}>
               Clear
             </button>
           )}
@@ -8173,7 +8176,7 @@ function SiriusLabChatPanel({ pin, accessLevel }: { pin: string; accessLevel: Ac
               }}>
               {isRecording
                 ? <MicOff className="w-3.5 h-3.5 text-slate-800" />
-                : <Mic className="w-3.5 h-3.5" style={{ color: "rgba(15,23,42,0.2)" }} />}
+                : <Mic className="w-3.5 h-3.5" style={{ color: "rgba(15,23,42,0.5)" }} />}
             </button>
           )}
           <input
@@ -8410,7 +8413,7 @@ export function StarLabPage() {
                   background: navMode === item.id ? "#F1F5F9" : "transparent",
                   border: navMode === item.id ? `1px solid ${item.color}30` : "1px solid transparent"
                 }}>
-                <Icon className="w-4 h-4 flex-shrink-0" style={{ color: navMode === item.id ? item.color : "rgba(15,23,42,0.35)" }} />
+                <Icon className="w-4 h-4 flex-shrink-0" style={{ color: navMode === item.id ? item.color : "rgba(15,23,42,0.6)" }} />
                 <span className="text-sm flex-1" style={{ color: navMode === item.id ? item.color : "rgba(15,23,42,0.45)" }}>{item.label}</span>
                 {(item as any).badge && (
                   <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: item.color }} />
@@ -8494,7 +8497,7 @@ export function StarLabPage() {
               <LayoutDashboard className="w-3 h-3" />
               Dashboard
             </button>
-            <ChevronRight className="w-3 h-3" style={{ color: "rgba(15,23,42,0.2)" }} />
+            <ChevronRight className="w-3 h-3" style={{ color: "rgba(15,23,42,0.5)" }} />
             {activeProject && navMode === "projects" ? (
               <>
                 <button onClick={() => setActiveProject(null)}
@@ -8504,7 +8507,7 @@ export function StarLabPage() {
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "rgba(15,23,42,0.4)"; (e.currentTarget as HTMLElement).style.background = "transparent"; }}>
                   Projects
                 </button>
-                <ChevronRight className="w-3 h-3" style={{ color: "rgba(15,23,42,0.2)" }} />
+                <ChevronRight className="w-3 h-3" style={{ color: "rgba(15,23,42,0.5)" }} />
                 <span className="text-xs font-semibold text-slate-700 px-2 py-1 rounded-lg" style={{ background: "#F1F5F9" }}>{activeProject.name}</span>
               </>
             ) : (
