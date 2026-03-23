@@ -33,6 +33,7 @@ function Router() {
       <Route path="/checkout/success" component={CheckoutSuccessPage} />
       <Route path="/checkout/cancel" component={CheckoutCancelPage} />
       <Route path="/star-lab" component={StarLabPage} />
+      <Route path="/admin" component={StarLabPage} />
       <Route path="/learn" component={LearnPage} />
       <Route path="/why-sirius" component={MarketingPage} />
       <Route path="/compare" component={ComparePage} />
