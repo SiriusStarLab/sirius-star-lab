@@ -3683,6 +3683,10 @@ function AppBuilderPanel({ pin }: { pin: string }) {
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [shareCopied, setShareCopied] = useState(false);
 
+  // Whether the full auto-pipeline is active (interpret → plan → build, hands-free)
+  const [pipelineActive, setPipelineActive] = useState(false);
+  const [pipelineStep, setPipelineStep] = useState<string>("");
+
   const scrollToBottom = () => {
     setTimeout(() => { outputRef.current?.scrollTo({ top: outputRef.current.scrollHeight, behavior: "smooth" }); }, 50);
   };
@@ -3843,6 +3847,7 @@ function AppBuilderPanel({ pin }: { pin: string }) {
   };
 
   // Phase 1 → 2: Interpret prompt
+  // ── Manual interpret only (step-by-step mode) ─────────────────────────────
   const handleInterpret = async () => {
     if (!prompt.trim()) return;
     setLoading(true); setError("");
@@ -3860,7 +3865,7 @@ function AppBuilderPanel({ pin }: { pin: string }) {
     finally { setLoading(false); }
   };
 
-  // Phase 2 → 3: Generate plan
+  // ── Manual plan only (step-by-step mode) ──────────────────────────────────
   const handlePlan = async () => {
     if (!reqs) return;
     setLoading(true); setError("");
@@ -3879,9 +3884,71 @@ function AppBuilderPanel({ pin }: { pin: string }) {
     finally { setLoading(false); }
   };
 
-  // Phase 3: Execute build
-  const handleBuild = async () => {
-    if (!reqs) return;
+  // ── FULL AUTO-PIPELINE — configure once, runs itself end-to-end ─────────────
+  // This is the primary launch method. Mirrors how Lab Auto-Scan and Intelligence
+  // Sweep work: single trigger, chains every phase automatically to completion.
+  const handleFullPipeline = async () => {
+    if (!prompt.trim()) return;
+    setPipelineActive(true);
+    setLoading(true);
+    setError("");
+
+    // ── Step 1: Interpret ────────────────────────────────────────────────────
+    setPipelineStep("Interpreting requirements…");
+    let interpretedReqs: typeof reqs = null;
+    try {
+      const res = await fetch(`${API}/lab/app-builder/interpret`, {
+        method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+        body: JSON.stringify({ prompt, pin }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      interpretedReqs = data;
+      setReqs(data);
+      setPhase(2);
+      await saveSession({ phase: 2, requirements: data, status: "draft" });
+    } catch (e: any) {
+      setError(e.message); setPipelineActive(false); setLoading(false); setPipelineStep(""); return;
+    }
+
+    // Brief phase 2 display so user sees what was extracted
+    setPipelineStep("Requirements confirmed — generating build plan…");
+    await new Promise(r => setTimeout(r, 1200));
+
+    // ── Step 2: Plan ─────────────────────────────────────────────────────────
+    let builtPlan: BuildTask[] = [];
+    try {
+      const res = await fetch(`${API}/lab/app-builder/plan`, {
+        method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+        body: JSON.stringify({ requirements: interpretedReqs, pin }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      builtPlan = (data.tasks || []).map((t: BuildTask) => ({ ...t, status: "pending" }));
+      setPlan(builtPlan);
+      setPhase(3);
+      await saveSession({ phase: 3, plan: builtPlan });
+    } catch (e: any) {
+      setError(e.message); setPipelineActive(false); setLoading(false); setPipelineStep(""); return;
+    }
+
+    // Brief phase 3 display so user sees the plan
+    setPipelineStep("Plan ready — launching all 6 build agents…");
+    await new Promise(r => setTimeout(r, 1000));
+
+    setLoading(false);
+    setPipelineActive(false);
+    setPipelineStep("");
+
+    // ── Step 3→9: Build (auto-chains through scaffold, test, debug, learn) ──
+    await handleBuild(interpretedReqs);
+  };
+
+  // Phase 3: Execute build — accepts optional reqsOverride so auto-pipeline
+  // can pass live data rather than relying on React state propagation timing
+  const handleBuild = async (reqsOverride?: typeof reqs) => {
+    const activeReqs = reqsOverride ?? reqs;
+    if (!activeReqs) return;
     setPhase(4); setError(""); setBuildLog("");
     setAgents(BUILDER_AGENTS.map(a => ({ ...a })));
     setAllFiles({});
@@ -3896,7 +3963,7 @@ function AppBuilderPanel({ pin }: { pin: string }) {
 
     const res = await fetch(`${API}/lab/build-app`, {
       method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
-      body: JSON.stringify({ appName: reqs.appName, description: reqs.summary, appType: reqs.appType, techStack: reqs.techStack, features: reqs.coreFeatures, pin }),
+      body: JSON.stringify({ appName: activeReqs.appName, description: activeReqs.summary, appType: activeReqs.appType, techStack: activeReqs.techStack, features: activeReqs.coreFeatures, pin }),
     });
     if (!res.body) { setError("No stream"); return; }
     const reader = res.body.getReader();
@@ -4505,14 +4572,25 @@ function AppBuilderPanel({ pin }: { pin: string }) {
                 onBlur={e => e.target.style.borderColor = "rgba(15,23,42,0.12)"}
               />
               {error && <p className="text-xs mt-2" style={{ color: "hsl(0,80%,55%)" }}>{error}</p>}
-              <div className="flex items-center justify-between mt-4">
-                <p className="text-xs" style={{ color: "rgba(15,23,42,0.4)" }}>More detail = better output. Describe users, features, industry, scale.</p>
-                <button onClick={handleInterpret} disabled={loading || !prompt.trim()}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all disabled:opacity-40"
-                  style={{ background: "hsl(193,100%,40%)", color: "white" }}>
-                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                  {loading ? "Interpreting…" : "Interpret →"}
+              <div className="mt-5 space-y-3">
+                {/* Primary: full auto-pipeline */}
+                <button onClick={handleFullPipeline} disabled={loading || !prompt.trim()}
+                  className="w-full flex items-center justify-center gap-2.5 py-3.5 rounded-xl font-bold text-sm transition-all disabled:opacity-40 hover:opacity-90 active:scale-[0.99]"
+                  style={{ background: "linear-gradient(135deg, hsl(155,70%,42%) 0%, hsl(193,100%,38%) 100%)", color: "white", boxShadow: "0 4px 16px hsla(155,70%,42%,0.3)" }}>
+                  {loading && pipelineActive ? (
+                    <><Loader2 className="w-4 h-4 animate-spin" /> {pipelineStep || "Pipeline running…"}</>
+                  ) : (
+                    <><Rocket className="w-4 h-4" /> Launch Full Pipeline — builds automatically end-to-end</>
+                  )}
                 </button>
+                <div className="flex items-center justify-between">
+                  <p className="text-[11px]" style={{ color: "rgba(15,23,42,0.38)" }}>Interprets → Plans → Builds → Tests → Debugs → Analyses — no clicks needed</p>
+                  <button onClick={handleInterpret} disabled={loading || !prompt.trim()}
+                    className="text-[11px] transition-opacity hover:opacity-60 disabled:opacity-30 flex-shrink-0 ml-3"
+                    style={{ color: "rgba(15,23,42,0.4)", textDecoration: "underline" }}>
+                    Step-by-step instead
+                  </button>
+                </div>
               </div>
             </div>
             )}
@@ -4761,15 +4839,25 @@ function AppBuilderPanel({ pin }: { pin: string }) {
               </div>
 
               {error && <p className="text-xs mt-3" style={{ color: "hsl(0,80%,55%)" }}>{error}</p>}
-              <div className="flex items-center justify-between mt-5">
-                <button onClick={() => setPhase(1)} className="text-sm transition-opacity hover:opacity-75" style={{ color: "rgba(15,23,42,0.45)" }}>← Edit description</button>
-                <button onClick={handlePlan} disabled={loading}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all disabled:opacity-40"
-                  style={{ background: "hsl(45,90%,50%)", color: "white" }}>
-                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ClipboardList className="w-4 h-4" />}
-                  {loading ? "Generating plan…" : "Generate Build Plan →"}
-                </button>
-              </div>
+              {pipelineActive ? (
+                <div className="mt-5 flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: "linear-gradient(135deg, hsla(155,70%,42%,0.08) 0%, hsla(193,100%,38%,0.06) 100%)", border: "1px solid hsla(155,70%,42%,0.2)" }}>
+                  <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" style={{ color: "hsl(155,70%,42%)" }} />
+                  <div>
+                    <p className="text-xs font-semibold" style={{ color: "hsl(155,70%,35%)" }}>Pipeline running — {pipelineStep}</p>
+                    <p className="text-[10px]" style={{ color: "rgba(15,23,42,0.45)" }}>Requirements confirmed · proceeding to build plan automatically</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between mt-5">
+                  <button onClick={() => setPhase(1)} className="text-sm transition-opacity hover:opacity-75" style={{ color: "rgba(15,23,42,0.45)" }}>← Edit description</button>
+                  <button onClick={handlePlan} disabled={loading}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all disabled:opacity-40"
+                    style={{ background: "hsl(45,90%,50%)", color: "white" }}>
+                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ClipboardList className="w-4 h-4" />}
+                    {loading ? "Generating plan…" : "Generate Build Plan →"}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -4812,14 +4900,24 @@ function AppBuilderPanel({ pin }: { pin: string }) {
                 ))}
               </div>
 
-              <div className="flex items-center justify-between mt-5">
-                <button onClick={() => setPhase(2)} className="text-sm transition-opacity hover:opacity-75" style={{ color: "rgba(15,23,42,0.45)" }}>← Back to requirements</button>
-                <button onClick={handleBuild}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all"
-                  style={{ background: "hsl(155,70%,42%)", color: "white" }}>
-                  <Rocket className="w-4 h-4" /> Approve & Build →
-                </button>
-              </div>
+              {pipelineActive ? (
+                <div className="mt-5 flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: "linear-gradient(135deg, hsla(155,70%,42%,0.08) 0%, hsla(193,100%,38%,0.06) 100%)", border: "1px solid hsla(155,70%,42%,0.2)" }}>
+                  <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" style={{ color: "hsl(155,70%,42%)" }} />
+                  <div>
+                    <p className="text-xs font-semibold" style={{ color: "hsl(155,70%,35%)" }}>Pipeline running — {pipelineStep}</p>
+                    <p className="text-[10px]" style={{ color: "rgba(15,23,42,0.45)" }}>Plan generated · launching all 6 build agents automatically</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between mt-5">
+                  <button onClick={() => setPhase(2)} className="text-sm transition-opacity hover:opacity-75" style={{ color: "rgba(15,23,42,0.45)" }}>← Back to requirements</button>
+                  <button onClick={() => handleBuild()}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all"
+                    style={{ background: "hsl(155,70%,42%)", color: "white" }}>
+                    <Rocket className="w-4 h-4" /> Approve & Build →
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}
