@@ -93,7 +93,7 @@ function StarLabGreeting({ userName, onComplete }: { userName?: string; onComple
   return (
     <div
       className="min-h-screen flex flex-col items-center justify-center relative overflow-hidden"
-      style={{ background: "hsl(226,50%,3%)" }}
+      style={{ background: "#F8FAFC" }}
     >
       {/* Grid overlay */}
       <div className="absolute inset-0 pointer-events-none opacity-[0.025]"
@@ -159,12 +159,12 @@ function StarLabGreeting({ userName, onComplete }: { userName?: string; onComple
                     fontSize: line.big ? "1.5rem" : "0.875rem",
                     fontWeight: line.big ? 700 : 400,
                     color: line.big
-                      ? "#fff"
+                      ? "#0F172A"
                       : line.accent
-                      ? "hsl(193,100%,60%)"
+                      ? "hsl(193,100%,30%)"
                       : line.dim
-                      ? "rgba(255,255,255,0.35)"
-                      : "rgba(255,255,255,0.70)",
+                      ? "rgba(15,23,42,0.4)"
+                      : "rgba(15,23,42,0.65)",
                     letterSpacing: line.big ? "-0.01em" : "0.15em",
                     textTransform: line.big ? "none" : "uppercase",
                   }}
@@ -186,10 +186,10 @@ function StarLabGreeting({ userName, onComplete }: { userName?: string; onComple
               onClick={onComplete}
               className="px-8 py-3 rounded-xl font-mono text-sm tracking-[0.2em] uppercase transition-all duration-200 active:scale-95 hover:brightness-110"
               style={{
-                background: "linear-gradient(135deg, hsl(193,100%,22%), hsl(193,100%,16%))",
-                border: "1px solid hsl(193,100%,38%)",
-                color: "hsl(193,100%,70%)",
-                boxShadow: "0 0 24px hsl(193,100%,35% / 0.35)",
+                background: "linear-gradient(135deg, hsl(193,100%,35%), hsl(193,100%,28%))",
+                border: "1px solid hsl(193,100%,45%)",
+                color: "#fff",
+                boxShadow: "0 4px 20px hsl(193,100%,35% / 0.3)",
               }}
             >
               Enter Code →
@@ -332,7 +332,7 @@ function PinGate({ onUnlock, userName }: { onUnlock: (pin: string, role: AccessR
       transition={{ duration: 0.5 }}
     >
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden"
-      style={{ background: "hsl(226,50%,3%)" }}>
+      style={{ background: "#F8FAFC" }}>
 
       {/* Animated scan line */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
@@ -369,7 +369,7 @@ function PinGate({ onUnlock, userName }: { onUnlock: (pin: string, role: AccessR
         <div className="flex flex-col items-center gap-4">
           <div className="relative">
             <div className="w-20 h-20 rounded-2xl flex items-center justify-center"
-              style={{ background: "linear-gradient(135deg, hsl(226,50%,10%), hsl(226,50%,8%))", border: "1px solid rgba(0,200,180,0.15)", boxShadow: "0 0 60px hsla(193,100%,35%,0.15), inset 0 1px 0 rgba(255,255,255,0.05)" }}>
+              style={{ background: "linear-gradient(135deg, #FFFFFF, #F8FAFC)", border: "1px solid rgba(0,200,180,0.15)", boxShadow: "0 0 60px hsla(193,100%,35%,0.15), inset 0 1px 0 rgba(15,23,42,0.06)" }}>
               <FlaskConical className="w-9 h-9" style={{ color: "hsl(193,100%,55%)" }} />
             </div>
             <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full animate-pulse"
@@ -378,14 +378,14 @@ function PinGate({ onUnlock, userName }: { onUnlock: (pin: string, role: AccessR
           <div className="text-center">
             <p className="font-mono text-xs mb-1" style={{ color: "hsl(193,100%,40%)", letterSpacing: "0.25em" }}>CLASSIFIED ACCESS</p>
             <h1 className="text-white text-xl font-bold tracking-tight">Sirius Star Lab</h1>
-            <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.3)" }}>Private R&D Intelligence</p>
+            <p className="text-xs mt-1" style={{ color: "rgba(15,23,42,0.35)" }}>Private R&D Intelligence</p>
           </div>
         </div>
 
         {/* PIN dots */}
         <div className="w-full px-4">
           <div className="flex items-center justify-center gap-3 py-5 px-6 rounded-2xl"
-            style={{ background: "hsl(226,50%,6%)", border: `1px solid ${status === "error" ? "hsla(0,70%,50%,0.4)" : status === "locked" ? "hsla(0,70%,50%,0.3)" : "rgba(0,200,180,0.1)"}`, boxShadow: status === "error" ? "0 0 20px hsla(0,70%,50%,0.1)" : "inset 0 1px 0 rgba(255,255,255,0.03)" }}>
+            style={{ background: "#F5F7FF", border: `1px solid ${status === "error" ? "hsla(0,70%,50%,0.4)" : status === "locked" ? "hsla(0,70%,50%,0.3)" : "rgba(0,200,180,0.1)"}`, boxShadow: status === "error" ? "0 0 20px hsla(0,70%,50%,0.1)" : "inset 0 1px 0 rgba(15,23,42,0.04)" }}>
             {status === "locked" ? (
               <div className="flex items-center gap-2.5">
                 <Lock className="w-4 h-4" style={{ color: "hsl(0,70%,55%)" }} />
@@ -400,8 +400,8 @@ function PinGate({ onUnlock, userName }: { onUnlock: (pin: string, role: AccessR
                     background: i < digits.length
                       ? status === "error" ? "hsl(0,70%,55%)" : "hsl(193,100%,55%)"
                       : i === digits.length
-                      ? "rgba(255,255,255,0.12)"
-                      : "rgba(255,255,255,0.06)",
+                      ? "rgba(15,23,42,0.13)"
+                      : "rgba(15,23,42,0.07)",
                     boxShadow: i < digits.length && status !== "error"
                       ? "0 0 8px hsl(193,100%,55%)"
                       : "none",
@@ -439,28 +439,28 @@ function PinGate({ onUnlock, userName }: { onUnlock: (pin: string, role: AccessR
                 style={{
                   background: isOk
                     ? digits.length > 0 && !isDisabled
-                      ? "linear-gradient(135deg, hsl(193,100%,28%), hsl(193,100%,22%))"
-                      : "hsl(226,50%,10%)"
+                      ? "linear-gradient(135deg, hsl(193,100%,35%), hsl(193,100%,27%))"
+                      : "#FFFFFF"
                     : isDel
-                    ? "hsl(226,50%,10%)"
-                    : "hsl(226,50%,9%)",
+                    ? "#FFFFFF"
+                    : "#F1F5F9",
                   border: isOk
                     ? digits.length > 0 && !isDisabled
-                      ? "1px solid hsl(193,100%,35%)"
-                      : "1px solid rgba(255,255,255,0.05)"
-                    : "1px solid rgba(255,255,255,0.05)",
+                      ? "1px solid hsl(193,100%,42%)"
+                      : "1px solid rgba(15,23,42,0.06)"
+                    : "1px solid rgba(15,23,42,0.06)",
                   boxShadow: isOk && digits.length > 0 && !isDisabled
-                    ? "0 0 20px hsla(193,100%,35%,0.3)"
-                    : "inset 0 1px 0 rgba(255,255,255,0.03)",
+                    ? "0 4px 20px hsla(193,100%,35%,0.35)"
+                    : "inset 0 1px 0 rgba(15,23,42,0.04)",
                   opacity: isDisabled || (isOk && digits.length === 0) ? 0.3 : 1,
-                  color: isOk ? "hsl(193,100%,70%)" : "rgba(255,255,255,0.8)",
+                  color: isOk && digits.length > 0 ? "#fff" : "rgba(15,23,42,0.8)",
                 }}>
                 {isOk
                   ? status === "loading"
                     ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: "hsl(193,100%,60%)" }} />
                     : <Check className="w-5 h-5" />
                   : isDel
-                  ? <span className="text-lg font-light" style={{ color: "rgba(255,255,255,0.4)" }}>⌫</span>
+                  ? <span className="text-lg font-light" style={{ color: "rgba(15,23,42,0.45)" }}>⌫</span>
                   : <span className="text-lg font-semibold" style={{ fontFamily: "monospace", letterSpacing: "-0.02em" }}>{key}</span>
                 }
               </button>
@@ -468,7 +468,7 @@ function PinGate({ onUnlock, userName }: { onUnlock: (pin: string, role: AccessR
           })}
         </div>
 
-        <p className="font-mono text-xs" style={{ color: "rgba(255,255,255,0.1)", letterSpacing: "0.15em" }}>
+        <p className="font-mono text-xs" style={{ color: "rgba(15,23,42,0.12)", letterSpacing: "0.15em" }}>
           AUTHORISED PERSONNEL ONLY
         </p>
       </motion.div>
@@ -519,9 +519,9 @@ function LabMarkdown({ content, streaming }: { content: string; streaming: boole
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          h1: ({ children }) => <h1 className="text-base font-bold text-white mb-2 mt-3 first:mt-0 border-b pb-1" style={{ borderColor: "rgba(255,255,255,0.1)" }}>{children}</h1>,
+          h1: ({ children }) => <h1 className="text-base font-bold text-white mb-2 mt-3 first:mt-0 border-b pb-1" style={{ borderColor: "rgba(15,23,42,0.12)" }}>{children}</h1>,
           h2: ({ children }) => <h2 className="text-sm font-bold mb-1.5 mt-3 first:mt-0" style={{ color: "hsl(193,100%,65%)" }}>{children}</h2>,
-          h3: ({ children }) => <h3 className="text-xs font-semibold mb-1 mt-2 first:mt-0" style={{ color: "rgba(255,255,255,0.75)" }}>{children}</h3>,
+          h3: ({ children }) => <h3 className="text-xs font-semibold mb-1 mt-2 first:mt-0" style={{ color: "rgba(15,23,42,0.76)" }}>{children}</h3>,
           p: ({ children }) => <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>,
           ul: ({ children }) => <ul className="mb-2 space-y-0.5 list-none pl-0">{children}</ul>,
           ol: ({ children }) => <ol className="mb-2 space-y-0.5 pl-4" style={{ listStyleType: "decimal" }}>{children}</ol>,
@@ -532,7 +532,7 @@ function LabMarkdown({ content, streaming }: { content: string; streaming: boole
             </li>
           ),
           strong: ({ children }) => <strong className="font-semibold text-white">{children}</strong>,
-          em: ({ children }) => <em style={{ color: "rgba(255,255,255,0.65)" }}>{children}</em>,
+          em: ({ children }) => <em style={{ color: "rgba(15,23,42,0.67)" }}>{children}</em>,
           a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" className="underline" style={{ color: "hsl(193,100%,60%)" }}>{children}</a>,
           blockquote: ({ children }) => (
             <blockquote className="pl-3 py-1 my-2 rounded-r-lg" style={{ borderLeft: "3px solid hsl(193,100%,40%)", background: "rgba(0,198,255,0.06)" }}>
@@ -540,14 +540,14 @@ function LabMarkdown({ content, streaming }: { content: string; streaming: boole
             </blockquote>
           ),
           table: ({ children }) => (
-            <div className="overflow-x-auto my-2 rounded-lg" style={{ border: "1px solid rgba(255,255,255,0.08)" }}>
+            <div className="overflow-x-auto my-2 rounded-lg" style={{ border: "1px solid rgba(15,23,42,0.1)" }}>
               <table className="w-full text-xs" style={{ borderCollapse: "collapse" }}>{children}</table>
             </div>
           ),
           thead: ({ children }) => <thead style={{ background: "rgba(0,198,255,0.08)" }}>{children}</thead>,
-          th: ({ children }) => <th className="text-left px-2.5 py-1.5 font-semibold" style={{ color: "hsl(193,100%,65%)", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>{children}</th>,
-          td: ({ children }) => <td className="px-2.5 py-1.5" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.8)" }}>{children}</td>,
-          hr: () => <hr className="my-3" style={{ borderColor: "rgba(255,255,255,0.08)" }} />,
+          th: ({ children }) => <th className="text-left px-2.5 py-1.5 font-semibold" style={{ color: "hsl(193,100%,65%)", borderBottom: "1px solid rgba(15,23,42,0.1)" }}>{children}</th>,
+          td: ({ children }) => <td className="px-2.5 py-1.5" style={{ borderBottom: "1px solid rgba(15,23,42,0.06)", color: "rgba(15,23,42,0.8)" }}>{children}</td>,
+          hr: () => <hr className="my-3" style={{ borderColor: "rgba(15,23,42,0.1)" }} />,
           code({ node, className, children, ...props }: any) {
             const inline = !className;
             if (inline) {
@@ -561,16 +561,16 @@ function LabMarkdown({ content, streaming }: { content: string; streaming: boole
             const codeStr = String(children).replace(/\n$/, "");
             const lang = (className || "").replace("language-", "") || "code";
             return (
-              <div className="relative my-2 rounded-xl overflow-hidden" style={{ background: "hsl(226,45%,8%)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                <div className="flex items-center justify-between px-3 py-1.5" style={{ background: "rgba(255,255,255,0.04)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+              <div className="relative my-2 rounded-xl overflow-hidden" style={{ background: "#F8FAFC", border: "1px solid rgba(15,23,42,0.1)" }}>
+                <div className="flex items-center justify-between px-3 py-1.5" style={{ background: "rgba(15,23,42,0.05)", borderBottom: "1px solid rgba(15,23,42,0.07)" }}>
                   <span className="text-xs font-mono" style={{ color: "hsl(193,100%,55%)" }}>{lang}</span>
                   <button onClick={() => copyBlock(codeStr, thisIdx)}
                     className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-md transition-all"
-                    style={{ background: copiedBlock === thisIdx ? "hsl(155,70%,30%)" : "rgba(255,255,255,0.06)", color: copiedBlock === thisIdx ? "hsl(155,70%,70%)" : "rgba(255,255,255,0.45)" }}>
+                    style={{ background: copiedBlock === thisIdx ? "hsl(155,70%,30%)" : "rgba(15,23,42,0.07)", color: copiedBlock === thisIdx ? "hsl(155,70%,70%)" : "rgba(15,23,42,0.5)" }}>
                     {copiedBlock === thisIdx ? <><Check className="w-2.5 h-2.5" /> Copied</> : <><Copy className="w-2.5 h-2.5" /> Copy</>}
                   </button>
                 </div>
-                <pre className="overflow-x-auto p-3 text-xs font-mono leading-relaxed m-0" style={{ color: "rgba(255,255,255,0.85)" }}>
+                <pre className="overflow-x-auto p-3 text-xs font-mono leading-relaxed m-0" style={{ color: "rgba(15,23,42,0.85)" }}>
                   <code>{codeStr}</code>
                 </pre>
               </div>
@@ -639,25 +639,25 @@ function CompleteAllModal({ project, pin, onClose, onDone }: { project: Project;
 
   const statusIcon = (status: string) => {
     if (status === "done") return <Check className="w-3.5 h-3.5" style={{ color: "hsl(155,70%,55%)" }} />;
-    if (status === "skip") return <Check className="w-3.5 h-3.5" style={{ color: "rgba(255,255,255,0.25)" }} />;
+    if (status === "skip") return <Check className="w-3.5 h-3.5" style={{ color: "rgba(15,23,42,0.2)" }} />;
     if (status === "running") return <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: "hsl(193,100%,55%)" }} />;
     if (status === "error") return <AlertCircle className="w-3.5 h-3.5" style={{ color: "hsl(0,80%,60%)" }} />;
-    return <div className="w-3.5 h-3.5 rounded-full border" style={{ borderColor: "rgba(255,255,255,0.12)" }} />;
+    return <div className="w-3.5 h-3.5 rounded-full border" style={{ borderColor: "rgba(15,23,42,0.13)" }} />;
   };
 
   const done = progress.filter(p => p.status === "done").length;
   const total = progress.filter(p => p.status !== "skip").length;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.8)", backdropFilter: "blur(8px)" }}>
-      <div className="w-full max-w-md rounded-2xl overflow-hidden" style={{ background: "hsl(226,45%,11%)", border: "1px solid rgba(255,255,255,0.08)" }}>
-        <div className="p-4 border-b flex items-center justify-between" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.09)", backdropFilter: "blur(8px)" }}>
+      <div className="w-full max-w-md rounded-2xl overflow-hidden" style={{ background: "#F8FAFC", border: "1px solid rgba(15,23,42,0.1)" }}>
+        <div className="p-4 border-b flex items-center justify-between" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
           <div>
             <h3 className="text-sm font-bold text-white flex items-center gap-2">
               <Sparkles className="w-4 h-4" style={{ color: "hsl(193,100%,55%)" }} />
               Complete Entire Project
             </h3>
-            <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>Generating all missing sections with full AI depth</p>
+            <p className="text-xs mt-0.5" style={{ color: "rgba(15,23,42,0.45)" }}>Generating all missing sections with full AI depth</p>
           </div>
           {finished && <button onClick={() => { onDone(); onClose(); }} className="text-xs px-3 py-1.5 rounded-lg text-white" style={{ background: "hsl(193,100%,35%)" }}>Done</button>}
         </div>
@@ -665,10 +665,10 @@ function CompleteAllModal({ project, pin, onClose, onDone }: { project: Project;
           {progress.map(p => (
             <div key={p.section} className="flex items-center gap-3 py-1.5 px-2 rounded-lg" style={{ background: p.status === "running" ? "rgba(0,198,255,0.06)" : "transparent" }}>
               {statusIcon(p.status)}
-              <span className="text-xs flex-1" style={{ color: p.status === "skip" ? "rgba(255,255,255,0.25)" : p.status === "running" ? "hsl(193,100%,70%)" : p.status === "done" ? "rgba(255,255,255,0.8)" : "rgba(255,255,255,0.45)" }}>
+              <span className="text-xs flex-1" style={{ color: p.status === "skip" ? "rgba(15,23,42,0.2)" : p.status === "running" ? "hsl(193,100%,70%)" : p.status === "done" ? "rgba(15,23,42,0.8)" : "rgba(15,23,42,0.5)" }}>
                 {p.label}
               </span>
-              {p.status === "skip" && <span className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>already written</span>}
+              {p.status === "skip" && <span className="text-xs" style={{ color: "rgba(15,23,42,0.15)" }}>already written</span>}
               {p.status === "running" && <span className="text-xs" style={{ color: "hsl(193,100%,55%)" }}>writing…</span>}
               {p.status === "done" && <span className="text-xs" style={{ color: "hsl(155,70%,55%)" }}>complete</span>}
             </div>
@@ -676,10 +676,10 @@ function CompleteAllModal({ project, pin, onClose, onDone }: { project: Project;
         </div>
         {running && (
           <div className="px-4 pb-4">
-            <div className="h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+            <div className="h-1 rounded-full overflow-hidden" style={{ background: "rgba(15,23,42,0.07)" }}>
               <div className="h-full rounded-full transition-all duration-500" style={{ width: `${total === 0 ? 0 : (done / total) * 100}%`, background: "hsl(193,100%,40%)" }} />
             </div>
-            <p className="text-xs text-center mt-2" style={{ color: "rgba(255,255,255,0.3)" }}>{done} of {total} sections complete — this takes a few minutes</p>
+            <p className="text-xs text-center mt-2" style={{ color: "rgba(15,23,42,0.35)" }}>{done} of {total} sections complete — this takes a few minutes</p>
           </div>
         )}
       </div>
@@ -768,20 +768,20 @@ function ChatPanel({ project, pin, mode }: { project: Project; pin: string; mode
         <CompleteAllModal project={project} pin={pin} onClose={() => setShowCompleteAll(false)} onDone={() => window.location.reload()} />
       )}
       <div className="flex flex-col h-full">
-        <div className="flex items-center gap-1 px-3 py-2 border-b flex-shrink-0" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+        <div className="flex items-center gap-1 px-3 py-2 border-b flex-shrink-0" style={{ borderColor: "rgba(15,23,42,0.06)" }}>
           <div className="flex gap-1 overflow-x-auto flex-1 min-w-0">
             {ALL_TABS.filter(t => t.id !== "overview" && t.id !== "renders").map(t => (
               <button key={t.id} onClick={() => setActiveTab(t.id)}
                 className="text-xs px-2.5 py-1 rounded-lg transition-all whitespace-nowrap flex-shrink-0"
-                style={{ background: activeTab === t.id ? "hsl(193,100%,35%)" : "transparent", color: activeTab === t.id ? "white" : "rgba(255,255,255,0.3)" }}>
+                style={{ background: activeTab === t.id ? "hsl(193,100%,35%)" : "transparent", color: activeTab === t.id ? "white" : "rgba(15,23,42,0.35)" }}>
                 {t.label}
               </button>
             ))}
           </div>
           <div className="flex items-center gap-1 flex-shrink-0 ml-1">
             {messages.length > 0 && (
-              <button onClick={exportChat} title="Export chat" className="w-7 h-7 rounded-lg flex items-center justify-center transition-all" style={{ background: "rgba(255,255,255,0.04)" }}>
-                <Download className="w-3 h-3" style={{ color: "rgba(255,255,255,0.35)" }} />
+              <button onClick={exportChat} title="Export chat" className="w-7 h-7 rounded-lg flex items-center justify-center transition-all" style={{ background: "rgba(15,23,42,0.05)" }}>
+                <Download className="w-3 h-3" style={{ color: "rgba(15,23,42,0.4)" }} />
               </button>
             )}
             {mode !== "bot" && (
@@ -803,7 +803,7 @@ function ChatPanel({ project, pin, mode }: { project: Project; pin: string; mode
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-white">Sirius Lab Intelligence</p>
-                  <p className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>
+                  <p className="text-xs" style={{ color: "rgba(15,23,42,0.4)" }}>
                     {mode === "bot" ? "Specialist bot architect — ready to design" : "Your private R&D partner — GPT-4o + live web search"}
                   </p>
                 </div>
@@ -812,7 +812,7 @@ function ChatPanel({ project, pin, mode }: { project: Project; pin: string; mode
                 {quickPrompts.map(p => (
                   <button key={p} onClick={() => send(p)}
                     className="text-xs px-3 py-1.5 rounded-xl transition-all text-left"
-                    style={{ background: "hsl(226,45%,14%)", color: "rgba(255,255,255,0.55)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                    style={{ background: "#E8EEF5", color: "rgba(15,23,42,0.58)", border: "1px solid rgba(15,23,42,0.09)" }}>
                     {p}
                   </button>
                 ))}
@@ -829,7 +829,7 @@ function ChatPanel({ project, pin, mode }: { project: Project; pin: string; mode
               )}
               <div className="max-w-[88%]">
                 <div className="rounded-2xl px-3.5 py-3"
-                  style={{ background: m.role === "user" ? "hsl(193,100%,30%)" : "hsl(226,45%,13%)" }}>
+                  style={{ background: m.role === "user" ? "hsl(193,100%,30%)" : "#EEF2F8" }}>
                   {m.role === "assistant"
                     ? <LabMarkdown content={m.content} streaming={streaming && i === messages.length - 1} />
                     : <p className="text-white text-xs leading-relaxed">{m.content}</p>}
@@ -838,7 +838,7 @@ function ChatPanel({ project, pin, mode }: { project: Project; pin: string; mode
                   <div className="flex items-center gap-2 mt-1 px-1">
                     <button onClick={() => copyMessage(m.content, i)}
                       className="flex items-center gap-1 text-xs transition-all"
-                      style={{ color: copiedIdx === i ? "hsl(155,70%,55%)" : "rgba(255,255,255,0.2)" }}>
+                      style={{ color: copiedIdx === i ? "hsl(155,70%,55%)" : "rgba(15,23,42,0.15)" }}>
                       {copiedIdx === i ? <><Check className="w-2.5 h-2.5" /> Copied</> : <><Copy className="w-2.5 h-2.5" /> Copy</>}
                     </button>
                   </div>
@@ -852,7 +852,7 @@ function ChatPanel({ project, pin, mode }: { project: Project; pin: string; mode
               <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "hsl(193,100%,20%)" }}>
                 <Globe className="w-3 h-3 animate-pulse" style={{ color: "hsl(193,100%,55%)" }} />
               </div>
-              <div className="flex items-center gap-2 px-3.5 py-2 rounded-2xl" style={{ background: "hsl(226,45%,13%)" }}>
+              <div className="flex items-center gap-2 px-3.5 py-2 rounded-2xl" style={{ background: "#EEF2F8" }}>
                 <span className="text-xs" style={{ color: "hsl(193,100%,55%)" }}>Searching the web for current information…</span>
               </div>
             </div>
@@ -860,21 +860,21 @@ function ChatPanel({ project, pin, mode }: { project: Project; pin: string; mode
           <div ref={bottomRef} />
         </div>
 
-        <div className="p-3 border-t flex-shrink-0" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+        <div className="p-3 border-t flex-shrink-0" style={{ borderColor: "rgba(15,23,42,0.06)" }}>
           <div className="flex gap-2">
             <textarea value={input} onChange={e => setInput(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
               placeholder={mode === "bot" ? "Ask the bot architect…" : "Ask the Lab Intelligence — GPT-4o + live web search…"}
               rows={2}
-              className="flex-1 px-3 py-2 rounded-xl text-white text-xs placeholder-white/20 resize-none outline-none"
-              style={{ background: "hsl(226,45%,11%)", border: "1px solid rgba(255,255,255,0.07)" }} />
+              className="flex-1 px-3 py-2 rounded-xl text-white text-xs placeholder-slate-400 resize-none outline-none"
+              style={{ background: "#F8FAFC", border: "1px solid rgba(15,23,42,0.09)" }} />
             <button onClick={() => send()} disabled={streaming || !input.trim()}
               className="w-9 h-9 rounded-xl flex items-center justify-center self-end transition-all flex-shrink-0"
               style={{ background: "hsl(193,100%,35%)", opacity: streaming || !input.trim() ? 0.3 : 1 }}>
               {streaming ? <Loader2 className="w-3.5 h-3.5 text-white animate-spin" /> : <Send className="w-3.5 h-3.5 text-white" />}
             </button>
           </div>
-          <p className="text-xs text-center mt-1.5" style={{ color: "rgba(255,255,255,0.15)" }}>
+          <p className="text-xs text-center mt-1.5" style={{ color: "rgba(15,23,42,0.15)" }}>
             Shift+Enter for new line · GPT-4o · Live web search
           </p>
         </div>
@@ -941,7 +941,7 @@ function RendersTab({ project, pin, onUpdate }: { project: Project; pin: string;
             <div className="relative max-w-3xl w-full mx-4">
               <img src={selected.url} alt={selected.label} className="w-full rounded-2xl" />
               <p className="text-white/60 text-xs text-center mt-2">{selected.label}</p>
-              <button onClick={() => setSelected(null)} className="absolute -top-3 -right-3 w-7 h-7 rounded-full bg-white/10 flex items-center justify-center">
+              <button onClick={() => setSelected(null)} className="absolute -top-3 -right-3 w-7 h-7 rounded-full bg-slate-900/10 flex items-center justify-center">
                 <X className="w-4 h-4 text-white" />
               </button>
             </div>
@@ -960,10 +960,10 @@ function RendersTab({ project, pin, onUpdate }: { project: Project; pin: string;
             {renders.map((r, i) => (
               <div key={i} className="relative group rounded-2xl overflow-hidden cursor-pointer"
                 onClick={() => setSelected(r)}
-                style={{ border: "1px solid rgba(255,255,255,0.08)" }}>
+                style={{ border: "1px solid rgba(15,23,42,0.1)" }}>
                 <img src={r.url} alt={r.label} className="w-full aspect-square object-cover" />
                 <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-end"
-                  style={{ background: "linear-gradient(to top, rgba(0,0,0,0.8), transparent)" }}>
+                  style={{ background: "linear-gradient(to top, rgba(0,0,0,0.09), transparent)" }}>
                   <div className="p-3 w-full flex items-center justify-between">
                     <p className="text-white text-xs font-medium">{r.label}</p>
                     <button onClick={e => { e.stopPropagation(); deleteRender(i); }}
@@ -980,14 +980,14 @@ function RendersTab({ project, pin, onUpdate }: { project: Project; pin: string;
       </div>
 
       <div className="w-64 border-l flex-shrink-0 p-4 flex flex-col gap-4"
-        style={{ borderColor: "rgba(255,255,255,0.06)", background: "hsl(226,45%,7%)" }}>
+        style={{ borderColor: "rgba(15,23,42,0.07)", background: "#FFFFFF" }}>
         <div>
           <p className="text-white/40 text-xs mb-2 uppercase tracking-wider">Render Type</p>
           <div className="space-y-1">
             {RENDER_TYPES.map(t => (
               <button key={t.id} onClick={() => setRenderType(t.id)}
                 className="w-full text-left px-3 py-2 rounded-xl transition-all"
-                style={{ background: renderType === t.id ? "hsl(193,100%,32%)" : "hsl(226,45%,11%)", border: renderType === t.id ? "none" : "1px solid rgba(255,255,255,0.06)" }}>
+                style={{ background: renderType === t.id ? "hsl(193,100%,32%)" : "#F8FAFC", border: renderType === t.id ? "none" : "1px solid rgba(15,23,42,0.07)" }}>
                 <p className="text-white text-xs font-medium">{t.label}</p>
                 <p className="text-white/35 text-xs">{t.desc}</p>
               </button>
@@ -1001,7 +1001,7 @@ function RendersTab({ project, pin, onUpdate }: { project: Project; pin: string;
             {((ANGLES as any)[renderType] || ["perspective"]).map((a: string) => (
               <button key={a} onClick={() => setRenderAngle(a)}
                 className="text-xs px-2.5 py-1 rounded-lg capitalize transition-all"
-                style={{ background: renderAngle === a ? "hsl(193,100%,32%)" : "hsl(226,45%,12%)", color: renderAngle === a ? "white" : "rgba(255,255,255,0.45)" }}>
+                style={{ background: renderAngle === a ? "hsl(193,100%,32%)" : "#F1F5F9", color: renderAngle === a ? "white" : "rgba(15,23,42,0.5)" }}>
                 {a}
               </button>
             ))}
@@ -1078,7 +1078,7 @@ function CadFilesPanel({ project, pin }: { project: Project; pin: string }) {
   const extColor = (name: string) => {
     const e = name.split(".").pop()?.toLowerCase();
     const m: Record<string, string> = { dwg: "#00b4d8", dxf: "#0077b6", step: "#48cae4", stp: "#48cae4", iges: "#90e0ef", igs: "#90e0ef", stl: "#f77f00", obj: "#fcbf49", f3d: "#e63946", "3dm": "#2d6a4f" };
-    return m[e || ""] || "rgba(255,255,255,0.4)";
+    return m[e || ""] || "rgba(15,23,42,0.45)";
   };
 
   const uploadFile = async (file: File) => {
@@ -1142,8 +1142,8 @@ function CadFilesPanel({ project, pin }: { project: Project; pin: string }) {
     <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: "14px" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div>
-          <p style={{ color: "rgba(255,255,255,0.65)", fontSize: "0.8rem", fontWeight: 600, marginBottom: "1px" }}>CAD Files</p>
-          <p style={{ color: "rgba(255,255,255,0.25)", fontSize: "0.68rem" }}>
+          <p style={{ color: "rgba(15,23,42,0.67)", fontSize: "0.8rem", fontWeight: 600, marginBottom: "1px" }}>CAD Files</p>
+          <p style={{ color: "rgba(15,23,42,0.2)", fontSize: "0.68rem" }}>
             {files.length === 0 ? "No files stored yet" : `${files.length} file${files.length !== 1 ? "s" : ""} stored in Star Lab`}
           </p>
         </div>
@@ -1161,10 +1161,10 @@ function CadFilesPanel({ project, pin }: { project: Project; pin: string }) {
         onDragLeave={() => setDragging(false)}
         onDrop={handleDrop}
         onClick={() => !uploading && fileInputRef.current?.click()}
-        style={{ border: `2px dashed ${dragging ? "hsl(193,100%,50%)" : "rgba(255,255,255,0.08)"}`, borderRadius: "12px", padding: "18px", textAlign: "center", cursor: uploading ? "not-allowed" : "pointer", background: dragging ? "rgba(0,180,216,0.05)" : "transparent", transition: "all 0.2s" }}>
-        <Upload size={16} style={{ color: "rgba(255,255,255,0.2)", margin: "0 auto 6px" }} />
-        <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "0.75rem" }}>Drag & drop a CAD file here or click to browse</p>
-        <p style={{ color: "rgba(255,255,255,0.15)", fontSize: "0.65rem", marginTop: "3px" }}>DWG · DXF · STEP · IGES · STL · OBJ · F3D · 3DM</p>
+        style={{ border: `2px dashed ${dragging ? "hsl(193,100%,50%)" : "rgba(15,23,42,0.1)"}`, borderRadius: "12px", padding: "18px", textAlign: "center", cursor: uploading ? "not-allowed" : "pointer", background: dragging ? "rgba(0,180,216,0.05)" : "transparent", transition: "all 0.2s" }}>
+        <Upload size={16} style={{ color: "rgba(15,23,42,0.15)", margin: "0 auto 6px" }} />
+        <p style={{ color: "rgba(15,23,42,0.35)", fontSize: "0.75rem" }}>Drag & drop a CAD file here or click to browse</p>
+        <p style={{ color: "rgba(15,23,42,0.15)", fontSize: "0.65rem", marginTop: "3px" }}>DWG · DXF · STEP · IGES · STL · OBJ · F3D · 3DM</p>
       </div>
 
       <input
@@ -1176,19 +1176,19 @@ function CadFilesPanel({ project, pin }: { project: Project; pin: string }) {
       />
 
       {loading ? (
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", justifyContent: "center", padding: "12px", color: "rgba(255,255,255,0.2)", fontSize: "0.75rem" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", justifyContent: "center", padding: "12px", color: "rgba(15,23,42,0.15)", fontSize: "0.75rem" }}>
           <Loader2 size={12} style={{ animation: "spin 1s linear infinite" }} /> Loading files…
         </div>
       ) : files.length === 0 ? null : (
         <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
           {files.map(f => (
-            <div key={f.id} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", borderRadius: "10px", background: "hsl(226,45%,11%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            <div key={f.id} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", borderRadius: "10px", background: "#F8FAFC", border: "1px solid rgba(15,23,42,0.07)" }}>
               <div style={{ width: "34px", height: "34px", borderRadius: "8px", background: `${extColor(f.fileName)}18`, border: `1px solid ${extColor(f.fileName)}30`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                 <span style={{ fontSize: "0.52rem", fontWeight: 800, color: extColor(f.fileName), fontFamily: "monospace", letterSpacing: "0" }}>{getExt(f.fileName)}</span>
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ color: "rgba(255,255,255,0.8)", fontSize: "0.78rem", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.fileName}</p>
-                <p style={{ color: "rgba(255,255,255,0.25)", fontSize: "0.65rem" }}>
+                <p style={{ color: "rgba(15,23,42,0.8)", fontSize: "0.78rem", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.fileName}</p>
+                <p style={{ color: "rgba(15,23,42,0.2)", fontSize: "0.65rem" }}>
                   {formatSize(f.fileSize)} · {new Date(f.uploadedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
                 </p>
               </div>
@@ -1343,7 +1343,7 @@ function ProjectWorkspace({ project, pin, onUpdate }: { project: Project; pin: s
 
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-2.5 border-b flex-shrink-0"
-        style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+        style={{ borderColor: "rgba(15,23,42,0.07)" }}>
         {editingName ? (
           <div className="flex items-center gap-2 flex-1">
             <input autoFocus value={editName} onChange={e => setEditName(e.target.value)}
@@ -1366,11 +1366,11 @@ function ProjectWorkspace({ project, pin, onUpdate }: { project: Project; pin: s
           {saving && <span className="text-white/25 text-xs">Saving...</span>}
 
           {/* Phase selector */}
-          <div className="flex gap-0.5 p-0.5 rounded-xl" style={{ background: "hsl(226,45%,11%)" }}>
+          <div className="flex gap-0.5 p-0.5 rounded-xl" style={{ background: "#F8FAFC" }}>
             {(["design", "production", "complete"] as const).map(p => (
               <button key={p} onClick={() => setPhase(p)}
                 className="px-2.5 py-1 rounded-lg text-xs transition-all capitalize"
-                style={{ background: phase === p ? phaseConfig.color : "transparent", color: phase === p ? "white" : "rgba(255,255,255,0.3)", fontWeight: phase === p ? "600" : "400" }}>
+                style={{ background: phase === p ? phaseConfig.color : "transparent", color: phase === p ? "white" : "rgba(15,23,42,0.35)", fontWeight: phase === p ? "600" : "400" }}>
                 {p}
               </button>
             ))}
@@ -1378,45 +1378,45 @@ function ProjectWorkspace({ project, pin, onUpdate }: { project: Project; pin: s
 
           {completeness && (
             <div className="flex items-center gap-1.5">
-              <div className="w-16 h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.1)" }}>
+              <div className="w-16 h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(15,23,42,0.12)" }}>
                 <div className="h-full rounded-full transition-all" style={{ width: `${completeness.pct}%`, background: completeness.pct === 100 ? "hsl(155,70%,45%)" : phaseConfig.color }} />
               </div>
               <span className="text-white/30 text-xs">{completeness.pct}%</span>
             </div>
           )}
 
-          <div className="flex gap-0.5 p-0.5 rounded-lg" style={{ background: "hsl(226,45%,12%)" }}>
+          <div className="flex gap-0.5 p-0.5 rounded-lg" style={{ background: "#F1F5F9" }}>
             <button onClick={() => setLabMode("engineering")}
               className="flex items-center gap-1 px-2 py-1 rounded-md text-xs transition-all"
-              style={{ background: labMode === "engineering" ? "hsl(193,100%,35%)" : "transparent", color: labMode === "engineering" ? "white" : "rgba(255,255,255,0.35)" }}>
+              style={{ background: labMode === "engineering" ? "hsl(193,100%,35%)" : "transparent", color: labMode === "engineering" ? "white" : "rgba(15,23,42,0.4)" }}>
               <Cpu className="w-3 h-3" /> Engineering
             </button>
             <button onClick={() => setLabMode("bot")}
               className="flex items-center gap-1 px-2 py-1 rounded-md text-xs transition-all"
-              style={{ background: labMode === "bot" ? "hsl(280,70%,55%)" : "transparent", color: labMode === "bot" ? "white" : "rgba(255,255,255,0.35)" }}>
+              style={{ background: labMode === "bot" ? "hsl(280,70%,55%)" : "transparent", color: labMode === "bot" ? "white" : "rgba(15,23,42,0.4)" }}>
               <Bot className="w-3 h-3" /> Bot
             </button>
           </div>
 
           <button onClick={openCad}
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs transition-all"
-            style={{ background: "hsl(226,45%,14%)", color: "hsl(193,100%,60%)", border: "1px solid rgba(255,255,255,0.07)" }}>
+            style={{ background: "#E8EEF5", color: "hsl(193,100%,60%)", border: "1px solid rgba(15,23,42,0.09)" }}>
             <ExternalLink className="w-3 h-3" /> CAD
           </button>
         </div>
       </div>
 
       {/* Tab navigation */}
-      <div className="flex-shrink-0 border-b" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+      <div className="flex-shrink-0 border-b" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
         <div className="flex items-center gap-1 px-3 py-1.5 overflow-x-auto">
           {PHASE_TABS.map(pt => (
             <button key={pt.id} onClick={() => setPhaseFilter(pt.id)}
               className="text-xs px-2.5 py-1 rounded-full flex-shrink-0 transition-all"
-              style={{ background: phaseFilter === pt.id ? "rgba(255,255,255,0.1)" : "transparent", color: phaseFilter === pt.id ? "white" : "rgba(255,255,255,0.3)" }}>
+              style={{ background: phaseFilter === pt.id ? "rgba(15,23,42,0.12)" : "transparent", color: phaseFilter === pt.id ? "white" : "rgba(15,23,42,0.35)" }}>
               {pt.label}
             </button>
           ))}
-          <div className="w-px h-4 flex-shrink-0 mx-1" style={{ background: "rgba(255,255,255,0.1)" }} />
+          <div className="w-px h-4 flex-shrink-0 mx-1" style={{ background: "rgba(15,23,42,0.12)" }} />
           {visibleTabs.map(t => {
             const Icon = t.icon;
             const isFunding = t.id === "funding";
@@ -1430,7 +1430,7 @@ function ProjectWorkspace({ project, pin, onUpdate }: { project: Project; pin: s
             return (
               <button key={t.id} onClick={() => setActiveTab(t.id)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs flex-shrink-0 transition-all relative"
-                style={{ background: activeTab === t.id ? "hsl(226,45%,16%)" : "transparent", color: activeTab === t.id ? "white" : "rgba(255,255,255,0.4)", border: activeTab === t.id ? `1px solid ${phaseColor}40` : "1px solid transparent" }}>
+                style={{ background: activeTab === t.id ? "#DCE4F0" : "transparent", color: activeTab === t.id ? "white" : "rgba(15,23,42,0.45)", border: activeTab === t.id ? `1px solid ${phaseColor}40` : "1px solid transparent" }}>
                 <Icon className="w-3 h-3" style={{ color: activeTab === t.id ? phaseColor : undefined }} />
                 {t.label}
                 {isFunding && project.fundingStatus === "pending" && <Loader2 className="w-2.5 h-2.5 animate-spin flex-shrink-0" style={{ color: "hsl(45,100%,55%)" }} />}
@@ -1439,7 +1439,7 @@ function ProjectWorkspace({ project, pin, onUpdate }: { project: Project; pin: s
               </button>
             );
           })}
-          <button onClick={() => navigator.clipboard.writeText(getTabContent(activeTab))} title="Copy" className="ml-auto flex-shrink-0 p-1.5 rounded-lg hover:bg-white/5 transition-colors">
+          <button onClick={() => navigator.clipboard.writeText(getTabContent(activeTab))} title="Copy" className="ml-auto flex-shrink-0 p-1.5 rounded-lg hover:bg-slate-900/5 transition-colors">
             <Copy className="w-3.5 h-3.5 text-white/25" />
           </button>
         </div>
@@ -1454,7 +1454,7 @@ function ProjectWorkspace({ project, pin, onUpdate }: { project: Project; pin: s
           {activeTab === "overview" && (
             <div className="p-5 space-y-5">
               {/* Phase progress */}
-              <div className="rounded-2xl p-4" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <div className="rounded-2xl p-4" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.09)" }}>
                 <p className="text-white/40 text-xs mb-3 uppercase tracking-wider">Project Phase</p>
                 <div className="flex items-center gap-2">
                   {(["design", "production", "complete"] as const).map((p, i) => {
@@ -1464,7 +1464,7 @@ function ProjectWorkspace({ project, pin, onUpdate }: { project: Project; pin: s
                       <React.Fragment key={p}>
                         <div className="flex-1">
                           <button onClick={() => setPhase(p)} className="w-full py-2 rounded-xl text-xs font-semibold transition-all"
-                            style={{ background: phase === p ? cfg.color : done ? cfg.color + "30" : "hsl(226,45%,12%)", color: done ? "white" : "rgba(255,255,255,0.3)" }}>
+                            style={{ background: phase === p ? cfg.color : done ? cfg.color + "30" : "#F1F5F9", color: done ? "white" : "rgba(15,23,42,0.35)" }}>
                             {cfg.label}
                           </button>
                         </div>
@@ -1477,12 +1477,12 @@ function ProjectWorkspace({ project, pin, onUpdate }: { project: Project; pin: s
 
               {/* Completeness */}
               {completeness && (
-                <div className="rounded-2xl p-4" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                <div className="rounded-2xl p-4" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.09)" }}>
                   <div className="flex items-center justify-between mb-3">
                     <p className="text-white/40 text-xs uppercase tracking-wider">Completeness</p>
                     <span className="text-white font-bold">{completeness.pct}%</span>
                   </div>
-                  <div className="w-full h-2 rounded-full overflow-hidden mb-3" style={{ background: "rgba(255,255,255,0.06)" }}>
+                  <div className="w-full h-2 rounded-full overflow-hidden mb-3" style={{ background: "rgba(15,23,42,0.07)" }}>
                     <div className="h-full rounded-full transition-all" style={{ width: `${completeness.pct}%`, background: completeness.pct === 100 ? "hsl(155,70%,45%)" : "hsl(193,100%,35%)" }} />
                   </div>
                   <div className="grid grid-cols-2 gap-1.5">
@@ -1490,10 +1490,10 @@ function ProjectWorkspace({ project, pin, onUpdate }: { project: Project; pin: s
                       const color = c.phase === "design" ? "hsl(193,100%,35%)" : c.phase === "production" ? "hsl(45,100%,45%)" : "hsl(155,70%,45%)";
                       return (
                         <div key={c.key} className="flex items-center gap-2 text-xs">
-                          <div className="w-2.5 h-2.5 rounded-full flex-shrink-0 flex items-center justify-center" style={{ background: c.filled ? color : "rgba(255,255,255,0.1)" }}>
+                          <div className="w-2.5 h-2.5 rounded-full flex-shrink-0 flex items-center justify-center" style={{ background: c.filled ? color : "rgba(15,23,42,0.12)" }}>
                             {c.filled && <Check className="w-1.5 h-1.5 text-white" />}
                           </div>
-                          <span style={{ color: c.filled ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.25)" }}>{c.label}</span>
+                          <span style={{ color: c.filled ? "rgba(15,23,42,0.72)" : "rgba(15,23,42,0.2)" }}>{c.label}</span>
                         </div>
                       );
                     })}
@@ -1504,9 +1504,9 @@ function ProjectWorkspace({ project, pin, onUpdate }: { project: Project; pin: s
               {/* Latest render */}
               {renders.length > 0 && (
                 <div className="rounded-2xl overflow-hidden cursor-pointer" onClick={() => setActiveTab("renders")}
-                  style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
+                  style={{ border: "1px solid rgba(15,23,42,0.09)" }}>
                   <img src={renders[0].url} alt={renders[0].label} className="w-full aspect-video object-cover" />
-                  <div className="p-3 flex items-center justify-between" style={{ background: "hsl(226,45%,9%)" }}>
+                  <div className="p-3 flex items-center justify-between" style={{ background: "#F1F5F9" }}>
                     <p className="text-white text-xs font-medium">{renders[0].label}</p>
                     <span className="text-white/30 text-xs">{renders.length} render{renders.length !== 1 ? "s" : ""} · View all</span>
                   </div>
@@ -1520,7 +1520,7 @@ function ProjectWorkspace({ project, pin, onUpdate }: { project: Project; pin: s
                   { label: "Phase", value: PHASE_CONFIG[phase]?.label || phase },
                   { label: "Renders", value: String(renders.length) },
                 ].map(s => (
-                  <div key={s.label} className="rounded-xl p-3 text-center" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div key={s.label} className="rounded-xl p-3 text-center" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.07)" }}>
                     <p className="text-white text-sm font-semibold truncate">{s.value}</p>
                     <p className="text-white/30 text-xs mt-0.5">{s.label}</p>
                   </div>
@@ -1542,21 +1542,21 @@ function ProjectWorkspace({ project, pin, onUpdate }: { project: Project; pin: s
                   </div>
                   <button onClick={loadInsights} disabled={loadingInsights}
                     className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg transition-all"
-                    style={{ background: "hsl(226,45%,14%)", color: "rgba(255,255,255,0.4)" }}>
+                    style={{ background: "#E8EEF5", color: "rgba(15,23,42,0.45)" }}>
                     {loadingInsights ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
                     {loadingInsights ? "Analysing..." : "Refresh"}
                   </button>
                 </div>
 
                 {loadingInsights && insights.length === 0 && (
-                  <div className="rounded-2xl p-5 text-center" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                  <div className="rounded-2xl p-5 text-center" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.09)" }}>
                     <Loader2 className="w-5 h-5 mx-auto mb-2 animate-spin" style={{ color: "hsl(193,100%,50%)" }} />
                     <p className="text-white/40 text-xs">Sirius is analysing your project...</p>
                   </div>
                 )}
 
                 {!loadingInsights && insightsLoaded && insights.length === 0 && (
-                  <div className="rounded-2xl p-4 text-center" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                  <div className="rounded-2xl p-4 text-center" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.09)" }}>
                     <p className="text-white/30 text-xs">No insights generated. Click Refresh to try again.</p>
                   </div>
                 )}
@@ -1569,7 +1569,7 @@ function ProjectWorkspace({ project, pin, onUpdate }: { project: Project; pin: s
                       const isExpanded = expandedInsight === i;
                       return (
                         <div key={i} className="rounded-xl overflow-hidden cursor-pointer transition-all"
-                          style={{ background: "hsl(226,45%,10%)", border: `1px solid rgba(255,255,255,0.07)` }}
+                          style={{ background: "#FFFFFF", border: `1px solid rgba(15,23,42,0.09)` }}
                           onClick={() => setExpandedInsight(isExpanded ? null : i)}>
                           <div className="flex items-center gap-3 px-3 py-2.5">
                             <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
@@ -1590,10 +1590,10 @@ function ProjectWorkspace({ project, pin, onUpdate }: { project: Project; pin: s
                               style={{ transform: isExpanded ? "rotate(180deg)" : "none" }} />
                           </div>
                           {isExpanded && (
-                            <div className="px-3 pb-3 pt-0 border-t" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+                            <div className="px-3 pb-3 pt-0 border-t" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
                               <p className="text-white/60 text-xs leading-relaxed mt-2 mb-3">{insight.detail}</p>
                               <div className="flex items-start gap-2 rounded-lg p-2.5"
-                                style={{ background: "hsl(226,45%,13%)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                                style={{ background: "#EEF2F8", border: "1px solid rgba(15,23,42,0.09)" }}>
                                 <Zap className="w-3 h-3 flex-shrink-0 mt-0.5" style={{ color: "hsl(193,100%,55%)" }} />
                                 <p className="text-white/80 text-xs font-medium leading-snug">{insight.action}</p>
                               </div>
@@ -1623,7 +1623,7 @@ function ProjectWorkspace({ project, pin, onUpdate }: { project: Project; pin: s
                     <button key={a.section} onClick={() => { generateSection(a.section); setActiveTab(a.tab); }}
                       disabled={generating}
                       className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs transition-all text-left"
-                      style={{ background: "hsl(226,45%,12%)", color: "rgba(255,255,255,0.6)", border: "1px solid rgba(255,255,255,0.07)", opacity: generating ? 0.5 : 1 }}>
+                      style={{ background: "#F1F5F9", color: "rgba(15,23,42,0.62)", border: "1px solid rgba(15,23,42,0.09)", opacity: generating ? 0.5 : 1 }}>
                       <Sparkles className="w-3 h-3 flex-shrink-0" style={{ color: "hsl(193,100%,50%)" }} />
                       {a.label}
                     </button>
@@ -1645,7 +1645,7 @@ function ProjectWorkspace({ project, pin, onUpdate }: { project: Project; pin: s
             <div className="flex flex-col h-full">
               {tab.generated && (
                 <div className="px-4 py-2 border-b flex items-center justify-between flex-shrink-0"
-                  style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+                  style={{ borderColor: "rgba(15,23,42,0.07)" }}>
                   <span className="text-white/30 text-xs">
                     {activeTab === "market" ? "Market analysis + use cases" : activeTab === "economics" ? "Cost to build + profit margins" : tab.label}
                   </span>
@@ -1662,7 +1662,7 @@ function ProjectWorkspace({ project, pin, onUpdate }: { project: Project; pin: s
                     onBlur={e => saveField("industryProblem", e.target.value)}
                     placeholder="Industry problem analysis, market sizing, competitor landscape, use cases..."
                     className="flex-1 p-4 resize-none outline-none leading-relaxed"
-                    style={{ background: "transparent", color: "rgba(255,255,255,0.8)", fontSize: "0.83rem", lineHeight: "1.7" }} />
+                    style={{ background: "transparent", color: "rgba(15,23,42,0.8)", fontSize: "0.83rem", lineHeight: "1.7" }} />
                 </div>
               ) : activeTab === "economics" ? (
                 <div className="flex-1 flex flex-col min-h-0">
@@ -1670,15 +1670,15 @@ function ProjectWorkspace({ project, pin, onUpdate }: { project: Project; pin: s
                     onBlur={e => saveField("costToBuild", e.target.value)}
                     placeholder="Cost to build breakdown, BOM, manufacturing costs, pricing strategy, profit margin analysis..."
                     className="flex-1 p-4 resize-none outline-none leading-relaxed"
-                    style={{ background: "transparent", color: "rgba(255,255,255,0.8)", fontSize: "0.83rem", lineHeight: "1.7" }} />
+                    style={{ background: "transparent", color: "rgba(15,23,42,0.8)", fontSize: "0.83rem", lineHeight: "1.7" }} />
                 </div>
               ) : activeTab === "drawings" ? (
                 <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
                   <textarea key={`${project.id}-drawings`} defaultValue={project.drawingNotes}
                     onBlur={e => saveField("drawingNotes", e.target.value)}
                     placeholder="Drawing notes: views required, dimension callouts, tolerances, assembly details, revision history..."
-                    style={{ background: "transparent", color: "rgba(255,255,255,0.8)", fontSize: "0.83rem", lineHeight: "1.7", padding: "16px", resize: "none", outline: "none", minHeight: "140px", flexShrink: 0 }} />
-                  <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                    style={{ background: "transparent", color: "rgba(15,23,42,0.8)", fontSize: "0.83rem", lineHeight: "1.7", padding: "16px", resize: "none", outline: "none", minHeight: "140px", flexShrink: 0 }} />
+                  <div style={{ borderTop: "1px solid rgba(15,23,42,0.07)" }}>
                     <CadFilesPanel project={project} pin={pin} />
                   </div>
                 </div>
@@ -1688,7 +1688,7 @@ function ProjectWorkspace({ project, pin, onUpdate }: { project: Project; pin: s
                   placeholder={tab.placeholder}
                   className="flex-1 p-4 resize-none outline-none leading-relaxed"
                   style={{
-                    background: "transparent", color: "rgba(255,255,255,0.8)",
+                    background: "transparent", color: "rgba(15,23,42,0.8)",
                     fontFamily: isCode ? "'Fira Code','Cascadia Code','Consolas',monospace" : "inherit",
                     fontSize: isCode ? "0.75rem" : "0.83rem", lineHeight: isCode ? "1.6" : "1.7",
                   }} />
@@ -1699,8 +1699,8 @@ function ProjectWorkspace({ project, pin, onUpdate }: { project: Project; pin: s
 
         {/* AI Panel */}
         <div className="w-64 border-l flex flex-col min-h-0"
-          style={{ borderColor: "rgba(255,255,255,0.06)", background: "hsl(226,45%,6%)" }}>
-          <div className="px-3 py-2 border-b flex-shrink-0" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+          style={{ borderColor: "rgba(15,23,42,0.07)", background: "#F5F7FF" }}>
+          <div className="px-3 py-2 border-b flex-shrink-0" style={{ borderColor: "rgba(15,23,42,0.06)" }}>
             <div className="flex items-center gap-1.5">
               {labMode === "bot"
                 ? <Bot className="w-3.5 h-3.5" style={{ color: "hsl(280,70%,65%)" }} />
@@ -1776,13 +1776,13 @@ function FundingProjectTab({ project, pin, onUpdate }: { project: Project; pin: 
               {matches.length} opportunit{matches.length === 1 ? "y" : "ies"}
             </span>}
           </div>
-          <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>
+          <p className="text-xs" style={{ color: "rgba(15,23,42,0.35)" }}>
             {analysedAt ? `Last analysed ${analysedAt}` : "Auto-runs when Brief or Specs are saved"}
           </p>
         </div>
         <button onClick={runAnalysis} disabled={running || isPending}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex-shrink-0"
-          style={{ background: running || isPending ? "hsl(226,45%,12%)" : "hsl(155,70%,38%)", color: "white", border: "1px solid hsla(155,70%,45%,0.3)", opacity: running || isPending ? 0.6 : 1 }}>
+          style={{ background: running || isPending ? "#F1F5F9" : "hsl(155,70%,38%)", color: "white", border: "1px solid hsla(155,70%,45%,0.3)", opacity: running || isPending ? 0.6 : 1 }}>
           {running || isPending ? <><Loader2 className="w-3 h-3 animate-spin" /> Running…</> : <><RefreshCw className="w-3 h-3" /> Re-run</>}
         </button>
       </div>
@@ -1795,7 +1795,7 @@ function FundingProjectTab({ project, pin, onUpdate }: { project: Project; pin: 
           </div>
           <div className="text-center space-y-1">
             <p className="text-white text-sm font-medium">Scanning 20+ funding programmes…</p>
-            <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>UK RDEC · Innovate UK · Horizon Europe · US R&D Credit · SR&ED · CIR · and more</p>
+            <p className="text-xs" style={{ color: "rgba(15,23,42,0.35)" }}>UK RDEC · Innovate UK · Horizon Europe · US R&D Credit · SR&ED · CIR · and more</p>
           </div>
         </div>
       )}
@@ -1811,12 +1811,12 @@ function FundingProjectTab({ project, pin, onUpdate }: { project: Project; pin: 
       {/* Empty state */}
       {!isPending && !isError && !hasResults && (
         <div className="flex flex-col items-center justify-center py-16 gap-4">
-          <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.07)" }}>
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.09)" }}>
             <BadgeCheck className="w-7 h-7" style={{ color: "hsl(155,70%,45%)" }} />
           </div>
           <div className="text-center space-y-1.5">
             <p className="text-white font-medium text-sm">No analysis yet</p>
-            <p className="text-xs leading-relaxed max-w-xs" style={{ color: "rgba(255,255,255,0.3)" }}>
+            <p className="text-xs leading-relaxed max-w-xs" style={{ color: "rgba(15,23,42,0.35)" }}>
               Add a Brief or Specs to this project and save — analysis runs automatically. Or trigger it manually now.
             </p>
           </div>
@@ -1830,8 +1830,8 @@ function FundingProjectTab({ project, pin, onUpdate }: { project: Project; pin: 
 
       {/* Summary */}
       {hasResults && summary && (
-        <div className="rounded-xl p-4" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.07)" }}>
-          <p className="text-xs leading-relaxed" style={{ color: "rgba(255,255,255,0.6)" }}>{summary}</p>
+        <div className="rounded-xl p-4" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.09)" }}>
+          <p className="text-xs leading-relaxed" style={{ color: "rgba(15,23,42,0.62)" }}>{summary}</p>
         </div>
       )}
 
@@ -1845,9 +1845,9 @@ function FundingProjectTab({ project, pin, onUpdate }: { project: Project; pin: 
               { label: "Strong Matches", value: matches.filter(m => m.matchStrength === "strong").length, color: "hsl(155,70%,50%)" },
               { label: "Tax Credits", value: matches.filter(m => m.type === "tax_credit").length, color: "hsl(45,100%,50%)" },
             ].map(s => (
-              <div key={s.label} className="rounded-xl p-3 text-center" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+              <div key={s.label} className="rounded-xl p-3 text-center" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.07)" }}>
                 <p className="text-lg font-bold" style={{ color: s.color }}>{s.value}</p>
-                <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>{s.label}</p>
+                <p className="text-xs mt-0.5" style={{ color: "rgba(15,23,42,0.35)" }}>{s.label}</p>
               </div>
             ))}
           </div>
@@ -1864,21 +1864,21 @@ function FundingProjectTab({ project, pin, onUpdate }: { project: Project; pin: 
                         {geo.map(g => (
                           <span key={g} className="text-xs px-1.5 py-0.5 rounded-full font-medium" style={{ background: `${GEO_COLORS[g] || "hsl(280,60%,60%)"}22`, color: GEO_COLORS[g] || "hsl(280,60%,60%)" }}>{g}</span>
                         ))}
-                        <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.4)" }}>{TYPE_LABELS[m.type] || m.type}</span>
+                        <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: "rgba(15,23,42,0.09)", color: "rgba(15,23,42,0.45)" }}>{TYPE_LABELS[m.type] || m.type}</span>
                       </div>
                       <p className="text-white font-semibold text-sm leading-snug">{m.scheme}</p>
                       <p className="text-xs mt-0.5" style={{ color: st.color }}>{st.label} · {m.amount}</p>
                     </div>
                   </div>
-                  <p className="text-xs leading-relaxed mb-2" style={{ color: "rgba(255,255,255,0.65)" }}>{m.matchReason}</p>
+                  <p className="text-xs leading-relaxed mb-2" style={{ color: "rgba(15,23,42,0.67)" }}>{m.matchReason}</p>
                   <div className="space-y-1.5">
                     <div className="flex gap-2 text-xs">
-                      <span style={{ color: "rgba(255,255,255,0.3)", flexShrink: 0 }}>Evidence:</span>
-                      <span style={{ color: "rgba(255,255,255,0.55)" }}>{m.keyEvidence}</span>
+                      <span style={{ color: "rgba(15,23,42,0.35)", flexShrink: 0 }}>Evidence:</span>
+                      <span style={{ color: "rgba(15,23,42,0.58)" }}>{m.keyEvidence}</span>
                     </div>
                     <div className="flex gap-2 text-xs">
-                      <span style={{ color: "rgba(255,255,255,0.3)", flexShrink: 0 }}>Next step:</span>
-                      <span style={{ color: "rgba(255,255,255,0.55)" }}>{m.nextStep}</span>
+                      <span style={{ color: "rgba(15,23,42,0.35)", flexShrink: 0 }}>Next step:</span>
+                      <span style={{ color: "rgba(15,23,42,0.58)" }}>{m.nextStep}</span>
                     </div>
                   </div>
                   {m.url && (
@@ -1950,8 +1950,8 @@ function BotLabPanel({ pin }: { pin: string }) {
     <div className="flex-1 flex min-h-0">
       {/* Config */}
       <div className="w-80 border-r flex-shrink-0 flex flex-col"
-        style={{ borderColor: "rgba(255,255,255,0.06)", background: "hsl(226,45%,6%)" }}>
-        <div className="p-5 border-b flex-shrink-0" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+        style={{ borderColor: "rgba(15,23,42,0.07)", background: "#F5F7FF" }}>
+        <div className="p-5 border-b flex-shrink-0" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
           <div className="flex items-center gap-3 mb-5">
             <div className="w-9 h-9 rounded-xl flex items-center justify-center"
               style={{ background: "linear-gradient(135deg, hsl(280,70%,50%), hsl(220,70%,50%))" }}>
@@ -1969,15 +1969,15 @@ function BotLabPanel({ pin }: { pin: string }) {
               <textarea value={description} onChange={e => setDescription(e.target.value)} rows={4}
                 onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); if (!streaming && description.trim()) design(); } }}
                 placeholder="What should this bot do? Be specific about inputs, outputs, and triggers..."
-                className="w-full px-3 py-2.5 rounded-xl text-white text-xs placeholder-white/20 resize-none outline-none"
-                style={{ background: "hsl(226,45%,11%)", border: "1px solid rgba(255,255,255,0.07)" }} />
+                className="w-full px-3 py-2.5 rounded-xl text-white text-xs placeholder-slate-400 resize-none outline-none"
+                style={{ background: "#F8FAFC", border: "1px solid rgba(15,23,42,0.09)" }} />
             </div>
             <div>
               <label className="text-white/40 text-xs mb-1.5 block">Industry</label>
               <select value={industry} onChange={e => setIndustry(e.target.value)}
                 className="w-full px-3 py-2 rounded-xl text-white text-xs outline-none"
-                style={{ background: "hsl(226,45%,11%)", border: "1px solid rgba(255,255,255,0.07)" }}>
-                {INDUSTRIES.map(i => <option key={i} value={i} style={{ background: "hsl(226,45%,11%)" }}>{i}</option>)}
+                style={{ background: "#F8FAFC", border: "1px solid rgba(15,23,42,0.09)" }}>
+                {INDUSTRIES.map(i => <option key={i} value={i} style={{ background: "#F8FAFC" }}>{i}</option>)}
               </select>
             </div>
             <div>
@@ -1985,8 +1985,8 @@ function BotLabPanel({ pin }: { pin: string }) {
               <input value={platforms} onChange={e => setPlatforms(e.target.value)}
                 onKeyDown={e => { if (e.key === "Enter" && !streaming && description.trim()) design(); }}
                 placeholder="e.g. Gmail, Xero, Slack, Shopify..."
-                className="w-full px-3 py-2 rounded-xl text-white text-xs placeholder-white/20 outline-none"
-                style={{ background: "hsl(226,45%,11%)", border: "1px solid rgba(255,255,255,0.07)" }} />
+                className="w-full px-3 py-2 rounded-xl text-white text-xs placeholder-slate-400 outline-none"
+                style={{ background: "#F8FAFC", border: "1px solid rgba(15,23,42,0.09)" }} />
             </div>
             <button onClick={design} disabled={streaming || !description.trim()}
               className="w-full py-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-all"
@@ -2001,8 +2001,8 @@ function BotLabPanel({ pin }: { pin: string }) {
           <div className="space-y-2">
             {BOT_EXAMPLES.map((ex, i) => (
               <button key={i} onClick={() => setDescription(ex)}
-                className="w-full text-left text-xs p-2.5 rounded-xl transition-all hover:bg-white/5"
-                style={{ color: "rgba(255,255,255,0.45)", lineHeight: "1.5" }}>
+                className="w-full text-left text-xs p-2.5 rounded-xl transition-all hover:bg-slate-900/5"
+                style={{ color: "rgba(15,23,42,0.5)", lineHeight: "1.5" }}>
                 <ChevronRight className="w-3 h-3 inline mr-1 flex-shrink-0" style={{ color: "hsl(280,70%,65%)" }} />
                 {ex}
               </button>
@@ -2020,17 +2020,17 @@ function BotLabPanel({ pin }: { pin: string }) {
               <div className="flex gap-2">
                 <button onClick={() => { setOutput(""); setDescription(""); }}
                   className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg transition-all"
-                  style={{ background: "hsl(226,45%,12%)", color: "rgba(255,255,255,0.4)" }}>
+                  style={{ background: "#F1F5F9", color: "rgba(15,23,42,0.45)" }}>
                   <RotateCcw className="w-3 h-3" /> New
                 </button>
                 <button onClick={copyOutput}
                   className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg transition-all"
-                  style={{ background: copied ? "hsl(155,70%,40%)" : "hsl(226,45%,12%)", color: copied ? "white" : "rgba(255,255,255,0.4)" }}>
+                  style={{ background: copied ? "hsl(155,70%,40%)" : "#F1F5F9", color: copied ? "white" : "rgba(15,23,42,0.45)" }}>
                   <Copy className="w-3 h-3" /> {copied ? "Copied!" : "Copy all"}
                 </button>
               </div>
             </div>
-            <div className="rounded-2xl p-5" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            <div className="rounded-2xl p-5" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.07)" }}>
               <StreamingText content={output} streaming={streaming} />
             </div>
             <div ref={bottomRef} />
@@ -2103,7 +2103,7 @@ function ScoutPanel({ pin }: { pin: string }) {
     <div className="flex-1 flex min-h-0">
       {/* Config */}
       <div className="w-80 border-r flex-shrink-0 flex flex-col overflow-y-auto"
-        style={{ borderColor: "rgba(255,255,255,0.06)", background: "hsl(226,45%,6%)" }}>
+        style={{ borderColor: "rgba(15,23,42,0.07)", background: "#F5F7FF" }}>
         <div className="p-5">
           <div className="flex items-center gap-3 mb-5">
             <div className="w-9 h-9 rounded-xl flex items-center justify-center"
@@ -2125,11 +2125,11 @@ function ScoutPanel({ pin }: { pin: string }) {
                 <button key={m.id} onClick={() => setFocus(m.id)}
                   className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-left"
                   style={{
-                    background: focus === m.id ? "hsl(226,45%,14%)" : "transparent",
+                    background: focus === m.id ? "#E8EEF5" : "transparent",
                     border: focus === m.id ? `1px solid ${m.color}40` : "1px solid transparent"
                   }}>
                   <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0"
-                    style={{ background: focus === m.id ? m.color : "hsl(226,45%,12%)" }}>
+                    style={{ background: focus === m.id ? m.color : "#F1F5F9" }}>
                     <Icon className="w-3 h-3 text-white" />
                   </div>
                   <div>
@@ -2147,8 +2147,8 @@ function ScoutPanel({ pin }: { pin: string }) {
               <textarea value={query} onChange={e => setQuery(e.target.value)} rows={2}
                 onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); if (!streaming) run(); } }}
                 placeholder="e.g. 'automation bots for accountants' or 'gaps in veterinary software'..."
-                className="w-full px-3 py-2 rounded-xl text-white text-xs placeholder-white/20 resize-none outline-none"
-                style={{ background: "hsl(226,45%,11%)", border: "1px solid rgba(255,255,255,0.07)" }} />
+                className="w-full px-3 py-2 rounded-xl text-white text-xs placeholder-slate-400 resize-none outline-none"
+                style={{ background: "#F8FAFC", border: "1px solid rgba(15,23,42,0.09)" }} />
             </div>
 
             <div>
@@ -2158,9 +2158,9 @@ function ScoutPanel({ pin }: { pin: string }) {
                   <button key={ind} onClick={() => toggleIndustry(ind)}
                     className="text-xs px-2 py-0.5 rounded-full transition-all"
                     style={{
-                      background: industries.includes(ind) ? focusMode.color : "hsl(226,45%,12%)",
-                      color: industries.includes(ind) ? "white" : "rgba(255,255,255,0.4)",
-                      border: industries.includes(ind) ? "none" : "1px solid rgba(255,255,255,0.07)"
+                      background: industries.includes(ind) ? focusMode.color : "#F1F5F9",
+                      color: industries.includes(ind) ? "white" : "rgba(15,23,42,0.45)",
+                      border: industries.includes(ind) ? "none" : "1px solid rgba(15,23,42,0.09)"
                     }}>
                     {ind}
                   </button>
@@ -2186,8 +2186,8 @@ function ScoutPanel({ pin }: { pin: string }) {
                 <div className="mt-2 space-y-1">
                   {reports.map(r => (
                     <button key={r.id} onClick={() => setOutput(r.opportunity)}
-                      className="w-full text-left px-3 py-2 rounded-xl transition-all hover:bg-white/5"
-                      style={{ border: "1px solid rgba(255,255,255,0.05)" }}>
+                      className="w-full text-left px-3 py-2 rounded-xl transition-all hover:bg-slate-900/5"
+                      style={{ border: "1px solid rgba(15,23,42,0.06)" }}>
                       <p className="text-white/60 text-xs font-medium truncate">{r.title}</p>
                       <p className="text-white/25 text-xs">{new Date(r.createdAt).toLocaleDateString("en-GB")}</p>
                     </button>
@@ -2218,12 +2218,12 @@ function ScoutPanel({ pin }: { pin: string }) {
               </div>
               <button onClick={() => setOutput("")}
                 className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg"
-                style={{ background: "hsl(226,45%,12%)", color: "rgba(255,255,255,0.4)" }}>
+                style={{ background: "#F1F5F9", color: "rgba(15,23,42,0.45)" }}>
                 <RotateCcw className="w-3 h-3" /> Clear
               </button>
             </div>
             <div className="rounded-2xl p-5 leading-relaxed"
-              style={{ background: "hsl(226,45%,8%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+              style={{ background: "#F8FAFC", border: "1px solid rgba(15,23,42,0.07)" }}>
               <StreamingText content={output} streaming={streaming} />
             </div>
             <div ref={bottomRef} />
@@ -2295,10 +2295,10 @@ function DiscoveryCard({ d, pin, onUpdate, onDelete }: {
   return (
     <motion.div layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
       className="rounded-2xl overflow-hidden transition-all"
-      style={{ background: "hsl(226,45%,9%)", border: `1px solid ${d.isRead ? "rgba(255,255,255,0.06)" : catColor + "40"}`, opacity: d.isRead ? 0.85 : 1 }}>
+      style={{ background: "#F1F5F9", border: `1px solid ${d.isRead ? "rgba(15,23,42,0.07)" : catColor + "40"}`, opacity: d.isRead ? 0.85 : 1 }}>
       <div className="p-4 cursor-pointer" onClick={handleExpand}>
         <div className="flex items-start gap-3">
-          <div className="w-2 h-2 rounded-full flex-shrink-0 mt-2" style={{ background: d.isRead ? "rgba(255,255,255,0.15)" : catColor }} />
+          <div className="w-2 h-2 rounded-full flex-shrink-0 mt-2" style={{ background: d.isRead ? "rgba(15,23,42,0.15)" : catColor }} />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1">
               <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: catColor + "25", color: catColor }}>{d.category}</span>
@@ -2319,7 +2319,7 @@ function DiscoveryCard({ d, pin, onUpdate, onDelete }: {
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
             style={{ overflow: "hidden" }}>
             <div className="px-4 pb-4 space-y-3">
-              <div className="h-px" style={{ background: "rgba(255,255,255,0.06)" }} />
+              <div className="h-px" style={{ background: "rgba(15,23,42,0.07)" }} />
 
               {d.detail && (
                 <div>
@@ -2345,19 +2345,19 @@ function DiscoveryCard({ d, pin, onUpdate, onDelete }: {
               <div className="flex items-center gap-2 pt-1">
                 <button onClick={() => patch({ isSaved: !d.isSaved })}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all"
-                  style={{ background: d.isSaved ? catColor + "25" : "hsl(226,45%,14%)", color: d.isSaved ? catColor : "rgba(255,255,255,0.4)" }}>
+                  style={{ background: d.isSaved ? catColor + "25" : "#E8EEF5", color: d.isSaved ? catColor : "rgba(15,23,42,0.45)" }}>
                   {d.isSaved ? <BookmarkCheck className="w-3 h-3" /> : <Bookmark className="w-3 h-3" />}
                   {d.isSaved ? "Saved" : "Save"}
                 </button>
                 <button onClick={() => patch({ isRead: !d.isRead })}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all"
-                  style={{ background: "hsl(226,45%,14%)", color: "rgba(255,255,255,0.4)" }}>
+                  style={{ background: "#E8EEF5", color: "rgba(15,23,42,0.45)" }}>
                   {d.isRead ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
                   {d.isRead ? "Mark unread" : "Mark read"}
                 </button>
                 <button onClick={() => onDelete(d.id)}
                   className="ml-auto flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs transition-all"
-                  style={{ color: "rgba(255,255,255,0.2)" }}>
+                  style={{ color: "rgba(15,23,42,0.15)" }}>
                   <Trash className="w-3 h-3" />
                 </button>
               </div>
@@ -2466,7 +2466,7 @@ function FeedPanel({ pin }: { pin: string }) {
     <div className="flex-1 flex min-h-0">
       {/* Left: controls */}
       <div className="w-64 border-r flex-shrink-0 flex flex-col overflow-y-auto"
-        style={{ borderColor: "rgba(255,255,255,0.06)", background: "hsl(226,45%,6%)" }}>
+        style={{ borderColor: "rgba(15,23,42,0.07)", background: "#F5F7FF" }}>
         <div className="p-4">
           {/* Header */}
           <div className="flex items-center gap-3 mb-5">
@@ -2484,11 +2484,11 @@ function FeedPanel({ pin }: { pin: string }) {
           {stats && (
             <div className="grid grid-cols-2 gap-2 mb-4">
               {[
-                { label: "Total", value: stats.total, color: "rgba(255,255,255,0.5)" },
+                { label: "Total", value: stats.total, color: "rgba(15,23,42,0.55)" },
                 { label: "Unread", value: stats.unread, color: "hsl(45,100%,55%)" },
               ].map(s => (
                 <div key={s.label} className="rounded-xl p-2.5 text-center"
-                  style={{ background: "hsl(226,45%,11%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                  style={{ background: "#F8FAFC", border: "1px solid rgba(15,23,42,0.07)" }}>
                   <p className="font-bold text-lg leading-none" style={{ color: s.color }}>{s.value}</p>
                   <p className="text-white/30 text-xs mt-0.5">{s.label}</p>
                 </div>
@@ -2513,7 +2513,7 @@ function FeedPanel({ pin }: { pin: string }) {
           {showSweepLog && sweepLog.length > 0 && (
             <div ref={sweepLogRef}
               className="rounded-xl p-3 mb-4 max-h-32 overflow-y-auto space-y-1"
-              style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+              style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.07)" }}>
               {sweepLog.map((l, i) => (
                 <p key={i} className="text-white/50 text-xs leading-relaxed">{l}</p>
               ))}
@@ -2531,7 +2531,7 @@ function FeedPanel({ pin }: { pin: string }) {
               ].map(f => (
                 <button key={f.label} onClick={f.action}
                   className="text-xs px-2.5 py-1 rounded-full transition-all"
-                  style={{ background: f.active ? "hsl(210,80%,50%)" : "hsl(226,45%,12%)", color: f.active ? "white" : "rgba(255,255,255,0.4)", border: f.active ? "none" : "1px solid rgba(255,255,255,0.06)" }}>
+                  style={{ background: f.active ? "hsl(210,80%,50%)" : "#F1F5F9", color: f.active ? "white" : "rgba(15,23,42,0.45)", border: f.active ? "none" : "1px solid rgba(15,23,42,0.07)" }}>
                   {f.label}
                 </button>
               ))}
@@ -2542,7 +2542,7 @@ function FeedPanel({ pin }: { pin: string }) {
               <div className="flex flex-wrap gap-1">
                 <button onClick={() => setFilterCategory("all")}
                   className="text-xs px-2 py-0.5 rounded-full transition-all"
-                  style={{ background: filterCategory === "all" ? "rgba(255,255,255,0.15)" : "transparent", color: filterCategory === "all" ? "white" : "rgba(255,255,255,0.35)" }}>
+                  style={{ background: filterCategory === "all" ? "rgba(15,23,42,0.15)" : "transparent", color: filterCategory === "all" ? "white" : "rgba(15,23,42,0.4)" }}>
                   All
                 </button>
                 {categories.map(cat => {
@@ -2552,7 +2552,7 @@ function FeedPanel({ pin }: { pin: string }) {
                       className="text-xs px-2 py-0.5 rounded-full transition-all"
                       style={{
                         background: filterCategory === cat ? color + "30" : "transparent",
-                        color: filterCategory === cat ? color : "rgba(255,255,255,0.35)",
+                        color: filterCategory === cat ? color : "rgba(15,23,42,0.4)",
                         border: filterCategory === cat ? `1px solid ${color}50` : "1px solid transparent"
                       }}>
                       {cat}
@@ -2566,7 +2566,7 @@ function FeedPanel({ pin }: { pin: string }) {
 
           {discoveries.length > 0 && stats && stats.unread > 0 && (
             <button onClick={markAllRead} className="w-full mt-4 py-1.5 rounded-xl text-xs text-white/30 transition-all hover:text-white/50"
-              style={{ background: "hsl(226,45%,10%)" }}>
+              style={{ background: "#FFFFFF" }}>
               Mark all as read
             </button>
           )}
@@ -2690,11 +2690,11 @@ function CommerceLabPanel({ pin }: { pin: string }) {
   };
 
   return (
-    <div className="flex-1 flex flex-col min-h-0" style={{ background: "hsl(226,45%,5%)" }}>
+    <div className="flex-1 flex flex-col min-h-0" style={{ background: "#F8FAFC" }}>
       {/* Tool selector */}
-      <div className="border-b flex-shrink-0" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+      <div className="border-b flex-shrink-0" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
         <div className="px-4 py-3">
-          <p className="text-[10px] font-mono mb-2.5" style={{ color: "rgba(255,255,255,0.25)", letterSpacing: "0.15em" }}>COMMERCE LAB — SELECT TOOL</p>
+          <p className="text-[10px] font-mono mb-2.5" style={{ color: "rgba(15,23,42,0.2)", letterSpacing: "0.15em" }}>COMMERCE LAB — SELECT TOOL</p>
           <div className="grid grid-cols-3 gap-2">
             {COMMERCE_TOOLS.map(t => {
               const Icon = t.icon;
@@ -2703,13 +2703,13 @@ function CommerceLabPanel({ pin }: { pin: string }) {
                 <button key={t.id} onClick={() => { setActiveTool(t.id); setOutput(""); setPlatform(""); }}
                   className="flex flex-col gap-1.5 p-3 rounded-xl text-left transition-all"
                   style={{
-                    background: active ? "hsl(226,45%,12%)" : "hsl(226,45%,8%)",
-                    border: `1px solid ${active ? t.color + "50" : "rgba(255,255,255,0.06)"}`,
+                    background: active ? "#F1F5F9" : "#F8FAFC",
+                    border: `1px solid ${active ? t.color + "50" : "rgba(15,23,42,0.07)"}`,
                     boxShadow: active ? `0 0 16px ${t.color}20` : "none",
                   }}>
-                  <Icon className="w-4 h-4" style={{ color: active ? t.color : "rgba(255,255,255,0.3)" }} />
-                  <span className="text-xs font-semibold leading-tight" style={{ color: active ? "white" : "rgba(255,255,255,0.5)" }}>{t.label}</span>
-                  <span className="text-[10px] leading-tight" style={{ color: active ? "rgba(255,255,255,0.45)" : "rgba(255,255,255,0.2)" }}>{t.desc}</span>
+                  <Icon className="w-4 h-4" style={{ color: active ? t.color : "rgba(15,23,42,0.35)" }} />
+                  <span className="text-xs font-semibold leading-tight" style={{ color: active ? "white" : "rgba(15,23,42,0.55)" }}>{t.label}</span>
+                  <span className="text-[10px] leading-tight" style={{ color: active ? "rgba(15,23,42,0.5)" : "rgba(15,23,42,0.15)" }}>{t.desc}</span>
                 </button>
               );
             })}
@@ -2720,9 +2720,9 @@ function CommerceLabPanel({ pin }: { pin: string }) {
       {/* Input panel + output side by side */}
       <div className="flex-1 flex min-h-0">
         {/* Left: inputs */}
-        <div className="w-72 flex-shrink-0 flex flex-col border-r p-4 gap-4" style={{ borderColor: "rgba(255,255,255,0.06)", background: "hsl(226,45%,7%)" }}>
+        <div className="w-72 flex-shrink-0 flex flex-col border-r p-4 gap-4" style={{ borderColor: "rgba(15,23,42,0.07)", background: "#FFFFFF" }}>
           <div>
-            <label className="text-[10px] font-mono mb-1.5 block" style={{ color: "rgba(255,255,255,0.35)", letterSpacing: "0.12em" }}>
+            <label className="text-[10px] font-mono mb-1.5 block" style={{ color: "rgba(15,23,42,0.4)", letterSpacing: "0.12em" }}>
               PRODUCT / BRAND / URL *
             </label>
             <textarea
@@ -2739,29 +2739,29 @@ function CommerceLabPanel({ pin }: { pin: string }) {
               }
               rows={6}
               className="w-full rounded-xl p-3 text-sm resize-none outline-none leading-relaxed"
-              style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.8)", fontSize: "0.78rem" }}
+              style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.1)", color: "rgba(15,23,42,0.8)", fontSize: "0.78rem" }}
             />
           </div>
 
           <div>
-            <label className="text-[10px] font-mono mb-1.5 block" style={{ color: "rgba(255,255,255,0.35)", letterSpacing: "0.12em" }}>
+            <label className="text-[10px] font-mono mb-1.5 block" style={{ color: "rgba(15,23,42,0.4)", letterSpacing: "0.12em" }}>
               PLATFORM
             </label>
             <select value={platform} onChange={e => setPlatform(e.target.value)}
               className="w-full rounded-xl px-3 py-2.5 text-xs outline-none appearance-none"
-              style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.08)", color: platform ? "rgba(255,255,255,0.8)" : "rgba(255,255,255,0.3)" }}>
+              style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.1)", color: platform ? "rgba(15,23,42,0.8)" : "rgba(15,23,42,0.35)" }}>
               <option value="">Auto-select best platform</option>
               {PLATFORM_OPTIONS[activeTool].map(p => <option key={p} value={p}>{p}</option>)}
             </select>
           </div>
 
           <div>
-            <label className="text-[10px] font-mono mb-1.5 block" style={{ color: "rgba(255,255,255,0.35)", letterSpacing: "0.12em" }}>
+            <label className="text-[10px] font-mono mb-1.5 block" style={{ color: "rgba(15,23,42,0.4)", letterSpacing: "0.12em" }}>
               TONE
             </label>
             <select value={tone} onChange={e => setTone(e.target.value)}
               className="w-full rounded-xl px-3 py-2.5 text-xs outline-none appearance-none"
-              style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.08)", color: tone ? "rgba(255,255,255,0.8)" : "rgba(255,255,255,0.3)" }}>
+              style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.1)", color: tone ? "rgba(15,23,42,0.8)" : "rgba(15,23,42,0.35)" }}>
               <option value="">Auto-match to product</option>
               {TONE_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
@@ -2770,9 +2770,9 @@ function CommerceLabPanel({ pin }: { pin: string }) {
           <button onClick={generate} disabled={!description.trim() || generating}
             className="w-full py-3 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2"
             style={{
-              background: !description.trim() || generating ? "hsl(226,45%,12%)" : `linear-gradient(135deg, ${tool.color}cc, ${tool.color}88)`,
+              background: !description.trim() || generating ? "#F1F5F9" : `linear-gradient(135deg, ${tool.color}cc, ${tool.color}88)`,
               border: `1px solid ${tool.color}40`,
-              color: !description.trim() ? "rgba(255,255,255,0.2)" : "white",
+              color: !description.trim() ? "rgba(15,23,42,0.15)" : "white",
               boxShadow: description.trim() && !generating ? `0 0 20px ${tool.color}30` : "none",
             }}>
             {generating
@@ -2782,7 +2782,7 @@ function CommerceLabPanel({ pin }: { pin: string }) {
           </button>
 
           {output && (
-            <div className="text-xs space-y-1" style={{ color: "rgba(255,255,255,0.3)" }}>
+            <div className="text-xs space-y-1" style={{ color: "rgba(15,23,42,0.35)" }}>
               <p className="font-mono" style={{ fontSize: "10px", letterSpacing: "0.1em" }}>OUTPUT STATS</p>
               <p>{output.split(" ").length.toLocaleString()} words</p>
               <p>{output.length.toLocaleString()} characters</p>
@@ -2795,16 +2795,16 @@ function CommerceLabPanel({ pin }: { pin: string }) {
           {/* Output toolbar */}
           {output && (
             <div className="px-4 py-2.5 border-b flex-shrink-0 flex items-center justify-between"
-              style={{ borderColor: "rgba(255,255,255,0.06)", background: "hsl(226,45%,6%)" }}>
+              style={{ borderColor: "rgba(15,23,42,0.07)", background: "#F5F7FF" }}>
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full" style={{ background: tool.color }} />
-                <span className="text-xs font-semibold" style={{ color: "rgba(255,255,255,0.6)" }}>{tool.label}</span>
+                <span className="text-xs font-semibold" style={{ color: "rgba(15,23,42,0.62)" }}>{tool.label}</span>
                 {searching && <span className="flex items-center gap-1 text-[10px] font-mono animate-pulse" style={{ color: "hsl(193,100%,55%)" }}><Globe className="w-3 h-3" /> Searching…</span>}
                 {generating && !searching && <span className="text-[10px] font-mono animate-pulse" style={{ color: tool.color }}>● LIVE</span>}
               </div>
               <button onClick={copyOutput}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all"
-                style={{ background: copied ? "hsla(155,70%,35%,0.2)" : "hsl(226,45%,12%)", color: copied ? "hsl(155,70%,55%)" : "rgba(255,255,255,0.5)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                style={{ background: copied ? "hsla(155,70%,35%,0.2)" : "#F1F5F9", color: copied ? "hsl(155,70%,55%)" : "rgba(15,23,42,0.55)", border: "1px solid rgba(15,23,42,0.09)" }}>
                 {copied ? <><Check className="w-3 h-3" /> Copied!</> : <><Copy className="w-3 h-3" /> Copy all</>}
               </button>
             </div>
@@ -2815,12 +2815,12 @@ function CommerceLabPanel({ pin }: { pin: string }) {
             {!output && !generating && (
               <div className="flex flex-col items-center justify-center h-full gap-4 p-8">
                 <div className="w-14 h-14 rounded-2xl flex items-center justify-center"
-                  style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                  style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.09)" }}>
                   {React.createElement(tool.icon, { className: "w-7 h-7", style: { color: tool.color } })}
                 </div>
                 <div className="text-center space-y-1.5 max-w-xs">
                   <p className="text-white font-semibold text-sm">{tool.label}</p>
-                  <p className="text-xs leading-relaxed" style={{ color: "rgba(255,255,255,0.35)" }}>{tool.desc}</p>
+                  <p className="text-xs leading-relaxed" style={{ color: "rgba(15,23,42,0.4)" }}>{tool.desc}</p>
                 </div>
               </div>
             )}
@@ -2828,7 +2828,7 @@ function CommerceLabPanel({ pin }: { pin: string }) {
             {(output || generating) && (
               <div className="p-5">
                 <div className="text-sm leading-relaxed whitespace-pre-wrap"
-                  style={{ color: "rgba(255,255,255,0.82)", fontFamily: "inherit", lineHeight: "1.75" }}>
+                  style={{ color: "rgba(15,23,42,0.82)", fontFamily: "inherit", lineHeight: "1.75" }}>
                   {output}
                   {generating && <span className="inline-block w-0.5 h-4 ml-0.5 animate-pulse" style={{ background: tool.color, verticalAlign: "middle" }} />}
                 </div>
@@ -2964,39 +2964,39 @@ function AutoLabPanel({ pin, onSelectProject }: {
   };
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 overflow-y-auto" style={{ background: "hsl(226,45%,5%)" }}>
+    <div className="flex-1 flex flex-col min-h-0 overflow-y-auto" style={{ background: "#F8FAFC" }}>
 
       {/* Header */}
-      <div className="p-6 border-b flex-shrink-0" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+      <div className="p-6 border-b flex-shrink-0" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
         <div className="flex items-start justify-between gap-4 mb-4">
           <div>
             <div className="flex items-center gap-2.5 mb-1">
-              <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: running ? "hsl(155,70%,50%)" : "rgba(255,255,255,0.15)", boxShadow: running ? "0 0 8px hsl(155,70%,50%)" : "none" }} />
+              <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: running ? "hsl(155,70%,50%)" : "rgba(15,23,42,0.15)", boxShadow: running ? "0 0 8px hsl(155,70%,50%)" : "none" }} />
               <h2 className="text-white font-bold text-lg">Autonomous Lab</h2>
               {running && <span className="text-xs px-2 py-0.5 rounded-full animate-pulse" style={{ background: "hsla(155,70%,45%,0.12)", color: "hsl(155,70%,55%)" }}>Scanning now…</span>}
             </div>
-            <p className="text-xs leading-relaxed" style={{ color: "rgba(255,255,255,0.35)", maxWidth: "580px" }}>
+            <p className="text-xs leading-relaxed" style={{ color: "rgba(15,23,42,0.4)", maxWidth: "580px" }}>
               Runs 5 intelligence passes across every sector on Earth — automation bots (legal, healthcare, commerce, trades), SaaS gaps (creative, education, niche SMB, compliance), broken product mining (App Store, Reddit, forums), precision engineering (10 sectors), and trend/patent intelligence. Each scan creates new projects for your approval.
             </p>
           </div>
           <button onClick={triggerScan} disabled={running || triggering}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold flex-shrink-0 transition-all"
-            style={{ background: running || triggering ? "hsl(226,45%,12%)" : "hsl(193,100%,32%)", color: "white", border: "1px solid hsla(193,100%,40%,0.3)", opacity: running || triggering ? 0.6 : 1 }}>
+            style={{ background: running || triggering ? "#F1F5F9" : "hsl(193,100%,32%)", color: "white", border: "1px solid hsla(193,100%,40%,0.3)", opacity: running || triggering ? 0.6 : 1 }}>
             {running || triggering ? <><Loader2 className="w-4 h-4 animate-spin" /> Running…</> : <><Zap className="w-4 h-4" /> Run Now</>}
           </button>
         </div>
         <div className="grid grid-cols-4 gap-3">
           {[
             { label: "Scans Run", value: scanHistory.length, color: "hsl(193,100%,50%)" },
-            { label: "Awaiting Approval", value: pendingProjects.length, color: pendingProjects.length > 0 ? "hsl(25,90%,60%)" : "rgba(255,255,255,0.4)" },
+            { label: "Awaiting Approval", value: pendingProjects.length, color: pendingProjects.length > 0 ? "hsl(25,90%,60%)" : "rgba(15,23,42,0.45)" },
             { label: "Total Created", value: totalCreated, color: "hsl(155,70%,50%)" },
             { label: running ? "Status" : "Next Scan",
               value: running ? "Active" : hoursUntil !== null ? `${hoursUntil}h ${minutesUntil}m` : "Soon",
               color: running ? "hsl(155,70%,50%)" : "hsl(280,60%,65%)" },
           ].map(s => (
-            <div key={s.label} className="rounded-xl p-3 text-center" style={{ background: "hsl(226,45%,8%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            <div key={s.label} className="rounded-xl p-3 text-center" style={{ background: "#F8FAFC", border: "1px solid rgba(15,23,42,0.07)" }}>
               <p className="text-xl font-bold" style={{ color: s.color }}>{s.value}</p>
-              <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>{s.label}</p>
+              <p className="text-xs mt-0.5" style={{ color: "rgba(15,23,42,0.35)" }}>{s.label}</p>
             </div>
           ))}
         </div>
@@ -3006,7 +3006,7 @@ function AutoLabPanel({ pin, onSelectProject }: {
 
         {/* ── SCAN INTELLIGENCE PASSES ─────────────────────────────── */}
         <div>
-          <p className="text-xs font-semibold mb-3 uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.25)" }}>What Each Scan Covers</p>
+          <p className="text-xs font-semibold mb-3 uppercase tracking-wider" style={{ color: "rgba(15,23,42,0.2)" }}>What Each Scan Covers</p>
           <div className="grid grid-cols-1 gap-2">
             {[
               { pass: "1", label: "Bot & Automation", color: "hsl(280,70%,60%)", sectors: "Legal, HR, Finance, Insurance · Healthcare, NHS, Pharmacy, Vets · Retail, eCommerce, Hospitality, Food · Construction, Agriculture, Logistics, Manufacturing" },
@@ -3015,11 +3015,11 @@ function AutoLabPanel({ pin, onSelectProject }: {
               { pass: "4", label: "Precision Engineering", color: "hsl(45,100%,55%)", sectors: "Oil & Gas, Aerospace, Medical, Hydrogen · Automotive, Motorsport, Defence, Marine · Nuclear, Semiconductor, Scientific instruments" },
               { pass: "5", label: "Trend & Patent Intelligence", color: "hsl(155,70%,55%)", sectors: "UK/EU regulations coming into force · New patent filings · ProductHunt & YC trends · Job board automation signals · Social media emerging needs" },
             ].map(p => (
-              <div key={p.pass} className="flex items-start gap-3 rounded-xl px-3.5 py-2.5" style={{ background: "hsl(226,45%,8%)", border: "1px solid rgba(255,255,255,0.05)" }}>
+              <div key={p.pass} className="flex items-start gap-3 rounded-xl px-3.5 py-2.5" style={{ background: "#F8FAFC", border: "1px solid rgba(15,23,42,0.06)" }}>
                 <div className="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5 text-xs font-bold" style={{ background: p.color + "22", color: p.color }}>{p.pass}</div>
                 <div className="min-w-0">
                   <p className="text-xs font-semibold mb-0.5" style={{ color: p.color }}>{p.label}</p>
-                  <p className="text-xs leading-relaxed" style={{ color: "rgba(255,255,255,0.3)" }}>{p.sectors}</p>
+                  <p className="text-xs leading-relaxed" style={{ color: "rgba(15,23,42,0.35)" }}>{p.sectors}</p>
                 </div>
               </div>
             ))}
@@ -3057,12 +3057,12 @@ function AutoLabPanel({ pin, onSelectProject }: {
             {/* ── RANKED VIEW ── */}
             {rankResults && (
               <div className="mb-6">
-                <div className="rounded-2xl overflow-hidden mb-3" style={{ background: "hsl(226,45%,7%)", border: "1px solid hsla(280,70%,55%,0.2)" }}>
-                  <div className="px-4 py-3 flex items-center gap-2" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)", background: "hsla(280,70%,55%,0.08)" }}>
+                <div className="rounded-2xl overflow-hidden mb-3" style={{ background: "#FFFFFF", border: "1px solid hsla(280,70%,55%,0.2)" }}>
+                  <div className="px-4 py-3 flex items-center gap-2" style={{ borderBottom: "1px solid rgba(15,23,42,0.06)", background: "hsla(280,70%,55%,0.08)" }}>
                     <TrendingUp className="w-4 h-4" style={{ color: "hsl(280,70%,65%)" }} />
                     <p className="text-sm font-semibold" style={{ color: "hsl(280,70%,70%)" }}>Opportunity Ranking — Best to Monetise First</p>
                   </div>
-                  <div className="divide-y" style={{ borderColor: "rgba(255,255,255,0.04)" }}>
+                  <div className="divide-y" style={{ borderColor: "rgba(15,23,42,0.05)" }}>
                     {rankResults.map((r) => {
                       const project = pendingProjects.find(p => p.id === r.projectId);
                       const isActioning = actioningId === r.projectId;
@@ -3074,26 +3074,26 @@ function AutoLabPanel({ pin, onSelectProject }: {
                             {/* Rank badge */}
                             <div className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center font-bold text-lg"
                               style={{
-                                background: r.rank === 1 ? "linear-gradient(135deg, hsl(45,100%,50%), hsl(35,100%,45%))" : r.rank === 2 ? "hsl(226,45%,14%)" : "hsl(226,45%,11%)",
-                                color: r.rank === 1 ? "#000" : "rgba(255,255,255,0.5)",
-                                border: r.rank === 1 ? "none" : "1px solid rgba(255,255,255,0.08)",
+                                background: r.rank === 1 ? "linear-gradient(135deg, hsl(45,100%,50%), hsl(35,100%,45%))" : r.rank === 2 ? "#E8EEF5" : "#F8FAFC",
+                                color: r.rank === 1 ? "#000" : "rgba(15,23,42,0.55)",
+                                border: r.rank === 1 ? "none" : "1px solid rgba(15,23,42,0.1)",
                                 boxShadow: r.rank === 1 ? "0 0 16px hsla(45,100%,50%,0.4)" : "none",
                               }}>
                               #{r.rank}
                             </div>
                             <div className="flex-1 min-w-0">
                               <p className="text-white font-semibold text-sm mb-1 leading-snug">{r.name}</p>
-                              <p className="text-xs leading-relaxed mb-3" style={{ color: "rgba(255,255,255,0.5)" }}>{r.verdict}</p>
+                              <p className="text-xs leading-relaxed mb-3" style={{ color: "rgba(15,23,42,0.55)" }}>{r.verdict}</p>
 
                               {/* Score row */}
                               <div className="grid grid-cols-2 gap-2 mb-3">
-                                <div className="rounded-xl p-2.5 text-center" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                                <div className="rounded-xl p-2.5 text-center" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.06)" }}>
                                   <p className="text-lg font-bold" style={{ color: scoreColor }}>{r.monetisationScore}%</p>
-                                  <p className="text-[10px] mt-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>Revenue Score</p>
+                                  <p className="text-[10px] mt-0.5" style={{ color: "rgba(15,23,42,0.35)" }}>Revenue Score</p>
                                 </div>
-                                <div className="rounded-xl p-2.5 text-center" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                                <div className="rounded-xl p-2.5 text-center" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.06)" }}>
                                   <p className="text-sm font-bold" style={{ color: confidenceColor }}>{r.revenueConfidence}</p>
-                                  <p className="text-[10px] mt-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>Confidence</p>
+                                  <p className="text-[10px] mt-0.5" style={{ color: "rgba(15,23,42,0.35)" }}>Confidence</p>
                                 </div>
                               </div>
 
@@ -3114,7 +3114,7 @@ function AutoLabPanel({ pin, onSelectProject }: {
                               {r.keyStrengths?.length > 0 && (
                                 <div className="flex flex-wrap gap-1 mb-3">
                                   {r.keyStrengths.map((s, i) => (
-                                    <span key={i} className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.4)" }}>
+                                    <span key={i} className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: "rgba(15,23,42,0.06)", color: "rgba(15,23,42,0.45)" }}>
                                       {s}
                                     </span>
                                   ))}
@@ -3126,7 +3126,7 @@ function AutoLabPanel({ pin, onSelectProject }: {
                                 <div className="flex gap-2">
                                   <button onClick={() => approve(project)} disabled={isActioning}
                                     className="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold transition-all"
-                                    style={{ background: isActioning ? "hsl(226,45%,12%)" : "hsl(155,70%,32%)", color: "white", border: "1px solid hsla(155,70%,40%,0.4)" }}>
+                                    style={{ background: isActioning ? "#F1F5F9" : "hsl(155,70%,32%)", color: "white", border: "1px solid hsla(155,70%,40%,0.4)" }}>
                                     {isActioning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
                                     Approve — Open in Workspace
                                   </button>
@@ -3155,7 +3155,7 @@ function AutoLabPanel({ pin, onSelectProject }: {
                   const isExpanded = expandedBiz === p.id;
                   return (
                     <div key={p.id} className="rounded-2xl overflow-hidden"
-                      style={{ background: "hsl(226,45%,9%)", border: "1px solid hsla(25,90%,55%,0.2)" }}>
+                      style={{ background: "#F1F5F9", border: "1px solid hsla(25,90%,55%,0.2)" }}>
                       <div className="p-4">
                         <div className="flex items-start gap-3 mb-3">
                           <div className="flex-1 min-w-0">
@@ -3166,12 +3166,12 @@ function AutoLabPanel({ pin, onSelectProject }: {
                               </span>
                               <p className="text-white font-semibold text-sm leading-snug">{p.name}</p>
                             </div>
-                            <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>{p.industry} · Found {formatDate(p.createdAt)}</p>
+                            <p className="text-xs" style={{ color: "rgba(15,23,42,0.35)" }}>{p.industry} · Found {formatDate(p.createdAt)}</p>
                           </div>
                         </div>
 
                         {p.brief && (
-                          <p className="text-xs leading-relaxed mb-3 line-clamp-3" style={{ color: "rgba(255,255,255,0.55)" }}>
+                          <p className="text-xs leading-relaxed mb-3 line-clamp-3" style={{ color: "rgba(15,23,42,0.58)" }}>
                             {p.brief.slice(0, 280)}…
                           </p>
                         )}
@@ -3190,7 +3190,7 @@ function AutoLabPanel({ pin, onSelectProject }: {
                           {isExpanded && p.businessCase && (
                             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
                               className="mb-3 rounded-xl p-3 text-xs leading-relaxed overflow-hidden"
-                              style={{ background: "hsl(226,45%,6%)", border: "1px solid rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.6)" }}>
+                              style={{ background: "#F5F7FF", border: "1px solid rgba(15,23,42,0.09)", color: "rgba(15,23,42,0.62)" }}>
                               {p.businessCase}
                             </motion.div>
                           )}
@@ -3199,7 +3199,7 @@ function AutoLabPanel({ pin, onSelectProject }: {
                         <div className="flex gap-2">
                           <button onClick={() => approve(p)} disabled={actioningId === p.id}
                             className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-all"
-                            style={{ background: actioningId === p.id ? "hsl(226,45%,12%)" : "hsl(155,70%,32%)", color: "white", border: "1px solid hsla(155,70%,40%,0.4)" }}>
+                            style={{ background: actioningId === p.id ? "#F1F5F9" : "hsl(155,70%,32%)", color: "white", border: "1px solid hsla(155,70%,40%,0.4)" }}>
                             {actioningId === p.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                             Approve — Open in Workspace
                           </button>
@@ -3221,21 +3221,21 @@ function AutoLabPanel({ pin, onSelectProject }: {
         {/* No pending — empty state */}
         {pendingProjects.length === 0 && !running && (
           <div className="flex flex-col items-center justify-center py-10 gap-3 rounded-2xl"
-            style={{ background: "hsl(226,45%,8%)", border: "1px solid rgba(255,255,255,0.05)" }}>
+            style={{ background: "#F8FAFC", border: "1px solid rgba(15,23,42,0.06)" }}>
             <BadgeCheck className="w-8 h-8" style={{ color: "hsl(155,70%,50%)" }} />
             <div className="text-center">
               <p className="text-white font-medium text-sm">All caught up</p>
-              <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>No projects awaiting approval.</p>
+              <p className="text-xs mt-0.5" style={{ color: "rgba(15,23,42,0.35)" }}>No projects awaiting approval.</p>
             </div>
           </div>
         )}
         {pendingProjects.length === 0 && running && (
           <div className="flex flex-col items-center justify-center py-10 gap-3 rounded-2xl"
-            style={{ background: "hsl(226,45%,8%)", border: "1px solid rgba(255,255,255,0.05)" }}>
+            style={{ background: "#F8FAFC", border: "1px solid rgba(15,23,42,0.06)" }}>
             <Loader2 className="w-8 h-8 animate-spin" style={{ color: "hsl(193,100%,50%)" }} />
             <div className="text-center">
               <p className="text-white font-medium text-sm">Scanning now…</p>
-              <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>Checking for marketing bots, engineering products, and funding opportunities. Takes 2–3 minutes.</p>
+              <p className="text-xs mt-0.5" style={{ color: "rgba(15,23,42,0.35)" }}>Checking for marketing bots, engineering products, and funding opportunities. Takes 2–3 minutes.</p>
             </div>
           </div>
         )}
@@ -3250,11 +3250,11 @@ function AutoLabPanel({ pin, onSelectProject }: {
                 return (
                   <div key={p.id} onClick={() => onSelectProject(p)}
                     className="flex items-center gap-3 rounded-xl px-4 py-3 cursor-pointer transition-all"
-                    style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                    style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.07)" }}>
                     <BadgeCheck className="w-4 h-4 flex-shrink-0" style={{ color: "hsl(155,70%,50%)" }} />
                     <div className="flex-1 min-w-0">
                       <p className="text-white text-sm font-medium truncate">{p.name}</p>
-                      <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>{p.industry}</p>
+                      <p className="text-xs" style={{ color: "rgba(15,23,42,0.35)" }}>{p.industry}</p>
                     </div>
                     <span className="text-xs px-2 py-0.5 rounded-full flex-shrink-0"
                       style={{ background: `${cap.color}15`, color: cap.color }}>{cap.label}</span>
@@ -3269,7 +3269,7 @@ function AutoLabPanel({ pin, onSelectProject }: {
         {latestScan && (
           <div>
             <p className="text-white/30 text-xs font-semibold uppercase tracking-wider mb-3">Latest Scan</p>
-            <div className="rounded-2xl p-4" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.07)" }}>
+            <div className="rounded-2xl p-4" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.09)" }}>
               <div className="flex items-start justify-between gap-3 mb-2">
                 <div>
                   <div className="flex items-center gap-2 mb-0.5">
@@ -3278,14 +3278,14 @@ function AutoLabPanel({ pin, onSelectProject }: {
                     }} />
                     <span className="text-white text-sm font-medium capitalize">{latestScan.status === "running" ? "In progress…" : latestScan.status}</span>
                   </div>
-                  <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>{formatDate(latestScan.startedAt)}</p>
+                  <p className="text-xs" style={{ color: "rgba(15,23,42,0.35)" }}>{formatDate(latestScan.startedAt)}</p>
                 </div>
                 <div className="flex gap-4 text-right">
-                  <div><p className="text-white font-bold">{latestScan.projectsCreated}</p><p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>Created</p></div>
-                  <div><p className="text-white font-bold">{latestScan.upgradesApplied}</p><p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>Upgraded</p></div>
+                  <div><p className="text-white font-bold">{latestScan.projectsCreated}</p><p className="text-xs" style={{ color: "rgba(15,23,42,0.35)" }}>Created</p></div>
+                  <div><p className="text-white font-bold">{latestScan.upgradesApplied}</p><p className="text-xs" style={{ color: "rgba(15,23,42,0.35)" }}>Upgraded</p></div>
                 </div>
               </div>
-              {latestScan.summary && <p className="text-xs leading-relaxed mb-2" style={{ color: "rgba(255,255,255,0.45)" }}>{latestScan.summary}</p>}
+              {latestScan.summary && <p className="text-xs leading-relaxed mb-2" style={{ color: "rgba(15,23,42,0.5)" }}>{latestScan.summary}</p>}
               {latestScan.items && (() => {
                 try {
                   const items = JSON.parse(latestScan.items);
@@ -3314,15 +3314,15 @@ function AutoLabPanel({ pin, onSelectProject }: {
             <div className="space-y-1.5">
               {scanHistory.slice(1).map(scan => (
                 <div key={scan.id} className="flex items-center gap-3 rounded-xl px-3.5 py-2.5"
-                  style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                  style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.07)" }}>
                   <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{
                     background: scan.status === "complete" ? "hsl(155,70%,50%)" : scan.status === "error" ? "hsl(0,70%,55%)" : "hsl(45,100%,55%)"
                   }} />
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-white/60">{formatDate(scan.startedAt)}</p>
-                    <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>{scan.projectsCreated} created · {scan.upgradesApplied} upgraded</p>
+                    <p className="text-xs" style={{ color: "rgba(15,23,42,0.35)" }}>{scan.projectsCreated} created · {scan.upgradesApplied} upgraded</p>
                   </div>
-                  <span className="text-xs font-mono" style={{ color: "rgba(255,255,255,0.15)" }}>#{scan.scanId}</span>
+                  <span className="text-xs font-mono" style={{ color: "rgba(15,23,42,0.15)" }}>#{scan.scanId}</span>
                 </div>
               ))}
             </div>
@@ -3332,12 +3332,12 @@ function AutoLabPanel({ pin, onSelectProject }: {
         {/* ── FIRST RUN EMPTY STATE ──────────────────────────────── */}
         {scanHistory.length === 0 && !running && (
           <div className="flex flex-col items-center justify-center py-20 gap-4">
-            <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.07)" }}>
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.09)" }}>
               <Cpu className="w-8 h-8" style={{ color: "hsl(193,100%,40%)" }} />
             </div>
             <div className="text-center space-y-2 max-w-sm">
               <p className="text-white font-semibold text-base">Autonomous Lab is ready</p>
-              <p className="text-xs leading-relaxed" style={{ color: "rgba(255,255,255,0.3)" }}>
+              <p className="text-xs leading-relaxed" style={{ color: "rgba(15,23,42,0.35)" }}>
                 Scans every 24 hours. Each scan finds 6 social media / marketing bot opportunities and 4 precision engineering products (oil & gas, aerospace, medical, hydrogen) manufacturable at Strategic Innovation Dundee. Every new project is sent to you for approval.
               </p>
             </div>
@@ -3426,22 +3426,22 @@ function FundingRadarPanel({ pin }: { pin: string }) {
   const strongMatches = result?.opportunities.reduce((sum, o) => sum + o.matches.filter(m => m.matchStrength === "strong").length, 0) ?? 0;
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 overflow-y-auto" style={{ background: "hsl(226,45%,5%)" }}>
+    <div className="flex-1 flex flex-col min-h-0 overflow-y-auto" style={{ background: "#F8FAFC" }}>
       {/* Header */}
-      <div className="p-6 border-b flex-shrink-0" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+      <div className="p-6 border-b flex-shrink-0" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
               <BadgeCheck className="w-5 h-5" style={{ color: "hsl(155,70%,45%)" }} />
               <h2 className="text-white font-bold text-lg">Funding Radar</h2>
             </div>
-            <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)", maxWidth: "480px" }}>
+            <p className="text-xs" style={{ color: "rgba(15,23,42,0.45)", maxWidth: "480px" }}>
               Scans every project in your Lab against real, active UK and international R&D grant schemes, tax incentives, and innovation funding programmes. Only genuine opportunities — no speculation.
             </p>
           </div>
           <button onClick={runAnalysis} disabled={running}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold flex-shrink-0 transition-all"
-            style={{ background: running ? "hsl(226,45%,12%)" : "hsl(155,70%,38%)", color: "white", border: "1px solid hsla(155,70%,45%,0.3)", opacity: running ? 0.7 : 1 }}>
+            style={{ background: running ? "#F1F5F9" : "hsl(155,70%,38%)", color: "white", border: "1px solid hsla(155,70%,45%,0.3)", opacity: running ? 0.7 : 1 }}>
             {running ? <><Loader2 className="w-4 h-4 animate-spin" /> Scanning...</> : <><RefreshCw className="w-4 h-4" /> Run Analysis</>}
           </button>
         </div>
@@ -3454,9 +3454,9 @@ function FundingRadarPanel({ pin }: { pin: string }) {
               { label: "Projects Analysed", value: result.opportunities.length, color: "hsl(45,100%,50%)" },
             ].map(s => (
               <div key={s.label} className="rounded-xl p-3 text-center"
-                style={{ background: "hsl(226,45%,8%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                style={{ background: "#F8FAFC", border: "1px solid rgba(15,23,42,0.07)" }}>
                 <p className="text-xl font-bold" style={{ color: s.color }}>{s.value}</p>
-                <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>{s.label}</p>
+                <p className="text-xs mt-0.5" style={{ color: "rgba(15,23,42,0.4)" }}>{s.label}</p>
               </div>
             ))}
           </div>
@@ -3468,12 +3468,12 @@ function FundingRadarPanel({ pin }: { pin: string }) {
         {!result && !running && (
           <div className="flex flex-col items-center justify-center py-24 gap-5">
             <div className="w-16 h-16 rounded-2xl flex items-center justify-center"
-              style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.07)" }}>
+              style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.09)" }}>
               <BadgeCheck className="w-8 h-8" style={{ color: "hsl(155,70%,45%)" }} />
             </div>
             <div className="text-center space-y-1.5">
               <p className="text-white font-semibold text-base">Find funding for your projects</p>
-              <p className="text-xs max-w-sm leading-relaxed" style={{ color: "rgba(255,255,255,0.35)" }}>
+              <p className="text-xs max-w-sm leading-relaxed" style={{ color: "rgba(15,23,42,0.4)" }}>
                 Analyses every project in your Lab against UK RDEC, Innovate UK, Horizon Europe, DASA, sector-specific funds, and international tax incentives. Projects with a Brief or Specs get the most relevant results.
               </p>
             </div>
@@ -3492,12 +3492,12 @@ function FundingRadarPanel({ pin }: { pin: string }) {
             ) : (
               <Loader2 className="w-8 h-8 animate-spin" style={{ color: "hsl(155,70%,45%)" }} />
             )}
-            <p className="text-sm" style={{ color: searching ? "hsl(193,100%,65%)" : "rgba(255,255,255,0.5)" }}>
+            <p className="text-sm" style={{ color: searching ? "hsl(193,100%,65%)" : "rgba(15,23,42,0.55)" }}>
               {searching ? "Searching the web for live funding data…" : "Analysing projects against funding databases..."}
             </p>
             {rawStream && (
               <div className="max-w-md w-full rounded-xl p-4 font-mono text-xs leading-relaxed"
-                style={{ background: "hsl(226,45%,8%)", color: "rgba(255,255,255,0.3)", border: "1px solid rgba(255,255,255,0.06)", maxHeight: "120px", overflow: "hidden" }}>
+                style={{ background: "#F8FAFC", color: "rgba(15,23,42,0.35)", border: "1px solid rgba(15,23,42,0.07)", maxHeight: "120px", overflow: "hidden" }}>
                 {rawStream.slice(-400)}
               </div>
             )}
@@ -3508,9 +3508,9 @@ function FundingRadarPanel({ pin }: { pin: string }) {
           <>
             {/* Summary */}
             {result.summary && (
-              <div className="rounded-xl p-4" style={{ background: "hsl(226,45%,9%)", border: "1px solid hsla(155,70%,45%,0.2)" }}>
+              <div className="rounded-xl p-4" style={{ background: "#F1F5F9", border: "1px solid hsla(155,70%,45%,0.2)" }}>
                 <p className="text-xs font-mono mb-1.5" style={{ color: "hsl(155,70%,45%)", letterSpacing: "0.1em" }}>PORTFOLIO SUMMARY</p>
-                <p className="text-sm leading-relaxed" style={{ color: "rgba(255,255,255,0.75)" }}>{result.summary}</p>
+                <p className="text-sm leading-relaxed" style={{ color: "rgba(15,23,42,0.76)" }}>{result.summary}</p>
               </div>
             )}
 
@@ -3520,21 +3520,21 @@ function FundingRadarPanel({ pin }: { pin: string }) {
                 <button key={f} onClick={() => setFilter(f)}
                   className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
                   style={{
-                    background: filter === f ? "hsl(226,45%,14%)" : "transparent",
-                    border: filter === f ? "1px solid rgba(255,255,255,0.15)" : "1px solid rgba(255,255,255,0.06)",
-                    color: filter === f ? "white" : "rgba(255,255,255,0.35)",
+                    background: filter === f ? "#E8EEF5" : "transparent",
+                    border: filter === f ? "1px solid rgba(15,23,42,0.15)" : "1px solid rgba(15,23,42,0.07)",
+                    color: filter === f ? "white" : "rgba(15,23,42,0.4)",
                   }}>
                   {f === "all" ? "All Regions" : f}
                 </button>
               ))}
-              <span className="ml-auto text-xs" style={{ color: "rgba(255,255,255,0.25)" }}>
+              <span className="ml-auto text-xs" style={{ color: "rgba(15,23,42,0.2)" }}>
                 {filteredOpportunities.reduce((s, o) => s + o.matches.length, 0)} opportunities shown
               </span>
             </div>
 
             {/* Opportunities by project */}
             {filteredOpportunities.length === 0 && (
-              <p className="text-center py-12 text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>
+              <p className="text-center py-12 text-sm" style={{ color: "rgba(15,23,42,0.35)" }}>
                 No opportunities found for the selected region filter.
               </p>
             )}
@@ -3558,7 +3558,7 @@ function FundingRadarPanel({ pin }: { pin: string }) {
 
                   return (
                     <div key={idx} className="rounded-xl overflow-hidden transition-all"
-                      style={{ background: "hsl(226,45%,8%)", border: `1px solid ${strength.border}` }}>
+                      style={{ background: "#F8FAFC", border: `1px solid ${strength.border}` }}>
                       {/* Card header — always visible */}
                       <button onClick={() => toggleCard(cardKey)} className="w-full text-left p-4">
                         <div className="flex items-start gap-3">
@@ -3574,7 +3574,7 @@ function FundingRadarPanel({ pin }: { pin: string }) {
                               </span>
                               {/* Type */}
                               <span className="text-[10px] px-2 py-0.5 rounded-full"
-                                style={{ background: "hsl(226,45%,12%)", color: "rgba(255,255,255,0.5)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                                style={{ background: "#F1F5F9", color: "rgba(15,23,42,0.55)", border: "1px solid rgba(15,23,42,0.1)" }}>
                                 {TYPE_LABELS[match.type] || match.type}
                               </span>
                               {/* Geography */}
@@ -3589,25 +3589,25 @@ function FundingRadarPanel({ pin }: { pin: string }) {
                             </div>
                           </div>
                           <ChevronDown className="w-4 h-4 flex-shrink-0 transition-transform mt-0.5"
-                            style={{ color: "rgba(255,255,255,0.3)", transform: expanded ? "rotate(180deg)" : "rotate(0deg)" }} />
+                            style={{ color: "rgba(15,23,42,0.35)", transform: expanded ? "rotate(180deg)" : "rotate(0deg)" }} />
                         </div>
                         {/* Match reason — always shown */}
-                        <p className="text-xs mt-2 leading-relaxed" style={{ color: "rgba(255,255,255,0.55)" }}>
+                        <p className="text-xs mt-2 leading-relaxed" style={{ color: "rgba(15,23,42,0.58)" }}>
                           {match.matchReason}
                         </p>
                       </button>
 
                       {/* Expanded detail */}
                       {expanded && (
-                        <div className="px-4 pb-4 space-y-3 border-t" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+                        <div className="px-4 pb-4 space-y-3 border-t" style={{ borderColor: "rgba(15,23,42,0.06)" }}>
                           <div className="pt-3 space-y-3">
-                            <div className="rounded-lg p-3" style={{ background: "hsl(226,45%,11%)", border: "1px solid rgba(255,255,255,0.05)" }}>
-                              <p className="text-[10px] font-mono mb-1" style={{ color: "rgba(255,255,255,0.3)", letterSpacing: "0.1em" }}>EVIDENCE NEEDED</p>
-                              <p className="text-xs leading-relaxed" style={{ color: "rgba(255,255,255,0.65)" }}>{match.keyEvidence}</p>
+                            <div className="rounded-lg p-3" style={{ background: "#F8FAFC", border: "1px solid rgba(15,23,42,0.06)" }}>
+                              <p className="text-[10px] font-mono mb-1" style={{ color: "rgba(15,23,42,0.35)", letterSpacing: "0.1em" }}>EVIDENCE NEEDED</p>
+                              <p className="text-xs leading-relaxed" style={{ color: "rgba(15,23,42,0.67)" }}>{match.keyEvidence}</p>
                             </div>
                             <div className="rounded-lg p-3" style={{ background: "hsla(155,70%,35%,0.08)", border: "1px solid hsla(155,70%,35%,0.2)" }}>
                               <p className="text-[10px] font-mono mb-1" style={{ color: "hsl(155,70%,45%)", letterSpacing: "0.1em" }}>NEXT STEP</p>
-                              <p className="text-xs leading-relaxed" style={{ color: "rgba(255,255,255,0.7)" }}>{match.nextStep}</p>
+                              <p className="text-xs leading-relaxed" style={{ color: "rgba(15,23,42,0.72)" }}>{match.nextStep}</p>
                             </div>
                             {match.url && (
                               <a href={match.url} target="_blank" rel="noopener noreferrer"
@@ -3661,7 +3661,7 @@ const TONES = ["Professional", "Friendly", "Bold", "Concise", "Warm"];
 
 const STATUS_COLOR: Record<string, string> = {
   prospect: "hsl(210,70%,55%)", contacted: "hsl(45,100%,55%)",
-  replied: "hsl(155,70%,50%)", converted: "hsl(155,100%,45%)", unsubscribed: "rgba(255,255,255,0.2)",
+  replied: "hsl(155,70%,50%)", converted: "hsl(155,100%,45%)", unsubscribed: "rgba(15,23,42,0.15)",
 };
 
 function OutreachHubPanel({ pin }: { pin: string }) {
@@ -3862,7 +3862,7 @@ function OutreachHubPanel({ pin }: { pin: string }) {
   };
 
   // ─── COMPUTED ────────────────────────────────────────────────────────────────
-  const inp = "w-full text-xs text-white placeholder-white/20 outline-none rounded-xl px-3 py-2 bg-[hsl(226,45%,12%)] border border-[rgba(255,255,255,0.07)]";
+  const inp = "w-full text-xs text-white placeholder-slate-400 outline-none rounded-xl px-3 py-2 bg-[#F1F5F9] border border-[rgba(15,23,42,0.09)]";
   const filteredContacts = sectorFilter === "All" ? contacts : contacts.filter(c => c.sector === sectorFilter);
   const allSectors = ["All", ...Array.from(new Set(contacts.map(c => c.sector)))];
 
@@ -3877,7 +3877,7 @@ function OutreachHubPanel({ pin }: { pin: string }) {
   return (
     <div className="flex flex-col h-full min-h-0">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b flex-shrink-0" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+      <div className="flex items-center justify-between px-6 py-4 border-b flex-shrink-0" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
         <div className="flex items-center gap-3">
           <Mail className="w-5 h-5" style={{ color: "hsl(340,80%,60%)" }} />
           <div>
@@ -3885,13 +3885,13 @@ function OutreachHubPanel({ pin }: { pin: string }) {
             <p className="text-white/30 text-xs">{contacts.length} contacts · {campaigns.length} campaigns</p>
           </div>
         </div>
-        <div className="flex gap-1 p-1 rounded-xl" style={{ background: "hsl(226,45%,10%)" }}>
+        <div className="flex gap-1 p-1 rounded-xl" style={{ background: "#FFFFFF" }}>
           {VIEWS.map(v => {
             const Icon = v.icon;
             return (
               <button key={v.id} onClick={() => setView(v.id)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all"
-                style={{ background: view === v.id ? "hsl(340,80%,45%)" : "transparent", color: view === v.id ? "white" : "rgba(255,255,255,0.35)" }}>
+                style={{ background: view === v.id ? "hsl(340,80%,45%)" : "transparent", color: view === v.id ? "white" : "rgba(15,23,42,0.4)" }}>
                 <Icon className="w-3 h-3" />{v.label}
               </button>
             );
@@ -3914,19 +3914,19 @@ function OutreachHubPanel({ pin }: { pin: string }) {
               </button>
               <button onClick={() => setBulkOpen(o => !o)}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs transition-all"
-                style={{ background: "hsl(226,45%,14%)", color: "rgba(255,255,255,0.6)" }}>
+                style={{ background: "#E8EEF5", color: "rgba(15,23,42,0.62)" }}>
                 <Upload className="w-3 h-3" /> Bulk Import
               </button>
               <button onClick={() => setScanOpen(o => !o)}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs transition-all"
-                style={{ background: "hsl(226,45%,14%)", color: "rgba(255,255,255,0.6)" }}>
+                style={{ background: "#E8EEF5", color: "rgba(15,23,42,0.62)" }}>
                 <Telescope className="w-3 h-3" /> AI Scan
               </button>
               <div className="ml-auto flex gap-1">
                 {allSectors.map(s => (
                   <button key={s} onClick={() => setSectorFilter(s)}
                     className="px-2.5 py-1 rounded-lg text-xs transition-all"
-                    style={{ background: sectorFilter === s ? "hsl(193,100%,30%)" : "hsl(226,45%,12%)", color: sectorFilter === s ? "white" : "rgba(255,255,255,0.3)" }}>
+                    style={{ background: sectorFilter === s ? "hsl(193,100%,30%)" : "#F1F5F9", color: sectorFilter === s ? "white" : "rgba(15,23,42,0.35)" }}>
                     {s}
                   </button>
                 ))}
@@ -3935,7 +3935,7 @@ function OutreachHubPanel({ pin }: { pin: string }) {
 
             {/* Add contact form */}
             {addOpen && (
-              <div className="p-4 rounded-2xl space-y-3" style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <div className="p-4 rounded-2xl space-y-3" style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.09)" }}>
                 <p className="text-white/50 text-xs font-medium">New Contact</p>
                 <div className="grid grid-cols-2 gap-2">
                   {[["Name *", "name", "Jane Smith"], ["Email", "email", "jane@company.com"], ["Company", "company", "Acme Ltd"], ["Role", "role", "CEO"], ["Sector", "sector", "Oil & Gas"], ["Location", "location", "Aberdeen"]].map(([label, key, ph]) => (
@@ -3950,7 +3950,7 @@ function OutreachHubPanel({ pin }: { pin: string }) {
                   <textarea value={newC.notes} onChange={e => setNewC(p => ({ ...p, notes: e.target.value }))} rows={2} placeholder="Any context…" className={inp + " resize-none"} />
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => setAddOpen(false)} className="px-3 py-2 rounded-xl text-xs text-white/40" style={{ background: "hsl(226,45%,13%)" }}>Cancel</button>
+                  <button onClick={() => setAddOpen(false)} className="px-3 py-2 rounded-xl text-xs text-white/40" style={{ background: "#EEF2F8" }}>Cancel</button>
                   <button onClick={async () => { await addContact(); setAddOpen(false); setNewC({ name: "", email: "", company: "", role: "", sector: "Oil & Gas", website: "", location: "", notes: "" }); }}
                     className="px-4 py-2 rounded-xl text-xs font-semibold text-white" style={{ background: "hsl(340,80%,42%)" }}>
                     Save Contact
@@ -3961,7 +3961,7 @@ function OutreachHubPanel({ pin }: { pin: string }) {
 
             {/* Bulk import */}
             {bulkOpen && (
-              <div className="p-4 rounded-2xl space-y-3" style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <div className="p-4 rounded-2xl space-y-3" style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.09)" }}>
                 <p className="text-white/50 text-xs font-medium">Bulk Import — paste CSV (Name, Email, Company, Role)</p>
                 <textarea value={bulkText} onChange={e => setBulkText(e.target.value)} rows={5} placeholder={"Jane Smith, jane@co.com, Acme, CEO\nBob Jones, bob@firm.com, Firm Ltd, CFO"} className={inp + " resize-none font-mono"} />
                 <div className="flex gap-2 items-center">
@@ -3986,7 +3986,7 @@ function OutreachHubPanel({ pin }: { pin: string }) {
 
             {/* AI sector scan */}
             {scanOpen && (
-              <div className="p-4 rounded-2xl space-y-3" style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <div className="p-4 rounded-2xl space-y-3" style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.09)" }}>
                 <p className="text-white/50 text-xs font-medium">AI Sector Scanner — finds real companies + contacts</p>
                 <div className="flex gap-2">
                   <select value={scanSector} onChange={e => setScanSector(e.target.value)} className={inp + " flex-1"}>
@@ -3995,7 +3995,7 @@ function OutreachHubPanel({ pin }: { pin: string }) {
                   <input type="number" min={5} max={50} value={scanCount} onChange={e => setScanCount(+e.target.value)} className={inp + " w-20"} />
                 </div>
                 {scanLog.length > 0 && (
-                  <div className="p-3 rounded-xl font-mono text-xs text-green-400 space-y-1 max-h-32 overflow-y-auto" style={{ background: "hsl(226,45%,8%)" }}>
+                  <div className="p-3 rounded-xl font-mono text-xs text-green-400 space-y-1 max-h-32 overflow-y-auto" style={{ background: "#F8FAFC" }}>
                     {scanLog.map((l, i) => <div key={i}>{l}</div>)}
                   </div>
                 )}
@@ -4027,7 +4027,7 @@ function OutreachHubPanel({ pin }: { pin: string }) {
             ) : (
               <div className="space-y-2">
                 {filteredContacts.map(c => (
-                  <div key={c.id} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                  <div key={c.id} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.06)" }}>
                     <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-sm font-bold" style={{ background: "hsl(340,80%,25%)", color: "hsl(340,80%,70%)" }}>
                       {c.name.charAt(0).toUpperCase()}
                     </div>
@@ -4036,7 +4036,7 @@ function OutreachHubPanel({ pin }: { pin: string }) {
                       <p className="text-white/35 text-xs truncate">{c.company} · {c.role}</p>
                       <p className="text-white/20 text-xs truncate">{c.email}</p>
                     </div>
-                    <span className="px-2 py-0.5 rounded-lg text-xs flex-shrink-0" style={{ background: "hsl(226,45%,16%)", color: "rgba(255,255,255,0.4)" }}>{c.sector}</span>
+                    <span className="px-2 py-0.5 rounded-lg text-xs flex-shrink-0" style={{ background: "#DCE4F0", color: "rgba(15,23,42,0.45)" }}>{c.sector}</span>
                     <button onClick={async () => { await fetch(`${base}outreach/contacts/${c.id}`, { method: "DELETE", headers: { "x-lab-pin": pin } }); loadContacts(); }}
                       className="text-white/15 hover:text-red-400 transition-colors flex-shrink-0">
                       <X className="w-3.5 h-3.5" />
@@ -4058,7 +4058,7 @@ function OutreachHubPanel({ pin }: { pin: string }) {
             </button>
 
             {showCreateCamp && (
-              <div className="p-4 rounded-2xl space-y-3" style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <div className="p-4 rounded-2xl space-y-3" style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.09)" }}>
                 <p className="text-white/50 text-xs font-medium">Create Campaign</p>
                 <div>
                   <label className="text-white/30 text-xs mb-1 block">Campaign Name</label>
@@ -4094,7 +4094,7 @@ function OutreachHubPanel({ pin }: { pin: string }) {
                       return (
                         <button key={s} onClick={() => setNewCamp(p => ({ ...p, targetSectors: active ? p.targetSectors.filter(x => x !== s) : [...p.targetSectors, s] }))}
                           className="px-2.5 py-1 rounded-lg text-xs transition-all"
-                          style={{ background: active ? "hsl(340,80%,45%)" : "hsl(226,45%,14%)", color: active ? "white" : "rgba(255,255,255,0.35)" }}>
+                          style={{ background: active ? "hsl(340,80%,45%)" : "#E8EEF5", color: active ? "white" : "rgba(15,23,42,0.4)" }}>
                           {s}
                         </button>
                       );
@@ -4102,7 +4102,7 @@ function OutreachHubPanel({ pin }: { pin: string }) {
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => setShowCreateCamp(false)} className="px-3 py-2 rounded-xl text-xs text-white/40" style={{ background: "hsl(226,45%,13%)" }}>Cancel</button>
+                  <button onClick={() => setShowCreateCamp(false)} className="px-3 py-2 rounded-xl text-xs text-white/40" style={{ background: "#EEF2F8" }}>Cancel</button>
                   <button onClick={async () => {
                     setCreating(true);
                     await fetch(`${base}outreach/campaigns`, { method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin }, body: JSON.stringify(newCamp) });
@@ -4123,13 +4123,13 @@ function OutreachHubPanel({ pin }: { pin: string }) {
             ) : (
               <div className="space-y-3">
                 {campaigns.map(camp => (
-                  <div key={camp.id} className="p-4 rounded-2xl" style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div key={camp.id} className="p-4 rounded-2xl" style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.07)" }}>
                     <div className="flex items-start justify-between gap-2 mb-2">
                       <div>
                         <p className="text-white text-sm font-medium">{camp.name}</p>
                         <p className="text-white/30 text-xs mt-0.5">{camp.product} · {camp.messageType} · {camp.tone}</p>
                       </div>
-                      <span className="px-2 py-0.5 rounded-lg text-xs flex-shrink-0" style={{ background: camp.status === "active" ? "hsl(155,70%,18%)" : "hsl(226,45%,16%)", color: camp.status === "active" ? "hsl(155,70%,60%)" : "rgba(255,255,255,0.35)" }}>
+                      <span className="px-2 py-0.5 rounded-lg text-xs flex-shrink-0" style={{ background: camp.status === "active" ? "hsl(155,70%,18%)" : "#DCE4F0", color: camp.status === "active" ? "hsl(155,70%,60%)" : "rgba(15,23,42,0.4)" }}>
                         {camp.status}
                       </span>
                     </div>
@@ -4148,7 +4148,7 @@ function OutreachHubPanel({ pin }: { pin: string }) {
                       </button>
                       <button onClick={async () => { await fetch(`${base}outreach/campaigns/${camp.id}`, { method: "DELETE", headers: { "x-lab-pin": pin } }); loadCampaigns(); }}
                         className="px-3 py-1.5 rounded-lg text-xs text-white/30 transition-all"
-                        style={{ background: "hsl(226,45%,14%)" }}>
+                        style={{ background: "#E8EEF5" }}>
                         Delete
                       </button>
                     </div>
@@ -4207,7 +4207,7 @@ function OutreachHubPanel({ pin }: { pin: string }) {
                 </div>
 
                 {generating && (
-                  <div className="p-3 rounded-xl font-mono text-xs text-green-400 space-y-1 max-h-40 overflow-y-auto" style={{ background: "hsl(226,45%,8%)" }}>
+                  <div className="p-3 rounded-xl font-mono text-xs text-green-400 space-y-1 max-h-40 overflow-y-auto" style={{ background: "#F8FAFC" }}>
                     <div className="flex items-center gap-2 text-white/40 mb-1"><Loader2 className="w-3 h-3 animate-spin" />Generating…</div>
                     {genLog.map((l, i) => <div key={i}>{l}</div>)}
                   </div>
@@ -4216,7 +4216,7 @@ function OutreachHubPanel({ pin }: { pin: string }) {
                 {sends.length > 0 && (
                   <div className="space-y-3">
                     {sends.map(s => (
-                      <div key={s.id} className="p-4 rounded-2xl" style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                      <div key={s.id} className="p-4 rounded-2xl" style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.07)" }}>
                         <div className="flex items-center gap-2 mb-3">
                           <div className="w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold" style={{ background: "hsl(340,80%,25%)", color: "hsl(340,80%,70%)" }}>
                             {s.contact?.name?.charAt(0) || "?"}
@@ -4225,7 +4225,7 @@ function OutreachHubPanel({ pin }: { pin: string }) {
                             <p className="text-white text-xs font-medium">{s.contact?.name}</p>
                             <p className="text-white/30 text-xs">{s.contact?.email}</p>
                           </div>
-                          <span className="ml-auto px-2 py-0.5 rounded-lg text-xs" style={{ background: s.status === "sent" ? "hsl(155,70%,18%)" : "hsl(226,45%,16%)", color: s.status === "sent" ? "hsl(155,70%,60%)" : "rgba(255,255,255,0.35)" }}>
+                          <span className="ml-auto px-2 py-0.5 rounded-lg text-xs" style={{ background: s.status === "sent" ? "hsl(155,70%,18%)" : "#DCE4F0", color: s.status === "sent" ? "hsl(155,70%,60%)" : "rgba(15,23,42,0.4)" }}>
                             {s.status}
                           </span>
                         </div>
@@ -4245,11 +4245,11 @@ function OutreachHubPanel({ pin }: { pin: string }) {
                   {showSmtp && (
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                       className="fixed inset-0 z-50 flex items-center justify-center p-6"
-                      style={{ background: "rgba(0,0,0,0.7)" }}
+                      style={{ background: "rgba(0,0,0,0.08)" }}
                       onClick={() => setShowSmtp(false)}>
                       <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
                         onClick={e => e.stopPropagation()}
-                        className="w-full max-w-md rounded-2xl p-6 space-y-4" style={{ background: "hsl(226,45%,11%)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                        className="w-full max-w-md rounded-2xl p-6 space-y-4" style={{ background: "#F8FAFC", border: "1px solid rgba(15,23,42,0.12)" }}>
                         <p className="text-white font-semibold text-sm">SMTP Settings — Launch Campaign</p>
                         {[
                           { label: "SMTP Host", val: smtpHost, set: setSmtpHost, ph: "smtp.gmail.com" },
@@ -4272,7 +4272,7 @@ function OutreachHubPanel({ pin }: { pin: string }) {
                           </div>
                         )}
                         <div className="flex gap-3">
-                          <button onClick={() => setShowSmtp(false)} className="flex-1 py-2.5 rounded-xl text-sm text-white/40" style={{ background: "hsl(226,45%,13%)" }}>Cancel</button>
+                          <button onClick={() => setShowSmtp(false)} className="flex-1 py-2.5 rounded-xl text-sm text-white/40" style={{ background: "#EEF2F8" }}>Cancel</button>
                           <button onClick={launchCampaign} disabled={launching}
                             className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 disabled:opacity-50"
                             style={{ background: "hsl(155,70%,35%)" }}>
@@ -4302,19 +4302,19 @@ function OutreachHubPanel({ pin }: { pin: string }) {
                     { label: "Emails Sent", val: analytics.totalSent || 0, color: "hsl(155,70%,50%)" },
                     { label: "Pending Pitches", val: analytics.totalPending || 0, color: "hsl(45,100%,55%)" },
                   ].map(s => (
-                    <div key={s.label} className="p-4 rounded-2xl" style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                    <div key={s.label} className="p-4 rounded-2xl" style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.07)" }}>
                       <p className="text-3xl font-bold mb-1" style={{ color: s.color }}>{s.val}</p>
                       <p className="text-white/30 text-xs">{s.label}</p>
                     </div>
                   ))}
                 </div>
                 {analytics.bySector && analytics.bySector.length > 0 && (
-                  <div className="p-4 rounded-2xl" style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div className="p-4 rounded-2xl" style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.07)" }}>
                     <p className="text-white/50 text-xs font-medium mb-3">Contacts by Sector</p>
                     {analytics.bySector.map((s: any) => (
                       <div key={s.sector} className="flex items-center gap-3 mb-2">
                         <p className="text-white/60 text-xs w-32 truncate">{s.sector}</p>
-                        <div className="flex-1 h-1.5 rounded-full" style={{ background: "hsl(226,45%,16%)" }}>
+                        <div className="flex-1 h-1.5 rounded-full" style={{ background: "#DCE4F0" }}>
                           <div className="h-full rounded-full" style={{ width: `${Math.min(100, (s.count / (analytics.totalContacts || 1)) * 100)}%`, background: "hsl(340,80%,50%)" }} />
                         </div>
                         <p className="text-white/30 text-xs w-6 text-right">{s.count}</p>
@@ -4401,7 +4401,7 @@ function BrainPanel({ pin }: { pin: string }) {
   };
 
   const memoryLines = (profile?.memories || "").split("\n").filter(Boolean);
-  const inp = "w-full text-xs text-white placeholder-white/20 outline-none rounded-xl px-3 py-2 bg-[hsl(226,45%,12%)] border border-[rgba(255,255,255,0.07)]";
+  const inp = "w-full text-xs text-white placeholder-slate-400 outline-none rounded-xl px-3 py-2 bg-[#F1F5F9] border border-[rgba(15,23,42,0.09)]";
 
   const TABS = [
     { id: "memory" as const, label: "Memory", icon: Brain },
@@ -4411,7 +4411,7 @@ function BrainPanel({ pin }: { pin: string }) {
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      <div className="px-6 py-4 border-b flex-shrink-0 flex items-center justify-between" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+      <div className="px-6 py-4 border-b flex-shrink-0 flex items-center justify-between" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
         <div className="flex items-center gap-3">
           <Brain className="w-5 h-5" style={{ color: "hsl(280,70%,65%)" }} />
           <div>
@@ -4419,13 +4419,13 @@ function BrainPanel({ pin }: { pin: string }) {
             <p className="text-white/30 text-xs">{memoryLines.length} memories · what Sirius knows about you</p>
           </div>
         </div>
-        <div className="flex gap-1 p-1 rounded-xl" style={{ background: "hsl(226,45%,10%)" }}>
+        <div className="flex gap-1 p-1 rounded-xl" style={{ background: "#FFFFFF" }}>
           {TABS.map(t => {
             const Icon = t.icon;
             return (
               <button key={t.id} onClick={() => setTab(t.id)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all"
-                style={{ background: tab === t.id ? "hsl(280,70%,45%)" : "transparent", color: tab === t.id ? "white" : "rgba(255,255,255,0.35)" }}>
+                style={{ background: tab === t.id ? "hsl(280,70%,45%)" : "transparent", color: tab === t.id ? "white" : "rgba(15,23,42,0.4)" }}>
                 <Icon className="w-3 h-3" />{t.label}
               </button>
             );
@@ -4440,11 +4440,11 @@ function BrainPanel({ pin }: { pin: string }) {
           <>
             {tab === "memory" && (
               <div className="space-y-5">
-                <div className="p-4 rounded-2xl" style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                <div className="p-4 rounded-2xl" style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.07)" }}>
                   <p className="text-white/40 text-xs font-medium mb-1">How memory works</p>
                   <p className="text-white/25 text-xs leading-relaxed">Sirius automatically extracts facts from your conversations. You can also add specific facts below. Every memory is injected into every conversation — so Sirius always knows your context without having to be told again.</p>
                 </div>
-                <div className="p-4 rounded-2xl space-y-3" style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                <div className="p-4 rounded-2xl space-y-3" style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.07)" }}>
                   <p className="text-white/50 text-xs font-medium">Add a memory fact</p>
                   <div className="flex gap-2">
                     <select value={newFactCat} onChange={e => setNewFactCat(e.target.value)} className={inp + " w-36 flex-shrink-0"}>
@@ -4474,7 +4474,7 @@ function BrainPanel({ pin }: { pin: string }) {
                   ) : (
                     <div className="space-y-2">
                       {memoryLines.map((line, i) => (
-                        <div key={i} className="flex items-start gap-2 p-3 rounded-xl" style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                        <div key={i} className="flex items-start gap-2 p-3 rounded-xl" style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.06)" }}>
                           <Brain className="w-3 h-3 mt-0.5 flex-shrink-0" style={{ color: "hsl(280,70%,55%)" }} />
                           <p className="text-white/60 text-xs leading-relaxed">{line}</p>
                         </div>
@@ -4487,7 +4487,7 @@ function BrainPanel({ pin }: { pin: string }) {
 
             {tab === "business" && (
               <div className="space-y-4">
-                <div className="p-4 rounded-2xl" style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                <div className="p-4 rounded-2xl" style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.07)" }}>
                   <p className="text-white/40 text-xs font-medium mb-1">Business profile</p>
                   <p className="text-white/25 text-xs leading-relaxed">This is baked into every Sirius response. The more detail here, the more precisely Sirius can help with outreach, project briefs, revenue strategy, and intelligence scanning.</p>
                 </div>
@@ -4522,7 +4522,7 @@ function BrainPanel({ pin }: { pin: string }) {
 
             {tab === "actions" && (
               <div className="space-y-4">
-                <div className="p-4 rounded-2xl" style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                <div className="p-4 rounded-2xl" style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.07)" }}>
                   <p className="text-white/40 text-xs font-medium mb-1">AI-powered actions</p>
                   <p className="text-white/25 text-xs leading-relaxed">These run autonomously using everything Sirius knows about your business. Unlike any chatbot, Sirius actually does things — not just talks about them.</p>
                 </div>
@@ -4534,7 +4534,7 @@ function BrainPanel({ pin }: { pin: string }) {
                 ].map(a => {
                   const Icon = a.icon;
                   return (
-                    <div key={a.action} className="p-4 rounded-2xl" style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                    <div key={a.action} className="p-4 rounded-2xl" style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.07)" }}>
                       <div className="flex items-start gap-3">
                         <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: a.color + "22" }}>
                           <Icon className="w-4 h-4" style={{ color: a.color }} />
@@ -4554,7 +4554,7 @@ function BrainPanel({ pin }: { pin: string }) {
                   );
                 })}
                 {actionLog.length > 0 && (
-                  <div className="p-4 rounded-2xl font-mono text-xs space-y-1 max-h-48 overflow-y-auto" style={{ background: "hsl(226,45%,8%)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                  <div className="p-4 rounded-2xl font-mono text-xs space-y-1 max-h-48 overflow-y-auto" style={{ background: "#F8FAFC", border: "1px solid rgba(15,23,42,0.06)" }}>
                     {actionLog.map((l, i) => <div key={i} className="text-green-400/80">{l}</div>)}
                   </div>
                 )}
@@ -4609,8 +4609,8 @@ function DeepResearchPanel({ pin }: { pin: string }) {
   };
 
   return (
-    <div className="flex-1 flex flex-col min-h-0" style={{ background: "hsl(226,45%,6%)" }}>
-      <div className="p-6 border-b" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+    <div className="flex-1 flex flex-col min-h-0" style={{ background: "#F5F7FF" }}>
+      <div className="p-6 border-b" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
         <div className="flex items-center gap-3 mb-1">
           <BookOpen className="w-5 h-5" style={{ color: "hsl(45,100%,55%)" }} />
           <h2 className="text-white font-bold text-lg">Deep Research</h2>
@@ -4623,17 +4623,17 @@ function DeepResearchPanel({ pin }: { pin: string }) {
 
       <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
         {/* Input */}
-        <div className="rounded-2xl p-4" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.07)" }}>
+        <div className="rounded-2xl p-4" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.09)" }}>
           <label className="text-white/40 text-xs mb-2 block font-semibold uppercase tracking-wide">Research Topic or Question</label>
           <textarea
-            className="w-full bg-transparent text-white text-sm placeholder-white/20 resize-none outline-none leading-relaxed"
+            className="w-full bg-transparent text-white text-sm placeholder-slate-400 resize-none outline-none leading-relaxed"
             rows={3}
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder="e.g. What are the biggest opportunities in hydrogen fuel cell technology for UK manufacturers in 2025? Include market size, key players, and entry points."
             onKeyDown={e => { if (e.key === "Enter" && e.metaKey) runResearch(); }}
           />
-          <div className="flex items-center justify-between mt-3 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+          <div className="flex items-center justify-between mt-3 pt-3" style={{ borderTop: "1px solid rgba(15,23,42,0.07)" }}>
             <span className="text-white/20 text-xs">⌘ + Enter to run</span>
             <button
               onClick={runResearch}
@@ -4647,7 +4647,7 @@ function DeepResearchPanel({ pin }: { pin: string }) {
 
         {/* Loading state */}
         {loading && (
-          <div className="rounded-2xl p-6" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.07)" }}>
+          <div className="rounded-2xl p-6" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.09)" }}>
             <div className="flex items-center gap-3 mb-4">
               <Loader2 className="w-4 h-4 animate-spin" style={{ color: "hsl(45,100%,55%)" }} />
               <span className="text-white/60 text-sm">Sirius is researching — browsing multiple sources…</span>
@@ -4655,7 +4655,7 @@ function DeepResearchPanel({ pin }: { pin: string }) {
             <div className="space-y-2">
               {["Scanning web sources", "Cross-referencing findings", "Synthesising report"].map((step, i) => (
                 <div key={step} className="flex items-center gap-2 text-xs text-white/30">
-                  <div className="w-1.5 h-1.5 rounded-full" style={{ background: i === 0 ? "hsl(45,100%,55%)" : "rgba(255,255,255,0.15)" }} />
+                  <div className="w-1.5 h-1.5 rounded-full" style={{ background: i === 0 ? "hsl(45,100%,55%)" : "rgba(15,23,42,0.15)" }} />
                   {step}
                 </div>
               ))}
@@ -4675,11 +4675,11 @@ function DeepResearchPanel({ pin }: { pin: string }) {
           <div className="space-y-4">
             {/* Research steps */}
             {result.steps?.length > 0 && (
-              <div className="rounded-xl p-4" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+              <div className="rounded-xl p-4" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.07)" }}>
                 <p className="text-white/30 text-xs font-semibold uppercase tracking-wide mb-3">Research Path</p>
                 <div className="flex flex-wrap gap-2">
                   {result.steps.map((step, i) => (
-                    <span key={i} className="text-xs px-2.5 py-1 rounded-lg" style={{ background: "rgba(45,100,255,0.08)", color: "rgba(255,255,255,0.4)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                    <span key={i} className="text-xs px-2.5 py-1 rounded-lg" style={{ background: "rgba(45,100,255,0.08)", color: "rgba(15,23,42,0.45)", border: "1px solid rgba(15,23,42,0.07)" }}>
                       {i + 1}. {step}
                     </span>
                   ))}
@@ -4688,7 +4688,7 @@ function DeepResearchPanel({ pin }: { pin: string }) {
             )}
 
             {/* Report */}
-            <div className="rounded-2xl p-6" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(45,100%,55%,0.2)" }}>
+            <div className="rounded-2xl p-6" style={{ background: "#F1F5F9", border: "1px solid rgba(45,100%,55%,0.2)" }}>
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   <BookOpen className="w-4 h-4" style={{ color: "hsl(45,100%,55%)" }} />
@@ -4696,7 +4696,7 @@ function DeepResearchPanel({ pin }: { pin: string }) {
                 </div>
                 <button onClick={() => { navigator.clipboard.writeText(result.report); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
                   className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-all hover:opacity-80"
-                  style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)" }}>
+                  style={{ background: "rgba(15,23,42,0.07)", color: "rgba(15,23,42,0.55)" }}>
                   {copied ? <><Check className="w-3 h-3" />Copied</> : <><Copy className="w-3 h-3" />Copy</>}
                 </button>
               </div>
@@ -4707,7 +4707,7 @@ function DeepResearchPanel({ pin }: { pin: string }) {
 
             {/* Sources */}
             {result.sources?.length > 0 && (
-              <div className="rounded-xl p-4" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+              <div className="rounded-xl p-4" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.07)" }}>
                 <p className="text-white/30 text-xs font-semibold uppercase tracking-wide mb-3">Sources Consulted</p>
                 <div className="space-y-1.5">
                   {result.sources.map((src, i) => (
@@ -4741,7 +4741,7 @@ function DeepResearchPanel({ pin }: { pin: string }) {
               ].map(ex => (
                 <button key={ex} onClick={() => setQuery(ex)}
                   className="px-3 py-2.5 rounded-xl text-left transition-all hover:border-white/15"
-                  style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.4)" }}>
+                  style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.09)", color: "rgba(15,23,42,0.45)" }}>
                   "{ex}"
                 </button>
               ))}
@@ -4811,8 +4811,8 @@ function DocIntelPanel({ pin }: { pin: string }) {
   ];
 
   return (
-    <div className="flex-1 flex flex-col min-h-0" style={{ background: "hsl(226,45%,6%)" }}>
-      <div className="p-6 border-b" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+    <div className="flex-1 flex flex-col min-h-0" style={{ background: "#F5F7FF" }}>
+      <div className="p-6 border-b" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
         <div className="flex items-center gap-3 mb-1">
           <FileSearch className="w-5 h-5" style={{ color: "hsl(210,90%,60%)" }} />
           <h2 className="text-white font-bold text-lg">Document Intelligence</h2>
@@ -4829,7 +4829,7 @@ function DocIntelPanel({ pin }: { pin: string }) {
         {!file ? (
           <div
             className="rounded-2xl p-10 flex flex-col items-center gap-4 text-center cursor-pointer transition-all hover:border-blue-400/30"
-            style={{ background: "hsl(226,45%,9%)", border: "2px dashed rgba(255,255,255,0.1)" }}
+            style={{ background: "#F1F5F9", border: "2px dashed rgba(15,23,42,0.12)" }}
             onDrop={handleDrop}
             onDragOver={e => e.preventDefault()}
             onClick={() => fileInputRef.current?.click()}>
@@ -4844,12 +4844,12 @@ function DocIntelPanel({ pin }: { pin: string }) {
             </div>
             <div className="flex gap-2 flex-wrap justify-center">
               {["PDF", "CSV", "TXT", "Markdown", "JSON"].map(t => (
-                <span key={t} className="text-xs px-2.5 py-1 rounded-lg" style={{ background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.3)", border: "1px solid rgba(255,255,255,0.07)" }}>{t}</span>
+                <span key={t} className="text-xs px-2.5 py-1 rounded-lg" style={{ background: "rgba(15,23,42,0.06)", color: "rgba(15,23,42,0.35)", border: "1px solid rgba(15,23,42,0.09)" }}>{t}</span>
               ))}
             </div>
           </div>
         ) : (
-          <div className="rounded-2xl p-4 flex items-center gap-3" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(66,133,244,0.2)" }}>
+          <div className="rounded-2xl p-4 flex items-center gap-3" style={{ background: "#F1F5F9", border: "1px solid rgba(66,133,244,0.2)" }}>
             <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(66,133,244,0.12)" }}>
               <FileText className="w-5 h-5" style={{ color: "hsl(210,90%,60%)" }} />
             </div>
@@ -4871,20 +4871,20 @@ function DocIntelPanel({ pin }: { pin: string }) {
 
         {/* Question input */}
         {file && !extracting && (
-          <div className="rounded-2xl p-4" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.07)" }}>
+          <div className="rounded-2xl p-4" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.09)" }}>
             <label className="text-white/40 text-xs mb-3 block font-semibold uppercase tracking-wide">Ask about this document</label>
             <div className="flex flex-wrap gap-2 mb-3">
               {QUICK_QS.map(q => (
                 <button key={q} onClick={() => setQuestion(q)}
                   className="text-xs px-2.5 py-1.5 rounded-lg transition-all hover:border-blue-400/30"
-                  style={{ background: "rgba(66,133,244,0.06)", color: "rgba(255,255,255,0.45)", border: "1px solid rgba(66,133,244,0.12)" }}>
+                  style={{ background: "rgba(66,133,244,0.06)", color: "rgba(15,23,42,0.5)", border: "1px solid rgba(66,133,244,0.12)" }}>
                   {q}
                 </button>
               ))}
             </div>
             <div className="flex gap-2">
               <input
-                className="flex-1 bg-transparent text-white text-sm placeholder-white/20 outline-none py-2"
+                className="flex-1 bg-transparent text-white text-sm placeholder-slate-400 outline-none py-2"
                 value={question}
                 onChange={e => setQuestion(e.target.value)}
                 placeholder="Or type your own question…"
@@ -4919,7 +4919,7 @@ function DocIntelPanel({ pin }: { pin: string }) {
               </div>
             )}
             {answer.keyPoints?.length > 0 && (
-              <div className="rounded-xl p-4" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+              <div className="rounded-xl p-4" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.07)" }}>
                 <p className="text-white/30 text-xs font-semibold uppercase tracking-wide mb-3">Key Points</p>
                 <ul className="space-y-2">
                   {answer.keyPoints.map((pt, i) => (
@@ -4933,7 +4933,7 @@ function DocIntelPanel({ pin }: { pin: string }) {
               </div>
             )}
             {answer.text && (
-              <div className="rounded-2xl p-5" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <div className="rounded-2xl p-5" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.09)" }}>
                 <p className="text-white/30 text-xs font-semibold uppercase tracking-wide mb-3">Full Answer</p>
                 <div className="prose prose-sm prose-invert max-w-none text-white/75 leading-relaxed" style={{ fontSize: "14px" }}>
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>{answer.text}</ReactMarkdown>
@@ -5002,9 +5002,9 @@ function GrowthEnginePanel({ pin }: { pin: string }) {
   const discoverUrl = typeof window !== "undefined" ? `${window.location.origin}${import.meta.env.BASE_URL}discover` : "siriusai.app/discover";
 
   return (
-    <div className="flex-1 flex flex-col min-h-0" style={{ background: "hsl(226,45%,5%)" }}>
+    <div className="flex-1 flex flex-col min-h-0" style={{ background: "#F8FAFC" }}>
       {/* Header */}
-      <div className="px-6 pt-5 pb-4 border-b flex-shrink-0" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+      <div className="px-6 pt-5 pb-4 border-b flex-shrink-0" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "linear-gradient(135deg, hsl(155,70%,30%), hsl(193,100%,35%))" }}>
@@ -5033,7 +5033,7 @@ function GrowthEnginePanel({ pin }: { pin: string }) {
 
       <div className="flex flex-1 min-h-0">
         {/* Left: Format selector */}
-        <div className="w-64 flex-shrink-0 border-r overflow-y-auto p-3 space-y-1.5" style={{ borderColor: "rgba(255,255,255,0.06)", background: "hsl(226,45%,6%)" }}>
+        <div className="w-64 flex-shrink-0 border-r overflow-y-auto p-3 space-y-1.5" style={{ borderColor: "rgba(15,23,42,0.07)", background: "#F5F7FF" }}>
           {/* Discover Page link */}
           <div className="mb-3 p-3 rounded-2xl" style={{ background: "hsla(155,70%,40%,0.08)", border: "1px solid hsla(155,70%,40%,0.15)" }}>
             <p className="text-xs font-semibold mb-1" style={{ color: "hsl(155,70%,55%)" }}>🌐 Public Discover Page</p>
@@ -5054,8 +5054,8 @@ function GrowthEnginePanel({ pin }: { pin: string }) {
               <button key={fmt.id} onClick={() => setActiveFormat(fmt.id)}
                 className="w-full text-left p-3 rounded-2xl transition-all"
                 style={{
-                  background: activeFormat === fmt.id ? "hsl(226,45%,12%)" : "transparent",
-                  border: `1px solid ${activeFormat === fmt.id ? "rgba(255,255,255,0.1)" : "transparent"}`,
+                  background: activeFormat === fmt.id ? "#F1F5F9" : "transparent",
+                  border: `1px solid ${activeFormat === fmt.id ? "rgba(15,23,42,0.12)" : "transparent"}`,
                 }}>
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-2">
@@ -5070,7 +5070,7 @@ function GrowthEnginePanel({ pin }: { pin: string }) {
             );
           })}
 
-          <div className="pt-2 border-t" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+          <div className="pt-2 border-t" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
             <p className="text-white/20 text-xs px-1 mb-2">FREE CHANNELS TO HIT</p>
             {[
               { name: "LinkedIn", url: "https://linkedin.com", note: "Post yourself — reach 10k–100k" },
@@ -5081,7 +5081,7 @@ function GrowthEnginePanel({ pin }: { pin: string }) {
               { name: "Hacker News", url: "https://news.ycombinator.com/submit", note: "Show HN post" },
             ].map(c => (
               <a key={c.name} href={c.url} target="_blank" rel="noopener noreferrer"
-                className="flex items-start gap-2 px-2 py-1.5 rounded-lg hover:bg-white/5 transition-colors group">
+                className="flex items-start gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-900/5 transition-colors group">
                 <ExternalLink className="w-3 h-3 mt-0.5 flex-shrink-0 text-white/20 group-hover:text-white/50" />
                 <div>
                   <p className="text-white/50 text-xs font-medium group-hover:text-white/70">{c.name}</p>
@@ -5095,7 +5095,7 @@ function GrowthEnginePanel({ pin }: { pin: string }) {
         {/* Right: Content area */}
         <div className="flex-1 flex flex-col min-h-0 min-w-0">
           {/* Format header */}
-          <div className="px-6 py-4 border-b flex items-center justify-between flex-shrink-0" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+          <div className="px-6 py-4 border-b flex items-center justify-between flex-shrink-0" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
             <div className="flex items-center gap-3">
               <span className="text-2xl">{activeFmt.icon}</span>
               <div>
@@ -5107,7 +5107,7 @@ function GrowthEnginePanel({ pin }: { pin: string }) {
               {activeResult && (
                 <button onClick={() => copyResult(activeFormat)}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
-                  style={{ color: copied === activeFormat ? "hsl(155,70%,55%)" : "rgba(255,255,255,0.6)", background: "hsl(226,45%,12%)" }}>
+                  style={{ color: copied === activeFormat ? "hsl(155,70%,55%)" : "rgba(15,23,42,0.62)", background: "#F1F5F9" }}>
                   {copied === activeFormat ? <><Check className="w-3.5 h-3.5" /> Copied!</> : <><Copy className="w-3.5 h-3.5" /> Copy All</>}
                 </button>
               )}
@@ -5160,7 +5160,7 @@ function GrowthEnginePanel({ pin }: { pin: string }) {
                 {activeResult.body && (
                   <div>
                     <p className="text-white/30 text-xs font-medium mb-2 uppercase tracking-wider">Content</p>
-                    <div className="rounded-2xl p-5 relative group" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                    <div className="rounded-2xl p-5 relative group" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.09)" }}>
                       <pre className="text-white/80 text-sm leading-relaxed whitespace-pre-wrap font-sans">{activeResult.body}</pre>
                     </div>
                   </div>
@@ -5170,7 +5170,7 @@ function GrowthEnginePanel({ pin }: { pin: string }) {
                 {activeResult.extra && (
                   <div>
                     <p className="text-white/30 text-xs font-medium mb-2 uppercase tracking-wider">Hashtags / Tags</p>
-                    <div className="rounded-xl p-3" style={{ background: "hsl(226,45%,9%)" }}>
+                    <div className="rounded-xl p-3" style={{ background: "#F1F5F9" }}>
                       <p className="text-white/50 text-sm">{activeResult.extra}</p>
                     </div>
                   </div>
@@ -5180,12 +5180,12 @@ function GrowthEnginePanel({ pin }: { pin: string }) {
                 <div className="flex flex-wrap gap-2 pt-2">
                   <button onClick={() => copyResult(activeFormat)}
                     className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all hover:opacity-80"
-                    style={{ background: copied === activeFormat ? "hsla(155,70%,45%,0.15)" : "hsl(226,45%,12%)", color: copied === activeFormat ? "hsl(155,70%,55%)" : "rgba(255,255,255,0.7)" }}>
+                    style={{ background: copied === activeFormat ? "hsla(155,70%,45%,0.15)" : "#F1F5F9", color: copied === activeFormat ? "hsl(155,70%,55%)" : "rgba(15,23,42,0.72)" }}>
                     {copied === activeFormat ? <><Check className="w-4 h-4" /> Copied to clipboard</> : <><Copy className="w-4 h-4" /> Copy and paste</>}
                   </button>
                   <button onClick={() => generate(activeFormat)} disabled={!!generating}
                     className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-medium transition-all hover:opacity-80 disabled:opacity-40"
-                    style={{ background: "hsl(226,45%,12%)", color: "rgba(255,255,255,0.5)" }}>
+                    style={{ background: "#F1F5F9", color: "rgba(15,23,42,0.55)" }}>
                     <RotateCcw className="w-4 h-4" /> Regenerate
                   </button>
                 </div>
@@ -5235,9 +5235,9 @@ function MissionPanel({ pin }: { pin: string }) {
   };
 
   return (
-    <div className="flex-1 flex flex-col min-h-0" style={{ background: "hsl(226,45%,5%)" }}>
+    <div className="flex-1 flex flex-col min-h-0" style={{ background: "#F8FAFC" }}>
       {/* Header */}
-      <div className="px-6 pt-5 pb-4 border-b flex-shrink-0" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+      <div className="px-6 pt-5 pb-4 border-b flex-shrink-0" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl flex items-center justify-center"
             style={{ background: "linear-gradient(135deg, hsl(193,100%,30%), hsl(226,70%,50%))" }}>
@@ -5250,7 +5250,7 @@ function MissionPanel({ pin }: { pin: string }) {
           <div className="ml-auto flex items-center gap-2">
             <button onClick={() => { navigator.clipboard.writeText(content); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors"
-              style={{ color: copied ? "hsl(155,70%,50%)" : "rgba(255,255,255,0.3)", background: "hsl(226,45%,10%)" }}>
+              style={{ color: copied ? "hsl(155,70%,50%)" : "rgba(15,23,42,0.35)", background: "#FFFFFF" }}>
               {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
               {copied ? "Copied" : "Copy"}
             </button>
@@ -5287,12 +5287,12 @@ function MissionPanel({ pin }: { pin: string }) {
             </div>
 
             {/* Mission document rendered as markdown */}
-            <div className="prose-invert" style={{ color: "rgba(255,255,255,0.8)" }}>
+            <div className="prose-invert" style={{ color: "rgba(15,23,42,0.8)" }}>
               <LabMarkdown content={content} />
             </div>
 
             {/* Footer */}
-            <div className="mt-12 pt-6 border-t" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+            <div className="mt-12 pt-6 border-t" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
               <p className="text-white/20 text-xs text-center">
                 This mission is permanently embedded in the Star Lab AI's system context. Every chat, every project, every scan starts with this memory.
               </p>
@@ -5428,13 +5428,13 @@ function AgencyHubPanel({ pin }: { pin: string }) {
   };
 
   const inputStyle = {
-    background: "hsl(226,45%,13%)",
-    border: "1px solid rgba(255,255,255,0.08)",
+    background: "#EEF2F8",
+    border: "1px solid rgba(15,23,42,0.1)",
     color: "white",
   } as React.CSSProperties;
 
   const labelStyle = {
-    color: "rgba(255,255,255,0.4)",
+    color: "rgba(15,23,42,0.45)",
     fontSize: "10px",
     fontFamily: "monospace",
     letterSpacing: "0.12em",
@@ -5452,9 +5452,9 @@ function AgencyHubPanel({ pin }: { pin: string }) {
   const PKG_LABELS: Record<string, string> = { social: "Sirius Social AI", sales: "Sirius Sales Intelligence", fullstack: "Sirius Full Operations" };
 
   return (
-    <div className="flex-1 flex flex-col min-h-0" style={{ background: "hsl(226,45%,5%)" }}>
+    <div className="flex-1 flex flex-col min-h-0" style={{ background: "#F8FAFC" }}>
       {/* Header */}
-      <div className="px-6 pt-5 pb-4 border-b flex-shrink-0" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+      <div className="px-6 pt-5 pb-4 border-b flex-shrink-0" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
         <div className="flex items-center gap-3 mb-4">
           <div className="w-9 h-9 rounded-xl flex items-center justify-center"
             style={{ background: "linear-gradient(135deg, hsl(220,80%,50%), hsl(280,70%,55%))" }}>
@@ -5479,7 +5479,7 @@ function AgencyHubPanel({ pin }: { pin: string }) {
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
                 style={{
                   background: active ? "hsla(220,80%,50%,0.15)" : "transparent",
-                  color: active ? "hsl(220,80%,70%)" : "rgba(255,255,255,0.35)",
+                  color: active ? "hsl(220,80%,70%)" : "rgba(15,23,42,0.4)",
                   border: `1px solid ${active ? "hsla(220,80%,50%,0.3)" : "transparent"}`,
                 }}>
                 <Icon className="w-3.5 h-3.5" />
@@ -5495,7 +5495,7 @@ function AgencyHubPanel({ pin }: { pin: string }) {
         {/* ── SERVICE PACKAGES ── */}
         {tab === "packages" && (
           <div className="space-y-5 max-w-3xl">
-            <div className="rounded-xl p-4" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            <div className="rounded-xl p-4" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.07)" }}>
               <p className="text-white font-semibold text-sm mb-1">The Opportunity</p>
               <p className="text-white/50 text-sm leading-relaxed">Every business on earth needs social media, content, sales sequences, and customer communications — but most are doing it with 6-8 disconnected tools that don't think. Sirius thinks. You deliver the intelligence as a managed service. They pay monthly. You scale.</p>
             </div>
@@ -5523,7 +5523,7 @@ function AgencyHubPanel({ pin }: { pin: string }) {
                       </div>
                     </div>
                     {/* Features */}
-                    <div className="px-5 py-4" style={{ background: "hsl(226,45%,9%)" }}>
+                    <div className="px-5 py-4" style={{ background: "#F1F5F9" }}>
                       <div className="space-y-2 mb-4">
                         {pkg.features.map((f, i) => (
                           <div key={i} className="flex items-start gap-2.5 text-sm text-white/60">
@@ -5532,7 +5532,7 @@ function AgencyHubPanel({ pin }: { pin: string }) {
                           </div>
                         ))}
                       </div>
-                      <div className="grid grid-cols-2 gap-3 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                      <div className="grid grid-cols-2 gap-3 pt-3" style={{ borderTop: "1px solid rgba(15,23,42,0.07)" }}>
                         <div>
                           <p className="text-white/20 text-[10px] font-mono mb-1">IDEAL FOR</p>
                           <p className="text-white/50 text-xs">{pkg.ideal}</p>
@@ -5551,7 +5551,7 @@ function AgencyHubPanel({ pin }: { pin: string }) {
                         </button>
                         <button onClick={() => { setTab("pitch"); }}
                           className="px-4 py-2 rounded-xl text-xs font-semibold transition-all hover:opacity-80"
-                          style={{ background: "hsl(226,45%,13%)", color: "rgba(255,255,255,0.5)" }}>
+                          style={{ background: "#EEF2F8", color: "rgba(15,23,42,0.55)" }}>
                           Quick Pitch
                         </button>
                       </div>
@@ -5562,7 +5562,7 @@ function AgencyHubPanel({ pin }: { pin: string }) {
             )}
 
             {/* Revenue potential */}
-            <div className="rounded-xl p-4 grid grid-cols-3 gap-4" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            <div className="rounded-xl p-4 grid grid-cols-3 gap-4" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.07)" }}>
               <p className="col-span-3 text-white/20 text-[10px] font-mono mb-1 tracking-widest">REVENUE POTENTIAL</p>
               {[
                 { clients: 3, pkg: "social", monthly: 2397, annual: 28764 },
@@ -5583,7 +5583,7 @@ function AgencyHubPanel({ pin }: { pin: string }) {
         {/* ── PROSPECT SCANNER ── */}
         {tab === "scanner" && (
           <div className="space-y-5 max-w-2xl">
-            <div className="rounded-2xl p-5 space-y-4" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            <div className="rounded-2xl p-5 space-y-4" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.07)" }}>
               <div>
                 <p className="text-white font-bold text-base">Prospect Scanner</p>
                 <p className="text-white/35 text-sm mt-1">Sirius identifies the specific types of businesses most likely to pay for your service — with their pain points, decision makers, and the best way to reach them.</p>
@@ -5619,12 +5619,12 @@ function AgencyHubPanel({ pin }: { pin: string }) {
             </div>
 
             {scanOutput && (
-              <div className="rounded-2xl p-5 space-y-3" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+              <div className="rounded-2xl p-5 space-y-3" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.07)" }}>
                 <div className="flex items-center justify-between">
                   <p className="text-white font-semibold text-sm">Prospect Analysis</p>
                   <button onClick={() => copyText(scanOutput, setScanCopied)}
                     className="flex items-center gap-1.5 text-xs transition-colors"
-                    style={{ color: scanCopied ? "hsl(155,70%,50%)" : "rgba(255,255,255,0.3)" }}>
+                    style={{ color: scanCopied ? "hsl(155,70%,50%)" : "rgba(15,23,42,0.35)" }}>
                     {scanCopied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
                     {scanCopied ? "Copied" : "Copy"}
                   </button>
@@ -5632,7 +5632,7 @@ function AgencyHubPanel({ pin }: { pin: string }) {
                 <div className="max-h-[55vh] overflow-y-auto pr-1">
                   <LabMarkdown content={scanOutput} />
                 </div>
-                <div className="flex gap-2 pt-2" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                <div className="flex gap-2 pt-2" style={{ borderTop: "1px solid rgba(15,23,42,0.07)" }}>
                   <button onClick={() => { setTab("proposal"); }}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all hover:opacity-80"
                     style={{ background: "hsla(220,80%,50%,0.12)", color: "hsl(220,80%,65%)" }}>
@@ -5652,7 +5652,7 @@ function AgencyHubPanel({ pin }: { pin: string }) {
         {/* ── PROPOSAL GENERATOR ── */}
         {tab === "proposal" && (
           <div className="space-y-5 max-w-2xl">
-            <div className="rounded-2xl p-5 space-y-4" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            <div className="rounded-2xl p-5 space-y-4" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.07)" }}>
               <div>
                 <p className="text-white font-bold text-base">Proposal Generator</p>
                 <p className="text-white/35 text-sm mt-1">Sirius writes a full, bespoke 10-section business proposal for a named company — personalised, commercially argued, and ready to send.</p>
@@ -5704,9 +5704,9 @@ function AgencyHubPanel({ pin }: { pin: string }) {
                       <button key={p.id} onClick={() => setPropPackage(p.id)}
                         className="py-2.5 rounded-xl text-xs transition-all"
                         style={{
-                          background: propPackage === p.id ? `${p.color}18` : "hsl(226,45%,13%)",
-                          color: propPackage === p.id ? p.color : "rgba(255,255,255,0.4)",
-                          border: `1px solid ${propPackage === p.id ? `${p.color}40` : "rgba(255,255,255,0.08)"}`,
+                          background: propPackage === p.id ? `${p.color}18` : "#EEF2F8",
+                          color: propPackage === p.id ? p.color : "rgba(15,23,42,0.45)",
+                          border: `1px solid ${propPackage === p.id ? `${p.color}40` : "rgba(15,23,42,0.1)"}`,
                         }}>
                         <div className="font-semibold">{p.label}</div>
                         <div style={{ fontSize: "10px", opacity: 0.7 }}>{p.price}</div>
@@ -5724,14 +5724,14 @@ function AgencyHubPanel({ pin }: { pin: string }) {
             </div>
 
             {propOutput && (
-              <div className="rounded-2xl p-5 space-y-3" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+              <div className="rounded-2xl p-5 space-y-3" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.07)" }}>
                 <div className="flex items-center justify-between">
                   <p className="text-white font-semibold text-sm">Proposal — {propCompany}</p>
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-white/25">{PKG_LABELS[propPackage]}</span>
                     <button onClick={() => copyText(propOutput, setPropCopied)}
                       className="flex items-center gap-1.5 text-xs transition-colors"
-                      style={{ color: propCopied ? "hsl(155,70%,50%)" : "rgba(255,255,255,0.3)" }}>
+                      style={{ color: propCopied ? "hsl(155,70%,50%)" : "rgba(15,23,42,0.35)" }}>
                       {propCopied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
                       {propCopied ? "Copied" : "Copy all"}
                     </button>
@@ -5748,7 +5748,7 @@ function AgencyHubPanel({ pin }: { pin: string }) {
         {/* ── QUICK PITCH ── */}
         {tab === "pitch" && (
           <div className="space-y-5 max-w-2xl">
-            <div className="rounded-2xl p-5 space-y-4" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            <div className="rounded-2xl p-5 space-y-4" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.07)" }}>
               <div>
                 <p className="text-white font-bold text-base">Quick Pitch Generator</p>
                 <p className="text-white/35 text-sm mt-1">Sirius writes a personalised LinkedIn DM or cold email that sounds human, opens a conversation, and gets replies.</p>
@@ -5785,9 +5785,9 @@ function AgencyHubPanel({ pin }: { pin: string }) {
                       <button key={f} onClick={() => setPitchFormat(f)}
                         className="py-2 rounded-xl text-xs font-medium transition-all capitalize"
                         style={{
-                          background: pitchFormat === f ? "hsla(220,80%,50%,0.15)" : "hsl(226,45%,13%)",
-                          color: pitchFormat === f ? "hsl(220,80%,70%)" : "rgba(255,255,255,0.4)",
-                          border: `1px solid ${pitchFormat === f ? "hsla(220,80%,50%,0.3)" : "rgba(255,255,255,0.08)"}`,
+                          background: pitchFormat === f ? "hsla(220,80%,50%,0.15)" : "#EEF2F8",
+                          color: pitchFormat === f ? "hsl(220,80%,70%)" : "rgba(15,23,42,0.45)",
+                          border: `1px solid ${pitchFormat === f ? "hsla(220,80%,50%,0.3)" : "rgba(15,23,42,0.1)"}`,
                         }}>
                         {f}
                       </button>
@@ -5810,22 +5810,22 @@ function AgencyHubPanel({ pin }: { pin: string }) {
             </div>
 
             {pitchOutput && (
-              <div className="rounded-2xl p-5 space-y-3" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+              <div className="rounded-2xl p-5 space-y-3" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.07)" }}>
                 <div className="flex items-center justify-between">
                   <p className="text-white font-semibold text-sm">{pitchFormat} — {pitchCompany}</p>
                   <button onClick={() => copyText(pitchOutput, setPitchCopied)}
                     className="flex items-center gap-1.5 text-xs transition-colors"
-                    style={{ color: pitchCopied ? "hsl(155,70%,50%)" : "rgba(255,255,255,0.3)" }}>
+                    style={{ color: pitchCopied ? "hsl(155,70%,50%)" : "rgba(15,23,42,0.35)" }}>
                     {pitchCopied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
                     {pitchCopied ? "Copied" : "Copy"}
                   </button>
                 </div>
-                <div className="whitespace-pre-wrap text-sm leading-relaxed" style={{ color: "rgba(255,255,255,0.75)" }}>
+                <div className="whitespace-pre-wrap text-sm leading-relaxed" style={{ color: "rgba(15,23,42,0.76)" }}>
                   {pitchOutput}
                 </div>
                 <button onClick={runPitch} disabled={pitching}
                   className="flex items-center gap-1.5 text-xs transition-colors mt-2"
-                  style={{ color: "rgba(255,255,255,0.3)" }}>
+                  style={{ color: "rgba(15,23,42,0.35)" }}>
                   <RotateCcw className="w-3 h-3" /> Regenerate
                 </button>
               </div>
@@ -6105,7 +6105,7 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
     if (s === "delivered" || s === "paid") return "hsl(155,70%,45%)";
     if (s === "pending") return "hsl(45,100%,50%)";
     if (s === "failed" || s === "cancelled") return "hsl(0,70%,55%)";
-    return "rgba(255,255,255,0.4)";
+    return "rgba(15,23,42,0.45)";
   };
 
   const TABS = [
@@ -6118,9 +6118,9 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
   const approvedProjects = projects.filter(p => p.approvalStatus === "approved" || !p.autoCreated);
 
   return (
-    <div className="flex-1 flex flex-col min-h-0" style={{ background: "hsl(226,45%,5%)" }}>
+    <div className="flex-1 flex flex-col min-h-0" style={{ background: "#F8FAFC" }}>
       {/* Header */}
-      <div className="px-6 pt-5 pb-4 border-b flex-shrink-0" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+      <div className="px-6 pt-5 pb-4 border-b flex-shrink-0" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
         <div className="flex items-center gap-3 mb-4">
           <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "linear-gradient(135deg, hsl(155,70%,30%), hsl(155,70%,45%))" }}>
             <Banknote className="w-5 h-5 text-white" />
@@ -6146,7 +6146,7 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
                 style={{
                   background: active ? "hsla(155,70%,45%,0.15)" : "transparent",
-                  color: active ? "hsl(155,70%,50%)" : "rgba(255,255,255,0.35)",
+                  color: active ? "hsl(155,70%,50%)" : "rgba(15,23,42,0.4)",
                   border: `1px solid ${active ? "hsla(155,70%,45%,0.3)" : "transparent"}`,
                 }}>
                 <Icon className="w-3.5 h-3.5" />
@@ -6176,7 +6176,7 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
                   ].map(card => {
                     const Icon = card.icon;
                     return (
-                      <div key={card.label} className="rounded-2xl p-4" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                      <div key={card.label} className="rounded-2xl p-4" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.07)" }}>
                         <div className="w-8 h-8 rounded-xl flex items-center justify-center mb-3" style={{ background: `${card.color}20` }}>
                           <Icon className="w-4 h-4" style={{ color: card.color }} />
                         </div>
@@ -6199,7 +6199,7 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
                     ].map(item => (
                       <button key={item.tab} onClick={() => setTab(item.tab)}
                         className="w-full flex items-center gap-4 p-4 rounded-xl text-left transition-all hover:scale-[1.01]"
-                        style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                        style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.07)" }}>
                         <div className="w-1 h-10 rounded-full flex-shrink-0" style={{ background: item.color }} />
                         <div className="flex-1 min-w-0">
                           <p className="text-white font-semibold text-sm">{item.label}</p>
@@ -6221,8 +6221,8 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
                         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
                         .slice(0, 6)
                         .map((item, i) => (
-                          <div key={i} className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.05)" }}>
-                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.3)" }}>{item.type}</span>
+                          <div key={i} className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.06)" }}>
+                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ background: "rgba(15,23,42,0.06)", color: "rgba(15,23,42,0.35)" }}>{item.type}</span>
                             <span className="text-white/60 text-sm flex-1 truncate">{item.label}</span>
                             <span className="text-xs font-mono" style={{ color: statusColor(item.status) }}>{item.status}</span>
                             <span className="text-white font-semibold text-sm">{item.amount}</span>
@@ -6243,7 +6243,7 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
           <div className="space-y-6 max-w-2xl">
             {/* Delivered report content */}
             {(delivering || deliveryContent || deliveryError) && (
-              <div className="rounded-2xl p-5 space-y-4" style={{ background: "hsl(226,45%,9%)", border: "1px solid hsla(280,70%,55%,0.2)" }}>
+              <div className="rounded-2xl p-5 space-y-4" style={{ background: "#F1F5F9", border: "1px solid hsla(280,70%,55%,0.2)" }}>
                 <div className="flex items-center gap-2">
                   {delivering && <Loader2 className="w-4 h-4 animate-spin" style={{ color: "hsl(280,70%,55%)" }} />}
                   {!delivering && deliveryContent && <CheckCircle2 className="w-4 h-4" style={{ color: "hsl(155,70%,45%)" }} />}
@@ -6268,7 +6268,7 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
             )}
 
             {/* New report form */}
-            <div className="rounded-2xl p-5 space-y-4" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            <div className="rounded-2xl p-5 space-y-4" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.07)" }}>
               <div>
                 <p className="text-white font-bold text-base">Sell a Market Intelligence Report</p>
                 <p className="text-white/35 text-sm mt-1">Customer pays £49. Sirius generates a comprehensive 15-page AI market analysis in 90 seconds. Zero marginal cost.</p>
@@ -6277,21 +6277,21 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
                 <div>
                   <label className="text-white/40 text-xs mb-1 block font-mono">SECTOR / MARKET</label>
                   <input value={repSector} onChange={e => setRepSector(e.target.value)} placeholder="e.g. Hydrogen fuel cell maintenance, UK dental software, precision machining for aerospace…"
-                    className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder-white/20 outline-none transition-all"
-                    style={{ background: "hsl(226,45%,13%)", border: "1px solid rgba(255,255,255,0.08)" }} />
+                    className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder-slate-400 outline-none transition-all"
+                    style={{ background: "#EEF2F8", border: "1px solid rgba(15,23,42,0.1)" }} />
                 </div>
                 <div>
                   <label className="text-white/40 text-xs mb-1 block font-mono">RESEARCH QUESTION</label>
                   <textarea value={repQuestion} onChange={e => setRepQuestion(e.target.value)} rows={3}
                     placeholder="What specific question does this report need to answer? e.g. 'What are the top 5 gaps in UK hydrogen maintenance software and who are the likely buyers?'"
-                    className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder-white/20 outline-none transition-all resize-none"
-                    style={{ background: "hsl(226,45%,13%)", border: "1px solid rgba(255,255,255,0.08)" }} />
+                    className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder-slate-400 outline-none transition-all resize-none"
+                    style={{ background: "#EEF2F8", border: "1px solid rgba(15,23,42,0.1)" }} />
                 </div>
                 <div>
                   <label className="text-white/40 text-xs mb-1 block font-mono">CUSTOMER EMAIL (OPTIONAL)</label>
                   <input value={repEmail} onChange={e => setRepEmail(e.target.value)} type="email" placeholder="customer@company.com"
-                    className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder-white/20 outline-none transition-all"
-                    style={{ background: "hsl(226,45%,13%)", border: "1px solid rgba(255,255,255,0.08)" }} />
+                    className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder-slate-400 outline-none transition-all"
+                    style={{ background: "#EEF2F8", border: "1px solid rgba(15,23,42,0.1)" }} />
                 </div>
                 {repError && <p className="text-sm" style={{ color: "hsl(0,70%,55%)" }}>{repError}</p>}
                 <button onClick={buyReport} disabled={repLoading}
@@ -6313,7 +6313,7 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
               ) : (
                 <div className="space-y-2">
                   {reports.map(r => (
-                    <div key={r.id} className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                    <div key={r.id} className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.06)" }}>
                       <div className="flex-1 min-w-0">
                         <p className="text-white/80 text-sm font-medium truncate">{r.sector}</p>
                         <p className="text-white/30 text-xs truncate mt-0.5">{r.question}</p>
@@ -6339,7 +6339,7 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
         {tab === "commissions" && (
           <div className="space-y-6 max-w-2xl">
             {/* Commission form */}
-            <div className="rounded-2xl p-5 space-y-4" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            <div className="rounded-2xl p-5 space-y-4" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.07)" }}>
               <div>
                 <p className="text-white font-bold text-base">Commission a Build</p>
                 <p className="text-white/35 text-sm mt-1">Client describes what they want. Sirius estimates scope and cost. They pay 50% deposit. You deliver. Project enters Star Lab automatically.</p>
@@ -6351,21 +6351,21 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
                     <div>
                       <label className="text-white/40 text-xs mb-1 block font-mono">CLIENT NAME</label>
                       <input value={comName} onChange={e => setComName(e.target.value)} placeholder="Jane Smith"
-                        className="w-full px-3 py-2.5 rounded-xl text-sm text-white placeholder-white/20 outline-none"
-                        style={{ background: "hsl(226,45%,13%)", border: "1px solid rgba(255,255,255,0.08)" }} />
+                        className="w-full px-3 py-2.5 rounded-xl text-sm text-white placeholder-slate-400 outline-none"
+                        style={{ background: "#EEF2F8", border: "1px solid rgba(15,23,42,0.1)" }} />
                     </div>
                     <div>
                       <label className="text-white/40 text-xs mb-1 block font-mono">CLIENT EMAIL</label>
                       <input value={comEmail} onChange={e => setComEmail(e.target.value)} type="email" placeholder="client@company.com"
-                        className="w-full px-3 py-2.5 rounded-xl text-sm text-white placeholder-white/20 outline-none"
-                        style={{ background: "hsl(226,45%,13%)", border: "1px solid rgba(255,255,255,0.08)" }} />
+                        className="w-full px-3 py-2.5 rounded-xl text-sm text-white placeholder-slate-400 outline-none"
+                        style={{ background: "#EEF2F8", border: "1px solid rgba(15,23,42,0.1)" }} />
                     </div>
                   </div>
                   <div>
                     <label className="text-white/40 text-xs mb-1 block font-mono">PROJECT TITLE</label>
                     <input value={comTitle} onChange={e => setComTitle(e.target.value)} placeholder="e.g. Custom inventory bot for Shopify"
-                      className="w-full px-3 py-2.5 rounded-xl text-sm text-white placeholder-white/20 outline-none"
-                      style={{ background: "hsl(226,45%,13%)", border: "1px solid rgba(255,255,255,0.08)" }} />
+                      className="w-full px-3 py-2.5 rounded-xl text-sm text-white placeholder-slate-400 outline-none"
+                      style={{ background: "#EEF2F8", border: "1px solid rgba(15,23,42,0.1)" }} />
                   </div>
                   <div>
                     <label className="text-white/40 text-xs mb-1 block font-mono">PROJECT TYPE</label>
@@ -6374,9 +6374,9 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
                         <button key={t} onClick={() => setComType(t)}
                           className="py-2 rounded-xl text-xs font-medium capitalize transition-all"
                           style={{
-                            background: comType === t ? "hsla(45,100%,50%,0.15)" : "hsl(226,45%,13%)",
-                            color: comType === t ? "hsl(45,100%,55%)" : "rgba(255,255,255,0.4)",
-                            border: `1px solid ${comType === t ? "hsla(45,100%,50%,0.3)" : "rgba(255,255,255,0.08)"}`,
+                            background: comType === t ? "hsla(45,100%,50%,0.15)" : "#EEF2F8",
+                            color: comType === t ? "hsl(45,100%,55%)" : "rgba(15,23,42,0.45)",
+                            border: `1px solid ${comType === t ? "hsla(45,100%,50%,0.3)" : "rgba(15,23,42,0.1)"}`,
                           }}>
                           {t}
                         </button>
@@ -6387,8 +6387,8 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
                     <label className="text-white/40 text-xs mb-1 block font-mono">PROJECT DESCRIPTION</label>
                     <textarea value={comDesc} onChange={e => setComDesc(e.target.value)} rows={4}
                       placeholder="Describe exactly what needs to be built. The more detail, the better the AI estimate…"
-                      className="w-full px-3 py-2.5 rounded-xl text-sm text-white placeholder-white/20 outline-none resize-none"
-                      style={{ background: "hsl(226,45%,13%)", border: "1px solid rgba(255,255,255,0.08)" }} />
+                      className="w-full px-3 py-2.5 rounded-xl text-sm text-white placeholder-slate-400 outline-none resize-none"
+                      style={{ background: "#EEF2F8", border: "1px solid rgba(15,23,42,0.1)" }} />
                   </div>
                   {comError && <p className="text-sm" style={{ color: "hsl(0,70%,55%)" }}>{comError}</p>}
                   <button onClick={getEstimate} disabled={comEstimating}
@@ -6402,7 +6402,7 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
 
               {comStep === "estimate" && comEstimate && (
                 <div className="space-y-4">
-                  <div className="rounded-xl p-4 space-y-3" style={{ background: "hsl(226,45%,13%)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                  <div className="rounded-xl p-4 space-y-3" style={{ background: "#EEF2F8", border: "1px solid rgba(15,23,42,0.1)" }}>
                     <p className="text-white/70 text-sm leading-relaxed">{comEstimate.summary}</p>
                     <div className="grid grid-cols-3 gap-3 pt-2">
                       {[
@@ -6430,14 +6430,14 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
                       </div>
                     )}
                     {comEstimate.notes && (
-                      <p className="text-xs text-white/40 italic border-t pt-3" style={{ borderColor: "rgba(255,255,255,0.06)" }}>{comEstimate.notes}</p>
+                      <p className="text-xs text-white/40 italic border-t pt-3" style={{ borderColor: "rgba(15,23,42,0.07)" }}>{comEstimate.notes}</p>
                     )}
                   </div>
                   {comError && <p className="text-sm" style={{ color: "hsl(0,70%,55%)" }}>{comError}</p>}
                   <div className="flex gap-3">
                     <button onClick={() => { setComStep("form"); setComEstimate(null); setComError(""); }}
                       className="px-4 py-2.5 rounded-xl text-sm text-white/40 hover:text-white/60 transition-colors"
-                      style={{ background: "hsl(226,45%,13%)" }}>
+                      style={{ background: "#EEF2F8" }}>
                       ← Edit
                     </button>
                     <button onClick={payDeposit} disabled={comCheckoutLoading} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-semibold text-sm transition-all hover:opacity-90 disabled:opacity-50"
@@ -6460,7 +6460,7 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
               ) : (
                 <div className="space-y-2">
                   {commissions.map(c => (
-                    <div key={c.id} className="p-4 rounded-xl" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                    <div key={c.id} className="p-4 rounded-xl" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.06)" }}>
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
                           <p className="text-white font-semibold text-sm">{c.projectTitle}</p>
@@ -6480,7 +6480,7 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
                               await fetch(`${base}lab/revenue/commissions/${c.id}`, { method: "PATCH", headers, body: JSON.stringify({ status: ns }) });
                               loadCommissions();
                             }} className="text-[10px] px-2 py-1 rounded-lg transition-all hover:opacity-80 capitalize"
-                              style={{ background: "hsl(226,45%,13%)", color: "rgba(255,255,255,0.35)" }}>
+                              style={{ background: "#EEF2F8", color: "rgba(15,23,42,0.4)" }}>
                               → {ns.replace("_", " ")}
                             </button>
                           ))}
@@ -6498,7 +6498,7 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
         {tab === "blueprints" && (
           <div className="space-y-6 max-w-2xl">
             {/* List new blueprint */}
-            <div className="rounded-2xl p-5 space-y-4" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            <div className="rounded-2xl p-5 space-y-4" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.07)" }}>
               <div>
                 <p className="text-white font-bold text-base">List a Blueprint for Sale</p>
                 <p className="text-white/35 text-sm mt-1">Package an approved Lab project as a digital product. Buyer receives the complete architecture, code, and documentation. £199–£999.</p>
@@ -6512,7 +6512,7 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
                     const p = approvedProjects.find(p => p.id === id);
                     if (p) { setBpTitle(p.name); setBpDesc(p.brief?.slice(0, 200) || ""); }
                   }} className="w-full px-3 py-2.5 rounded-xl text-sm text-white outline-none"
-                    style={{ background: "hsl(226,45%,13%)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                    style={{ background: "#EEF2F8", border: "1px solid rgba(15,23,42,0.1)" }}>
                     <option value="">Select a project…</option>
                     {approvedProjects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
@@ -6520,20 +6520,20 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
                 <div>
                   <label className="text-white/40 text-xs mb-1 block font-mono">LISTING TITLE</label>
                   <input value={bpTitle} onChange={e => setBpTitle(e.target.value)} placeholder="How it appears in the store"
-                    className="w-full px-3 py-2.5 rounded-xl text-sm text-white placeholder-white/20 outline-none"
-                    style={{ background: "hsl(226,45%,13%)", border: "1px solid rgba(255,255,255,0.08)" }} />
+                    className="w-full px-3 py-2.5 rounded-xl text-sm text-white placeholder-slate-400 outline-none"
+                    style={{ background: "#EEF2F8", border: "1px solid rgba(15,23,42,0.1)" }} />
                 </div>
                 <div>
                   <label className="text-white/40 text-xs mb-1 block font-mono">DESCRIPTION</label>
                   <textarea value={bpDesc} onChange={e => setBpDesc(e.target.value)} rows={3} placeholder="What does the buyer get? What problem does it solve?"
-                    className="w-full px-3 py-2.5 rounded-xl text-sm text-white placeholder-white/20 outline-none resize-none"
-                    style={{ background: "hsl(226,45%,13%)", border: "1px solid rgba(255,255,255,0.08)" }} />
+                    className="w-full px-3 py-2.5 rounded-xl text-sm text-white placeholder-slate-400 outline-none resize-none"
+                    style={{ background: "#EEF2F8", border: "1px solid rgba(15,23,42,0.1)" }} />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-white/40 text-xs mb-1 block font-mono">CATEGORY</label>
                     <select value={bpCategory} onChange={e => setBpCategory(e.target.value)} className="w-full px-3 py-2.5 rounded-xl text-sm text-white outline-none"
-                      style={{ background: "hsl(226,45%,13%)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                      style={{ background: "#EEF2F8", border: "1px solid rgba(15,23,42,0.1)" }}>
                       {["Bot", "SaaS", "Engineering", "Research", "General"].map(c => <option key={c}>{c}</option>)}
                     </select>
                   </div>
@@ -6541,7 +6541,7 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
                     <label className="text-white/40 text-xs mb-1 block font-mono">PRICE (£)</label>
                     <input value={bpPrice} onChange={e => setBpPrice(e.target.value)} type="number" min="199" max="999" step="50"
                       className="w-full px-3 py-2.5 rounded-xl text-sm text-white outline-none"
-                      style={{ background: "hsl(226,45%,13%)", border: "1px solid rgba(255,255,255,0.08)" }} />
+                      style={{ background: "#EEF2F8", border: "1px solid rgba(15,23,42,0.1)" }} />
                   </div>
                 </div>
                 {bpError && <p className="text-sm" style={{ color: "hsl(0,70%,55%)" }}>{bpError}</p>}
@@ -6564,12 +6564,12 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
               ) : (
                 <div className="space-y-3">
                   {blueprints.map(bp => (
-                    <div key={bp.id} className="p-4 rounded-xl" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                    <div key={bp.id} className="p-4 rounded-xl" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.06)" }}>
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
                             <p className="text-white font-semibold text-sm">{bp.title}</p>
-                            <span className="text-[10px] px-1.5 py-0.5 rounded font-mono" style={{ background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.3)" }}>{bp.category}</span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded font-mono" style={{ background: "rgba(15,23,42,0.06)", color: "rgba(15,23,42,0.35)" }}>{bp.category}</span>
                           </div>
                           <p className="text-white/40 text-xs leading-relaxed">{bp.description}</p>
                           <p className="text-white/25 text-[10px] mt-2">{bp.salesCount} sale{bp.salesCount !== 1 ? "s" : ""}</p>
@@ -6665,9 +6665,9 @@ function LabAvatarGreeting({ userName, onNavigate, onDismiss }: {
         {/* Avatar image */}
         <div className="relative w-48 h-48 rounded-full overflow-hidden flex items-center justify-center"
           style={{
-            background: "hsl(226,45%,9%)",
+            background: "#F1F5F9",
             border: "2px solid rgba(0,212,255,0.3)",
-            boxShadow: "0 0 40px rgba(0,212,255,0.2), inset 0 0 30px rgba(0,0,0,0.4)"
+            boxShadow: "0 0 40px rgba(0,212,255,0.2), inset 0 0 30px rgba(0,0,0,0.05)"
           }}>
           <img src="/logo-v2.png" alt="Sirius" className="w-full h-full object-cover" />
 
@@ -6684,7 +6684,7 @@ function LabAvatarGreeting({ userName, onNavigate, onDismiss }: {
 
         {/* Online indicator */}
         <div className="absolute bottom-3 right-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full"
-          style={{ background: "hsl(226,45%,11%)", border: "1px solid rgba(0,212,255,0.2)" }}>
+          style={{ background: "#F8FAFC", border: "1px solid rgba(0,212,255,0.2)" }}>
           <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "hsl(155,70%,50%)" }} />
           <span className="text-xs font-semibold" style={{ color: "hsl(155,70%,55%)" }}>ONLINE</span>
         </div>
@@ -6710,7 +6710,7 @@ function LabAvatarGreeting({ userName, onNavigate, onDismiss }: {
         {QUICK_ACTIONS.map(a => (
           <button key={a.mode} onClick={() => go(a.mode)}
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all hover:scale-105 active:scale-95"
-            style={{ background: `${a.color}22`, border: `1px solid ${a.color}44`, color: "rgba(255,255,255,0.85)" }}>
+            style={{ background: `${a.color}22`, border: `1px solid ${a.color}44`, color: "rgba(15,23,42,0.85)" }}>
             <span>{a.icon}</span>
             {a.label}
           </button>
@@ -6879,10 +6879,10 @@ function SiriusLabChatPanel({ pin, accessLevel }: { pin: string; accessLevel: Ac
   const CHIPS = accessLevel === "owner" ? OWNER_CHIPS : GUEST_CHIPS;
 
   return (
-    <div className="flex-1 flex flex-col min-h-0" style={{ background: "hsl(226,45%,6%)" }}>
+    <div className="flex-1 flex flex-col min-h-0" style={{ background: "#F5F7FF" }}>
 
       {/* Header */}
-      <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: "rgba(255,255,255,0.06)", background: "hsl(226,45%,7%)" }}>
+      <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: "rgba(15,23,42,0.07)", background: "#FFFFFF" }}>
         <div className="flex items-center gap-3">
           <div className="relative flex-shrink-0">
             <div className="w-11 h-11 rounded-2xl overflow-hidden"
@@ -6890,7 +6890,7 @@ function SiriusLabChatPanel({ pin, accessLevel }: { pin: string; accessLevel: Ac
               <img src="/logo-v2.png" alt="Sirius" className="w-full h-full object-cover" />
             </div>
             <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 animate-pulse"
-              style={{ background: accessLevel === "guest" ? "hsl(45,90%,55%)" : "hsl(155,70%,50%)", borderColor: "hsl(226,45%,7%)" }} />
+              style={{ background: accessLevel === "guest" ? "hsl(45,90%,55%)" : "hsl(155,70%,50%)", borderColor: "#FFFFFF" }} />
           </div>
           <div>
             <p className="text-white font-bold text-sm leading-none">Sirius {accessLevel === "guest" ? "— Guest Mode" : "— Intelligence Partner"}</p>
@@ -6906,16 +6906,16 @@ function SiriusLabChatPanel({ pin, accessLevel }: { pin: string; accessLevel: Ac
               className="w-8 h-8 rounded-xl flex items-center justify-center transition-all disabled:opacity-30"
               title={isRecording ? "Stop recording" : "Speak to Sirius"}
               style={{
-                background: isRecording ? "hsl(0,75%,45%)" : "hsl(226,45%,12%)",
-                border: isRecording ? "1px solid hsl(0,75%,55%)" : "1px solid rgba(255,255,255,0.08)",
+                background: isRecording ? "hsl(0,75%,45%)" : "#F1F5F9",
+                border: isRecording ? "1px solid hsl(0,75%,55%)" : "1px solid rgba(15,23,42,0.1)",
                 boxShadow: isRecording ? "0 0 12px hsl(0,75%,40%)" : "none",
               }}>
-              {isRecording ? <MicOff className="w-3.5 h-3.5 text-white" /> : <Mic className="w-3.5 h-3.5" style={{ color: "rgba(255,255,255,0.4)" }} />}
+              {isRecording ? <MicOff className="w-3.5 h-3.5 text-white" /> : <Mic className="w-3.5 h-3.5" style={{ color: "rgba(15,23,42,0.45)" }} />}
             </button>
           )}
           {messages.length > 0 && (
             <button onClick={() => setMessages([])}
-              className="text-xs text-white/20 hover:text-white/50 transition-colors px-2 py-1 rounded-lg hover:bg-white/5">
+              className="text-xs text-white/20 hover:text-white/50 transition-colors px-2 py-1 rounded-lg hover:bg-slate-900/5">
               Clear
             </button>
           )}
@@ -6951,7 +6951,7 @@ function SiriusLabChatPanel({ pin, accessLevel }: { pin: string; accessLevel: Ac
               {CHIPS.map(chip => (
                 <button key={chip} onClick={() => send(chip)}
                   className="text-xs px-3 py-2.5 rounded-xl transition-all hover:border-white/15 text-left leading-snug"
-                  style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.4)" }}>
+                  style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.09)", color: "rgba(15,23,42,0.45)" }}>
                   {chip}
                 </button>
               ))}
@@ -6983,8 +6983,8 @@ function SiriusLabChatPanel({ pin, accessLevel }: { pin: string; accessLevel: Ac
               {msg.content && (
                 <div className="px-4 py-3 rounded-2xl text-sm leading-relaxed"
                   style={msg.role === "user"
-                    ? { background: "hsl(226,60%,18%)", color: "rgba(255,255,255,0.9)", borderRadius: "18px 18px 4px 18px" }
-                    : { background: "hsl(226,45%,10%)", color: "rgba(255,255,255,0.82)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "18px 18px 18px 4px" }}>
+                    ? { background: "hsl(213,60%,88%)", color: "rgba(15,23,42,0.9)", borderRadius: "18px 18px 4px 18px" }
+                    : { background: "#FFFFFF", color: "rgba(15,23,42,0.82)", border: "1px solid rgba(15,23,42,0.09)", borderRadius: "18px 18px 18px 4px" }}>
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
                 </div>
               )}
@@ -7020,12 +7020,12 @@ function SiriusLabChatPanel({ pin, accessLevel }: { pin: string; accessLevel: Ac
               {/* Streaming text */}
               {streamingText ? (
                 <div className="px-4 py-3 rounded-2xl text-sm leading-relaxed"
-                  style={{ background: "hsl(226,45%,10%)", color: "rgba(255,255,255,0.82)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "18px 18px 18px 4px" }}>
+                  style={{ background: "#FFFFFF", color: "rgba(15,23,42,0.82)", border: "1px solid rgba(15,23,42,0.09)", borderRadius: "18px 18px 18px 4px" }}>
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamingText}</ReactMarkdown>
                 </div>
               ) : !thinkingText && streamingActions.length === 0 && (
                 <div className="px-4 py-3 rounded-2xl"
-                  style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "18px 18px 18px 4px" }}>
+                  style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.09)", borderRadius: "18px 18px 18px 4px" }}>
                   <div className="flex items-center gap-1.5">
                     <div className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce" style={{ animationDelay: "0ms" }} />
                     <div className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce" style={{ animationDelay: "150ms" }} />
@@ -7040,11 +7040,11 @@ function SiriusLabChatPanel({ pin, accessLevel }: { pin: string; accessLevel: Ac
       </div>
 
       {/* Input */}
-      <div className="p-4 border-t" style={{ borderColor: "rgba(255,255,255,0.06)", background: "hsl(226,45%,7%)" }}>
+      <div className="p-4 border-t" style={{ borderColor: "rgba(15,23,42,0.07)", background: "#FFFFFF" }}>
         <div className="flex items-center gap-3 px-4 py-3 rounded-2xl"
           style={{
-            background: "hsl(226,45%,10%)",
-            border: `1px solid ${isRecording ? "rgba(220,50,50,0.4)" : streaming ? "rgba(0,212,255,0.2)" : "rgba(255,255,255,0.08)"}`,
+            background: "#FFFFFF",
+            border: `1px solid ${isRecording ? "rgba(220,50,50,0.4)" : streaming ? "rgba(0,212,255,0.2)" : "rgba(15,23,42,0.1)"}`,
             transition: "border-color 0.3s"
           }}>
           {voiceSupported && (
@@ -7056,12 +7056,12 @@ function SiriusLabChatPanel({ pin, accessLevel }: { pin: string; accessLevel: Ac
               }}>
               {isRecording
                 ? <MicOff className="w-3.5 h-3.5 text-white" />
-                : <Mic className="w-3.5 h-3.5" style={{ color: "rgba(255,255,255,0.25)" }} />}
+                : <Mic className="w-3.5 h-3.5" style={{ color: "rgba(15,23,42,0.2)" }} />}
             </button>
           )}
           <input
             ref={inputRef}
-            className="flex-1 bg-transparent text-white text-sm placeholder-white/20 outline-none"
+            className="flex-1 bg-transparent text-white text-sm placeholder-slate-400 outline-none"
             value={isRecording ? "🎤 Listening…" : input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
@@ -7189,7 +7189,7 @@ export function StarLabPage() {
     loadProjects();
   };
 
-  if (!unlocked) return <PinGate onUnlock={onUnlock} userName={userName} />;
+  if (!unlocked) return <div data-lab="true"><PinGate onUnlock={onUnlock} userName={userName} /></div>;
 
   const anyPendingFunding = projects.some(p => p.fundingStatus === "pending");
   const isGuest = accessLevel === "guest";
@@ -7215,7 +7215,7 @@ export function StarLabPage() {
   const NAV_ITEMS = isGuest ? ALL_NAV_ITEMS.filter(n => n.guestAllowed) : ALL_NAV_ITEMS;
 
   return (
-    <div className="min-h-screen flex relative" style={{ background: "hsl(226,45%,5%)" }}>
+    <div data-lab="true" className="min-h-screen flex relative" style={{ background: "#F8FAFC" }}>
 
       {/* Twin avatar greeting overlay */}
       {showGreeting && (
@@ -7235,13 +7235,13 @@ export function StarLabPage() {
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ duration: 0.2 }}
             className="fixed bottom-5 right-5 z-50 flex items-start gap-3 rounded-2xl p-4 shadow-2xl"
-            style={{ background: "hsl(226,45%,11%)", border: "1px solid hsla(155,70%,45%,0.35)", boxShadow: "0 0 40px hsla(155,70%,40%,0.15), 0 8px 32px rgba(0,0,0,0.5)", maxWidth: "340px" }}>
+            style={{ background: "#F8FAFC", border: "1px solid hsla(155,70%,45%,0.35)", boxShadow: "0 0 40px hsla(155,70%,40%,0.15), 0 8px 32px rgba(0,0,0,0.06)", maxWidth: "340px" }}>
             <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "hsla(155,70%,45%,0.15)" }}>
               <BadgeCheck className="w-4 h-4" style={{ color: "hsl(155,70%,50%)" }} />
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-white font-semibold text-sm leading-snug">Funding analysis complete</p>
-              <p className="text-xs mt-0.5 leading-relaxed" style={{ color: "rgba(255,255,255,0.5)" }}>
+              <p className="text-xs mt-0.5 leading-relaxed" style={{ color: "rgba(15,23,42,0.55)" }}>
                 <span className="text-white/70">{alert.projectName}</span> — {alert.count > 0 ? `${alert.count} funding opportunit${alert.count === 1 ? "y" : "ies"} found` : "No matching schemes found"}
               </p>
               <button onClick={() => { setNavMode("projects"); setFundingAlerts(prev => prev.filter(a => a.id !== alert.id)); }}
@@ -7257,9 +7257,9 @@ export function StarLabPage() {
         ))}
       </AnimatePresence>
       {/* SIDEBAR */}
-      <div className="w-56 flex-shrink-0 flex flex-col border-r" style={{ borderColor: "rgba(255,255,255,0.06)", background: "hsl(226,45%,7%)" }}>
+      <div className="w-56 flex-shrink-0 flex flex-col border-r" style={{ borderColor: "rgba(15,23,42,0.07)", background: "#FFFFFF" }}>
         {/* Logo */}
-        <div className="p-4 border-b" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+        <div className="p-4 border-b" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
               style={{ background: isGuest ? "linear-gradient(135deg, hsl(45,90%,45%), hsl(25,90%,45%))" : "linear-gradient(135deg, hsl(193,100%,30%), hsl(226,70%,45%))" }}>
@@ -7281,18 +7281,18 @@ export function StarLabPage() {
         </div>
 
         {/* Nav */}
-        <div className="p-2 border-b" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+        <div className="p-2 border-b" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
           {NAV_ITEMS.map(item => {
             const Icon = item.icon;
             return (
               <button key={item.id} onClick={() => setNavMode(item.id)}
                 className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl mb-0.5 transition-all text-left"
                 style={{
-                  background: navMode === item.id ? "hsl(226,45%,12%)" : "transparent",
+                  background: navMode === item.id ? "#F1F5F9" : "transparent",
                   border: navMode === item.id ? `1px solid ${item.color}30` : "1px solid transparent"
                 }}>
-                <Icon className="w-4 h-4 flex-shrink-0" style={{ color: navMode === item.id ? item.color : "rgba(255,255,255,0.3)" }} />
-                <span className="text-sm flex-1" style={{ color: navMode === item.id ? "white" : "rgba(255,255,255,0.4)" }}>{item.label}</span>
+                <Icon className="w-4 h-4 flex-shrink-0" style={{ color: navMode === item.id ? item.color : "rgba(15,23,42,0.35)" }} />
+                <span className="text-sm flex-1" style={{ color: navMode === item.id ? "white" : "rgba(15,23,42,0.45)" }}>{item.label}</span>
                 {(item as any).badge && (
                   <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: item.color }} />
                 )}
@@ -7319,14 +7319,14 @@ export function StarLabPage() {
               <AnimatePresence>
                 {creating && (
                   <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                    className="rounded-xl p-3 mb-1.5" style={{ background: "hsl(226,45%,12%)", border: "1px solid hsl(193,100%,35%,0.5)" }}>
+                    className="rounded-xl p-3 mb-1.5" style={{ background: "#F1F5F9", border: "1px solid hsl(193,100%,35%,0.5)" }}>
                     <input autoFocus value={newName} onChange={e => setNewName(e.target.value)}
                       onKeyDown={e => e.key === "Enter" && createProject()}
-                      placeholder="Project name" className="w-full bg-transparent text-white text-xs outline-none placeholder-white/30 mb-2" />
+                      placeholder="Project name" className="w-full bg-transparent text-white text-xs outline-none placeholder-slate-400 mb-2" />
                     <select value={newIndustry} onChange={e => setNewIndustry(e.target.value)}
                       className="w-full text-white/60 text-xs outline-none mb-2.5 px-1 py-1 rounded-lg"
-                      style={{ background: "hsl(226,45%,15%)" }}>
-                      {INDUSTRIES.map(i => <option key={i} value={i} style={{ background: "hsl(226,45%,15%)" }}>{i}</option>)}
+                      style={{ background: "#E2E8F0" }}>
+                      {INDUSTRIES.map(i => <option key={i} value={i} style={{ background: "#E2E8F0" }}>{i}</option>)}
                     </select>
                     <div className="flex gap-1.5">
                       <button onClick={createProject} className="flex-1 py-1.5 rounded-lg text-xs text-white font-medium" style={{ background: "hsl(193,100%,35%)" }}>Create</button>
@@ -7339,7 +7339,7 @@ export function StarLabPage() {
               {projects.map(p => (
                 <div key={p.id} onClick={() => { loadProject(p.id); }}
                   className="group flex items-center gap-2 rounded-xl px-2.5 py-2 mb-0.5 cursor-pointer transition-all"
-                  style={{ background: activeProject?.id === p.id ? "hsl(226,45%,14%)" : "transparent", border: activeProject?.id === p.id ? "1px solid rgba(255,255,255,0.09)" : "1px solid transparent" }}>
+                  style={{ background: activeProject?.id === p.id ? "#E8EEF5" : "transparent", border: activeProject?.id === p.id ? "1px solid rgba(15,23,42,0.11)" : "1px solid transparent" }}>
                   <FolderOpen className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "hsl(193,100%,45%)" }} />
                   <div className="flex-1 min-w-0">
                     <p className="text-white text-xs font-medium truncate">{p.name}</p>
@@ -7409,7 +7409,7 @@ export function StarLabPage() {
                       return (
                         <button key={item.label} onClick={item.action}
                           className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm transition-all"
-                          style={{ background: "hsl(226,45%,12%)", color: "rgba(255,255,255,0.5)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                          style={{ background: "#F1F5F9", color: "rgba(15,23,42,0.55)", border: "1px solid rgba(15,23,42,0.09)" }}>
                           <Icon className="w-4 h-4" style={{ color: item.color }} />
                           {item.label}
                         </button>

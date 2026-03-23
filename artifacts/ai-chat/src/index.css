@@ -64,12 +64,12 @@
   --input: 210 25% 96%;
   --ring: 193 100% 35%;
 
-  /* Sidebar stays deep space indigo — the dark sky that makes the star shine */
-  --sidebar: 226 45% 9%;
-  --sidebar-foreground: 210 30% 85%;
-  --sidebar-border: 226 35% 15%;
-  --sidebar-accent: 226 35% 15%;
-  --sidebar-accent-foreground: 210 25% 90%;
+  /* Sidebar — clean white, matches the bright theme */
+  --sidebar: 0 0% 100%;
+  --sidebar-foreground: 222 47% 11%;
+  --sidebar-border: 210 25% 88%;
+  --sidebar-accent: 210 35% 95%;
+  --sidebar-accent-foreground: 222 40% 18%;
 }
 
 /* ---- ANIMATIONS ---- */
@@ -213,7 +213,32 @@
   animation: data-flicker 8s ease-in-out infinite;
 }
 
-/* ---- PROSE / MARKDOWN — dark text on bright bg ---- */
+/* ─── STAR LAB LIGHT THEME — text-white overrides ───────────────────────── */
+/* After converting dark bg to light, all text-white Tailwind classes
+   need to display as dark text. Inline style={{ color: "white" }} on
+   coloured buttons still wins (inline > class specificity), so those stay. */
+[data-lab] .text-white            { color: #0F172A; }
+[data-lab] .text-white\/10        { color: rgba(15,23,42,0.10); }
+[data-lab] .text-white\/20        { color: rgba(15,23,42,0.25); }
+[data-lab] .text-white\/30        { color: rgba(15,23,42,0.38); }
+[data-lab] .text-white\/40        { color: rgba(15,23,42,0.45); }
+[data-lab] .text-white\/50        { color: rgba(15,23,42,0.52); }
+[data-lab] .text-white\/60        { color: rgba(15,23,42,0.60); }
+[data-lab] .text-white\/70        { color: rgba(15,23,42,0.68); }
+[data-lab] .text-white\/80        { color: rgba(15,23,42,0.78); }
+[data-lab] .text-white\/90        { color: rgba(15,23,42,0.88); }
+/* border-white-alpha → dark-alpha */
+[data-lab] .border-white\/10      { border-color: rgba(15,23,42,0.10); }
+[data-lab] .border-white\/20      { border-color: rgba(15,23,42,0.14); }
+[data-lab] .border-white\/30      { border-color: rgba(15,23,42,0.18); }
+/* bg-white-alpha used as tinted backgrounds → light-dark-alpha */
+[data-lab] .bg-white\/5           { background-color: rgba(15,23,42,0.04); }
+[data-lab] .bg-white\/10          { background-color: rgba(15,23,42,0.06); }
+/* Input placeholder text */
+[data-lab] input::placeholder      { color: rgba(15,23,42,0.35); }
+[data-lab] textarea::placeholder   { color: rgba(15,23,42,0.35); }
+
+/* ─── PROSE / MARKDOWN — dark text on bright bg ─────────────────────────── */
 .prose {
   --tw-prose-body: hsl(var(--foreground) / 1.0);
   --tw-prose-headings: hsl(var(--foreground));
