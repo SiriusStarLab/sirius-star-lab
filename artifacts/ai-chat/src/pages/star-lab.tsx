@@ -7108,125 +7108,259 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
   );
 }
 
-// ─── Lab Avatar Greeting ──────────────────────────────────────────────────────
+// ─── Interactive post-login voice assistant ──────────────────────────────────
+const NAV_DESTINATIONS: { mode: NavMode; label: string; icon: string; color: string; desc: string; keywords: string[] }[] = [
+  { mode: "labchat",  label: "Chat with Sirius", icon: "💬", color: "hsl(193,100%,38%)", desc: "Talk to me directly", keywords: ["chat","talk","speak","converse","sirius","question","ask","help","conversation"] },
+  { mode: "projects", label: "Projects",          icon: "📁", color: "hsl(193,100%,32%)", desc: "Your R&D project workspace", keywords: ["project","projects","work","build","engineering","design","product"] },
+  { mode: "botlab",   label: "Bot Lab",           icon: "🤖", color: "hsl(280,70%,55%)", desc: "Design AI automations", keywords: ["bot","automation","bots","automate","bot lab","workflow","script"] },
+  { mode: "scout",    label: "Scout",             icon: "🔭", color: "hsl(45,100%,42%)", desc: "Market opportunity scanner", keywords: ["scout","market","scan","discover","opportunity","prospect","lead","find"] },
+  { mode: "feed",     label: "AI Intelligence",   icon: "⚡", color: "hsl(210,80%,55%)", desc: "Live intelligence feed", keywords: ["feed","intelligence","news","insights","updates","ai news","latest","briefing"] },
+  { mode: "research", label: "Deep Research",     icon: "📖", color: "hsl(280,70%,50%)", desc: "In-depth topic research", keywords: ["research","deep","study","investigate","learn","analyse","analyze","reading"] },
+  { mode: "docs",     label: "Document Intel",    icon: "📄", color: "hsl(210,90%,55%)", desc: "Upload and analyse documents", keywords: ["document","doc","file","upload","pdf","contract","analyse document"] },
+  { mode: "agency",   label: "Agency Hub",        icon: "🏢", color: "hsl(220,80%,55%)", desc: "Agency client intelligence", keywords: ["agency","client","clients","agency hub","outreach","pitch","proposal"] },
+  { mode: "revenue",  label: "Revenue Hub",       icon: "💷", color: "hsl(155,70%,45%)", desc: "Sales pipeline and revenue", keywords: ["revenue","sales","money","pipeline","deals","stripe","income","earning"] },
+  { mode: "commerce", label: "Commerce Lab",      icon: "🛒", color: "hsl(25,90%,55%)",  desc: "E-commerce and product lab", keywords: ["commerce","ecommerce","shop","store","product","sell","shopify"] },
+  { mode: "growth",   label: "Growth Engine",     icon: "🚀", color: "hsl(155,70%,50%)", desc: "Marketing and growth tools", keywords: ["growth","marketing","grow","launch","campaign","social","content"] },
+  { mode: "brain",    label: "Sirius Brain",      icon: "🧠", color: "hsl(280,70%,65%)", desc: "My memory and knowledge base", keywords: ["brain","memory","knowledge","learn","remember","know","sirius brain"] },
+  { mode: "grants",   label: "Funding Radar",     icon: "💰", color: "hsl(45,100%,50%)", desc: "Grants and funding intelligence", keywords: ["funding","grant","grants","investment","fund","finance","money","investor"] },
+  { mode: "outreach", label: "Outreach Hub",      icon: "✉️", color: "hsl(340,80%,60%)",  desc: "Email and contact outreach", keywords: ["outreach","email","contact","message","reach out","send","follow up"] },
+  { mode: "mission",  label: "Mission",           icon: "⭐", color: "hsl(193,100%,50%)", desc: "Sirius mission and vision", keywords: ["mission","vision","goals","strategy","foundation","purpose"] },
+  { mode: "autolab",  label: "Autonomous Lab",    icon: "🔬", color: "hsl(193,100%,40%)", desc: "Self-running AI analysis", keywords: ["autonomous","auto","self","automatic","lab","autolab","running"] },
+];
+
+function matchDestination(transcript: string): typeof NAV_DESTINATIONS[0] | null {
+  const lower = transcript.toLowerCase().trim();
+  // Exact or strong keyword match
+  for (const dest of NAV_DESTINATIONS) {
+    for (const kw of dest.keywords) {
+      if (lower.includes(kw)) return dest;
+    }
+  }
+  return null;
+}
 
 function LabAvatarGreeting({ userName, onNavigate, onDismiss }: {
   userName?: string;
   onNavigate: (mode: NavMode) => void;
   onDismiss: () => void;
 }) {
-  const [visible, setVisible] = useState(false);
-  const [typedText, setTypedText] = useState("");
-  const [showActions, setShowActions] = useState(false);
-  const [leaving, setLeaving] = useState(false);
+  const [visible, setVisible]           = useState(false);
+  const [leaving, setLeaving]           = useState(false);
+  const [phase, setPhase]               = useState<"speaking" | "listening" | "confirming" | "ready">("speaking");
+  const [siriusText, setSiriusText]     = useState("");
+  const [showCards, setShowCards]       = useState(false);
+  const [listening, setListening]       = useState(false);
+  const [transcript, setTranscript]     = useState("");
+  const [matched, setMatched]           = useState<typeof NAV_DESTINATIONS[0] | null>(null);
+  const [waveTick, setWaveTick]         = useState(0);
+  const [showAll, setShowAll]           = useState(false);
+  const recRef = useRef<any>(null);
+  const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const hour = new Date().getHours();
   const timeGreet = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
-  const name = userName ? `, ${userName}` : "";
-  const fullText = `${timeGreet}${name}. I'm online and ready. What would you like to do today?`;
+  const name = userName || "Garry";
 
-  useEffect(() => {
-    setTimeout(() => setVisible(true), 80);
-    let i = 0;
-    const interval = setInterval(() => {
-      i++;
-      setTypedText(fullText.slice(0, i));
-      if (i >= fullText.length) {
-        clearInterval(interval);
-        setTimeout(() => setShowActions(true), 400);
-      }
-    }, 28);
-    return () => clearInterval(interval);
-  }, []);
-
-  const go = (mode: NavMode) => {
-    setLeaving(true);
-    setTimeout(() => { onNavigate(mode); onDismiss(); }, 350);
+  const goTo = (dest: typeof NAV_DESTINATIONS[0]) => {
+    setMatched(dest);
+    setPhase("confirming");
+    stopListening();
+    const confirmMsg = `Taking you to ${dest.label}.`;
+    setSiriusText(confirmMsg);
+    speakText(confirmMsg, () => {
+      setLeaving(true);
+      setTimeout(() => { onNavigate(dest.mode); onDismiss(); }, 300);
+    });
   };
 
-  const QUICK_ACTIONS = [
-    { label: "Chat with me", mode: "labchat" as NavMode, color: "hsl(193,100%,35%)", icon: "💬" },
-    { label: "View Projects", mode: "projects" as NavMode, color: "hsl(193,100%,30%)", icon: "📁" },
-    { label: "Scan Market", mode: "scout" as NavMode, color: "hsl(45,100%,40%)", icon: "🔭" },
-    { label: "Deep Research", mode: "research" as NavMode, color: "hsl(280,70%,50%)", icon: "📖" },
-  ];
+  const startListening = () => {
+    const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRec) return;
+    const rec = new SpeechRec();
+    recRef.current = rec;
+    rec.continuous = false;
+    rec.interimResults = true;
+    rec.lang = "en-GB";
+    rec.onstart = () => { setListening(true); setTranscript(""); };
+    rec.onresult = (e: any) => {
+      const text = Array.from(e.results as any[]).map((r: any) => r[0].transcript).join(" ");
+      setTranscript(text);
+      if (e.results[e.results.length - 1].isFinal) {
+        const dest = matchDestination(text);
+        if (dest) {
+          goTo(dest);
+        } else {
+          setSiriusText(`I didn't quite catch that. You said: "${text}". Please try again or tap a card below.`);
+          speakText(`I didn't catch that — please say a section name or tap a card.`);
+          setListening(false);
+          setTimeout(() => startListening(), 2000);
+        }
+      }
+    };
+    rec.onerror = () => { setListening(false); };
+    rec.onend   = () => { setListening(false); recRef.current = null; };
+    rec.start();
+  };
+
+  const stopListening = () => {
+    try { recRef.current?.stop(); } catch {}
+    recRef.current = null;
+    setListening(false);
+  };
+
+  // Waveform animation tick
+  useEffect(() => {
+    tickRef.current = setInterval(() => setWaveTick(t => t + 1), 80);
+    return () => { if (tickRef.current) clearInterval(tickRef.current); };
+  }, []);
+
+  // On mount: appear, speak greeting, then start listening
+  useEffect(() => {
+    setTimeout(() => setVisible(true), 60);
+
+    const greeting = `${timeGreet} ${name}! I'm fully online. Where would you like to go? Just say it — Projects, Research, Revenue, Agency Hub, or anything else. Or tap a card below.`;
+    setSiriusText(greeting);
+
+    const speakTimer = setTimeout(() => {
+      speakText(greeting, () => {
+        setPhase("listening");
+        setShowCards(true);
+        startListening();
+      });
+      setShowCards(true);
+    }, 600);
+
+    return () => {
+      clearTimeout(speakTimer);
+      stopListening();
+      window.speechSynthesis?.cancel();
+    };
+  }, []);
+
+  const isSpeaking = phase === "speaking" || phase === "confirming";
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex flex-col items-center justify-center"
+    <div className="fixed inset-0 z-50 flex"
       style={{
-        background: "hsl(226,45%,4%)",
+        background: "rgba(5,9,18,0.97)",
+        backdropFilter: "blur(20px)",
         opacity: leaving ? 0 : visible ? 1 : 0,
         transition: "opacity 0.35s ease",
       }}>
 
       {/* Skip */}
-      <button onClick={() => go("projects")}
-        className="absolute top-5 right-6 text-slate-300 hover:text-slate-500 text-xs transition-colors">
+      <button onClick={() => { stopListening(); window.speechSynthesis?.cancel(); setLeaving(true); setTimeout(() => { onNavigate("projects"); onDismiss(); }, 300); }}
+        className="absolute top-5 right-6 text-xs transition-colors"
+        style={{ color: "rgba(255,255,255,0.25)" }}
+        onMouseEnter={e => (e.currentTarget.style.color = "rgba(255,255,255,0.6)")}
+        onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.25)")}>
         Skip →
       </button>
 
-      {/* Avatar */}
-      <div className="relative mb-8">
-        {/* Outer glow rings */}
-        <div className="absolute inset-0 rounded-full animate-ping"
-          style={{ background: "radial-gradient(circle, rgba(0,212,255,0.12), transparent 70%)", animationDuration: "3s" }} />
-        <div className="absolute inset-0 rounded-full"
-          style={{ boxShadow: "0 0 80px 20px rgba(0,212,255,0.15), 0 0 160px 40px rgba(0,100,200,0.08)" }} />
+      {/* LEFT — Avatar column */}
+      <div className="flex flex-col items-center justify-center w-72 flex-shrink-0 px-8 border-r"
+        style={{ borderColor: "rgba(255,255,255,0.06)" }}>
 
-        {/* Avatar image */}
-        <div className="relative w-48 h-48 rounded-full overflow-hidden flex items-center justify-center"
-          style={{
-            background: "#F1F5F9",
-            border: "2px solid rgba(0,212,255,0.3)",
-            boxShadow: "0 0 40px rgba(0,212,255,0.2), inset 0 0 30px rgba(0,0,0,0.05)"
-          }}>
-          <img src="/logo-v2.png" alt="Sirius" className="w-full h-full object-cover" />
-
-          {/* Scanning line effect */}
-          <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-full">
-            <div className="absolute w-full h-0.5 opacity-30"
-              style={{
-                background: "linear-gradient(90deg, transparent, rgba(0,212,255,0.8), transparent)",
-                animation: "scan 2.5s linear infinite",
-                top: 0,
-              }} />
+        {/* Avatar */}
+        <div className="relative mb-6">
+          <div className="absolute -inset-6 rounded-full pointer-events-none"
+            style={{ background: `radial-gradient(circle, ${listening ? "rgba(0,212,255,0.18)" : "rgba(0,212,255,0.08)"} 0%, transparent 70%)`, transition: "all 0.4s" }} />
+          {listening && (
+            <div className="absolute -inset-3 rounded-full animate-ping"
+              style={{ border: "1px solid rgba(0,212,255,0.35)", animationDuration: "1.5s" }} />
+          )}
+          <div className="relative w-40 h-40 rounded-full overflow-hidden"
+            style={{ border: `2px solid ${listening ? "rgba(0,212,255,0.7)" : "rgba(0,212,255,0.3)"}`, boxShadow: `0 0 ${listening ? "60px" : "30px"} rgba(0,212,255,${listening ? "0.35" : "0.15"})`, transition: "all 0.4s" }}>
+            <img src="/logo-v2.png" alt="Sirius" className="w-full h-full object-cover" />
+          </div>
+          {/* Status badge */}
+          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold"
+            style={{ background: listening ? "rgba(0,212,255,0.15)" : "rgba(155,255,200,0.1)", border: `1px solid ${listening ? "rgba(0,212,255,0.35)" : "rgba(155,255,200,0.3)"}`, color: listening ? "hsl(193,100%,60%)" : "hsl(155,70%,60%)", whiteSpace: "nowrap" }}>
+            <span className="w-1.5 h-1.5 rounded-full animate-pulse"
+              style={{ background: listening ? "hsl(193,100%,55%)" : "hsl(155,70%,55%)" }} />
+            {listening ? "LISTENING" : isSpeaking ? "SPEAKING" : "ONLINE"}
           </div>
         </div>
 
-        {/* Online indicator */}
-        <div className="absolute bottom-3 right-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full"
-          style={{ background: "#F8FAFC", border: "1px solid rgba(0,212,255,0.2)" }}>
-          <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "hsl(155,70%,50%)" }} />
-          <span className="text-xs font-semibold" style={{ color: "hsl(155,70%,55%)" }}>ONLINE</span>
+        {/* Label */}
+        <p className="text-xs font-bold tracking-widest mb-4" style={{ color: "rgba(0,212,255,0.4)", letterSpacing: "0.25em" }}>SIRIUS AI</p>
+
+        {/* Sirius speech bubble */}
+        <div className="rounded-2xl p-4 mb-4 min-h-[80px] flex items-center justify-center text-center"
+          style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+          <p className="text-sm leading-relaxed" style={{ color: "rgba(255,255,255,0.75)" }}>
+            {siriusText}
+            {isSpeaking && <span className="animate-pulse ml-0.5" style={{ color: "hsl(193,100%,55%)" }}>|</span>}
+          </p>
         </div>
-      </div>
 
-      {/* Sirius label */}
-      <p className="text-xs font-bold tracking-[0.3em] mb-5 uppercase" style={{ color: "rgba(0,212,255,0.5)" }}>
-        SIRIUS AI · STAR LAB
-      </p>
+        {/* Waveform — visible when speaking or listening */}
+        {(listening || isSpeaking) && (
+          <div className="flex items-center gap-0.5 mb-4" style={{ height: 32 }}>
+            {Array.from({ length: 16 }).map((_, i) => {
+              const h = listening
+                ? 6 + Math.abs(Math.sin(waveTick * 0.4 + i * 0.7)) * 22
+                : 4 + Math.abs(Math.sin(waveTick * 0.25 + i * 0.9)) * 12;
+              return (
+                <motion.div key={i} animate={{ height: h }} transition={{ duration: 0.1 }}
+                  style={{ width: 3, borderRadius: 3, background: listening ? "hsl(193,100%,55%)" : "rgba(0,212,255,0.35)" }} />
+              );
+            })}
+          </div>
+        )}
 
-      {/* Typewriter greeting */}
-      <div className="text-center max-w-md px-6 mb-8 min-h-[3.5rem]">
-        <p className="text-slate-800 text-xl font-light leading-relaxed">
-          {typedText}
-          <span className="animate-pulse" style={{ color: "hsl(193,100%,55%)" }}>|</span>
-        </p>
-      </div>
+        {/* Transcript */}
+        {transcript && (
+          <div className="px-3 py-2 rounded-xl mb-3 text-center"
+            style={{ background: "rgba(0,212,255,0.06)", border: "1px solid rgba(0,212,255,0.15)" }}>
+            <p className="text-xs italic" style={{ color: "rgba(0,212,255,0.7)" }}>"{transcript}"</p>
+          </div>
+        )}
 
-      {/* Quick actions */}
-      <div
-        className="flex flex-wrap gap-3 justify-center max-w-sm"
-        style={{ opacity: showActions ? 1 : 0, transform: showActions ? "translateY(0)" : "translateY(12px)", transition: "all 0.4s ease" }}>
-        {QUICK_ACTIONS.map(a => (
-          <button key={a.mode} onClick={() => go(a.mode)}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all hover:scale-105 active:scale-95"
-            style={{ background: `${a.color}22`, border: `1px solid ${a.color}44`, color: "rgba(15,23,42,0.85)" }}>
-            <span>{a.icon}</span>
-            {a.label}
+        {/* Manual listen button */}
+        {!listening && phase !== "confirming" && (
+          <button onClick={() => { setSiriusText("I'm listening — just say where you'd like to go."); startListening(); }}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all"
+            style={{ background: "rgba(0,212,255,0.1)", border: "1px solid rgba(0,212,255,0.25)", color: "hsl(193,100%,65%)" }}
+            onMouseEnter={e => (e.currentTarget.style.background = "rgba(0,212,255,0.18)")}
+            onMouseLeave={e => (e.currentTarget.style.background = "rgba(0,212,255,0.1)")}>
+            🎤 Speak your destination
           </button>
-        ))}
+        )}
+      </div>
+
+      {/* RIGHT — Destinations grid */}
+      <div className="flex-1 overflow-y-auto p-8 flex flex-col justify-center"
+        style={{ opacity: showCards ? 1 : 0, transition: "opacity 0.5s ease 0.3s" }}>
+        <p className="text-xs font-mono mb-5" style={{ color: "rgba(255,255,255,0.2)", letterSpacing: "0.2em" }}>WHERE WOULD YOU LIKE TO GO?</p>
+
+        <div className="grid grid-cols-2 gap-3">
+          {(showAll ? NAV_DESTINATIONS : NAV_DESTINATIONS.slice(0, 8)).map((dest, i) => (
+            <motion.button key={dest.mode}
+              initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04, duration: 0.3 }}
+              onClick={() => goTo(dest)}
+              className="flex items-start gap-3 p-4 rounded-2xl text-left transition-all"
+              style={{ background: matched?.mode === dest.mode ? `${dest.color}18` : "rgba(255,255,255,0.03)", border: `1px solid ${matched?.mode === dest.mode ? dest.color + "60" : "rgba(255,255,255,0.07)"}` }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = `${dest.color}10`; (e.currentTarget as HTMLElement).style.borderColor = `${dest.color}40`; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = matched?.mode === dest.mode ? `${dest.color}18` : "rgba(255,255,255,0.03)"; (e.currentTarget as HTMLElement).style.borderColor = matched?.mode === dest.mode ? `${dest.color}60` : "rgba(255,255,255,0.07)"; }}>
+              <span className="text-2xl flex-shrink-0 leading-none mt-0.5">{dest.icon}</span>
+              <div className="min-w-0">
+                <p className="font-semibold text-sm leading-tight" style={{ color: "rgba(255,255,255,0.85)" }}>{dest.label}</p>
+                <p className="text-xs mt-0.5 leading-snug" style={{ color: "rgba(255,255,255,0.3)" }}>{dest.desc}</p>
+              </div>
+            </motion.button>
+          ))}
+        </div>
+
+        {!showAll && NAV_DESTINATIONS.length > 8 && (
+          <button onClick={() => setShowAll(true)}
+            className="mt-3 text-xs transition-colors self-start"
+            style={{ color: "rgba(255,255,255,0.25)" }}
+            onMouseEnter={e => (e.currentTarget.style.color = "rgba(255,255,255,0.6)")}
+            onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.25)")}>
+            Show all {NAV_DESTINATIONS.length} destinations ↓
+          </button>
+        )}
       </div>
 
       <style>{`
