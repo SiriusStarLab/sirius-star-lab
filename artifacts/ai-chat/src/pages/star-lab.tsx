@@ -69,42 +69,110 @@ const MAX_PIN_DIGITS = 8;
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_SECONDS = 60;
 
+/* ─── Voice utilities ──────────────────────────────────────────────────── */
+function speakText(text: string, onDone?: () => void, rate = 0.9) {
+  if (typeof window === "undefined" || !window.speechSynthesis) { onDone?.(); return; }
+  window.speechSynthesis.cancel();
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.rate = rate;
+  utter.pitch = 1.05;
+  utter.volume = 1.0;
+  const trySpeak = () => {
+    const voices = window.speechSynthesis.getVoices();
+    const preferred = voices.find(v =>
+      v.name === "Google UK English Male" || v.name === "Daniel" ||
+      v.name === "Google UK English Female" || v.name.includes("Google") ||
+      (v.lang.startsWith("en") && !v.localService)
+    ) || voices.find(v => v.lang.startsWith("en"));
+    if (preferred) utter.voice = preferred;
+    utter.onend = () => onDone?.();
+    utter.onerror = () => onDone?.();
+    window.speechSynthesis.speak(utter);
+  };
+  if (window.speechSynthesis.getVoices().length === 0) {
+    window.speechSynthesis.onvoiceschanged = () => { trySpeak(); };
+  } else {
+    trySpeak();
+  }
+}
+
+function parseSpokenPin(transcript: string): string {
+  const wordMap: Record<string, string> = {
+    "zero": "0", "oh": "0", "o": "0", "nought": "0",
+    "one": "1", "won": "1",
+    "two": "2", "to": "2", "too": "2",
+    "three": "3", "tree": "3",
+    "four": "4", "for": "4", "fore": "4",
+    "five": "5",
+    "six": "6", "sicks": "6",
+    "seven": "7",
+    "eight": "8", "ate": "8",
+    "nine": "9", "niner": "9",
+  };
+  // First: extract contiguous digit runs ≥ 4
+  const raw = transcript.replace(/\s/g, "");
+  const digitRun = raw.match(/\d{4,8}/);
+  if (digitRun) return digitRun[0].slice(0, 8);
+  // Second: map words
+  const words = transcript.toLowerCase().replace(/[^a-z0-9\s]/g, "").trim().split(/\s+/);
+  const mapped = words.map(w => wordMap[w] ?? (w.match(/^\d$/) ? w : null)).filter(Boolean) as string[];
+  return mapped.join("").slice(0, 8);
+}
+
 /* ─── Cinematic greeting shown before the PIN pad ─────────────────────── */
 function StarLabGreeting({ userName, onComplete }: { userName?: string; onComplete: () => void }) {
-  const [visibleCount, setVisibleCount] = useState(0);
-  const [showButton, setShowButton] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [speechDone, setSpeechDone] = useState(false);
+  const [waveTick, setWaveTick] = useState(0);
+  const [captionIdx, setCaptionIdx] = useState(-1);
+  const hasSpoken = useRef(false);
 
-  const lines = [
-    userName ? { text: `Hi ${userName},`, big: true } : null,
-    { text: "You are now entering", big: false },
-    { text: "Sirius Star Labs.", big: false, accent: true },
-    { text: "This is a restricted area.", big: false },
-    { text: "Please enter your access code.", big: false, dim: true },
-  ].filter(Boolean) as { text: string; big?: boolean; accent?: boolean; dim?: boolean }[];
+  const greetingText = `Hi ${userName || "there"}, welcome to Sirius Star Lab. You are entering a restricted area. Please key in your PIN number.`;
 
+  const captions = [
+    `Hi ${userName || "there"},`,
+    "Welcome to Sirius Star Lab.",
+    "You are entering a restricted area.",
+    "Please key in your PIN number.",
+  ];
+
+  // Waveform ticker
   useEffect(() => {
-    const DELAYS = [700, 1300, 1900, 2650, 3400];
-    const timers = DELAYS.slice(0, lines.length).map((delay, i) =>
-      setTimeout(() => setVisibleCount(i + 1), delay)
-    );
-    const btnTimer = setTimeout(() => setShowButton(true), DELAYS[lines.length - 1] + 900);
-    return () => { timers.forEach(clearTimeout); clearTimeout(btnTimer); };
+    const id = setInterval(() => setWaveTick(t => t + 1), 120);
+    return () => clearInterval(id);
   }, []);
 
+  // Auto-speak on mount (brief delay so audio context unlocks)
+  useEffect(() => {
+    if (hasSpoken.current) return;
+    hasSpoken.current = true;
+    const startSpeak = () => {
+      setIsSpeaking(true);
+      // Advance captions in sync with speech timing
+      const delays = [0, 900, 2000, 3200];
+      delays.forEach((d, i) => setTimeout(() => setCaptionIdx(i), d));
+      speakText(greetingText, () => {
+        setIsSpeaking(false);
+        setSpeechDone(true);
+        setTimeout(onComplete, 600);
+      });
+    };
+    // 400ms allows the browser to settle
+    const t = setTimeout(startSpeak, 400);
+    return () => { clearTimeout(t); window.speechSynthesis?.cancel(); };
+  }, []);
+
+  const bars = 12;
+
   return (
-    <div
-      className="min-h-screen flex flex-col items-center justify-center relative overflow-hidden"
-      style={{ background: "#F8FAFC" }}
-    >
+    <div className="min-h-screen flex flex-col items-center justify-center relative overflow-hidden" style={{ background: "#F8FAFC" }}>
       {/* Grid overlay */}
       <div className="absolute inset-0 pointer-events-none opacity-[0.025]"
         style={{ backgroundImage: "linear-gradient(hsl(193,100%,60%) 1px, transparent 1px), linear-gradient(90deg, hsl(193,100%,60%) 1px, transparent 1px)", backgroundSize: "40px 40px" }} />
-
       {/* Corner brackets */}
       {[["top-8 left-8","border-t-2 border-l-2"],["top-8 right-8","border-t-2 border-r-2"],["bottom-8 left-8","border-b-2 border-l-2"],["bottom-8 right-8","border-b-2 border-r-2"]].map(([pos, border], i) => (
         <div key={i} className={`absolute w-8 h-8 ${pos} ${border} opacity-20`} style={{ borderColor: "hsl(193,100%,50%)" }} />
       ))}
-
       {/* Status bar */}
       <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-6 py-3 text-xs font-mono"
         style={{ color: "hsl(193,100%,40%)", borderBottom: "1px solid rgba(0,255,200,0.05)" }}>
@@ -116,87 +184,81 @@ function StarLabGreeting({ userName, onComplete }: { userName?: string; onComple
         <span>{new Date().toLocaleTimeString("en-GB", { hour12: false })}</span>
       </div>
 
-      <div className="flex flex-col items-center gap-10 relative z-10 px-8 text-center">
-
-        {/* Twins logo — large, with glow rings */}
+      <div className="flex flex-col items-center gap-8 relative z-10 px-8 text-center">
+        {/* Twin avatar with speaking rings */}
         <motion.div
           initial={{ opacity: 0, scale: 0.7 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
           className="relative flex items-center justify-center"
-          style={{ width: 150, height: 150 }}
+          style={{ width: 160, height: 160 }}
         >
-          {/* Outer slow-spin ring */}
+          {/* Speaking pulse rings */}
+          {isSpeaking && [1, 2, 3].map(n => (
+            <motion.div key={n}
+              className="absolute inset-0 rounded-full"
+              style={{ border: `1px solid hsl(193,100%,52%)` }}
+              animate={{ scale: [1, 1.15 + n * 0.12], opacity: [0.6, 0] }}
+              transition={{ duration: 1.2, repeat: Infinity, delay: n * 0.3, ease: "easeOut" }}
+            />
+          ))}
           <div className="ai-ring-outer absolute inset-0 rounded-full"
-            style={{ border: "1px dashed hsl(193,100%,52% / 0.35)" }} />
+            style={{ border: "1px dashed hsla(193,100%,52%,0.35)" }} />
           <div className="absolute inset-3 rounded-full"
-            style={{ border: "1px solid hsl(193,100%,52% / 0.20)" }} />
-          {/* Glow halo */}
+            style={{ border: "1px solid hsla(193,100%,52%,0.2)" }} />
           <div className="absolute inset-0 rounded-full"
-            style={{ background: "radial-gradient(circle, hsl(193,100%,52% / 0.22) 0%, transparent 68%)", filter: "blur(12px)" }} />
-          {/* Logo image */}
+            style={{ background: "radial-gradient(circle, hsla(193,100%,52%,0.22) 0%, transparent 68%)", filter: "blur(12px)" }} />
           <div className="relative z-10 rounded-full overflow-hidden"
-            style={{
-              width: 118, height: 118,
-              border: "2px solid hsl(193,100%,52% / 0.50)",
-              boxShadow: "0 0 36px hsl(193,100%,52% / 0.45), 0 0 90px hsl(193,100%,52% / 0.18)",
-            }}>
+            style={{ width: 118, height: 118, border: "2px solid hsla(193,100%,52%,0.5)", boxShadow: "0 0 36px hsla(193,100%,52%,0.45), 0 0 90px hsla(193,100%,52%,0.18)" }}>
             <img src="/logo-v2.png" alt="Sirius AI" className="w-full h-full object-cover"
               style={{ filter: "brightness(1.15) contrast(1.08) saturate(1.2)" }} />
           </div>
         </motion.div>
 
-        {/* Lines revealing one by one */}
-        <div className="space-y-2 min-h-[140px] flex flex-col items-center justify-center">
-          {lines.map((line, i) => (
+        {/* Live waveform when speaking */}
+        {isSpeaking && (
+          <div className="flex items-center gap-1" style={{ height: 32 }}>
+            {Array.from({ length: bars }).map((_, i) => {
+              const h = 6 + Math.abs(Math.sin((waveTick * 0.4 + i * 0.9))) * 22;
+              return (
+                <motion.div key={i}
+                  animate={{ height: h }}
+                  transition={{ duration: 0.12 }}
+                  style={{ width: 3, borderRadius: 3, background: "hsl(193,100%,45%)", opacity: 0.7 + (h / 28) * 0.3 }}
+                />
+              );
+            })}
+          </div>
+        )}
+
+        {/* Captions */}
+        <div className="space-y-1.5 min-h-[100px] flex flex-col items-center justify-center">
+          {captions.map((line, i) => (
             <AnimatePresence key={i}>
-              {visibleCount > i && (
+              {captionIdx >= i && (
                 <motion.p
-                  initial={{ opacity: 0, y: 10 }}
+                  initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, ease: "easeOut" }}
+                  transition={{ duration: 0.45 }}
                   className="font-mono"
                   style={{
-                    fontSize: line.big ? "1.5rem" : "0.875rem",
-                    fontWeight: line.big ? 700 : 400,
-                    color: line.big
-                      ? "#0F172A"
-                      : line.accent
-                      ? "hsl(193,100%,30%)"
-                      : line.dim
-                      ? "rgba(15,23,42,0.4)"
-                      : "rgba(15,23,42,0.65)",
-                    letterSpacing: line.big ? "-0.01em" : "0.15em",
-                    textTransform: line.big ? "none" : "uppercase",
-                  }}
-                >
-                  {line.text}
+                    fontSize: i === 0 ? "1.3rem" : "0.875rem",
+                    fontWeight: i === 0 ? 700 : 400,
+                    color: i === 0 ? "#0F172A" : i === 1 ? "hsl(193,100%,30%)" : i === 3 ? "rgba(15,23,42,0.4)" : "rgba(15,23,42,0.65)",
+                    letterSpacing: i === 0 ? "-0.01em" : "0.12em",
+                    textTransform: i === 0 ? "none" : "uppercase",
+                  }}>
+                  {line}
                 </motion.p>
               )}
             </AnimatePresence>
           ))}
         </div>
 
-        {/* Enter code button */}
-        <AnimatePresence>
-          {showButton && (
-            <motion.button
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-              onClick={onComplete}
-              className="px-8 py-3 rounded-xl font-mono text-sm tracking-[0.2em] uppercase transition-all duration-200 active:scale-95 hover:brightness-110"
-              style={{
-                background: "linear-gradient(135deg, hsl(193,100%,35%), hsl(193,100%,28%))",
-                border: "1px solid hsl(193,100%,45%)",
-                color: "#fff",
-                boxShadow: "0 4px 20px hsl(193,100%,35% / 0.3)",
-              }}
-            >
-              Enter Code →
-            </motion.button>
-          )}
-        </AnimatePresence>
+        {/* Subtle status */}
+        <p className="font-mono text-xs" style={{ color: "rgba(15,23,42,0.2)", letterSpacing: "0.2em" }}>
+          {speechDone ? "TRANSITIONING…" : isSpeaking ? "SIRIUS SPEAKING…" : "INITIALISING…"}
+        </p>
       </div>
     </div>
   );
@@ -213,11 +275,17 @@ function PinGate({ onUnlock, userName }: { onUnlock: (pin: string, role: AccessR
   const [countdown, setCountdown] = useState(0);
   const [shake, setShake] = useState(false);
   const [scanLine, setScanLine] = useState(0);
+  // Voice state
+  const [voiceStatus, setVoiceStatus] = useState<"idle" | "listening" | "heard" | "speaking">("idle");
+  const [voiceHint, setVoiceHint] = useState("");
+  const [waveTick, setWaveTick] = useState(0);
+  const recognitionRef = useRef<any>(null);
+  const voiceActiveRef = useRef(false);
   const base = getApiBase();
 
-  // Scan line animation
+  // Scan line + waveform animation
   useEffect(() => {
-    const id = setInterval(() => setScanLine(p => (p + 1) % 100), 30);
+    const id = setInterval(() => { setScanLine(p => (p + 1) % 100); setWaveTick(t => t + 1); }, 30);
     return () => clearInterval(id);
   }, []);
 
@@ -234,22 +302,89 @@ function PinGate({ onUnlock, userName }: { onUnlock: (pin: string, role: AccessR
     return () => clearInterval(id);
   }, [lockoutEnd]);
 
-  // Keyboard support
+  // Keyboard support (fallback)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (status === "locked" || status === "loading") return;
+      if (status === "locked" || status === "loading" || phase !== "pin") return;
       if (e.key >= "0" && e.key <= "9") press(e.key);
       else if (e.key === "Backspace") deleteLast();
       else if (e.key === "Enter") submit();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [digits, status]);
+  }, [digits, status, phase]);
+
+  // Start voice recognition for PIN when phase becomes "pin"
+  useEffect(() => {
+    if (phase !== "pin" || status === "locked") return;
+    const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRec) {
+      setVoiceHint("Tap your PIN below");
+      return;
+    }
+    // Brief delay so any previous speech finishes
+    const t = setTimeout(() => startListening(), 600);
+    return () => { clearTimeout(t); stopListening(); };
+  }, [phase, status]);
+
+  const startListening = () => {
+    const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRec || voiceActiveRef.current || status === "loading") return;
+    try {
+      const rec = new SpeechRec();
+      recognitionRef.current = rec;
+      rec.lang = "en-GB";
+      rec.continuous = false;
+      rec.interimResults = false;
+      rec.maxAlternatives = 3;
+      rec.onstart = () => { voiceActiveRef.current = true; setVoiceStatus("listening"); setVoiceHint("Listening…"); };
+      rec.onresult = (e: any) => {
+        const transcripts = Array.from(e.results[0]).map((r: any) => r.transcript);
+        let pin = "";
+        for (const t of transcripts) { pin = parseSpokenPin(t); if (pin.length >= 4) break; }
+        if (pin.length >= 4) {
+          setVoiceStatus("heard");
+          setVoiceHint(`Heard: ${pin.split("").join(" ")} — verifying…`);
+          const d = pin.split("").slice(0, MAX_PIN_DIGITS);
+          setDigits(d);
+          setTimeout(() => submitPin(d), 500);
+        } else {
+          setVoiceStatus("speaking");
+          const msg = "I didn't quite catch that. Please say your PIN digits clearly.";
+          setVoiceHint(msg);
+          speakText(msg, () => { setVoiceStatus("idle"); startListening(); });
+        }
+      };
+      rec.onerror = (e: any) => {
+        voiceActiveRef.current = false;
+        setVoiceStatus("speaking");
+        if (e.error === "no-speech") {
+          const msg = "I didn't hear anything. Please say your PIN.";
+          setVoiceHint(msg);
+          speakText(msg, () => { setVoiceStatus("idle"); startListening(); });
+        } else if (e.error === "not-allowed") {
+          setVoiceHint("Microphone blocked — please use the keypad below");
+        } else {
+          setVoiceHint("Voice unavailable — use the keypad");
+        }
+      };
+      rec.onend = () => { voiceActiveRef.current = false; };
+      rec.start();
+    } catch { setVoiceHint("Tap your PIN below"); }
+  };
+
+  const stopListening = () => {
+    try { recognitionRef.current?.stop(); } catch {}
+    voiceActiveRef.current = false;
+  };
 
   const press = (d: string) => {
     if (digits.length >= MAX_PIN_DIGITS || status === "loading" || status === "locked") return;
+    stopListening();
     setDigits(prev => [...prev, d]);
     setStatus("idle");
+    setVoiceStatus("idle");
+    setVoiceHint("");
   };
 
   const deleteLast = () => {
@@ -263,9 +398,9 @@ function PinGate({ onUnlock, userName }: { onUnlock: (pin: string, role: AccessR
     setTimeout(() => { setShake(false); setDigits([]); }, 600);
   };
 
-  const submit = async () => {
-    if (digits.length === 0 || status === "loading" || status === "locked") return;
-    const pin = digits.join("");
+  const submitPin = async (ds: string[]) => {
+    if (ds.length === 0 || status === "loading" || status === "locked") return;
+    const pin = ds.join("");
     setStatus("loading");
     try {
       const res = await fetch(`${base}lab/auth`, {
@@ -277,49 +412,55 @@ function PinGate({ onUnlock, userName }: { onUnlock: (pin: string, role: AccessR
         const role: AccessRole = body.role === "guest" ? "guest" : "owner";
         sessionStorage.setItem("lab_pin", pin);
         sessionStorage.setItem("lab_role", role);
-        onUnlock(pin, role);
+        const welcome = `Welcome back${userName ? ", " + userName : ""}. Access granted. Good to have you in the Lab.`;
+        setVoiceStatus("speaking");
+        setVoiceHint(welcome);
+        speakText(welcome, () => onUnlock(pin, role));
       } else {
         const body = await res.json().catch(() => ({}));
-        // Server-side lockout (403) — use server's unlock time if available
         if (res.status === 403 && body.unlocksAt) {
           setStatus("locked");
           setLockoutEnd(new Date(body.unlocksAt).getTime());
           setAttempts(MAX_ATTEMPTS);
+          speakText("Terminal locked after too many failed attempts. Please wait before trying again.");
         } else {
-          // Use server's remaining attempts count if provided
-          const newAttempts = body.attemptsLeft !== undefined
-            ? MAX_ATTEMPTS - body.attemptsLeft
-            : attempts + 1;
+          const newAttempts = body.attemptsLeft !== undefined ? MAX_ATTEMPTS - body.attemptsLeft : attempts + 1;
           setAttempts(newAttempts);
           if (newAttempts >= MAX_ATTEMPTS) {
             setStatus("locked");
             setLockoutEnd(Date.now() + LOCKOUT_SECONDS * 1000);
+            speakText("Terminal locked. Too many incorrect attempts.");
           } else {
             setStatus("error");
             triggerShake();
+            setDigits([]);
+            const attemptsLeft = MAX_ATTEMPTS - newAttempts;
+            const msg = `Access denied. ${attemptsLeft} attempt${attemptsLeft !== 1 ? "s" : ""} remaining. Please say your PIN again.`;
+            setVoiceStatus("speaking");
+            setVoiceHint(msg);
+            speakText(msg, () => { setStatus("idle"); setVoiceStatus("idle"); startListening(); });
           }
         }
-        setDigits([]);
       }
     } catch {
       setStatus("error");
       triggerShake();
+      setDigits([]);
+      const msg = "Connection error. Please try again.";
+      setVoiceHint(msg);
+      speakText(msg, () => { setStatus("idle"); setVoiceStatus("idle"); startListening(); });
     }
   };
 
+  const submit = async () => submitPin(digits);
+
   const KEYS = ["1","2","3","4","5","6","7","8","9","del","0","ok"];
   const attemptsLeft = MAX_ATTEMPTS - attempts;
-  const PIN_DISPLAY_LENGTH = Math.max(4, digits.length + (digits.length < MAX_PIN_DIGITS ? 1 : 0));
 
   // Show cinematic greeting before the PIN pad
   if (phase === "greeting") {
     return (
-      <motion.div
-        key="greeting"
-        initial={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.4 }}
-      >
+      <motion.div key="greeting" initial={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.4 }}>
         <StarLabGreeting userName={userName} onComplete={() => setPhase("pin")} />
       </motion.div>
     );
@@ -383,10 +524,43 @@ function PinGate({ onUnlock, userName }: { onUnlock: (pin: string, role: AccessR
           </div>
         </div>
 
+        {/* Voice indicator */}
+        <div className="flex flex-col items-center gap-2 w-full">
+          {voiceStatus === "listening" && (
+            <div className="flex flex-col items-center gap-2">
+              <div className="flex items-center gap-1" style={{ height: 28 }}>
+                {Array.from({ length: 10 }).map((_, i) => {
+                  const h = 5 + Math.abs(Math.sin(waveTick * 0.35 + i * 0.85)) * 18;
+                  return (
+                    <motion.div key={i} animate={{ height: h }} transition={{ duration: 0.12 }}
+                      style={{ width: 3, borderRadius: 3, background: "hsl(193,100%,45%)", opacity: 0.75 + (h / 22) * 0.25 }}
+                    />
+                  );
+                })}
+              </div>
+              <p className="font-mono text-xs animate-pulse" style={{ color: "hsl(193,100%,40%)", letterSpacing: "0.15em" }}>
+                LISTENING FOR PIN…
+              </p>
+            </div>
+          )}
+          {voiceStatus === "speaking" && (
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: "hsl(193,100%,50%)" }} />
+              <p className="font-mono text-xs" style={{ color: "hsl(193,100%,38%)", letterSpacing: "0.12em" }}>SIRIUS SPEAKING…</p>
+            </div>
+          )}
+          {voiceStatus === "heard" && (
+            <p className="font-mono text-xs" style={{ color: "hsl(155,70%,40%)", letterSpacing: "0.12em" }}>✓ PIN RECEIVED</p>
+          )}
+          {voiceHint && voiceStatus === "idle" && (
+            <p className="font-mono text-xs text-center" style={{ color: "rgba(15,23,42,0.4)", letterSpacing: "0.1em" }}>{voiceHint}</p>
+          )}
+        </div>
+
         {/* PIN dots */}
         <div className="w-full px-4">
           <div className="flex items-center justify-center gap-3 py-5 px-6 rounded-2xl"
-            style={{ background: "#F5F7FF", border: `1px solid ${status === "error" ? "hsla(0,70%,50%,0.4)" : status === "locked" ? "hsla(0,70%,50%,0.3)" : "rgba(0,200,180,0.1)"}`, boxShadow: status === "error" ? "0 0 20px hsla(0,70%,50%,0.1)" : "inset 0 1px 0 rgba(15,23,42,0.04)" }}>
+            style={{ background: "#F5F7FF", border: `1px solid ${status === "error" ? "hsla(0,70%,50%,0.4)" : status === "locked" ? "hsla(0,70%,50%,0.3)" : voiceStatus === "listening" ? "hsla(193,100%,45%,0.35)" : "rgba(0,200,180,0.1)"}`, boxShadow: voiceStatus === "listening" ? "0 0 20px hsla(193,100%,45%,0.12)" : status === "error" ? "0 0 20px hsla(0,70%,50%,0.1)" : "inset 0 1px 0 rgba(15,23,42,0.04)" }}>
             {status === "locked" ? (
               <div className="flex items-center gap-2.5">
                 <Lock className="w-4 h-4" style={{ color: "hsl(0,70%,55%)" }} />
@@ -468,6 +642,16 @@ function PinGate({ onUnlock, userName }: { onUnlock: (pin: string, role: AccessR
             );
           })}
         </div>
+
+        {/* Speak again button (shown when voice is idle and mic was available) */}
+        {voiceStatus === "idle" && status !== "locked" && status !== "loading" && (
+          <button onClick={() => startListening()}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl font-mono text-xs transition-all active:scale-95"
+            style={{ background: "hsla(193,100%,45%,0.08)", border: "1px solid hsla(193,100%,45%,0.2)", color: "hsl(193,100%,38%)", letterSpacing: "0.12em" }}>
+            <Mic className="w-3.5 h-3.5" />
+            SPEAK YOUR PIN
+          </button>
+        )}
 
         <p className="font-mono text-xs" style={{ color: "rgba(15,23,42,0.12)", letterSpacing: "0.15em" }}>
           AUTHORISED PERSONNEL ONLY
@@ -7469,8 +7653,8 @@ export function StarLabPage() {
   const [pin, setPin] = useState("");
   const [accessLevel, setAccessLevel] = useState<AccessRole>("owner");
   const userName = typeof window !== "undefined"
-    ? (localStorage.getItem("sirius_display_name") || "").trim() || undefined
-    : undefined;
+    ? (localStorage.getItem("sirius_display_name") || "").trim() || "Garry"
+    : "Garry";
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeProject, setActiveProject] = useState<Project | null>(null);
   const [navMode, setNavMode] = useState<NavMode>("projects");
