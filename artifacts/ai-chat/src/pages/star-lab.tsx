@@ -3859,117 +3859,488 @@ function OutreachHubPanel({ pin }: { pin: string }) {
   const allSectors = ["All", ...Array.from(new Set(contacts.map(c => c.sector)))];
   const pendingSends = sends.filter(s => s.status === "pending");
 
-  // ─── INPUT STYLE ────────────────────────────────────────────────────────────
+  // ─── COMPUTED ────────────────────────────────────────────────────────────────
   const inp = "w-full text-xs text-white placeholder-white/20 outline-none rounded-xl px-3 py-2 bg-[hsl(226,45%,12%)] border border-[rgba(255,255,255,0.07)]";
+  const filteredContacts = sectorFilter === "All" ? contacts : contacts.filter(c => c.sector === sectorFilter);
+  const allSectors = ["All", ...Array.from(new Set(contacts.map(c => c.sector)))];
 
   // ─── RENDER ─────────────────────────────────────────────────────────────────
-
-  const addRecipient = () => {
-    if (!rName.trim() || !rEmail.trim()) return;
-    setRecipients(prev => [...prev, { id: crypto.randomUUID(), name: rName.trim(), email: rEmail.trim(), company: rCompany.trim(), role: rRole.trim(), notes: rNotes.trim() }]);
-    setRName(""); setREmail(""); setRCompany(""); setRRole(""); setRNotes("");
-  };
-
-  const parseBulk = () => {
-    const lines = bulkText.split("\n").map(l => l.trim()).filter(Boolean);
-    const parsed: Recipient[] = [];
-    for (const line of lines) {
-      const parts = line.split(/,|\t/).map(p => p.trim());
-      const name = parts[0] || "";
-      const email = parts[1] || "";
-      if (name && email.includes("@")) {
-        parsed.push({ id: crypto.randomUUID(), name, email, company: parts[2] || "", role: parts[3] || "", notes: "" });
-      }
-    }
-    if (parsed.length) { setRecipients(prev => [...prev, ...parsed]); setBulkText(""); setShowBulk(false); }
-  };
-
-  const generate = async () => {
-    if (!recipients.length || generating) return;
-    setGenerating(true);
-    setMessages(recipients.map(r => ({ recipientId: r.id, subject: "", body: "", status: "pending" })));
-
-    try {
-      const res = await fetch(`${base}outreach/generate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-lab-pin": pin },
-        body: JSON.stringify({ messageType: msgType, product, senderName, senderCompany, tone, subjectTemplate, recipients }),
-      });
-
-      const reader = res.body!.getReader();
-      const decoder = new TextDecoder();
-      let buf = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buf += decoder.decode(value, { stream: true });
-        const lines = buf.split("\n");
-        buf = lines.pop() || "";
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          try {
-            const data = JSON.parse(line.slice(6));
-            if (data.done) continue;
-            if (data.error) {
-              setMessages(prev => prev.map(m => m.recipientId === data.recipientId ? { ...m, status: "error", error: data.error } : m));
-            } else {
-              setMessages(prev => prev.map(m => m.recipientId === data.recipientId ? { ...m, subject: data.subject, body: data.body, status: "done" } : m));
-            }
-          } catch {}
-        }
-      }
-    } catch (err: any) {
-      setMessages(prev => prev.map(m => ({ ...m, status: "error", error: err.message })));
-    }
-    setGenerating(false);
-  };
-
-  const updateMsg = (recipientId: string, field: "subject" | "body", val: string) =>
-    setMessages(prev => prev.map(m => m.recipientId === recipientId ? { ...m, [field]: val } : m));
-
-  const copyAll = () => {
-    const text = messages.filter(m => m.status === "done").map(m => {
-      const r = recipients.find(r => r.id === m.recipientId);
-      return `To: ${r?.email}\nSubject: ${m.subject}\n\n${m.body}`;
-    }).join("\n\n---\n\n");
-    navigator.clipboard.writeText(text);
-  };
-
-  const sendEmails = async () => {
-    setSending(true); setSendResult(null);
-    const payload = messages.filter(m => m.status === "done").map(m => {
-      const r = recipients.find(r => r.id === m.recipientId);
-      return { to: r?.email, subject: m.subject, body: m.body };
-    });
-    try {
-      const res = await fetch(`${base}outreach/send`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-lab-pin": pin },
-        body: JSON.stringify({ messages: payload, smtpHost, smtpPort, smtpUser, smtpPass, fromEmail, fromName }),
-      });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      setSendResult({ sent: data.sent, failed: data.failed });
-    } catch (err: any) {
-      setSendResult({ sent: 0, failed: payload.length });
-    }
-    setSending(false);
-  };
-
-  const doneCount = messages.filter(m => m.status === "done").length;
+  const VIEWS = [
+    { id: "contacts", label: "Contacts", icon: Users },
+    { id: "campaigns", label: "Campaigns", icon: Mail },
+    { id: "sends", label: "Pitches", icon: Send },
+    { id: "analytics", label: "Analytics", icon: BarChart3 },
+  ] as const;
 
   return (
-    <div className="flex h-full min-h-0">
-      {/* Left Panel — Config + Recipients */}
-      <div className="w-80 flex-shrink-0 flex flex-col border-r overflow-y-auto" style={{ borderColor: "rgba(255,255,255,0.06)", background: "hsl(226,45%,6%)" }}>
-        <div className="p-4 border-b" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
-          <div className="flex items-center gap-2 mb-1">
-            <Mail className="w-4 h-4" style={{ color: "hsl(340,80%,60%)" }} />
+    <div className="flex flex-col h-full min-h-0">
+      {/* Header */}
+      <div className="flex items-center justify-between px-6 py-4 border-b flex-shrink-0" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+        <div className="flex items-center gap-3">
+          <Mail className="w-5 h-5" style={{ color: "hsl(340,80%,60%)" }} />
+          <div>
             <h2 className="text-white font-semibold text-sm">Outreach Hub</h2>
+            <p className="text-white/30 text-xs">{contacts.length} contacts · {campaigns.length} campaigns</p>
           </div>
-          <p className="text-white/30 text-xs">AI-personalised messages at scale</p>
         </div>
+        <div className="flex gap-1 p-1 rounded-xl" style={{ background: "hsl(226,45%,10%)" }}>
+          {VIEWS.map(v => {
+            const Icon = v.icon;
+            return (
+              <button key={v.id} onClick={() => setView(v.id)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all"
+                style={{ background: view === v.id ? "hsl(340,80%,45%)" : "transparent", color: view === v.id ? "white" : "rgba(255,255,255,0.35)" }}>
+                <Icon className="w-3 h-3" />{v.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Body */}
+      <div className="flex-1 min-h-0 overflow-y-auto p-6">
+
+        {/* ── CONTACTS ── */}
+        {view === "contacts" && (
+          <div className="space-y-4">
+            {/* Actions bar */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <button onClick={() => setAddOpen(o => !o)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-white transition-all"
+                style={{ background: "hsl(340,80%,42%)" }}>
+                <Plus className="w-3 h-3" /> Add Contact
+              </button>
+              <button onClick={() => setBulkOpen(o => !o)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs transition-all"
+                style={{ background: "hsl(226,45%,14%)", color: "rgba(255,255,255,0.6)" }}>
+                <Upload className="w-3 h-3" /> Bulk Import
+              </button>
+              <button onClick={() => setScanOpen(o => !o)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs transition-all"
+                style={{ background: "hsl(226,45%,14%)", color: "rgba(255,255,255,0.6)" }}>
+                <Telescope className="w-3 h-3" /> AI Scan
+              </button>
+              <div className="ml-auto flex gap-1">
+                {allSectors.map(s => (
+                  <button key={s} onClick={() => setSectorFilter(s)}
+                    className="px-2.5 py-1 rounded-lg text-xs transition-all"
+                    style={{ background: sectorFilter === s ? "hsl(193,100%,30%)" : "hsl(226,45%,12%)", color: sectorFilter === s ? "white" : "rgba(255,255,255,0.3)" }}>
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Add contact form */}
+            {addOpen && (
+              <div className="p-4 rounded-2xl space-y-3" style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                <p className="text-white/50 text-xs font-medium">New Contact</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {[["Name *", "name", "Jane Smith"], ["Email", "email", "jane@company.com"], ["Company", "company", "Acme Ltd"], ["Role", "role", "CEO"], ["Sector", "sector", "Oil & Gas"], ["Location", "location", "Aberdeen"]].map(([label, key, ph]) => (
+                    <div key={key}>
+                      <label className="text-white/30 text-xs mb-1 block">{label}</label>
+                      <input value={(newC as any)[key]} onChange={e => setNewC(p => ({ ...p, [key]: e.target.value }))} placeholder={ph} className={inp} />
+                    </div>
+                  ))}
+                </div>
+                <div>
+                  <label className="text-white/30 text-xs mb-1 block">Notes</label>
+                  <textarea value={newC.notes} onChange={e => setNewC(p => ({ ...p, notes: e.target.value }))} rows={2} placeholder="Any context…" className={inp + " resize-none"} />
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => setAddOpen(false)} className="px-3 py-2 rounded-xl text-xs text-white/40" style={{ background: "hsl(226,45%,13%)" }}>Cancel</button>
+                  <button onClick={async () => { await addContact(); setAddOpen(false); setNewC({ name: "", email: "", company: "", role: "", sector: "Oil & Gas", website: "", location: "", notes: "" }); }}
+                    className="px-4 py-2 rounded-xl text-xs font-semibold text-white" style={{ background: "hsl(340,80%,42%)" }}>
+                    Save Contact
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Bulk import */}
+            {bulkOpen && (
+              <div className="p-4 rounded-2xl space-y-3" style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                <p className="text-white/50 text-xs font-medium">Bulk Import — paste CSV (Name, Email, Company, Role)</p>
+                <textarea value={bulkText} onChange={e => setBulkText(e.target.value)} rows={5} placeholder={"Jane Smith, jane@co.com, Acme, CEO\nBob Jones, bob@firm.com, Firm Ltd, CFO"} className={inp + " resize-none font-mono"} />
+                <div className="flex gap-2 items-center">
+                  <select value={bulkSector} onChange={e => setBulkSector(e.target.value)} className={inp + " w-auto"}>
+                    {SECTORS.map(s => <option key={s}>{s}</option>)}
+                  </select>
+                  <button onClick={async () => {
+                    const lines = bulkText.split("\n").map(l => l.trim()).filter(Boolean);
+                    for (const line of lines) {
+                      const p = line.split(/,|\t/).map(x => x.trim());
+                      if (p[0] && p[1]?.includes("@")) {
+                        await fetch(`${base}outreach/contacts`, { method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin }, body: JSON.stringify({ name: p[0], email: p[1], company: p[2] || "", role: p[3] || "", sector: bulkSector }) });
+                      }
+                    }
+                    await loadContacts(); setBulkText(""); setBulkOpen(false);
+                  }} className="px-4 py-2 rounded-xl text-xs font-semibold text-white whitespace-nowrap" style={{ background: "hsl(340,80%,42%)" }}>
+                    Import
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* AI sector scan */}
+            {scanOpen && (
+              <div className="p-4 rounded-2xl space-y-3" style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                <p className="text-white/50 text-xs font-medium">AI Sector Scanner — finds real companies + contacts</p>
+                <div className="flex gap-2">
+                  <select value={scanSector} onChange={e => setScanSector(e.target.value)} className={inp + " flex-1"}>
+                    {SECTORS.filter(s => s !== "General").map(s => <option key={s}>{s}</option>)}
+                  </select>
+                  <input type="number" min={5} max={50} value={scanCount} onChange={e => setScanCount(+e.target.value)} className={inp + " w-20"} />
+                </div>
+                {scanLog.length > 0 && (
+                  <div className="p-3 rounded-xl font-mono text-xs text-green-400 space-y-1 max-h-32 overflow-y-auto" style={{ background: "hsl(226,45%,8%)" }}>
+                    {scanLog.map((l, i) => <div key={i}>{l}</div>)}
+                  </div>
+                )}
+                <button onClick={async () => {
+                  setScanning(true); setScanLog(["Scanning for companies…"]);
+                  const r = await fetch(`${base}outreach/scan`, { method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin }, body: JSON.stringify({ sector: scanSector, count: scanCount }) });
+                  const reader = r.body!.getReader(); const dec = new TextDecoder(); let buf = "";
+                  while (true) {
+                    const { done, value } = await reader.read(); if (done) break;
+                    buf += dec.decode(value, { stream: true });
+                    const lines = buf.split("\n"); buf = lines.pop() || "";
+                    for (const line of lines) {
+                      if (!line.startsWith("data: ")) continue;
+                      try { const d = JSON.parse(line.slice(6)); if (d.log) setScanLog(p => [...p, d.log]); if (d.done) { await loadContacts(); setScanOpen(false); } } catch {}
+                    }
+                  }
+                  setScanning(false);
+                }} disabled={scanning} className="w-full py-2.5 rounded-xl text-xs font-semibold text-white flex items-center justify-center gap-2 disabled:opacity-50" style={{ background: "hsl(193,100%,30%)" }}>
+                  {scanning ? <><Loader2 className="w-4 h-4 animate-spin" />Scanning…</> : <><Telescope className="w-4 h-4" />Start AI Scan</>}
+                </button>
+              </div>
+            )}
+
+            {/* Contacts list */}
+            {contactsLoading ? (
+              <div className="flex items-center gap-2 text-white/30 text-sm py-8 justify-center"><Loader2 className="w-4 h-4 animate-spin" />Loading contacts…</div>
+            ) : filteredContacts.length === 0 ? (
+              <div className="text-center py-12 text-white/20 text-sm">No contacts yet — add one or run the AI scanner</div>
+            ) : (
+              <div className="space-y-2">
+                {filteredContacts.map(c => (
+                  <div key={c.id} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-sm font-bold" style={{ background: "hsl(340,80%,25%)", color: "hsl(340,80%,70%)" }}>
+                      {c.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white text-xs font-medium truncate">{c.name}</p>
+                      <p className="text-white/35 text-xs truncate">{c.company} · {c.role}</p>
+                      <p className="text-white/20 text-xs truncate">{c.email}</p>
+                    </div>
+                    <span className="px-2 py-0.5 rounded-lg text-xs flex-shrink-0" style={{ background: "hsl(226,45%,16%)", color: "rgba(255,255,255,0.4)" }}>{c.sector}</span>
+                    <button onClick={async () => { await fetch(`${base}outreach/contacts/${c.id}`, { method: "DELETE", headers: { "x-lab-pin": pin } }); loadContacts(); }}
+                      className="text-white/15 hover:text-red-400 transition-colors flex-shrink-0">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── CAMPAIGNS ── */}
+        {view === "campaigns" && (
+          <div className="space-y-4">
+            <button onClick={() => setShowCreateCamp(o => !o)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-white"
+              style={{ background: "hsl(340,80%,42%)" }}>
+              <Plus className="w-3.5 h-3.5" /> New Campaign
+            </button>
+
+            {showCreateCamp && (
+              <div className="p-4 rounded-2xl space-y-3" style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                <p className="text-white/50 text-xs font-medium">Create Campaign</p>
+                <div>
+                  <label className="text-white/30 text-xs mb-1 block">Campaign Name</label>
+                  <input value={newCamp.name} onChange={e => setNewCamp(p => ({ ...p, name: e.target.value }))} placeholder="Hydrogen Q2 Push" className={inp} />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-white/30 text-xs mb-1 block">Product / Service</label>
+                    <input value={newCamp.product} onChange={e => setNewCamp(p => ({ ...p, product: e.target.value }))} className={inp} />
+                  </div>
+                  <div>
+                    <label className="text-white/30 text-xs mb-1 block">Message Type</label>
+                    <select value={newCamp.messageType} onChange={e => setNewCamp(p => ({ ...p, messageType: e.target.value }))} className={inp}>
+                      {MSG_TYPES.map(t => <option key={t}>{t}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-white/30 text-xs mb-1 block">Tone</label>
+                    <select value={newCamp.tone} onChange={e => setNewCamp(p => ({ ...p, tone: e.target.value }))} className={inp}>
+                      {TONES.map(t => <option key={t}>{t}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-white/30 text-xs mb-1 block">Your Name</label>
+                    <input value={newCamp.senderName} onChange={e => setNewCamp(p => ({ ...p, senderName: e.target.value }))} className={inp} />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-white/30 text-xs mb-1 block">Target Sectors</label>
+                  <div className="flex flex-wrap gap-1">
+                    {SECTORS.filter(s => s !== "General").map(s => {
+                      const active = newCamp.targetSectors.includes(s);
+                      return (
+                        <button key={s} onClick={() => setNewCamp(p => ({ ...p, targetSectors: active ? p.targetSectors.filter(x => x !== s) : [...p.targetSectors, s] }))}
+                          className="px-2.5 py-1 rounded-lg text-xs transition-all"
+                          style={{ background: active ? "hsl(340,80%,45%)" : "hsl(226,45%,14%)", color: active ? "white" : "rgba(255,255,255,0.35)" }}>
+                          {s}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => setShowCreateCamp(false)} className="px-3 py-2 rounded-xl text-xs text-white/40" style={{ background: "hsl(226,45%,13%)" }}>Cancel</button>
+                  <button onClick={async () => {
+                    setCreating(true);
+                    await fetch(`${base}outreach/campaigns`, { method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin }, body: JSON.stringify(newCamp) });
+                    await loadCampaigns(); setShowCreateCamp(false);
+                    setNewCamp({ name: "", product: "Sirius AI", targetSectors: [], messageType: "Cold Email", tone: "Professional", subjectTemplate: "", senderName: "Garry Hutton", senderCompany: "Strategic Innovation Dundee Ltd", fromEmail: "" });
+                    setCreating(false);
+                  }} disabled={creating || !newCamp.name.trim()} className="flex-1 py-2 rounded-xl text-xs font-semibold text-white flex items-center justify-center gap-2 disabled:opacity-50" style={{ background: "hsl(340,80%,42%)" }}>
+                    {creating ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Creating…</> : "Create Campaign"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {campaignsLoading ? (
+              <div className="flex items-center gap-2 text-white/30 text-sm py-8 justify-center"><Loader2 className="w-4 h-4 animate-spin" />Loading campaigns…</div>
+            ) : campaigns.length === 0 ? (
+              <div className="text-center py-12 text-white/20 text-sm">No campaigns yet</div>
+            ) : (
+              <div className="space-y-3">
+                {campaigns.map(camp => (
+                  <div key={camp.id} className="p-4 rounded-2xl" style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div>
+                        <p className="text-white text-sm font-medium">{camp.name}</p>
+                        <p className="text-white/30 text-xs mt-0.5">{camp.product} · {camp.messageType} · {camp.tone}</p>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-lg text-xs flex-shrink-0" style={{ background: camp.status === "active" ? "hsl(155,70%,18%)" : "hsl(226,45%,16%)", color: camp.status === "active" ? "hsl(155,70%,60%)" : "rgba(255,255,255,0.35)" }}>
+                        {camp.status}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-white/25 text-xs mb-3">
+                      <span>{camp.totalContacts || 0} contacts</span>
+                      <span>·</span>
+                      <span>{camp.sentCount || 0} sent</span>
+                      <span>·</span>
+                      <span>{camp.targetSectors?.join(", ") || "All sectors"}</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => { setActiveCampaign(camp); setSends([]); setGenLog([]); setView("sends"); }}
+                        className="px-3 py-1.5 rounded-lg text-xs font-medium text-white transition-all"
+                        style={{ background: "hsl(340,80%,42%)" }}>
+                        Generate Pitches
+                      </button>
+                      <button onClick={async () => { await fetch(`${base}outreach/campaigns/${camp.id}`, { method: "DELETE", headers: { "x-lab-pin": pin } }); loadCampaigns(); }}
+                        className="px-3 py-1.5 rounded-lg text-xs text-white/30 transition-all"
+                        style={{ background: "hsl(226,45%,14%)" }}>
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── SENDS / PITCHES ── */}
+        {view === "sends" && (
+          <div className="space-y-4">
+            {!activeCampaign ? (
+              <div className="text-center py-12 text-white/20 text-sm">Select a campaign from the Campaigns tab first</div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-white font-medium text-sm">{activeCampaign.name}</p>
+                    <p className="text-white/30 text-xs">{sends.length} pitches generated</p>
+                  </div>
+                  <div className="flex gap-2">
+                    {sends.length === 0 && !generating && (
+                      <button onClick={async () => {
+                        setGenerating(true); setGenLog(["Starting pitch generation…"]);
+                        const r = await fetch(`${base}outreach/campaigns/${activeCampaign.id}/generate`, { method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin }, body: "{}" });
+                        const reader = r.body!.getReader(); const dec = new TextDecoder(); let buf = "";
+                        while (true) {
+                          const { done, value } = await reader.read(); if (done) break;
+                          buf += dec.decode(value, { stream: true });
+                          const lines = buf.split("\n"); buf = lines.pop() || "";
+                          for (const line of lines) {
+                            if (!line.startsWith("data: ")) continue;
+                            try {
+                              const d = JSON.parse(line.slice(6));
+                              if (d.type === "start") setGenLog(p => [...p, `Generating for ${d.total} contacts…`]);
+                              if (d.type === "pitch" && d.send) { setSends(p => [...p, d.send]); setGenLog(p => [...p, `✓ ${d.send.contact?.name || "Contact"}`]); }
+                              if (d.type === "done") setGenLog(p => [...p, `✓ Done — ${d.total} pitches ready`]);
+                            } catch {}
+                          }
+                        }
+                        setGenerating(false);
+                      }} className="px-4 py-2 rounded-xl text-xs font-semibold text-white flex items-center gap-2" style={{ background: "hsl(340,80%,42%)" }}>
+                        <Zap className="w-3.5 h-3.5" /> Generate All Pitches
+                      </button>
+                    )}
+                    {sends.length > 0 && (
+                      <button onClick={() => setShowSmtp(true)}
+                        className="px-4 py-2 rounded-xl text-xs font-semibold text-white flex items-center gap-2"
+                        style={{ background: "hsl(155,70%,35%)" }}>
+                        <Send className="w-3.5 h-3.5" /> Launch Campaign
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {generating && (
+                  <div className="p-3 rounded-xl font-mono text-xs text-green-400 space-y-1 max-h-40 overflow-y-auto" style={{ background: "hsl(226,45%,8%)" }}>
+                    <div className="flex items-center gap-2 text-white/40 mb-1"><Loader2 className="w-3 h-3 animate-spin" />Generating…</div>
+                    {genLog.map((l, i) => <div key={i}>{l}</div>)}
+                  </div>
+                )}
+
+                {sends.length > 0 && (
+                  <div className="space-y-3">
+                    {sends.map(s => (
+                      <div key={s.id} className="p-4 rounded-2xl" style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                        <div className="flex items-center gap-2 mb-3">
+                          <div className="w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold" style={{ background: "hsl(340,80%,25%)", color: "hsl(340,80%,70%)" }}>
+                            {s.contact?.name?.charAt(0) || "?"}
+                          </div>
+                          <div>
+                            <p className="text-white text-xs font-medium">{s.contact?.name}</p>
+                            <p className="text-white/30 text-xs">{s.contact?.email}</p>
+                          </div>
+                          <span className="ml-auto px-2 py-0.5 rounded-lg text-xs" style={{ background: s.status === "sent" ? "hsl(155,70%,18%)" : "hsl(226,45%,16%)", color: s.status === "sent" ? "hsl(155,70%,60%)" : "rgba(255,255,255,0.35)" }}>
+                            {s.status}
+                          </span>
+                        </div>
+                        <div className="space-y-2">
+                          <input value={editSend[s.id]?.subject ?? s.subject ?? ""} onChange={e => setEditSend(p => ({ ...p, [s.id]: { ...p[s.id], subject: e.target.value } }))}
+                            placeholder="Subject line…" className={inp} />
+                          <textarea value={editSend[s.id]?.body ?? s.body ?? ""} onChange={e => setEditSend(p => ({ ...p, [s.id]: { ...p[s.id], body: e.target.value } }))}
+                            rows={6} className={inp + " resize-none"} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* SMTP Launch Modal */}
+                <AnimatePresence>
+                  {showSmtp && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                      className="fixed inset-0 z-50 flex items-center justify-center p-6"
+                      style={{ background: "rgba(0,0,0,0.7)" }}
+                      onClick={() => setShowSmtp(false)}>
+                      <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
+                        onClick={e => e.stopPropagation()}
+                        className="w-full max-w-md rounded-2xl p-6 space-y-4" style={{ background: "hsl(226,45%,11%)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                        <p className="text-white font-semibold text-sm">SMTP Settings — Launch Campaign</p>
+                        {[
+                          { label: "SMTP Host", val: smtpHost, set: setSmtpHost, ph: "smtp.gmail.com" },
+                          { label: "SMTP Port", val: smtpPort, set: setSmtpPort, ph: "587" },
+                          { label: "Username", val: smtpUser, set: setSmtpUser, ph: "you@gmail.com" },
+                          { label: "Password", val: smtpPass, set: setSmtpPass, ph: "App password" },
+                          { label: "From Email", val: fromEmail, set: setFromEmail, ph: "you@company.com" },
+                          { label: "From Name", val: fromName, set: setFromName, ph: "Garry Hutton" },
+                        ].map(f => (
+                          <div key={f.label}>
+                            <label className="text-white/35 text-xs mb-1 block">{f.label}</label>
+                            <input type={f.label === "Password" ? "password" : "text"} value={f.val} onChange={e => f.set(e.target.value)} placeholder={f.ph} className={inp} />
+                          </div>
+                        ))}
+                        {launchResult && (
+                          <div className="p-3 rounded-xl" style={{ background: launchResult.failed ? "rgba(220,50,50,0.1)" : "rgba(50,180,100,0.1)" }}>
+                            <p className="text-xs" style={{ color: launchResult.failed ? "#f87171" : "#4ade80" }}>
+                              {launchResult.sent} sent{launchResult.failed > 0 ? `, ${launchResult.failed} failed` : " successfully"}
+                            </p>
+                          </div>
+                        )}
+                        <div className="flex gap-3">
+                          <button onClick={() => setShowSmtp(false)} className="flex-1 py-2.5 rounded-xl text-sm text-white/40" style={{ background: "hsl(226,45%,13%)" }}>Cancel</button>
+                          <button onClick={launchCampaign} disabled={launching}
+                            className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 disabled:opacity-50"
+                            style={{ background: "hsl(155,70%,35%)" }}>
+                            {launching ? <><Loader2 className="w-4 h-4 animate-spin" />Sending…</> : <><Send className="w-4 h-4" />Send {sends.length} Emails</>}
+                          </button>
+                        </div>
+                      </motion.div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ── ANALYTICS ── */}
+        {view === "analytics" && (
+          <div className="space-y-4">
+            {!analytics ? (
+              <div className="flex items-center gap-2 text-white/30 text-sm py-8 justify-center"><Loader2 className="w-4 h-4 animate-spin" />Loading analytics…</div>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { label: "Total Contacts", val: analytics.totalContacts || 0, color: "hsl(340,80%,60%)" },
+                    { label: "Campaigns", val: analytics.totalCampaigns || 0, color: "hsl(193,100%,40%)" },
+                    { label: "Emails Sent", val: analytics.totalSent || 0, color: "hsl(155,70%,50%)" },
+                    { label: "Pending Pitches", val: analytics.totalPending || 0, color: "hsl(45,100%,55%)" },
+                  ].map(s => (
+                    <div key={s.label} className="p-4 rounded-2xl" style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                      <p className="text-3xl font-bold mb-1" style={{ color: s.color }}>{s.val}</p>
+                      <p className="text-white/30 text-xs">{s.label}</p>
+                    </div>
+                  ))}
+                </div>
+                {analytics.bySector && analytics.bySector.length > 0 && (
+                  <div className="p-4 rounded-2xl" style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                    <p className="text-white/50 text-xs font-medium mb-3">Contacts by Sector</p>
+                    {analytics.bySector.map((s: any) => (
+                      <div key={s.sector} className="flex items-center gap-3 mb-2">
+                        <p className="text-white/60 text-xs w-32 truncate">{s.sector}</p>
+                        <div className="flex-1 h-1.5 rounded-full" style={{ background: "hsl(226,45%,16%)" }}>
+                          <div className="h-full rounded-full" style={{ width: `${Math.min(100, (s.count / (analytics.totalContacts || 1)) * 100)}%`, background: "hsl(340,80%,50%)" }} />
+                        </div>
+                        <p className="text-white/30 text-xs w-6 text-right">{s.count}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+}
+
+// ─── Growth Engine Panel ────────────────────────────────────────────────────
+
+type GrowthResult = { format: string; label: string; subject: string; body: string; extra?: string };
+
+const GROWTH_FORMATS = [
+  { id: "linkedin", label: "LinkedIn", icon: "💼", color: "hsl(210,90%,55%)", desc: "Founder story post — reach 10k+ decision makers" },
+  { id: "twitter", label: "Twitter / X", icon: "𝕏", color: "hsl(220,15%,75%)", desc: "Thread format — shareable, indexable, viral potential" },
+  { id: "reddit", label: "Reddit", icon: "🔴", color: "hsl(14,100%,55%)", desc: "3 posts for r/artificial, r/entrepreneur, r/SideProject" },
+  { id: "producthunt", label: "Product Hunt", icon: "🔥", color: "hsl(25,90%,55%)", desc: "Full launch kit — tagline, description, maker comment" },
+  { id: "week", label: "Week Plan", icon: "📅", color: "hsl(280,70%,60%)", desc: "7-day content calendar with angles and hooks" },
+];
 
         <div className="p-4 space-y-4">
           {/* Message type */}
