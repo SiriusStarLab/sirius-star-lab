@@ -11,7 +11,8 @@ import {
   Heart, FlaskConical, Eye, EyeOff, Trash, Bell, BellOff, Filter,
   ChevronUp, BadgeCheck, Lightbulb, Atom, Upload, Download,
   Mail, UserPlus, Users, Settings2, AtSign, Building2, Briefcase, StickyNote, CheckCircle2, AlertCircle,
-  Banknote, CreditCard, ShoppingBag, BarChart3, ArrowRight, FileSearch, Hammer, ClipboardList
+  Banknote, CreditCard, ShoppingBag, BarChart3, ArrowRight, FileSearch, Hammer, ClipboardList,
+  Brain, MessageSquare, Activity, Target, Building
 } from "lucide-react";
 import { getApiBase } from "@/lib/api-base";
 
@@ -61,7 +62,7 @@ type RankResult = {
   keyStrengths: string[]; estimatedMonthlyRevenue: string;
   buildEffort: string;
 };
-type NavMode = "projects" | "botlab" | "scout" | "feed" | "grants" | "commerce" | "outreach" | "autolab" | "revenue" | "agency" | "mission" | "growth";
+type NavMode = "projects" | "botlab" | "scout" | "feed" | "grants" | "commerce" | "outreach" | "autolab" | "revenue" | "agency" | "mission" | "growth" | "brain";
 
 const MAX_PIN_DIGITS = 8;
 const MAX_ATTEMPTS = 5;
@@ -3855,10 +3856,6 @@ function OutreachHubPanel({ pin }: { pin: string }) {
     loadCampaigns();
   };
 
-  const filteredContacts = sectorFilter === "All" ? contacts : contacts.filter(c => c.sector === sectorFilter);
-  const allSectors = ["All", ...Array.from(new Set(contacts.map(c => c.sector)))];
-  const pendingSends = sends.filter(s => s.status === "pending");
-
   // ─── COMPUTED ────────────────────────────────────────────────────────────────
   const inp = "w-full text-xs text-white placeholder-white/20 outline-none rounded-xl px-3 py-2 bg-[hsl(226,45%,12%)] border border-[rgba(255,255,255,0.07)]";
   const filteredContacts = sectorFilter === "All" ? contacts : contacts.filter(c => c.sector === sectorFilter);
@@ -4330,304 +4327,237 @@ function OutreachHubPanel({ pin }: { pin: string }) {
   );
 }
 
-// ─── Growth Engine Panel ────────────────────────────────────────────────────
+// ─── Sirius Brain Panel ──────────────────────────────────────────────────────
 
-type GrowthResult = { format: string; label: string; subject: string; body: string; extra?: string };
+function BrainPanel({ pin }: { pin: string }) {
+  const base = getApiBase();
+  const [profile, setProfile] = useState<{ memories: string; displayName: string; businessName: string; businessSector: string; businessGoals: string; keyClients: string } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<"memory" | "business" | "actions">("memory");
+  const [newFact, setNewFact] = useState("");
+  const [newFactCat, setNewFactCat] = useState("Business");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [bizForm, setBizForm] = useState({ businessName: "", businessSector: "", businessGoals: "", keyClients: "" });
+  const [savingBiz, setSavingBiz] = useState(false);
+  const [actionLog, setActionLog] = useState<string[]>([]);
+  const [actionRunning, setActionRunning] = useState(false);
 
-const GROWTH_FORMATS = [
-  { id: "linkedin", label: "LinkedIn", icon: "💼", color: "hsl(210,90%,55%)", desc: "Founder story post — reach 10k+ decision makers" },
-  { id: "twitter", label: "Twitter / X", icon: "𝕏", color: "hsl(220,15%,75%)", desc: "Thread format — shareable, indexable, viral potential" },
-  { id: "reddit", label: "Reddit", icon: "🔴", color: "hsl(14,100%,55%)", desc: "3 posts for r/artificial, r/entrepreneur, r/SideProject" },
-  { id: "producthunt", label: "Product Hunt", icon: "🔥", color: "hsl(25,90%,55%)", desc: "Full launch kit — tagline, description, maker comment" },
-  { id: "week", label: "Week Plan", icon: "📅", color: "hsl(280,70%,60%)", desc: "7-day content calendar with angles and hooks" },
-];
+  const FACT_CATS = ["Business", "Personal", "Goals", "Clients", "Products", "Constraints", "Preferences"];
 
-        <div className="p-4 space-y-4">
-          {/* Message type */}
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await fetch(`${base}lab/brain`, { headers: { "x-lab-pin": pin } });
+      if (r.ok) {
+        const d = await r.json();
+        setProfile(d);
+        setBizForm({ businessName: d.businessName || "", businessSector: d.businessSector || "", businessGoals: d.businessGoals || "", keyClients: d.keyClients || "" });
+      }
+    } catch {}
+    setLoading(false);
+  }, [base, pin]);
+
+  useEffect(() => { load(); }, []);
+
+  const addFact = async () => {
+    if (!newFact.trim() || saving) return;
+    setSaving(true);
+    await fetch(`${base}lab/brain/memory`, { method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin }, body: JSON.stringify({ fact: newFact.trim(), category: newFactCat }) });
+    await load();
+    setNewFact(""); setSaving(false); setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  const clearMemory = async () => {
+    if (!confirm("Clear all memories? This cannot be undone.")) return;
+    await fetch(`${base}lab/brain/memory`, { method: "DELETE", headers: { "x-lab-pin": pin } });
+    await load();
+  };
+
+  const saveBiz = async () => {
+    setSavingBiz(true);
+    await fetch(`${base}lab/brain/business`, { method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin }, body: JSON.stringify(bizForm) });
+    await load(); setSavingBiz(false); setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  const runAction = async (action: string, label: string) => {
+    setActionRunning(true);
+    setActionLog([`Running: ${label}…`]);
+    try {
+      const r = await fetch(`${base}lab/brain/action`, { method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin }, body: JSON.stringify({ action }) });
+      const d = await r.json();
+      setActionLog(d.log || ["Done"]);
+    } catch (e: any) {
+      setActionLog([`Error: ${e.message}`]);
+    }
+    setActionRunning(false);
+  };
+
+  const memoryLines = (profile?.memories || "").split("\n").filter(Boolean);
+  const inp = "w-full text-xs text-white placeholder-white/20 outline-none rounded-xl px-3 py-2 bg-[hsl(226,45%,12%)] border border-[rgba(255,255,255,0.07)]";
+
+  const TABS = [
+    { id: "memory" as const, label: "Memory", icon: Brain },
+    { id: "business" as const, label: "Business Profile", icon: Building },
+    { id: "actions" as const, label: "AI Actions", icon: Zap },
+  ];
+
+  return (
+    <div className="flex flex-col h-full min-h-0">
+      <div className="px-6 py-4 border-b flex-shrink-0 flex items-center justify-between" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+        <div className="flex items-center gap-3">
+          <Brain className="w-5 h-5" style={{ color: "hsl(280,70%,65%)" }} />
           <div>
-            <label className="text-white/40 text-xs font-medium mb-1.5 block">Message Type</label>
-            <div className="flex flex-wrap gap-1">
-              {MSG_TYPES.map(t => (
-                <button key={t} onClick={() => setMsgType(t)}
-                  className="px-2.5 py-1 rounded-lg text-xs transition-all"
-                  style={{ background: msgType === t ? "hsl(340,80%,45%)" : "hsl(226,45%,12%)", color: msgType === t ? "white" : "rgba(255,255,255,0.35)", border: `1px solid ${msgType === t ? "hsl(340,80%,50%)" : "transparent"}` }}>
-                  {t}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Product */}
-          <div>
-            <label className="text-white/40 text-xs font-medium mb-1.5 block">Your Product / Service</label>
-            <textarea value={product} onChange={e => setProduct(e.target.value)} placeholder="Describe what you're promoting…" rows={3}
-              className="w-full text-xs text-white placeholder-white/20 outline-none resize-none rounded-xl p-2.5"
-              style={{ background: "hsl(226,45%,12%)", border: "1px solid rgba(255,255,255,0.07)" }} />
-          </div>
-
-          {/* Sender */}
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="text-white/40 text-xs font-medium mb-1.5 block">Your Name</label>
-              <input value={senderName} onChange={e => setSenderName(e.target.value)} placeholder="Alex Smith"
-                className="w-full text-xs text-white placeholder-white/20 outline-none rounded-xl px-2.5 py-2"
-                style={{ background: "hsl(226,45%,12%)", border: "1px solid rgba(255,255,255,0.07)" }} />
-            </div>
-            <div>
-              <label className="text-white/40 text-xs font-medium mb-1.5 block">Company</label>
-              <input value={senderCompany} onChange={e => setSenderCompany(e.target.value)} placeholder="Acme Ltd"
-                className="w-full text-xs text-white placeholder-white/20 outline-none rounded-xl px-2.5 py-2"
-                style={{ background: "hsl(226,45%,12%)", border: "1px solid rgba(255,255,255,0.07)" }} />
-            </div>
-          </div>
-
-          {/* Tone */}
-          <div>
-            <label className="text-white/40 text-xs font-medium mb-1.5 block">Tone</label>
-            <div className="flex flex-wrap gap-1">
-              {TONES.map(t => (
-                <button key={t} onClick={() => setTone(t)}
-                  className="px-2.5 py-1 rounded-lg text-xs transition-all"
-                  style={{ background: tone === t ? "hsl(193,100%,32%)" : "hsl(226,45%,12%)", color: tone === t ? "white" : "rgba(255,255,255,0.35)", border: `1px solid ${tone === t ? "hsl(193,100%,38%)" : "transparent"}` }}>
-                  {t}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Subject template */}
-          <div>
-            <label className="text-white/40 text-xs font-medium mb-1.5 block">Subject Template <span className="text-white/20">(optional)</span></label>
-            <input value={subjectTemplate} onChange={e => setSubjectTemplate(e.target.value)} placeholder="Quick question for {name}…"
-              className="w-full text-xs text-white placeholder-white/20 outline-none rounded-xl px-2.5 py-2"
-              style={{ background: "hsl(226,45%,12%)", border: "1px solid rgba(255,255,255,0.07)" }} />
+            <h2 className="text-white font-semibold text-sm">Sirius Brain</h2>
+            <p className="text-white/30 text-xs">{memoryLines.length} memories · what Sirius knows about you</p>
           </div>
         </div>
-
-        {/* Recipients */}
-        <div className="px-4 pb-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <label className="text-white/40 text-xs font-medium flex items-center gap-1.5">
-              <Users className="w-3.5 h-3.5" />
-              Recipients ({recipients.length})
-            </label>
-            <button onClick={() => setShowBulk(b => !b)} className="text-xs text-white/30 hover:text-white/60 transition-colors">
-              {showBulk ? "Manual" : "Bulk paste"}
-            </button>
-          </div>
-
-          {showBulk ? (
-            <div>
-              <textarea value={bulkText} onChange={e => setBulkText(e.target.value)} rows={5}
-                placeholder={"Name, Email, Company (optional)\nJane Smith, jane@co.com, Acme\nBob Jones, bob@biz.io"}
-                className="w-full text-xs text-white placeholder-white/20 outline-none resize-none rounded-xl p-2.5 mb-2"
-                style={{ background: "hsl(226,45%,12%)", border: "1px solid rgba(255,255,255,0.07)" }} />
-              <button onClick={parseBulk} className="w-full py-2 rounded-xl text-xs font-medium text-white"
-                style={{ background: "hsl(193,100%,32%)" }}>Add from list</button>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <div className="grid grid-cols-2 gap-2">
-                <input value={rName} onChange={e => setRName(e.target.value)} placeholder="Full name"
-                  className="text-xs text-white placeholder-white/20 outline-none rounded-xl px-2.5 py-2"
-                  style={{ background: "hsl(226,45%,12%)", border: "1px solid rgba(255,255,255,0.07)" }} />
-                <input value={rEmail} onChange={e => setREmail(e.target.value)} placeholder="Email address"
-                  className="text-xs text-white placeholder-white/20 outline-none rounded-xl px-2.5 py-2"
-                  style={{ background: "hsl(226,45%,12%)", border: "1px solid rgba(255,255,255,0.07)" }} />
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <input value={rCompany} onChange={e => setRCompany(e.target.value)} placeholder="Company (opt)"
-                  className="text-xs text-white placeholder-white/20 outline-none rounded-xl px-2.5 py-2"
-                  style={{ background: "hsl(226,45%,12%)", border: "1px solid rgba(255,255,255,0.07)" }} />
-                <input value={rRole} onChange={e => setRRole(e.target.value)} placeholder="Role (opt)"
-                  className="text-xs text-white placeholder-white/20 outline-none rounded-xl px-2.5 py-2"
-                  style={{ background: "hsl(226,45%,12%)", border: "1px solid rgba(255,255,255,0.07)" }} />
-              </div>
-              <input value={rNotes} onChange={e => setRNotes(e.target.value)} placeholder="Context / notes (opt)"
-                className="w-full text-xs text-white placeholder-white/20 outline-none rounded-xl px-2.5 py-2"
-                style={{ background: "hsl(226,45%,12%)", border: "1px solid rgba(255,255,255,0.07)" }} />
-              <button onClick={addRecipient} disabled={!rName.trim() || !rEmail.trim()}
-                className="w-full py-2 rounded-xl text-xs font-medium text-white flex items-center justify-center gap-1.5 transition-opacity disabled:opacity-30"
-                style={{ background: "hsl(193,100%,32%)" }}>
-                <UserPlus className="w-3.5 h-3.5" /> Add Recipient
-              </button>
-            </div>
-          )}
-
-          {/* Recipient list */}
-          <div className="space-y-1 max-h-48 overflow-y-auto">
-            {recipients.map(r => (
-              <div key={r.id} className="flex items-center gap-2 rounded-xl px-2.5 py-2" style={{ background: "hsl(226,45%,11%)" }}>
-                <AtSign className="w-3 h-3 flex-shrink-0 text-white/20" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-white text-xs truncate font-medium">{r.name}</p>
-                  <p className="text-white/30 text-xs truncate">{r.email}{r.company ? ` · ${r.company}` : ""}</p>
-                </div>
-                <button onClick={() => setRecipients(prev => prev.filter(x => x.id !== r.id))} className="text-white/20 hover:text-red-400 transition-colors">
-                  <X className="w-3 h-3" />
-                </button>
-              </div>
-            ))}
-          </div>
-
-          {/* Generate */}
-          <button onClick={generate} disabled={generating || !recipients.length || !product.trim()}
-            className="w-full py-2.5 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 transition-all disabled:opacity-30"
-            style={{ background: "linear-gradient(135deg, hsl(340,80%,45%), hsl(280,70%,50%))" }}>
-            {generating ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating…</> : <><Sparkles className="w-4 h-4" /> Generate All Messages</>}
-          </button>
-        </div>
-      </div>
-
-      {/* Right Panel — Generated Messages */}
-      <div className="flex-1 flex flex-col min-w-0 min-h-0">
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b flex-shrink-0" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
-          <div>
-            <h3 className="text-white font-semibold text-sm">{doneCount > 0 ? `${doneCount} message${doneCount !== 1 ? "s" : ""} ready` : "Generated Messages"}</h3>
-            <p className="text-white/25 text-xs">{messages.length ? `${messages.filter(m => m.status === "done").length} / ${messages.length} complete` : "Configure a campaign and hit Generate"}</p>
-          </div>
-          {doneCount > 0 && (
-            <div className="flex items-center gap-2">
-              <button onClick={copyAll} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs text-white/60 hover:text-white transition-colors" style={{ background: "hsl(226,45%,12%)" }}>
-                <Copy className="w-3.5 h-3.5" /> Copy all
-              </button>
-              <button onClick={() => setShowSmtp(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-white" style={{ background: "hsl(340,80%,40%)" }}>
-                <Mail className="w-3.5 h-3.5" /> Send via email
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Message cards */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
-          {messages.length === 0 && (
-            <div className="flex-1 flex items-center justify-center h-full text-center">
-              <div>
-                <Mail className="w-10 h-10 mx-auto mb-3 text-white/8" />
-                <p className="text-white/20 text-sm">Add recipients and generate personalised messages</p>
-                <p className="text-white/12 text-xs mt-1">Each message is uniquely crafted for the individual</p>
-              </div>
-            </div>
-          )}
-
-          {messages.map(m => {
-            const r = recipients.find(r => r.id === m.recipientId);
+        <div className="flex gap-1 p-1 rounded-xl" style={{ background: "hsl(226,45%,10%)" }}>
+          {TABS.map(t => {
+            const Icon = t.icon;
             return (
-              <motion.div key={m.recipientId} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-                className="rounded-2xl p-4" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.07)" }}>
-                {/* Card header */}
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <p className="text-white font-medium text-sm">{r?.name}</p>
-                    <p className="text-white/30 text-xs">{r?.email}{r?.company ? ` · ${r.company}` : ""}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {m.status === "pending" && <div className="w-2 h-2 rounded-full bg-white/20" />}
-                    {m.status === "generating" && <Loader2 className="w-3.5 h-3.5 text-white/40 animate-spin" />}
-                    {m.status === "done" && <CheckCircle2 className="w-3.5 h-3.5" style={{ color: "hsl(155,70%,45%)" }} />}
-                    {m.status === "error" && <AlertCircle className="w-3.5 h-3.5 text-red-400" />}
-                    {m.status === "done" && (
-                      <button onClick={() => navigator.clipboard.writeText(`Subject: ${m.subject}\n\n${m.body}`)}
-                        className="text-white/20 hover:text-white/60 transition-colors">
-                        <Copy className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {m.status === "error" && (
-                  <p className="text-red-400 text-xs">{m.error || "Generation failed"}</p>
-                )}
-
-                {(m.status === "done" || m.status === "generating") && (
-                  <>
-                    <div className="mb-2">
-                      <label className="text-white/25 text-xs mb-1 block">Subject</label>
-                      <input value={m.subject} onChange={e => updateMsg(m.recipientId, "subject", e.target.value)}
-                        className="w-full text-white text-xs outline-none rounded-lg px-2.5 py-1.5"
-                        style={{ background: "hsl(226,45%,13%)", border: "1px solid rgba(255,255,255,0.06)" }} />
-                    </div>
-                    <div>
-                      <label className="text-white/25 text-xs mb-1 block">Message</label>
-                      <textarea value={m.body} onChange={e => updateMsg(m.recipientId, "body", e.target.value)} rows={6}
-                        className="w-full text-white text-xs outline-none resize-none rounded-lg px-2.5 py-1.5"
-                        style={{ background: "hsl(226,45%,13%)", border: "1px solid rgba(255,255,255,0.06)" }} />
-                    </div>
-                  </>
-                )}
-
-                {m.status === "pending" && (
-                  <p className="text-white/20 text-xs italic">Queued…</p>
-                )}
-              </motion.div>
+              <button key={t.id} onClick={() => setTab(t.id)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all"
+                style={{ background: tab === t.id ? "hsl(280,70%,45%)" : "transparent", color: tab === t.id ? "white" : "rgba(255,255,255,0.35)" }}>
+                <Icon className="w-3 h-3" />{t.label}
+              </button>
             );
           })}
         </div>
       </div>
 
-      {/* SMTP Send Modal */}
-      <AnimatePresence>
-        {showSmtp && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4"
-            style={{ background: "rgba(0,0,0,0.7)" }}
-            onClick={e => e.target === e.currentTarget && setShowSmtp(false)}>
-            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
-              className="w-full max-w-md rounded-2xl p-6" style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.1)" }}>
-              <div className="flex items-center justify-between mb-5">
-                <h3 className="text-white font-semibold">Send via SMTP</h3>
-                <button onClick={() => setShowSmtp(false)} className="text-white/30 hover:text-white/60"><X className="w-4 h-4" /></button>
-              </div>
-              <p className="text-white/30 text-xs mb-4">Enter your SMTP details. Alternatively set SMTP_HOST, SMTP_USER, SMTP_PASS in environment variables to skip this form.</p>
-              <div className="space-y-3">
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="col-span-2">
-                    <label className="text-white/35 text-xs mb-1 block">SMTP Host</label>
-                    <input value={smtpHost} onChange={e => setSmtpHost(e.target.value)} placeholder="smtp.gmail.com"
-                      className="w-full text-xs text-white placeholder-white/20 outline-none rounded-xl px-3 py-2"
-                      style={{ background: "hsl(226,45%,14%)", border: "1px solid rgba(255,255,255,0.07)" }} />
-                  </div>
-                  <div>
-                    <label className="text-white/35 text-xs mb-1 block">Port</label>
-                    <input value={smtpPort} onChange={e => setSmtpPort(e.target.value)} placeholder="587"
-                      className="w-full text-xs text-white placeholder-white/20 outline-none rounded-xl px-3 py-2"
-                      style={{ background: "hsl(226,45%,14%)", border: "1px solid rgba(255,255,255,0.07)" }} />
-                  </div>
+      <div className="flex-1 min-h-0 overflow-y-auto p-6">
+        {loading ? (
+          <div className="flex items-center gap-2 text-white/30 text-sm py-12 justify-center"><Loader2 className="w-4 h-4 animate-spin" />Loading brain…</div>
+        ) : (
+          <>
+            {tab === "memory" && (
+              <div className="space-y-5">
+                <div className="p-4 rounded-2xl" style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                  <p className="text-white/40 text-xs font-medium mb-1">How memory works</p>
+                  <p className="text-white/25 text-xs leading-relaxed">Sirius automatically extracts facts from your conversations. You can also add specific facts below. Every memory is injected into every conversation — so Sirius always knows your context without having to be told again.</p>
                 </div>
-                {[
-                  { label: "SMTP Username", val: smtpUser, set: setSmtpUser, ph: "you@gmail.com" },
-                  { label: "SMTP Password / App Password", val: smtpPass, set: setSmtpPass, ph: "••••••••••" },
-                  { label: "From Name", val: fromName, set: setFromName, ph: "Alex Smith" },
-                  { label: "From Email", val: fromEmail, set: setFromEmail, ph: "alex@company.com" },
-                ].map(f => (
-                  <div key={f.label}>
-                    <label className="text-white/35 text-xs mb-1 block">{f.label}</label>
-                    <input type={f.label.includes("Password") ? "password" : "text"} value={f.val} onChange={e => f.set(e.target.value)} placeholder={f.ph}
-                      className="w-full text-xs text-white placeholder-white/20 outline-none rounded-xl px-3 py-2"
-                      style={{ background: "hsl(226,45%,14%)", border: "1px solid rgba(255,255,255,0.07)" }} />
+                <div className="p-4 rounded-2xl space-y-3" style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                  <p className="text-white/50 text-xs font-medium">Add a memory fact</p>
+                  <div className="flex gap-2">
+                    <select value={newFactCat} onChange={e => setNewFactCat(e.target.value)} className={inp + " w-36 flex-shrink-0"}>
+                      {FACT_CATS.map(c => <option key={c}>{c}</option>)}
+                    </select>
+                    <input value={newFact} onChange={e => setNewFact(e.target.value)} onKeyDown={e => e.key === "Enter" && addFact()}
+                      placeholder="e.g. My company targets oil & gas companies in Aberdeen" className={inp} />
                   </div>
-                ))}
-              </div>
-              {sendResult && (
-                <div className="mt-3 p-3 rounded-xl" style={{ background: sendResult.failed ? "rgba(220,50,50,0.1)" : "rgba(50,180,100,0.1)" }}>
-                  <p className="text-xs" style={{ color: sendResult.failed ? "#f87171" : "#4ade80" }}>
-                    {sendResult.sent} sent{sendResult.failed > 0 ? `, ${sendResult.failed} failed` : " successfully"}
-                  </p>
+                  <button onClick={addFact} disabled={saving || !newFact.trim()}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-white disabled:opacity-40"
+                    style={{ background: saved ? "hsl(155,70%,35%)" : "hsl(280,70%,45%)" }}>
+                    {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : saved ? <Check className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+                    {saved ? "Saved!" : "Add to Brain"}
+                  </button>
                 </div>
-              )}
-              <div className="flex gap-3 mt-5">
-                <button onClick={() => setShowSmtp(false)} className="flex-1 py-2.5 rounded-xl text-sm text-white/40" style={{ background: "hsl(226,45%,13%)" }}>Cancel</button>
-                <button onClick={sendEmails} disabled={sending}
-                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 disabled:opacity-50"
-                  style={{ background: "hsl(340,80%,42%)" }}>
-                  {sending ? <><Loader2 className="w-4 h-4 animate-spin" /> Sending…</> : <><Send className="w-4 h-4" /> Send {doneCount} emails</>}
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-white/40 text-xs font-medium">Current memories ({memoryLines.length})</p>
+                    {memoryLines.length > 0 && (
+                      <button onClick={clearMemory} className="text-xs text-red-400/50 hover:text-red-400 transition-colors flex items-center gap-1">
+                        <Trash className="w-3 h-3" />Clear all
+                      </button>
+                    )}
+                  </div>
+                  {memoryLines.length === 0 ? (
+                    <div className="text-center py-8 text-white/15 text-sm">No memories yet — chat with Sirius or add facts above</div>
+                  ) : (
+                    <div className="space-y-2">
+                      {memoryLines.map((line, i) => (
+                        <div key={i} className="flex items-start gap-2 p-3 rounded-xl" style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                          <Brain className="w-3 h-3 mt-0.5 flex-shrink-0" style={{ color: "hsl(280,70%,55%)" }} />
+                          <p className="text-white/60 text-xs leading-relaxed">{line}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {tab === "business" && (
+              <div className="space-y-4">
+                <div className="p-4 rounded-2xl" style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                  <p className="text-white/40 text-xs font-medium mb-1">Business profile</p>
+                  <p className="text-white/25 text-xs leading-relaxed">This is baked into every Sirius response. The more detail here, the more precisely Sirius can help with outreach, project briefs, revenue strategy, and intelligence scanning.</p>
+                </div>
+                <div>
+                  <label className="text-white/30 text-xs mb-1 block">Company Name</label>
+                  <input value={bizForm.businessName} onChange={e => setBizForm(p => ({ ...p, businessName: e.target.value }))} placeholder="Strategic Innovation Dundee Ltd" className={inp} />
+                </div>
+                <div>
+                  <label className="text-white/30 text-xs mb-1 block">Primary Sectors</label>
+                  <input value={bizForm.businessSector} onChange={e => setBizForm(p => ({ ...p, businessSector: e.target.value }))} placeholder="Oil & Gas, Aerospace, Medical, Hydrogen" className={inp} />
+                </div>
+                <div>
+                  <label className="text-white/30 text-xs mb-1 block">Business Goals</label>
+                  <textarea value={bizForm.businessGoals} onChange={e => setBizForm(p => ({ ...p, businessGoals: e.target.value }))} rows={4}
+                    placeholder="e.g. Grow precision machining revenue to £2M, win 5 new oil & gas clients in 2026, launch Sirius AI as a SaaS product…"
+                    className={inp + " resize-none"} />
+                </div>
+                <div>
+                  <label className="text-white/30 text-xs mb-1 block">Key Clients / Target Clients</label>
+                  <textarea value={bizForm.keyClients} onChange={e => setBizForm(p => ({ ...p, keyClients: e.target.value }))} rows={3}
+                    placeholder="e.g. Current: Baker Hughes, TechnipFMC. Target: Petrofac, Wood Group, Babcock…"
+                    className={inp + " resize-none"} />
+                </div>
+                <button onClick={saveBiz} disabled={savingBiz}
+                  className="w-full py-3 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 disabled:opacity-50"
+                  style={{ background: saved ? "hsl(155,70%,35%)" : "hsl(280,70%,45%)" }}>
+                  {savingBiz ? <Loader2 className="w-4 h-4 animate-spin" /> : saved ? <Check className="w-4 h-4" /> : <Brain className="w-4 h-4" />}
+                  {saved ? "Saved to Brain!" : "Save Business Profile"}
                 </button>
               </div>
-            </motion.div>
-          </motion.div>
+            )}
+
+            {tab === "actions" && (
+              <div className="space-y-4">
+                <div className="p-4 rounded-2xl" style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                  <p className="text-white/40 text-xs font-medium mb-1">AI-powered actions</p>
+                  <p className="text-white/25 text-xs leading-relaxed">These run autonomously using everything Sirius knows about your business. Unlike any chatbot, Sirius actually does things — not just talks about them.</p>
+                </div>
+                {[
+                  { action: "deep_profile", label: "Build Deep Business Profile", icon: Building, desc: "Sirius analyses your business context and generates a full strategic profile — strengths, gaps, opportunities.", color: "hsl(280,70%,45%)" },
+                  { action: "scan_for_me", label: "Scan Opportunities for My Business", icon: Telescope, desc: "Runs a targeted market scan based on your specific sectors and goals — not generic, tailored to you.", color: "hsl(193,100%,30%)" },
+                  { action: "pitch_strategy", label: "Generate Outreach Strategy", icon: Target, desc: "Creates a full outreach plan for your target clients — who to contact, what to say, when.", color: "hsl(340,80%,42%)" },
+                  { action: "revenue_map", label: "Map Revenue Opportunities", icon: Activity, desc: "Identifies your top 5 revenue opportunities right now, ranked by effort and potential.", color: "hsl(45,100%,45%)" },
+                ].map(a => {
+                  const Icon = a.icon;
+                  return (
+                    <div key={a.action} className="p-4 rounded-2xl" style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                      <div className="flex items-start gap-3">
+                        <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: a.color + "22" }}>
+                          <Icon className="w-4 h-4" style={{ color: a.color }} />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-white text-xs font-semibold mb-1">{a.label}</p>
+                          <p className="text-white/30 text-xs leading-relaxed mb-3">{a.desc}</p>
+                          <button onClick={() => runAction(a.action, a.label)} disabled={actionRunning}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white disabled:opacity-40"
+                            style={{ background: a.color }}>
+                            {actionRunning ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
+                            Run Now
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                {actionLog.length > 0 && (
+                  <div className="p-4 rounded-2xl font-mono text-xs space-y-1 max-h-48 overflow-y-auto" style={{ background: "hsl(226,45%,8%)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                    {actionLog.map((l, i) => <div key={i} className="text-green-400/80">{l}</div>)}
+                  </div>
+                )}
+              </div>
+            )}
+          </>
         )}
-      </AnimatePresence>
+      </div>
     </div>
   );
 }
@@ -6401,6 +6331,7 @@ export function StarLabPage() {
     { id: "revenue" as NavMode, label: "Revenue Hub", icon: Banknote, color: "hsl(155,70%,45%)" },
     { id: "agency" as NavMode, label: "Agency Hub", icon: Briefcase, color: "hsl(220,80%,55%)" },
     { id: "growth" as NavMode, label: "Growth Engine", icon: Globe, color: "hsl(155,70%,50%)" },
+    { id: "brain" as NavMode, label: "Sirius Brain", icon: Brain, color: "hsl(280,70%,65%)" },
     { id: "mission" as NavMode, label: "Mission", icon: Star, color: "hsl(193,100%,50%)" },
     { id: "outreach" as NavMode, label: "Outreach Hub", icon: Mail, color: "hsl(340,80%,60%)" },
     { id: "autolab" as NavMode, label: "Autonomous Lab", icon: Cpu, color: "hsl(193,100%,40%)" },
@@ -6544,6 +6475,7 @@ export function StarLabPage() {
         {navMode === "commerce" && <CommerceLabPanel pin={pin} />}
         {navMode === "agency" && <AgencyHubPanel pin={pin} />}
         {navMode === "growth" && <GrowthEnginePanel pin={pin} />}
+        {navMode === "brain" && <BrainPanel pin={pin} />}
         {navMode === "mission" && <MissionPanel pin={pin} />}
         {navMode === "revenue" && (
           <RevenuePanel

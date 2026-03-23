@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { eq, desc } from "drizzle-orm";
-import { db, labProjects, labMessages, scoutReports, cadFiles, labScanHistory } from "@workspace/db";
+import { db, labProjects, labMessages, scoutReports, cadFiles, labScanHistory, userProfilesTable } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { generateImageBuffer } from "@workspace/integrations-openai-ai-server/image";
 import { ObjectStorageService } from "../lib/objectStorage";
@@ -2234,6 +2234,105 @@ Be honest. If something will take 18 months to generate revenue, say so. Rank 1 
   } catch (err) {
     console.error("[Rank Opportunities]", err);
     res.status(500).json({ error: "Failed to rank opportunities" });
+  }
+});
+
+// ─── BRAIN ROUTES ────────────────────────────────────────────────────────────
+
+const BRAIN_USER = "garry"; // single-user Star Lab
+
+router.get("/lab/brain", async (req, res): Promise<void> => {
+  const pin = req.headers["x-lab-pin"];
+  if (pin !== LAB_PIN) { res.status(401).json({ error: "Unauthorized" }); return; }
+  try {
+    const rows = await db.select().from(userProfilesTable).where(eq(userProfilesTable.userId, BRAIN_USER));
+    if (rows.length === 0) {
+      await db.insert(userProfilesTable).values({ userId: BRAIN_USER, aiName: "Sirius" });
+      res.json({ memories: "", businessName: "", businessSector: "", businessGoals: "", keyClients: "" });
+      return;
+    }
+    const p = rows[0];
+    res.json({ memories: p.memories, displayName: p.displayName, businessName: p.businessName, businessSector: p.businessSector, businessGoals: p.businessGoals, keyClients: p.keyClients, updatedAt: p.updatedAt });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to load brain" });
+  }
+});
+
+router.post("/lab/brain/memory", async (req, res): Promise<void> => {
+  const pin = req.headers["x-lab-pin"];
+  if (pin !== LAB_PIN) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const { fact, category } = req.body ?? {};
+  if (!fact) { res.status(400).json({ error: "fact required" }); return; }
+  try {
+    const rows = await db.select({ memories: userProfilesTable.memories }).from(userProfilesTable).where(eq(userProfilesTable.userId, BRAIN_USER));
+    const current = rows[0]?.memories || "";
+    const newEntry = `[${category || "General"}] ${fact}`;
+    const updated = current ? `${current}\n${newEntry}` : newEntry;
+    await db.insert(userProfilesTable).values({ userId: BRAIN_USER, aiName: "Sirius", memories: updated })
+      .onConflictDoUpdate({ target: userProfilesTable.userId, set: { memories: updated, updatedAt: new Date() } });
+    res.json({ ok: true, memories: updated });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to save memory" });
+  }
+});
+
+router.delete("/lab/brain/memory", async (req, res): Promise<void> => {
+  const pin = req.headers["x-lab-pin"];
+  if (pin !== LAB_PIN) { res.status(401).json({ error: "Unauthorized" }); return; }
+  try {
+    await db.insert(userProfilesTable).values({ userId: BRAIN_USER, aiName: "Sirius", memories: "" })
+      .onConflictDoUpdate({ target: userProfilesTable.userId, set: { memories: "", updatedAt: new Date() } });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to clear memory" });
+  }
+});
+
+router.post("/lab/brain/business", async (req, res): Promise<void> => {
+  const pin = req.headers["x-lab-pin"];
+  if (pin !== LAB_PIN) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const { businessName, businessSector, businessGoals, keyClients } = req.body ?? {};
+  try {
+    await db.insert(userProfilesTable).values({ userId: BRAIN_USER, aiName: "Sirius", businessName: businessName || "", businessSector: businessSector || "", businessGoals: businessGoals || "", keyClients: keyClients || "" })
+      .onConflictDoUpdate({ target: userProfilesTable.userId, set: { businessName: businessName || "", businessSector: businessSector || "", businessGoals: businessGoals || "", keyClients: keyClients || "", updatedAt: new Date() } });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to save business profile" });
+  }
+});
+
+router.post("/lab/brain/action", async (req, res): Promise<void> => {
+  const pin = req.headers["x-lab-pin"];
+  if (pin !== LAB_PIN) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const { action } = req.body ?? {};
+
+  try {
+    const profileRows = await db.select().from(userProfilesTable).where(eq(userProfilesTable.userId, BRAIN_USER));
+    const p = profileRows[0];
+    const context = p ? `Company: ${p.businessName || "Strategic Innovation Dundee Ltd"}\nSectors: ${p.businessSector || "Oil & Gas, Aerospace, Medical, Hydrogen"}\nGoals: ${p.businessGoals || "Grow revenue, win new clients"}\nKey clients: ${p.keyClients || "Not specified"}\nMemories: ${p.memories || "None"}` : "";
+
+    const prompts: Record<string, string> = {
+      deep_profile: `Based on this business context:\n${context}\n\nGenerate a deep strategic business profile covering:\n1. Core strengths and unique capabilities\n2. Key competitive advantages\n3. Top 3 market opportunities right now\n4. Main risks and how to mitigate them\n5. 90-day action priorities\n\nBe specific, actionable, and commercially sharp. No fluff.`,
+      scan_for_me: `Based on this business context:\n${context}\n\nIdentify the top 8 specific market opportunities this business should pursue RIGHT NOW. For each:\n- Specific opportunity name\n- Why it fits this business\n- Estimated revenue potential\n- First action to take\n\nMake them specific and actionable, not generic.`,
+      pitch_strategy: `Based on this business context:\n${context}\n\nCreate a complete outreach strategy. Include:\n1. Top 5 target companies to approach (with specific company names if possible given the sectors)\n2. The ideal contact role at each\n3. The core pitch angle for each\n4. Subject line for cold email\n5. Key differentiator to lead with\n\nBe specific and commercially sharp.`,
+      revenue_map: `Based on this business context:\n${context}\n\nMap the top 5 revenue opportunities ranked by (impact × ease). For each:\n- Opportunity name\n- Monthly revenue potential (£)\n- Effort level (Low/Medium/High)\n- Time to first revenue\n- First concrete action this week\n\nFocus on what's achievable in 90 days.`,
+    };
+
+    const prompt = prompts[action];
+    if (!prompt) { res.status(400).json({ error: "Unknown action" }); return; }
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [{ role: "system", content: LAB_SYSTEM_PROMPT() }, { role: "user", content: prompt }],
+      max_tokens: 1200,
+      temperature: 0.7,
+    });
+
+    const result = completion.choices[0]?.message?.content || "No result";
+    const logLines = result.split("\n").filter(Boolean);
+    res.json({ ok: true, log: logLines, result });
+  } catch (err: any) {
+    res.status(500).json({ error: "Action failed", detail: err?.message });
   }
 });
 

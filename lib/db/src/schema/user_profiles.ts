@@ -13,6 +13,10 @@ export const userProfilesTable = pgTable("user_profiles", {
   dailyMessageCount: text("daily_message_count").notNull().default("0"),
   dailyMessageReset: timestamp("daily_message_reset", { withTimezone: true }),
   preferredLanguage: text("preferred_language").notNull().default("auto"),
+  businessName: text("business_name").notNull().default(""),
+  businessSector: text("business_sector").notNull().default(""),
+  businessGoals: text("business_goals").notNull().default(""),
+  keyClients: text("key_clients").notNull().default(""),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull().$onUpdate(() => new Date()),
 });
