@@ -4456,5 +4456,93 @@ router.post("/lab/build-app", authMiddleware, async (req: Request, res: Response
   }
 });
 
+// ─── Sirius Learns — Analyse built code, stream improvement suggestions ────────
+router.post("/lab/app-builder/learn", authMiddleware, async (req: Request, res: Response) => {
+  const { appName, techStack, files } = req.body as {
+    appName: string; techStack: string;
+    files: Record<string, string>;
+  };
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+
+  const send = (data: object) => {
+    try { res.write(`data: ${JSON.stringify(data)}\n\n`); } catch {}
+  };
+
+  try {
+    const fileSummary = Object.entries(files)
+      .slice(0, 20)
+      .map(([name, content]) => `### ${name}\n${content.slice(0, 600)}`)
+      .join("\n\n");
+
+    const systemPrompt = `You are Sirius, an elite AI software architect. You have just analysed the full codebase of a freshly-built application and you must now provide deep, actionable intelligence on how to make it significantly more powerful, automated, and production-ready.
+
+Your output must be structured EXACTLY as JSON lines — one JSON object per line. Each object has this shape:
+{ "type": "suggestion", "category": "feature|automation|security|performance|architecture|dx", "priority": "critical|high|medium", "title": "Short title", "detail": "2-3 sentence explanation of what to add and why", "effort": "1h|4h|1d|3d", "prompt": "The exact prompt Garry should use in the App Builder to implement this improvement" }
+
+Emit exactly 8-10 suggestion objects. After all suggestions, emit exactly one final object:
+{ "type": "summary", "headline": "One-line Sirius verdict on this codebase", "automationScore": 65, "productionScore": 55, "nextPriority": "The single most important thing to do next" }
+
+Be specific to the actual files you see. Name specific files, functions, missing patterns. Do not be generic.`;
+
+    const userPrompt = `App name: ${appName}
+Tech stack: ${techStack}
+File count: ${Object.keys(files).length}
+
+Files (sample):
+${fileSummary}
+
+Analyse this codebase. Output improvement suggestions as JSON lines.`;
+
+    const stream = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      stream: true,
+      max_tokens: 3000,
+    });
+
+    let buf = "";
+    for await (const chunk of stream) {
+      const delta = chunk.choices[0]?.delta?.content || "";
+      if (!delta) continue;
+      buf += delta;
+
+      // Emit complete JSON lines as they arrive
+      const lines = buf.split("\n");
+      buf = lines.pop() || "";
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        try {
+          const parsed = JSON.parse(trimmed);
+          send({ type: "item", data: parsed });
+        } catch {
+          // partial line — keep buffering
+        }
+      }
+    }
+
+    // Flush remaining buffer
+    if (buf.trim()) {
+      try {
+        const parsed = JSON.parse(buf.trim());
+        send({ type: "item", data: parsed });
+      } catch {}
+    }
+
+    send({ type: "done" });
+  } catch (err: any) {
+    console.error("[AppBuilder/Learn] Error:", err?.message);
+    send({ type: "error", error: err?.message });
+  } finally {
+    res.end();
+  }
+});
+
 export default router;
 

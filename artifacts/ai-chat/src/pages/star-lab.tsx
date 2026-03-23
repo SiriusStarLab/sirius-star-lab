@@ -3647,6 +3647,17 @@ function AppBuilderPanel({ pin }: { pin: string }) {
   type DocSearch = { agentId: string; query: string; done: boolean; snippet: string };
   const [docSearches, setDocSearches] = useState<DocSearch[]>([]);
 
+  // Sirius Learns — post-build AI analysis
+  type LearnSuggestion = {
+    category: string; priority: "critical" | "high" | "medium";
+    title: string; detail: string; effort: string; prompt: string;
+  };
+  type LearnSummary = { headline: string; automationScore: number; productionScore: number; nextPriority: string };
+  const [learnSuggestions, setLearnSuggestions] = useState<LearnSuggestion[]>([]);
+  const [learnSummary, setLearnSummary] = useState<LearnSummary | null>(null);
+  const [learnRunning, setLearnRunning] = useState(false);
+  const [learnDone, setLearnDone] = useState(false);
+
   // Ghostwriter — inline code assistant
   const [ghostwriterOpen, setGhostwriterOpen] = useState(false);
   const [ghostMessages, setGhostMessages] = useState<Array<{ role: "user" | "assistant"; content: string; updatedCode?: string | null }>>([]);
@@ -3877,6 +3888,10 @@ function AppBuilderPanel({ pin }: { pin: string }) {
     setCheckpoints([]);
     setActiveCheckpoint(null);
     setDocSearches([]);
+    setLearnSuggestions([]);
+    setLearnSummary(null);
+    setLearnRunning(false);
+    setLearnDone(false);
     const collectedFiles: Record<string, string> = {};
 
     const res = await fetch(`${API}/lab/build-app`, {
@@ -4122,6 +4137,57 @@ function AppBuilderPanel({ pin }: { pin: string }) {
       setBrowserLog(prev => [...prev, check]);
     }
     setBrowserRunning(false);
+  };
+
+  // ── Sirius Learns — auto-fires when Phase 7 opens ─────────────────────────
+  useEffect(() => {
+    if (phase === 7 && !learnRunning && !learnDone && Object.keys(allFiles).length > 0 && reqs) {
+      handleLearn();
+    }
+  }, [phase]);
+
+  const handleLearn = async () => {
+    if (learnRunning || learnDone || !reqs) return;
+    setLearnRunning(true);
+    setLearnSuggestions([]);
+    setLearnSummary(null);
+    try {
+      const res = await fetch(`${API}/lab/app-builder/learn`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+        body: JSON.stringify({ appName: reqs.appName, techStack: reqs.techStack, files: allFiles, pin }),
+      });
+      if (!res.body) return;
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let buf = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop() || "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const evt = JSON.parse(line.slice(6));
+            if (evt.type === "item" && evt.data) {
+              if (evt.data.type === "suggestion") {
+                setLearnSuggestions(prev => [...prev, evt.data as LearnSuggestion]);
+              } else if (evt.data.type === "summary") {
+                setLearnSummary(evt.data as LearnSummary);
+              }
+            } else if (evt.type === "done") {
+              setLearnDone(true);
+            }
+          } catch {}
+        }
+      }
+    } catch (e: any) {
+      console.error("[AppBuilder/Learn]", e?.message);
+    } finally {
+      setLearnRunning(false);
+    }
   };
 
   // ── Checkpoint rollback ────────────────────────────────────────────────────
@@ -5204,6 +5270,111 @@ function AppBuilderPanel({ pin }: { pin: string }) {
                       ))}
                     </div>
                   </div>
+
+                  {/* ── Sirius Learns — AI Post-Build Analysis ── */}
+                  <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(15,23,42,0.09)" }}>
+                    <div className="flex items-center justify-between px-4 py-3" style={{ background: "linear-gradient(135deg, hsla(280,70%,55%,0.08) 0%, hsla(193,100%,40%,0.06) 100%)", borderBottom: "1px solid rgba(15,23,42,0.07)" }}>
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">🧠</span>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold" style={{ color: "rgba(15,23,42,0.8)" }}>Sirius Analysis</span>
+                            {learnRunning && <Loader2 className="w-3 h-3 animate-spin" style={{ color: "hsl(280,70%,55%)" }} />}
+                            {learnDone && <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold" style={{ background: "hsla(155,70%,45%,0.15)", color: "hsl(155,70%,35%)" }}>✓ Complete</span>}
+                          </div>
+                          <p className="text-[10px]" style={{ color: "rgba(15,23,42,0.45)" }}>Learning your codebase · streaming improvement intelligence</p>
+                        </div>
+                      </div>
+                      {!learnRunning && !learnDone && (
+                        <button onClick={handleLearn}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
+                          style={{ background: "hsla(280,70%,55%,0.12)", color: "hsl(280,70%,45%)" }}>
+                          <Brain className="w-3 h-3" /> Analyse
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Score bar when done */}
+                    {learnSummary && (
+                      <div className="px-4 py-3 flex items-center gap-6" style={{ background: "rgba(15,23,42,0.02)", borderBottom: "1px solid rgba(15,23,42,0.06)" }}>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[10px] font-semibold" style={{ color: "rgba(15,23,42,0.5)" }}>Automation Score</span>
+                            <span className="text-xs font-bold" style={{ color: learnSummary.automationScore >= 70 ? "hsl(155,70%,40%)" : learnSummary.automationScore >= 50 ? "hsl(45,90%,40%)" : "hsl(0,80%,50%)" }}>{learnSummary.automationScore}%</span>
+                          </div>
+                          <div className="h-1.5 rounded-full" style={{ background: "rgba(15,23,42,0.08)" }}>
+                            <div className="h-1.5 rounded-full transition-all" style={{ width: `${learnSummary.automationScore}%`, background: learnSummary.automationScore >= 70 ? "hsl(155,70%,45%)" : learnSummary.automationScore >= 50 ? "hsl(45,90%,50%)" : "hsl(0,80%,55%)" }} />
+                          </div>
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[10px] font-semibold" style={{ color: "rgba(15,23,42,0.5)" }}>Production Ready</span>
+                            <span className="text-xs font-bold" style={{ color: learnSummary.productionScore >= 70 ? "hsl(155,70%,40%)" : learnSummary.productionScore >= 50 ? "hsl(45,90%,40%)" : "hsl(0,80%,50%)" }}>{learnSummary.productionScore}%</span>
+                          </div>
+                          <div className="h-1.5 rounded-full" style={{ background: "rgba(15,23,42,0.08)" }}>
+                            <div className="h-1.5 rounded-full transition-all" style={{ width: `${learnSummary.productionScore}%`, background: learnSummary.productionScore >= 70 ? "hsl(155,70%,45%)" : learnSummary.productionScore >= 50 ? "hsl(45,90%,50%)" : "hsl(0,80%,55%)" }} />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    {learnSummary && (
+                      <div className="px-4 py-2.5 flex items-start gap-2" style={{ background: "hsla(280,70%,55%,0.04)", borderBottom: "1px solid rgba(15,23,42,0.06)" }}>
+                        <span className="text-sm flex-shrink-0">💬</span>
+                        <p className="text-xs italic" style={{ color: "rgba(15,23,42,0.65)" }}>"{learnSummary.headline}"</p>
+                      </div>
+                    )}
+
+                    {/* Suggestion cards */}
+                    <div className="p-3 space-y-2">
+                      {learnSuggestions.length === 0 && learnRunning && (
+                        <div className="flex items-center gap-3 py-4 text-xs" style={{ color: "rgba(15,23,42,0.4)" }}>
+                          <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" style={{ color: "hsl(280,70%,55%)" }} />
+                          Sirius is reading all {Object.keys(allFiles).length} files and learning your codebase…
+                        </div>
+                      )}
+                      {learnSuggestions.map((s, i) => {
+                        const catColors: Record<string, string> = {
+                          feature: "hsl(193,100%,35%)", automation: "hsl(155,70%,40%)",
+                          security: "hsl(0,80%,50%)", performance: "hsl(25,90%,50%)",
+                          architecture: "hsl(280,70%,50%)", dx: "hsl(45,90%,45%)",
+                        };
+                        const color = catColors[s.category] || "rgba(15,23,42,0.5)";
+                        const priorityBg: Record<string, string> = { critical: "hsla(0,80%,50%,0.1)", high: "hsla(25,90%,50%,0.1)", medium: "hsla(45,90%,50%,0.1)" };
+                        const priorityColor: Record<string, string> = { critical: "hsl(0,80%,50%)", high: "hsl(25,90%,45%)", medium: "hsl(45,80%,40%)" };
+                        return (
+                          <div key={i} className="rounded-xl p-3" style={{ background: "rgba(15,23,42,0.025)", border: "1px solid rgba(15,23,42,0.07)" }}>
+                            <div className="flex items-start gap-2 mb-1.5">
+                              <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wide flex-shrink-0 mt-0.5"
+                                style={{ background: `${color}18`, color }}>
+                                {s.category}
+                              </span>
+                              <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 mt-0.5"
+                                style={{ background: priorityBg[s.priority] || "rgba(15,23,42,0.06)", color: priorityColor[s.priority] || "rgba(15,23,42,0.5)" }}>
+                                {s.priority}
+                              </span>
+                              <span className="text-[9px] ml-auto flex-shrink-0 mt-0.5" style={{ color: "rgba(15,23,42,0.35)" }}>~{s.effort}</span>
+                            </div>
+                            <p className="text-xs font-semibold mb-1" style={{ color: "rgba(15,23,42,0.75)" }}>{s.title}</p>
+                            <p className="text-[10px] leading-relaxed mb-2" style={{ color: "rgba(15,23,42,0.5)" }}>{s.detail}</p>
+                            <button onClick={() => { setPhase(1); setPrompt(s.prompt); }}
+                              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold transition-all hover:opacity-80"
+                              style={{ background: `${color}12`, color }}>
+                              <Rocket className="w-2.5 h-2.5" /> Build this improvement
+                            </button>
+                          </div>
+                        );
+                      })}
+                      {learnSummary?.nextPriority && (
+                        <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl" style={{ background: "hsla(155,70%,45%,0.06)", border: "1px solid hsla(155,70%,45%,0.2)" }}>
+                          <span className="text-sm flex-shrink-0">⚡</span>
+                          <div>
+                            <p className="text-[10px] font-bold mb-0.5" style={{ color: "hsl(155,70%,35%)" }}>Sirius recommends next:</p>
+                            <p className="text-[10px]" style={{ color: "rgba(15,23,42,0.55)" }}>{learnSummary.nextPriority}</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <div className="flex flex-col flex-1 min-h-0">
@@ -5569,15 +5740,15 @@ function DashboardPanel({ projects, pin, onNavigate, onOpenProject }: {
     { label: "Drafted Apps",     value: totalDrafted,        color: "hsl(45,100%,50%)", icon: FileText,          action: () => onNavigate("grants") },
   ];
 
-  const QUICK_ACTIONS: { icon: React.ElementType; label: string; desc: string; color: string; mode: NavMode }[] = [
-    { icon: MessageSquare, label: "Chat with Sirius",  desc: "Your intelligence partner",    color: "hsl(193,100%,38%)", mode: "labchat"  },
-    { icon: FolderOpen,    label: "Projects",           desc: "Open your R&D workspace",      color: "hsl(193,100%,32%)", mode: "projects" },
-    { icon: Telescope,     label: "Market Scout",       desc: "Scan for opportunities",        color: "hsl(45,100%,42%)", mode: "scout"    },
-    { icon: BadgeCheck,    label: "Funding Radar",      desc: `${totalFundingOpps} open opps`, color: "hsl(155,70%,45%)", mode: "grants"   },
-    { icon: Cpu,           label: "Autonomous Lab",     desc: `${pendingApprovals.length} awaiting approval`, color: "hsl(193,100%,40%)", mode: "autolab" },
-    { icon: Atom,          label: "AI Intelligence",    desc: "Live strategic feed",            color: "hsl(210,80%,55%)", mode: "feed"     },
-    { icon: Banknote,      label: "Revenue Hub",        desc: "Sales and pipeline",             color: "hsl(155,70%,45%)", mode: "revenue"  },
-    { icon: Bot,           label: "Bot Lab",            desc: "Design AI automations",          color: "hsl(280,70%,55%)", mode: "botlab"   },
+  const QUICK_ACTIONS: { icon: React.ElementType; label: string; desc: string; color: string; mode: NavMode; featured?: boolean }[] = [
+    { icon: Rocket,        label: "App Builder",        desc: "Build apps with AI agents",     color: "hsl(155,70%,42%)", mode: "appbuilder", featured: true },
+    { icon: MessageSquare, label: "Chat with Sirius",   desc: "Your intelligence partner",     color: "hsl(193,100%,38%)", mode: "labchat"   },
+    { icon: FolderOpen,    label: "Projects",            desc: "Open your R&D workspace",       color: "hsl(193,100%,32%)", mode: "projects"  },
+    { icon: Telescope,     label: "Market Scout",        desc: "Scan for opportunities",         color: "hsl(45,100%,42%)", mode: "scout"     },
+    { icon: BadgeCheck,    label: "Funding Radar",       desc: `${totalFundingOpps} open opps`,  color: "hsl(155,70%,45%)", mode: "grants"    },
+    { icon: Cpu,           label: "Autonomous Lab",      desc: `${pendingApprovals.length} pending`, color: "hsl(193,100%,40%)", mode: "autolab" },
+    { icon: Atom,          label: "AI Intelligence",     desc: "Live strategic feed",             color: "hsl(210,80%,55%)", mode: "feed"      },
+    { icon: Bot,           label: "Bot Lab",             desc: "Design AI automations",           color: "hsl(280,70%,55%)", mode: "botlab"    },
   ];
 
   return (
@@ -5619,6 +5790,42 @@ function DashboardPanel({ projects, pin, onNavigate, onOpenProject }: {
               </button>
             );
           })}
+        </div>
+
+        {/* App Builder Hero Spotlight */}
+        <div className="rounded-2xl overflow-hidden relative" style={{ background: "linear-gradient(135deg, hsl(155,70%,42%) 0%, hsl(193,100%,38%) 100%)", boxShadow: "0 4px 20px hsla(155,70%,42%,0.25)" }}>
+          <div className="absolute inset-0 opacity-10" style={{ backgroundImage: "radial-gradient(circle at 80% 50%, white 0%, transparent 60%)" }} />
+          <div className="relative px-6 py-5 flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-white text-sm font-bold opacity-90">App Builder</span>
+                <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ background: "rgba(255,255,255,0.2)", color: "white" }}>Code Intelligence</span>
+              </div>
+              <p className="text-white font-semibold text-lg leading-tight mb-1">Build any app with 9-phase AI agents</p>
+              <p className="text-sm opacity-75" style={{ color: "white" }}>Live web search · checkpoints · virtual browser testing · rollback</p>
+            </div>
+            <div className="flex items-center gap-3 flex-shrink-0 ml-6">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-white">9</div>
+                <div className="text-[10px] opacity-60 text-white">phases</div>
+              </div>
+              <div className="w-px h-8 opacity-20" style={{ background: "white" }} />
+              <div className="text-center">
+                <div className="text-2xl font-bold text-white">6</div>
+                <div className="text-[10px] opacity-60 text-white">agents</div>
+              </div>
+              <div className="w-px h-8 opacity-20" style={{ background: "white" }} />
+              <div className="text-center">
+                <div className="text-2xl font-bold text-white">∞</div>
+                <div className="text-[10px] opacity-60 text-white">stacks</div>
+              </div>
+              <button onClick={() => onNavigate("appbuilder")}
+                className="ml-4 flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-105 active:scale-95"
+                style={{ background: "rgba(255,255,255,0.95)", color: "hsl(155,70%,35%)" }}>
+                <Rocket className="w-4 h-4" /> Launch
+              </button>
+            </div>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-5">
@@ -10300,8 +10507,11 @@ export function StarLabPage() {
 
   const ALL_NAV_ITEMS = [
     { id: "dashboard" as NavMode, label: "Dashboard", icon: LayoutDashboard, color: "hsl(193,100%,45%)", guestAllowed: true },
+    { id: "labchat" as NavMode, label: "Chat with Sirius", icon: MessageSquare, color: "hsl(193,100%,50%)", guestAllowed: true },
+    { id: "appbuilder" as NavMode, label: "App Builder", icon: Rocket, color: "hsl(155,70%,42%)", guestAllowed: false },
     { id: "projects" as NavMode, label: "Projects", icon: FolderOpen, color: "hsl(193,100%,35%)", guestAllowed: true },
     { id: "botlab" as NavMode, label: "Bot Lab", icon: Bot, color: "hsl(280,70%,55%)", guestAllowed: false },
+    { id: "autolab" as NavMode, label: "Autonomous Lab", icon: Cpu, color: "hsl(193,100%,40%)", guestAllowed: false },
     { id: "scout" as NavMode, label: "Scout", icon: Telescope, color: "hsl(45,100%,45%)", guestAllowed: true },
     { id: "feed" as NavMode, label: "AI Intelligence", icon: Atom, color: "hsl(210,80%,55%)", badge: true, guestAllowed: true },
     { id: "grants" as NavMode, label: "Funding Radar", icon: BadgeCheck, color: "hsl(155,70%,45%)", pending: anyPendingFunding, guestAllowed: false },
@@ -10309,14 +10519,11 @@ export function StarLabPage() {
     { id: "revenue" as NavMode, label: "Revenue Hub", icon: Banknote, color: "hsl(155,70%,45%)", guestAllowed: false },
     { id: "agency" as NavMode, label: "Agency Hub", icon: Briefcase, color: "hsl(220,80%,55%)", guestAllowed: false },
     { id: "growth" as NavMode, label: "Growth Engine", icon: Globe, color: "hsl(155,70%,50%)", guestAllowed: false },
-    { id: "labchat" as NavMode, label: "Chat with Sirius", icon: MessageSquare, color: "hsl(193,100%,50%)", guestAllowed: true },
     { id: "brain" as NavMode, label: "Sirius Brain", icon: Brain, color: "hsl(280,70%,65%)", guestAllowed: false },
     { id: "research" as NavMode, label: "Deep Research", icon: BookOpen, color: "hsl(45,100%,50%)", guestAllowed: true },
     { id: "docs" as NavMode, label: "Document Intel", icon: FileSearch, color: "hsl(210,90%,55%)", guestAllowed: true },
     { id: "mission" as NavMode, label: "Mission", icon: Star, color: "hsl(193,100%,50%)", guestAllowed: true },
     { id: "outreach" as NavMode, label: "Outreach Hub", icon: Mail, color: "hsl(340,80%,60%)", guestAllowed: false },
-    { id: "autolab" as NavMode, label: "Autonomous Lab", icon: Cpu, color: "hsl(193,100%,40%)", guestAllowed: false },
-    { id: "appbuilder" as NavMode, label: "App Builder", icon: Rocket, color: "hsl(155,70%,42%)", guestAllowed: false },
   ];
   const NAV_ITEMS = isGuest ? ALL_NAV_ITEMS.filter(n => n.guestAllowed) : ALL_NAV_ITEMS;
 
