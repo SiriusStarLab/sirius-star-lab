@@ -996,73 +996,99 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
     }
   }
 
+  // Build plain chat-compatible messages (no image_url for history, only for last message)
+  const chatMessages = allMessages.map((m, i) => {
+    const isLastUserMsg = i === allMessages.length - 1 && m.role === "user";
+    if (extractedDocumentText && isLastUserMsg) {
+      const docLabel = documentName ? `"${documentName}"` : "the uploaded document";
+      return { role: "user" as const, content: `The user has shared a document titled ${docLabel}. Here is the full text:\n\n---\n${extractedDocumentText}\n---\n\nUser message: ${m.content || "Please analyse this document."}` };
+    }
+    return { role: m.role as "user" | "assistant", content: m.content };
+  });
+
   try {
-    const stream = await (openai as any).responses.create({
-      model: "gpt-4o",
-      tools: [{ type: "web_search_preview" }],
-      instructions: systemPrompt,
-      input: inputMessages,
-      stream: true,
-    });
+    // Try Responses API with web search first
+    let responsesApiWorked = false;
+    try {
+      const stream = await (openai as any).responses.create({
+        model: "gpt-4o",
+        tools: [{ type: "web_search_preview" }],
+        instructions: systemPrompt,
+        input: chatMessages,
+        stream: true,
+      });
 
-    for await (const event of stream) {
-      const eventType = (event as any).type as string;
+      responsesApiWorked = true;
 
-      if (
-        eventType === "response.web_search_call.in_progress" ||
-        eventType === "response.web_search_call.searching"
-      ) {
-        res.write(`data: ${JSON.stringify({ type: "searching" })}\n\n`);
-      } else if (eventType === "response.output_text.delta") {
-        const content = (event as any).delta as string;
-        if (content) {
-          fullResponse += content;
-          res.write(`data: ${JSON.stringify({ content })}\n\n`);
-        }
-      } else if (eventType === "response.completed" || eventType === "response.done") {
-        const outputItems: any[] = (event as any).response?.output ?? [];
-        const sources: Array<{ url: string; title: string }> = [];
+      for await (const event of stream) {
+        const eventType = (event as any).type as string;
 
-        for (const item of outputItems) {
-          if (item.type === "message") {
-            for (const part of item.content ?? []) {
-              for (const annotation of part.annotations ?? []) {
-                if (
-                  annotation.type === "url_citation" &&
-                  annotation.url &&
-                  !sources.find((s) => s.url === annotation.url)
-                ) {
-                  sources.push({ url: annotation.url, title: annotation.title || annotation.url });
+        if (
+          eventType === "response.web_search_call.in_progress" ||
+          eventType === "response.web_search_call.searching"
+        ) {
+          res.write(`data: ${JSON.stringify({ type: "searching" })}\n\n`);
+        } else if (eventType === "response.output_text.delta") {
+          const content = (event as any).delta as string;
+          if (content) {
+            fullResponse += content;
+            res.write(`data: ${JSON.stringify({ content })}\n\n`);
+          }
+        } else if (eventType === "response.completed" || eventType === "response.done") {
+          const outputItems: any[] = (event as any).response?.output ?? [];
+          const sources: Array<{ url: string; title: string }> = [];
+
+          for (const item of outputItems) {
+            if (item.type === "message") {
+              for (const part of item.content ?? []) {
+                for (const annotation of part.annotations ?? []) {
+                  if (
+                    annotation.type === "url_citation" &&
+                    annotation.url &&
+                    !sources.find((s) => s.url === annotation.url)
+                  ) {
+                    sources.push({ url: annotation.url, title: annotation.title || annotation.url });
+                  }
                 }
               }
             }
           }
-        }
 
-        if (sources.length > 0) {
-          res.write(`data: ${JSON.stringify({ sources })}\n\n`);
+          if (sources.length > 0) {
+            res.write(`data: ${JSON.stringify({ sources })}\n\n`);
+          }
         }
       }
-    }
-  } catch (err: any) {
-    console.error("Responses API error, falling back to chat completions:", err?.message);
+    } catch (responsesErr: any) {
+      console.error("Responses API error, falling back to chat completions:", responsesErr?.message);
+      if (responsesApiWorked) throw responsesErr; // stream started but mid-stream error — rethrow
 
-    const chatStream = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        { role: "system", content: systemPrompt },
-        ...inputMessages,
-      ],
-      stream: true,
-    });
+      // Responses API not available — fall back to Chat Completions
+      try {
+        const chatStream = await openai.chat.completions.create({
+          model: "gpt-4o",
+          messages: [
+            { role: "system", content: systemPrompt },
+            ...chatMessages,
+          ],
+          stream: true,
+        });
 
-    for await (const chunk of chatStream) {
-      const content = chunk.choices[0]?.delta?.content;
-      if (content) {
-        fullResponse += content;
-        res.write(`data: ${JSON.stringify({ content })}\n\n`);
+        for await (const chunk of chatStream) {
+          const content = chunk.choices[0]?.delta?.content;
+          if (content) {
+            fullResponse += content;
+            res.write(`data: ${JSON.stringify({ content })}\n\n`);
+          }
+        }
+      } catch (chatErr: any) {
+        console.error("Chat completions fallback also failed:", chatErr?.message);
+        // fullResponse stays empty — done: true still sent below
       }
     }
+  } catch (outerErr: any) {
+    console.error("Unhandled streaming error:", outerErr?.message);
+    // done: true still sent below — frontend gets clean close
   }
 
   // Save assistant response
