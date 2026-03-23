@@ -88,7 +88,8 @@ export function useChat(conversationId?: number) {
     let activeId = conversationId;
     
     const userMsgId = Date.now();
-    setMessages(prev => [...prev, { id: userMsgId, role: "user", content, uploadedImageBase64: imageBase64 }]);
+    const userMsg: ChatMessage = { id: userMsgId, role: "user", content, uploadedImageBase64: imageBase64 };
+    setMessages(prev => [...prev, userMsg]);
     
     try {
       const assistantMsgId = Date.now() + 1;
