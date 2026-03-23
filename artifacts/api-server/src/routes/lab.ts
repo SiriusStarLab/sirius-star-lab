@@ -2099,6 +2099,191 @@ router.post("/lab/projects/:id/funding", authMiddleware, async (req: Request, re
   runProjectFundingAnalysis(projectId).catch(console.error);
 });
 
+// ─── Auto-draft funding application for a specific scheme ────────────────────
+router.post("/lab/projects/:id/apply", authMiddleware, async (req: Request, res: Response) => {
+  const projectId = parseInt(req.params.id);
+  if (isNaN(projectId)) { res.status(400).json({ error: "Invalid project ID" }); return; }
+
+  const { scheme, type, geography, amount, matchReason, keyEvidence, url, matchStrength } = req.body;
+  if (!scheme) { res.status(400).json({ error: "scheme is required" }); return; }
+
+  const [project] = await db.select().from(labProjects).where(eq(labProjects.id, projectId));
+  if (!project) { res.status(404).json({ error: "Project not found" }); return; }
+
+  // Respond immediately so UI shows loading — generation runs async via SSE
+  sseHeaders(res);
+
+  try {
+    const COMPANY = `Strategic Innovation Dundee Ltd
+Registered Address: Dundee, Scotland, UK
+Director / Principal Investigator: Garry
+Core Sectors: Precision engineering — Oil & Gas, Aerospace, Medical Devices, Hydrogen Technology
+Nature of Business: Advanced precision engineering R&D, new product development, AI-driven engineering intelligence`;
+
+    const schemeKey = scheme.replace(/[^a-zA-Z0-9]/g, "_").toLowerCase();
+
+    const applicationSystemPrompt = `You are a specialist funding application writer with deep expertise in UK and international R&D funding, grants, and tax incentive schemes. You write applications that get approved. Today is ${TODAY()}.
+
+Your task is to write a COMPLETE, ready-to-submit funding application or supporting document for the specified scheme. Use every piece of project information provided. Be specific, technical, and compelling.
+
+## FORMAT RULES BY SCHEME TYPE
+
+### For R&D TAX CREDITS (RDEC, SME R&D Relief, SR&ED, CIR, etc.):
+Write a formal Technical Narrative / Competent Professional's Report structured as:
+1. EXECUTIVE SUMMARY (2-3 paragraphs)
+2. COMPANY OVERVIEW
+3. QUALIFYING R&D ACTIVITIES — describe each distinct R&D project/workstream
+4. SCIENTIFIC & TECHNOLOGICAL UNCERTAINTIES — specifically what was not known and could not be easily deduced
+5. SYSTEMATIC INVESTIGATION — methods used, hypothesis testing, iterations, failures and learnings
+6. QUALIFYING COSTS BREAKDOWN — staff time %, materials, software, utilities estimate
+7. ADVANCE ASSURANCE / HMRC REFERENCE POINTS — key technical baseline, why this goes beyond routine work
+8. CONCLUSION
+
+### For INNOVATE UK SMART GRANTS / EIC ACCELERATOR / HORIZON EUROPE:
+Write a full project application narrative structured as:
+1. PROJECT TITLE AND SUMMARY (200 words max — elevator pitch)
+2. THE PROBLEM — market failure, customer pain, scale of opportunity
+3. YOUR SOLUTION — what you're building, unique approach
+4. INNOVATION — what is technically novel, why no one else has done this
+5. SCIENTIFIC / TECHNOLOGICAL UNCERTAINTY — what you don't yet know how to solve
+6. WORK PROGRAMME — phases, milestones, deliverables (12–36 months)
+7. EXPLOITATION & COMMERCIALISATION — route to market, revenue model, IP strategy
+8. TEAM — capabilities, track record, why this team
+9. PROJECT COSTS — breakdown by work package
+10. IMPACT — economic, environmental, societal
+
+### For SBRI / DASA / DEFENCE GRANTS:
+Write a challenge response structured as:
+1. EXECUTIVE SUMMARY
+2. UNDERSTANDING OF THE CHALLENGE
+3. PROPOSED SOLUTION — technical approach
+4. INNOVATION AND TRL (Technology Readiness Level)
+5. WORK PLAN AND MILESTONES
+6. TEAM AND RESOURCES
+7. EXPLOITATION PLAN
+8. COSTS
+
+### For KTP (Knowledge Transfer Partnership):
+Write a partnership proposal:
+1. BUSINESS NEED AND OPPORTUNITY
+2. PROPOSED KNOWLEDGE BASE PARTNER (university)
+3. KTP ASSOCIATE ROLE AND OBJECTIVES
+4. TECHNICAL WORK PROGRAMME
+5. EXPECTED OUTCOMES AND IMPACT
+6. COMPANY COMMITMENT
+
+### For EIS/SEIS (Investor Relief):
+Write an investor summary:
+1. COMPANY OVERVIEW AND ELIGIBILITY
+2. INNOVATION AND IP
+3. USE OF INVESTMENT
+4. RISK FACTORS
+5. FINANCIAL PROJECTIONS
+
+## WRITING STYLE
+- Use professional, authoritative language
+- Be specific — use exact technical terminology from the project
+- Reference the project name, company name, and industry throughout
+- Include realistic cost/time estimates where possible
+- Avoid generic statements — every sentence should be specific to THIS project
+- Length: minimum 800 words, target 1200–2000 words for grants; 600–1000 for tax credits
+- Format in clear markdown with ## headings, bullet points, and bold key terms`;
+
+    const userMessage = `Write a complete funding application for the following:
+
+## FUNDING SCHEME
+Scheme: ${scheme}
+Type: ${type}
+Geography: ${geography}
+Amount: ${amount}
+Match Strength: ${matchStrength}
+Eligibility Reason: ${matchReason}
+Key Evidence to Document: ${keyEvidence}
+Official URL: ${url}
+
+## APPLICANT COMPANY
+${COMPANY}
+
+## PROJECT DETAILS
+Project Name: ${project.name}
+Industry: ${project.industry}
+Phase: ${project.phase}
+
+Brief / Overview:
+${project.brief || "Not yet defined"}
+
+Technical Specifications:
+${project.specs || "Not yet defined"}
+
+Research Findings:
+${project.research || "Not yet defined"}
+
+Materials & Components:
+${project.materials || "Not yet defined"}
+
+Industry Problem Being Solved:
+${project.industryProblem || "Not yet defined"}
+
+Business Case:
+${project.businessCase || "Not yet defined"}
+
+Go-To-Market Strategy:
+${project.goToMarket || "Not yet defined"}
+
+Cost to Build (estimate):
+${project.costToBuild || "Not yet defined"}
+
+Profit Margin Target:
+${project.profitMargin || "Not yet defined"}
+
+Uses / Applications:
+${project.uses || "Not yet defined"}
+
+Draw the application entirely from this data. Where specific data is missing, make reasonable technical assumptions consistent with the project's industry and nature. Flag any gaps the applicant should fill before submission.
+
+Return ONLY the application document — no preamble, no meta-commentary. Start directly with the application heading.`;
+
+    const stream = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        { role: "system", content: applicationSystemPrompt },
+        { role: "user", content: userMessage },
+      ],
+      stream: true,
+      temperature: 0.3,
+      max_tokens: 4000,
+    });
+
+    let fullText = "";
+    for await (const chunk of stream) {
+      const delta = chunk.choices[0]?.delta?.content || "";
+      if (delta) {
+        fullText += delta;
+        res.write(`data: ${JSON.stringify({ delta })}\n\n`);
+      }
+    }
+
+    // Store the generated application against the project
+    const existing = (() => {
+      try { return JSON.parse(project.fundingApplications || "{}"); } catch { return {}; }
+    })();
+    existing[schemeKey] = { application: fullText, scheme, generatedAt: new Date().toISOString() };
+
+    await db.update(labProjects).set({
+      fundingApplications: JSON.stringify(existing),
+      updatedAt: new Date(),
+    }).where(eq(labProjects.id, projectId));
+
+    res.write(`data: ${JSON.stringify({ done: true, schemeKey })}\n\n`);
+    res.end();
+    console.log(`[Funding Apply] Application drafted for project ${projectId} — ${scheme}`);
+  } catch (err) {
+    console.error("[Funding Apply] Error:", err);
+    res.write(`data: ${JSON.stringify({ error: "Application generation failed" })}\n\n`);
+    res.end();
+  }
+});
+
 // Funding Radar — all projects at once (manual global scan, still streams)
 router.post("/lab/funding", authMiddleware, async (req: Request, res: Response) => {
   sseHeaders(res);

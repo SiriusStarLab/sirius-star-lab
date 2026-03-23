@@ -55,6 +55,9 @@ export const labProjects = pgTable("lab_projects", {
   fundingStatus: text("funding_status").default(""),   // "" | "pending" | "complete" | "error"
   fundingAnalysedAt: timestamp("funding_analysed_at", { withTimezone: true }),
 
+  // Funding applications — JSON: { [schemeKey]: { application: string, generatedAt: string } }
+  fundingApplications: text("funding_applications").default("{}"),
+
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });

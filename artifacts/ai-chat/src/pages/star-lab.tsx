@@ -45,6 +45,7 @@ type Project = {
   autoCreated: string; autoScanId: string;
   approvalStatus: string;
   fundingAnalysis: string; fundingStatus: string; fundingAnalysedAt: string | null;
+  fundingApplications: string;
   socialPosts: string; launchPlatforms: string; launchStatus: string;
   messages?: Message[];
 };
@@ -1958,14 +1959,80 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack }: { project: Project
 
 function FundingProjectTab({ project, pin, onUpdate }: { project: Project; pin: string; onUpdate: (p: Project) => void }) {
   const [running, setRunning] = useState(false);
+  const [applyingScheme, setApplyingScheme] = useState<string | null>(null);
+  const [applicationModal, setApplicationModal] = useState<{ scheme: string; text: string; streaming: boolean } | null>(null);
+  const [copied, setCopied] = useState(false);
   const base = getApiBase();
   const hdrs = () => ({ "Content-Type": "application/json", "x-lab-pin": pin });
+  const appPanelRef = useRef<HTMLDivElement>(null);
 
   const runAnalysis = async () => {
     setRunning(true);
     await fetch(`${base}lab/projects/${project.id}/funding`, { method: "POST", headers: hdrs() });
     onUpdate({ ...project, fundingStatus: "pending" });
     setRunning(false);
+  };
+
+  const drafts: Record<string, { application: string; scheme: string; generatedAt: string }> = (() => {
+    try { return project.fundingApplications ? JSON.parse(project.fundingApplications) : {}; } catch { return {}; }
+  })();
+
+  const autoApply = async (m: FundingMatch) => {
+    const schemeKey = m.scheme.replace(/[^a-zA-Z0-9]/g, "_").toLowerCase();
+    // If draft already exists, just open the modal
+    if (drafts[schemeKey]) {
+      setApplicationModal({ scheme: m.scheme, text: drafts[schemeKey].application, streaming: false });
+      return;
+    }
+    setApplyingScheme(schemeKey);
+    setApplicationModal({ scheme: m.scheme, text: "", streaming: true });
+
+    try {
+      const res = await fetch(`${base}lab/projects/${project.id}/apply`, {
+        method: "POST",
+        headers: hdrs(),
+        body: JSON.stringify({ scheme: m.scheme, type: m.type, geography: m.geography, amount: m.amount, matchReason: m.matchReason, keyEvidence: m.keyEvidence, url: m.url, matchStrength: m.matchStrength }),
+      });
+      if (!res.body) throw new Error("No body");
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let fullText = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const parsed = JSON.parse(line.slice(6));
+            if (parsed.delta) { fullText += parsed.delta; setApplicationModal(prev => prev ? { ...prev, text: fullText } : null); }
+            if (parsed.done) {
+              setApplicationModal(prev => prev ? { ...prev, streaming: false } : null);
+              // Update project with new draft
+              const newDrafts = { ...drafts, [schemeKey]: { application: fullText, scheme: m.scheme, generatedAt: new Date().toISOString() } };
+              onUpdate({ ...project, fundingApplications: JSON.stringify(newDrafts) });
+            }
+          } catch {}
+        }
+      }
+    } catch {
+      setApplicationModal(prev => prev ? { ...prev, text: (prev.text || "") + "\n\n[Error generating application — please try again]", streaming: false } : null);
+    } finally {
+      setApplyingScheme(null);
+    }
+  };
+
+  const downloadApplication = (text: string, scheme: string) => {
+    const blob = new Blob([text], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${scheme.replace(/[^a-zA-Z0-9]/g, "_")}_application.md`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const fundingData = (() => {
@@ -1979,9 +2046,9 @@ function FundingProjectTab({ project, pin, onUpdate }: { project: Project; pin: 
   const hasResults = project.fundingStatus === "complete" && matches.length > 0;
 
   const STRENGTH = {
-    strong: { label: "Strong Match", color: "hsl(155,70%,45%)", bg: "hsla(155,70%,45%,0.1)", border: "hsla(155,70%,45%,0.25)" },
-    good:   { label: "Good Match", color: "hsl(45,100%,50%)", bg: "hsla(45,100%,50%,0.1)", border: "hsla(45,100%,50%,0.25)" },
-    possible: { label: "Possible", color: "hsl(210,80%,60%)", bg: "hsla(210,80%,60%,0.1)", border: "hsla(210,80%,60%,0.25)" },
+    strong: { label: "Strong Match", color: "hsl(155,70%,45%)", bg: "hsla(155,70%,45%,0.08)", border: "hsla(155,70%,45%,0.25)" },
+    good:   { label: "Good Match", color: "hsl(45,100%,50%)", bg: "hsla(45,100%,50%,0.08)", border: "hsla(45,100%,50%,0.25)" },
+    possible: { label: "Possible", color: "hsl(210,80%,60%)", bg: "hsla(210,80%,60%,0.08)", border: "hsla(210,80%,60%,0.25)" },
   };
 
   const GEO_COLORS: Record<string, string> = {
@@ -1999,8 +2066,106 @@ function FundingProjectTab({ project, pin, onUpdate }: { project: Project; pin: 
     ? new Date(project.fundingAnalysedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
     : null;
 
+  // Auto-scroll application panel as text streams in
+  useEffect(() => {
+    if (applicationModal?.streaming && appPanelRef.current) {
+      appPanelRef.current.scrollTop = appPanelRef.current.scrollHeight;
+    }
+  }, [applicationModal?.text, applicationModal?.streaming]);
+
   return (
-    <div className="flex-1 overflow-y-auto p-5 space-y-5">
+    <div className="flex-1 overflow-y-auto p-5 space-y-5 relative">
+
+      {/* Application draft modal — full-screen overlay */}
+      {applicationModal && (
+        <div className="fixed inset-0 z-50 flex" style={{ background: "rgba(5,9,18,0.75)", backdropFilter: "blur(8px)" }}>
+          <div className="relative m-auto w-full max-w-3xl max-h-[90vh] rounded-2xl flex flex-col overflow-hidden"
+            style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.12)", boxShadow: "0 32px 80px rgba(0,0,0,0.25)" }}>
+
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-5 py-3.5 flex-shrink-0"
+              style={{ borderBottom: "1px solid rgba(15,23,42,0.08)" }}>
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "hsla(155,70%,45%,0.12)" }}>
+                  <FileText className="w-4 h-4" style={{ color: "hsl(155,70%,45%)" }} />
+                </div>
+                <div>
+                  <p className="text-slate-800 font-semibold text-sm leading-tight">Funding Application Draft</p>
+                  <p className="text-xs leading-tight" style={{ color: "rgba(15,23,42,0.4)" }}>{applicationModal.scheme}</p>
+                </div>
+                {applicationModal.streaming && (
+                  <span className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full ml-2"
+                    style={{ background: "hsla(155,70%,45%,0.1)", color: "hsl(155,70%,45%)" }}>
+                    <Loader2 className="w-3 h-3 animate-spin" /> Drafting…
+                  </span>
+                )}
+                {!applicationModal.streaming && (
+                  <span className="text-xs px-2.5 py-1 rounded-full ml-2"
+                    style={{ background: "hsla(155,70%,45%,0.1)", color: "hsl(155,70%,55%)" }}>
+                    ✓ Draft ready
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {!applicationModal.streaming && (
+                  <>
+                    <button onClick={() => { navigator.clipboard.writeText(applicationModal.text); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                      style={{ background: copied ? "hsla(155,70%,45%,0.12)" : "#F1F5F9", color: copied ? "hsl(155,70%,45%)" : "rgba(15,23,42,0.65)", border: "1px solid rgba(15,23,42,0.09)" }}>
+                      {copied ? <><Check className="w-3 h-3" /> Copied!</> : <><Copy className="w-3 h-3" /> Copy</>}
+                    </button>
+                    <button onClick={() => downloadApplication(applicationModal.text, applicationModal.scheme)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                      style={{ background: "hsl(155,70%,38%)", color: "white", border: "1px solid hsla(155,70%,45%,0.3)" }}>
+                      <Download className="w-3 h-3" /> Download
+                    </button>
+                  </>
+                )}
+                <button onClick={() => setApplicationModal(null)}
+                  className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors"
+                  style={{ color: "rgba(15,23,42,0.4)" }}
+                  onMouseEnter={e => (e.currentTarget.style.background = "#F1F5F9")}
+                  onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Application text */}
+            <div ref={appPanelRef} className="flex-1 overflow-y-auto p-6">
+              {applicationModal.text ? (
+                <div className="prose prose-sm max-w-none"
+                  style={{ fontFamily: "'Georgia', serif", lineHeight: 1.8, color: "rgba(15,23,42,0.85)" }}>
+                  {applicationModal.text.split("\n").map((line, i) => {
+                    if (line.startsWith("## ")) return <h2 key={i} className="text-slate-800 font-bold text-base mt-6 mb-2 pb-1" style={{ borderBottom: "1px solid rgba(15,23,42,0.08)" }}>{line.slice(3)}</h2>;
+                    if (line.startsWith("### ")) return <h3 key={i} className="text-slate-700 font-semibold text-sm mt-4 mb-1.5">{line.slice(4)}</h3>;
+                    if (line.startsWith("**") && line.endsWith("**")) return <p key={i} className="font-semibold text-slate-800 text-sm mt-2">{line.slice(2, -2)}</p>;
+                    if (line.startsWith("- ")) return <li key={i} className="ml-4 text-sm" style={{ color: "rgba(15,23,42,0.75)" }}>{line.slice(2)}</li>;
+                    if (line.trim() === "") return <div key={i} className="h-2" />;
+                    return <p key={i} className="text-sm mb-1.5" style={{ color: "rgba(15,23,42,0.75)" }}>{line}</p>;
+                  })}
+                  {applicationModal.streaming && <span className="animate-pulse" style={{ color: "hsl(155,70%,45%)" }}>▋</span>}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-48 gap-3">
+                  <Loader2 className="w-8 h-8 animate-spin" style={{ color: "hsl(155,70%,45%)" }} />
+                  <p className="text-sm" style={{ color: "rgba(15,23,42,0.4)" }}>Generating your application…</p>
+                </div>
+              )}
+            </div>
+
+            {/* Footer note */}
+            {!applicationModal.streaming && (
+              <div className="px-5 py-3 flex-shrink-0" style={{ borderTop: "1px solid rgba(15,23,42,0.06)", background: "#F8FAFC" }}>
+                <p className="text-xs" style={{ color: "rgba(15,23,42,0.35)" }}>
+                  This is an AI-drafted document. Review all details and consult your R&D advisor or accountant before formal submission.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div>
@@ -2020,7 +2185,7 @@ function FundingProjectTab({ project, pin, onUpdate }: { project: Project; pin: 
         </div>
         <button onClick={runAnalysis} disabled={running || isPending}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex-shrink-0"
-          style={{ background: running || isPending ? "#F1F5F9" : "hsl(155,70%,38%)", color: "white", border: "1px solid hsla(155,70%,45%,0.3)", opacity: running || isPending ? 0.6 : 1 }}>
+          style={{ background: running || isPending ? "#F1F5F9" : "hsl(155,70%,38%)", color: running || isPending ? "rgba(15,23,42,0.4)" : "white", border: "1px solid hsla(155,70%,45%,0.3)", opacity: running || isPending ? 0.6 : 1 }}>
           {running || isPending ? <><Loader2 className="w-3 h-3 animate-spin" /> Running…</> : <><RefreshCw className="w-3 h-3" /> Re-run</>}
         </button>
       </div>
@@ -2081,7 +2246,7 @@ function FundingProjectTab({ project, pin, onUpdate }: { project: Project; pin: 
             {[
               { label: "Total", value: matches.length, color: "hsl(193,100%,50%)" },
               { label: "Strong Matches", value: matches.filter(m => m.matchStrength === "strong").length, color: "hsl(155,70%,50%)" },
-              { label: "Tax Credits", value: matches.filter(m => m.type === "tax_credit").length, color: "hsl(45,100%,50%)" },
+              { label: "Drafted", value: Object.keys(drafts).length, color: "hsl(45,100%,50%)" },
             ].map(s => (
               <div key={s.label} className="rounded-xl p-3 text-center" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.07)" }}>
                 <p className="text-lg font-bold" style={{ color: s.color }}>{s.value}</p>
@@ -2093,6 +2258,9 @@ function FundingProjectTab({ project, pin, onUpdate }: { project: Project; pin: 
           {matches.map((m, i) => {
             const st = STRENGTH[m.matchStrength] || STRENGTH.possible;
             const geo = m.geography?.split(" / ") ?? [m.geography];
+            const schemeKey = m.scheme.replace(/[^a-zA-Z0-9]/g, "_").toLowerCase();
+            const hasDraft = !!drafts[schemeKey];
+            const isGenerating = applyingScheme === schemeKey;
             return (
               <div key={i} className="rounded-xl overflow-hidden" style={{ border: `1px solid ${st.border}`, background: st.bg }}>
                 <div className="p-3.5">
@@ -2103,29 +2271,37 @@ function FundingProjectTab({ project, pin, onUpdate }: { project: Project; pin: 
                           <span key={g} className="text-xs px-1.5 py-0.5 rounded-full font-medium" style={{ background: `${GEO_COLORS[g] || "hsl(280,60%,60%)"}22`, color: GEO_COLORS[g] || "hsl(280,60%,60%)" }}>{g}</span>
                         ))}
                         <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: "rgba(15,23,42,0.09)", color: "rgba(15,23,42,0.45)" }}>{TYPE_LABELS[m.type] || m.type}</span>
+                        {hasDraft && <span className="text-xs px-1.5 py-0.5 rounded-full font-medium" style={{ background: "hsla(155,70%,45%,0.12)", color: "hsl(155,70%,45%)" }}>✓ Draft ready</span>}
                       </div>
                       <p className="text-slate-800 font-semibold text-sm leading-snug">{m.scheme}</p>
                       <p className="text-xs mt-0.5" style={{ color: st.color }}>{st.label} · {m.amount}</p>
                     </div>
                   </div>
-                  <p className="text-xs leading-relaxed mb-2" style={{ color: "rgba(15,23,42,0.67)" }}>{m.matchReason}</p>
-                  <div className="space-y-1.5">
+                  <p className="text-xs leading-relaxed mb-2.5" style={{ color: "rgba(15,23,42,0.67)" }}>{m.matchReason}</p>
+                  <div className="space-y-1.5 mb-3">
                     <div className="flex gap-2 text-xs">
-                      <span style={{ color: "rgba(15,23,42,0.35)", flexShrink: 0 }}>Evidence:</span>
+                      <span style={{ color: "rgba(15,23,42,0.35)", flexShrink: 0 }}>Evidence needed:</span>
                       <span style={{ color: "rgba(15,23,42,0.58)" }}>{m.keyEvidence}</span>
                     </div>
-                    <div className="flex gap-2 text-xs">
-                      <span style={{ color: "rgba(15,23,42,0.35)", flexShrink: 0 }}>Next step:</span>
-                      <span style={{ color: "rgba(15,23,42,0.58)" }}>{m.nextStep}</span>
-                    </div>
                   </div>
-                  {m.url && (
-                    <a href={m.url} target="_blank" rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 mt-2 text-xs font-medium transition-opacity hover:opacity-75"
-                      style={{ color: st.color }}>
-                      <ExternalLink className="w-3 h-3" /> More info
-                    </a>
-                  )}
+
+                  {/* Action row */}
+                  <div className="flex items-center gap-2 pt-2" style={{ borderTop: "1px solid rgba(15,23,42,0.06)" }}>
+                    {/* Auto-apply button */}
+                    <button onClick={() => autoApply(m)} disabled={isGenerating}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                      style={{ background: hasDraft ? "hsla(155,70%,45%,0.12)" : "hsl(155,70%,38%)", color: hasDraft ? "hsl(155,70%,45%)" : "white", border: `1px solid ${hasDraft ? "hsla(155,70%,45%,0.3)" : "hsla(155,70%,45%,0.3)"}`, opacity: isGenerating ? 0.7 : 1 }}>
+                      {isGenerating ? <><Loader2 className="w-3 h-3 animate-spin" /> Drafting…</> : hasDraft ? <><FileText className="w-3 h-3" /> View Application</> : <><Zap className="w-3 h-3" /> Auto-Draft Application</>}
+                    </button>
+
+                    {m.url && (
+                      <a href={m.url} target="_blank" rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-opacity hover:opacity-75"
+                        style={{ background: "rgba(15,23,42,0.05)", color: "rgba(15,23,42,0.55)", border: "1px solid rgba(15,23,42,0.09)" }}>
+                        <ExternalLink className="w-3 h-3" /> Official site
+                      </a>
+                    )}
+                  </div>
                 </div>
               </div>
             );
