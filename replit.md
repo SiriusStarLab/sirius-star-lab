@@ -22,7 +22,9 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 React + Vite frontend served at `/`. A full AI partnership platform — not a tool, not an assistant, a genuine partner:
 
 **Sirius Star Lab** (private R&D, at `/star-lab`)
-- PIN-gated (default PIN: 2025, changeable via STAR_LAB_PIN env var)
+- PIN-gated with two-tier access: owner (STAR_LAB_PIN, default "2025") and guest (STAR_LAB_GUEST_PIN, set to enable guest access)
+- Guests see a filtered sidebar (Projects, Scout, AI Feed, Chat, Research, Docs, Mission only) with no access to Brain, Revenue, Agency, Outreach, Autonomous Lab
+- Guest chat: no memory saving, no profile updates, no brain context — read-only market scanning and conversation only
 - Multi-project workspace: Brief, Research, Specs, Code, Drawings, Funding tabs per project
 - Lab AI: engineering-focused, current tech only, web search, build-ready outputs
 - Opportunity Scout: scans industries + social media for product/business opportunities

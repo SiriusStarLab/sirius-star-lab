@@ -12,7 +12,7 @@ import {
   ChevronUp, BadgeCheck, Lightbulb, Atom, Upload, Download,
   Mail, UserPlus, Users, Settings2, AtSign, Building2, Briefcase, StickyNote, CheckCircle2, AlertCircle,
   Banknote, CreditCard, ShoppingBag, BarChart3, ArrowRight, FileSearch, Hammer, ClipboardList,
-  Brain, MessageSquare, Activity, Target, Building
+  Brain, MessageSquare, Activity, Target, Building, Mic, MicOff, ShieldAlert
 } from "lucide-react";
 import { getApiBase } from "@/lib/api-base";
 
@@ -201,7 +201,9 @@ function StarLabGreeting({ userName, onComplete }: { userName?: string; onComple
   );
 }
 
-function PinGate({ onUnlock, userName }: { onUnlock: (pin: string) => void; userName?: string }) {
+type AccessRole = "owner" | "guest";
+
+function PinGate({ onUnlock, userName }: { onUnlock: (pin: string, role: AccessRole) => void; userName?: string }) {
   const [phase, setPhase] = useState<"greeting" | "pin">("greeting");
   const [digits, setDigits] = useState<string[]>([]);
   const [status, setStatus] = useState<"idle" | "loading" | "error" | "locked">("idle");
@@ -270,8 +272,11 @@ function PinGate({ onUnlock, userName }: { onUnlock: (pin: string) => void; user
         body: JSON.stringify({ pin }),
       });
       if (res.ok) {
+        const body = await res.json().catch(() => ({}));
+        const role: AccessRole = body.role === "guest" ? "guest" : "owner";
         sessionStorage.setItem("lab_pin", pin);
-        onUnlock(pin);
+        sessionStorage.setItem("lab_role", role);
+        onUnlock(pin, role);
       } else {
         const body = await res.json().catch(() => ({}));
         // Server-side lockout (403) — use server's unlock time if available
@@ -6727,7 +6732,7 @@ function LabAvatarGreeting({ userName, onNavigate, onDismiss }: {
 type ActionCard = { tool: string; label: string; detail: string; color: string; icon: string; result?: string };
 type LabChatMsg = { role: "user" | "assistant"; content: string; actions?: ActionCard[] };
 
-function SiriusLabChatPanel({ pin }: { pin: string }) {
+function SiriusLabChatPanel({ pin, accessLevel }: { pin: string; accessLevel: AccessRole }) {
   const base = getApiBase();
   const [messages, setMessages] = useState<LabChatMsg[]>([]);
   const [input, setInput] = useState("");
@@ -6735,21 +6740,56 @@ function SiriusLabChatPanel({ pin }: { pin: string }) {
   const [streamingText, setStreamingText] = useState("");
   const [streamingActions, setStreamingActions] = useState<ActionCard[]>([]);
   const [thinkingText, setThinkingText] = useState("");
+  const [isRecording, setIsRecording] = useState(false);
+  const [voiceSupported, setVoiceSupported] = useState(false);
+  const recognitionRef = useRef<any>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Check for Web Speech API support
+  useEffect(() => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    setVoiceSupported(!!SpeechRecognition);
+  }, []);
+
+  const startVoice = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition || streaming) return;
+    const recognition = new SpeechRecognition();
+    recognition.lang = "en-GB";
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.onstart = () => setIsRecording(true);
+    recognition.onend = () => setIsRecording(false);
+    recognition.onerror = () => setIsRecording(false);
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0]?.[0]?.transcript || "";
+      if (transcript.trim()) {
+        setInput(transcript.trim());
+        // Auto-send after a brief delay so user can see what was transcribed
+        setTimeout(() => {
+          setInput("");
+          const userMsg: LabChatMsg = { role: "user", content: transcript.trim() };
+          const apiMessages = [...messages, userMsg].map(m => ({ role: m.role, content: m.content }));
+          setMessages(prev => [...prev, userMsg]);
+          sendWithMessages(apiMessages);
+        }, 400);
+      }
+    };
+    recognitionRef.current = recognition;
+    recognition.start();
+  };
+
+  const stopVoice = () => {
+    recognitionRef.current?.stop();
+    setIsRecording(false);
+  };
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, streamingText, streamingActions]);
 
-  const send = async (text?: string) => {
-    const content = (text ?? input).trim();
-    if (!content || streaming) return;
-    setInput("");
-
-    const userMsg: LabChatMsg = { role: "user", content };
-    const apiMessages = [...messages, userMsg].map(m => ({ role: m.role, content: m.content }));
-    setMessages(prev => [...prev, userMsg]);
+  const sendWithMessages = async (apiMessages: { role: string; content: string }[]) => {
     setStreaming(true);
     setStreamingText("");
     setStreamingActions([]);
@@ -6810,14 +6850,33 @@ function SiriusLabChatPanel({ pin }: { pin: string }) {
     }
   };
 
-  const CHIPS = [
+  const send = async (text?: string) => {
+    const content = (text ?? input).trim();
+    if (!content || streaming) return;
+    setInput("");
+    const userMsg: LabChatMsg = { role: "user", content };
+    const apiMessages = [...messages, userMsg].map(m => ({ role: m.role, content: m.content }));
+    setMessages(prev => [...prev, userMsg]);
+    await sendWithMessages(apiMessages);
+  };
+
+  const OWNER_CHIPS = [
     "What should I focus on this week?",
     "Create a project for oil & gas CNC components",
-    "Save to memory: we're targeting Baker Hughes as priority client",
+    "Save to memory: targeting Baker Hughes as priority client",
     "Scan medical device market for opportunities",
     "What's my biggest revenue lever right now?",
     "Show me all my current projects",
   ];
+
+  const GUEST_CHIPS = [
+    "What does this company do?",
+    "Show me the current projects",
+    "Scan the hydrogen energy sector",
+    "What engineering capabilities does this company have?",
+  ];
+
+  const CHIPS = accessLevel === "owner" ? OWNER_CHIPS : GUEST_CHIPS;
 
   return (
     <div className="flex-1 flex flex-col min-h-0" style={{ background: "hsl(226,45%,6%)" }}>
@@ -6827,24 +6886,50 @@ function SiriusLabChatPanel({ pin }: { pin: string }) {
         <div className="flex items-center gap-3">
           <div className="relative flex-shrink-0">
             <div className="w-11 h-11 rounded-2xl overflow-hidden"
-              style={{ border: "1.5px solid rgba(0,212,255,0.3)", boxShadow: "0 0 18px rgba(0,212,255,0.15)" }}>
+              style={{ border: `1.5px solid ${accessLevel === "guest" ? "rgba(255,180,0,0.3)" : "rgba(0,212,255,0.3)"}`, boxShadow: `0 0 18px ${accessLevel === "guest" ? "rgba(255,180,0,0.1)" : "rgba(0,212,255,0.15)"}` }}>
               <img src="/logo-v2.png" alt="Sirius" className="w-full h-full object-cover" />
             </div>
             <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 animate-pulse"
-              style={{ background: "hsl(155,70%,50%)", borderColor: "hsl(226,45%,7%)" }} />
+              style={{ background: accessLevel === "guest" ? "hsl(45,90%,55%)" : "hsl(155,70%,50%)", borderColor: "hsl(226,45%,7%)" }} />
           </div>
           <div>
-            <p className="text-white font-bold text-sm leading-none">Sirius — Intelligence Partner</p>
-            <p className="text-xs mt-1" style={{ color: "hsl(155,70%,50%)" }}>● Online · Can create projects, save memory, scan markets</p>
+            <p className="text-white font-bold text-sm leading-none">Sirius {accessLevel === "guest" ? "— Guest Mode" : "— Intelligence Partner"}</p>
+            {accessLevel === "owner"
+              ? <p className="text-xs mt-1" style={{ color: "hsl(155,70%,50%)" }}>● Online · Can create projects, save memory, scan markets</p>
+              : <p className="text-xs mt-1" style={{ color: "hsl(45,90%,55%)" }}>● Guest access · Chat & market scan only · No private data</p>
+            }
           </div>
         </div>
-        {messages.length > 0 && (
-          <button onClick={() => setMessages([])}
-            className="text-xs text-white/20 hover:text-white/50 transition-colors px-2 py-1 rounded-lg hover:bg-white/5">
-            Clear
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {voiceSupported && (
+            <button onClick={isRecording ? stopVoice : startVoice} disabled={streaming}
+              className="w-8 h-8 rounded-xl flex items-center justify-center transition-all disabled:opacity-30"
+              title={isRecording ? "Stop recording" : "Speak to Sirius"}
+              style={{
+                background: isRecording ? "hsl(0,75%,45%)" : "hsl(226,45%,12%)",
+                border: isRecording ? "1px solid hsl(0,75%,55%)" : "1px solid rgba(255,255,255,0.08)",
+                boxShadow: isRecording ? "0 0 12px hsl(0,75%,40%)" : "none",
+              }}>
+              {isRecording ? <MicOff className="w-3.5 h-3.5 text-white" /> : <Mic className="w-3.5 h-3.5" style={{ color: "rgba(255,255,255,0.4)" }} />}
+            </button>
+          )}
+          {messages.length > 0 && (
+            <button onClick={() => setMessages([])}
+              className="text-xs text-white/20 hover:text-white/50 transition-colors px-2 py-1 rounded-lg hover:bg-white/5">
+              Clear
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Recording indicator */}
+      {isRecording && (
+        <div className="flex items-center justify-center gap-2 py-2 text-xs font-medium"
+          style={{ background: "hsl(0,75%,20%)", color: "hsl(0,75%,75%)", borderBottom: "1px solid hsl(0,75%,35%)" }}>
+          <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+          Listening… speak now
+        </div>
+      )}
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
@@ -6957,24 +7042,44 @@ function SiriusLabChatPanel({ pin }: { pin: string }) {
       {/* Input */}
       <div className="p-4 border-t" style={{ borderColor: "rgba(255,255,255,0.06)", background: "hsl(226,45%,7%)" }}>
         <div className="flex items-center gap-3 px-4 py-3 rounded-2xl"
-          style={{ background: "hsl(226,45%,10%)", border: `1px solid ${streaming ? "rgba(0,212,255,0.2)" : "rgba(255,255,255,0.08)"}`, transition: "border-color 0.3s" }}>
+          style={{
+            background: "hsl(226,45%,10%)",
+            border: `1px solid ${isRecording ? "rgba(220,50,50,0.4)" : streaming ? "rgba(0,212,255,0.2)" : "rgba(255,255,255,0.08)"}`,
+            transition: "border-color 0.3s"
+          }}>
+          {voiceSupported && (
+            <button onClick={isRecording ? stopVoice : startVoice} disabled={streaming}
+              className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center transition-all disabled:opacity-30"
+              style={{
+                background: isRecording ? "hsl(0,75%,45%)" : "transparent",
+                boxShadow: isRecording ? "0 0 8px hsl(0,75%,40%)" : "none",
+              }}>
+              {isRecording
+                ? <MicOff className="w-3.5 h-3.5 text-white" />
+                : <Mic className="w-3.5 h-3.5" style={{ color: "rgba(255,255,255,0.25)" }} />}
+            </button>
+          )}
           <input
             ref={inputRef}
             className="flex-1 bg-transparent text-white text-sm placeholder-white/20 outline-none"
-            value={input}
+            value={isRecording ? "🎤 Listening…" : input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-            placeholder="Talk to me — strategy, decisions, tasks, anything…"
-            disabled={streaming}
+            placeholder={accessLevel === "guest" ? "Ask Sirius anything…" : "Talk to me — strategy, decisions, tasks, anything…"}
+            disabled={streaming || isRecording}
             autoFocus
           />
-          <button onClick={() => send()} disabled={streaming || !input.trim()}
+          <button onClick={() => send()} disabled={streaming || !input.trim() || isRecording}
             className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 transition-all disabled:opacity-30 hover:opacity-85"
             style={{ background: "linear-gradient(135deg, hsl(193,100%,35%), hsl(226,70%,45%))" }}>
             {streaming ? <Loader2 className="w-4 h-4 text-white animate-spin" /> : <Send className="w-4 h-4 text-white" />}
           </button>
         </div>
-        <p className="text-white/15 text-xs mt-2 text-center">Sirius can create projects, save memories, scan markets · She learns from every message</p>
+        <p className="text-white/15 text-xs mt-2 text-center">
+          {accessLevel === "owner"
+            ? "Sirius can create projects, save memories, scan markets · She learns from every message"
+            : "Guest mode · Chat and market scanning only · Voice available"}
+        </p>
       </div>
     </div>
   );
@@ -6988,6 +7093,7 @@ export function StarLabPage() {
   const [unlocked, setUnlocked] = useState(false);
   const [showGreeting, setShowGreeting] = useState(false);
   const [pin, setPin] = useState("");
+  const [accessLevel, setAccessLevel] = useState<AccessRole>("owner");
   const userName = typeof window !== "undefined"
     ? (localStorage.getItem("sirius_display_name") || "").trim() || undefined
     : undefined;
@@ -7006,7 +7112,8 @@ export function StarLabPage() {
 
   useEffect(() => {
     const stored = sessionStorage.getItem("lab_pin");
-    if (stored) { setPin(stored); setUnlocked(true); }
+    const storedRole = sessionStorage.getItem("lab_role") as AccessRole | null;
+    if (stored) { setPin(stored); setAccessLevel(storedRole || "owner"); setUnlocked(true); }
   }, []);
 
   const headers = useCallback(() => ({ "Content-Type": "application/json", "x-lab-pin": pin }), [pin]);
@@ -7047,10 +7154,11 @@ export function StarLabPage() {
     return () => clearInterval(interval);
   }, [unlocked, loadProjects]);
 
-  const onUnlock = (p: string) => {
+  const onUnlock = (p: string, role: AccessRole) => {
     setPin(p);
+    setAccessLevel(role);
     setUnlocked(true);
-    setShowGreeting(true);
+    if (role === "owner") setShowGreeting(true);
     // Parse Stripe redirect URL params
     const params = new URLSearchParams(window.location.search);
     if (params.get("tab") === "revenue") {
@@ -7084,24 +7192,27 @@ export function StarLabPage() {
   if (!unlocked) return <PinGate onUnlock={onUnlock} userName={userName} />;
 
   const anyPendingFunding = projects.some(p => p.fundingStatus === "pending");
-  const NAV_ITEMS = [
-    { id: "projects" as NavMode, label: "Projects", icon: FolderOpen, color: "hsl(193,100%,35%)" },
-    { id: "botlab" as NavMode, label: "Bot Lab", icon: Bot, color: "hsl(280,70%,55%)" },
-    { id: "scout" as NavMode, label: "Scout", icon: Telescope, color: "hsl(45,100%,45%)" },
-    { id: "feed" as NavMode, label: "AI Intelligence", icon: Atom, color: "hsl(210,80%,55%)", badge: true },
-    { id: "grants" as NavMode, label: "Funding Radar", icon: BadgeCheck, color: "hsl(155,70%,45%)", pending: anyPendingFunding },
-    { id: "commerce" as NavMode, label: "Commerce Lab", icon: TrendingUp, color: "hsl(25,90%,55%)" },
-    { id: "revenue" as NavMode, label: "Revenue Hub", icon: Banknote, color: "hsl(155,70%,45%)" },
-    { id: "agency" as NavMode, label: "Agency Hub", icon: Briefcase, color: "hsl(220,80%,55%)" },
-    { id: "growth" as NavMode, label: "Growth Engine", icon: Globe, color: "hsl(155,70%,50%)" },
-    { id: "labchat" as NavMode, label: "Chat with Sirius", icon: MessageSquare, color: "hsl(193,100%,50%)" },
-    { id: "brain" as NavMode, label: "Sirius Brain", icon: Brain, color: "hsl(280,70%,65%)" },
-    { id: "research" as NavMode, label: "Deep Research", icon: BookOpen, color: "hsl(45,100%,50%)" },
-    { id: "docs" as NavMode, label: "Document Intel", icon: FileSearch, color: "hsl(210,90%,55%)" },
-    { id: "mission" as NavMode, label: "Mission", icon: Star, color: "hsl(193,100%,50%)" },
-    { id: "outreach" as NavMode, label: "Outreach Hub", icon: Mail, color: "hsl(340,80%,60%)" },
-    { id: "autolab" as NavMode, label: "Autonomous Lab", icon: Cpu, color: "hsl(193,100%,40%)" },
+  const isGuest = accessLevel === "guest";
+
+  const ALL_NAV_ITEMS = [
+    { id: "projects" as NavMode, label: "Projects", icon: FolderOpen, color: "hsl(193,100%,35%)", guestAllowed: true },
+    { id: "botlab" as NavMode, label: "Bot Lab", icon: Bot, color: "hsl(280,70%,55%)", guestAllowed: false },
+    { id: "scout" as NavMode, label: "Scout", icon: Telescope, color: "hsl(45,100%,45%)", guestAllowed: true },
+    { id: "feed" as NavMode, label: "AI Intelligence", icon: Atom, color: "hsl(210,80%,55%)", badge: true, guestAllowed: true },
+    { id: "grants" as NavMode, label: "Funding Radar", icon: BadgeCheck, color: "hsl(155,70%,45%)", pending: anyPendingFunding, guestAllowed: false },
+    { id: "commerce" as NavMode, label: "Commerce Lab", icon: TrendingUp, color: "hsl(25,90%,55%)", guestAllowed: false },
+    { id: "revenue" as NavMode, label: "Revenue Hub", icon: Banknote, color: "hsl(155,70%,45%)", guestAllowed: false },
+    { id: "agency" as NavMode, label: "Agency Hub", icon: Briefcase, color: "hsl(220,80%,55%)", guestAllowed: false },
+    { id: "growth" as NavMode, label: "Growth Engine", icon: Globe, color: "hsl(155,70%,50%)", guestAllowed: false },
+    { id: "labchat" as NavMode, label: "Chat with Sirius", icon: MessageSquare, color: "hsl(193,100%,50%)", guestAllowed: true },
+    { id: "brain" as NavMode, label: "Sirius Brain", icon: Brain, color: "hsl(280,70%,65%)", guestAllowed: false },
+    { id: "research" as NavMode, label: "Deep Research", icon: BookOpen, color: "hsl(45,100%,50%)", guestAllowed: true },
+    { id: "docs" as NavMode, label: "Document Intel", icon: FileSearch, color: "hsl(210,90%,55%)", guestAllowed: true },
+    { id: "mission" as NavMode, label: "Mission", icon: Star, color: "hsl(193,100%,50%)", guestAllowed: true },
+    { id: "outreach" as NavMode, label: "Outreach Hub", icon: Mail, color: "hsl(340,80%,60%)", guestAllowed: false },
+    { id: "autolab" as NavMode, label: "Autonomous Lab", icon: Cpu, color: "hsl(193,100%,40%)", guestAllowed: false },
   ];
+  const NAV_ITEMS = isGuest ? ALL_NAV_ITEMS.filter(n => n.guestAllowed) : ALL_NAV_ITEMS;
 
   return (
     <div className="min-h-screen flex relative" style={{ background: "hsl(226,45%,5%)" }}>
@@ -7150,15 +7261,23 @@ export function StarLabPage() {
         {/* Logo */}
         <div className="p-4 border-b" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl flex items-center justify-center"
-              style={{ background: "linear-gradient(135deg, hsl(193,100%,30%), hsl(226,70%,45%))" }}>
-              <Star className="w-4 h-4 text-white" />
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+              style={{ background: isGuest ? "linear-gradient(135deg, hsl(45,90%,45%), hsl(25,90%,45%))" : "linear-gradient(135deg, hsl(193,100%,30%), hsl(226,70%,45%))" }}>
+              {isGuest ? <ShieldAlert className="w-4 h-4 text-white" /> : <Star className="w-4 h-4 text-white" />}
             </div>
             <div>
               <p className="text-white font-bold text-sm leading-none">Star Lab</p>
-              <p className="text-white/30 text-xs mt-0.5">Private R&D</p>
+              {isGuest
+                ? <p className="text-xs mt-0.5 font-medium" style={{ color: "hsl(45,90%,55%)" }}>Guest Access</p>
+                : <p className="text-white/30 text-xs mt-0.5">Private R&D</p>
+              }
             </div>
           </div>
+          {isGuest && (
+            <div className="mt-2.5 px-2 py-1.5 rounded-lg text-xs leading-snug" style={{ background: "hsl(45,90%,45%,0.1)", border: "1px solid hsl(45,90%,45%,0.2)", color: "hsl(45,90%,65%)" }}>
+              Limited access · Private data hidden
+            </div>
+          )}
         </div>
 
         {/* Nav */}
@@ -7250,7 +7369,7 @@ export function StarLabPage() {
         {navMode === "commerce" && <CommerceLabPanel pin={pin} />}
         {navMode === "agency" && <AgencyHubPanel pin={pin} />}
         {navMode === "growth" && <GrowthEnginePanel pin={pin} />}
-        {navMode === "labchat" && <SiriusLabChatPanel pin={pin} />}
+        {navMode === "labchat" && <SiriusLabChatPanel pin={pin} accessLevel={accessLevel} />}
         {navMode === "brain" && <BrainPanel pin={pin} />}
         {navMode === "research" && <DeepResearchPanel pin={pin} />}
         {navMode === "docs" && <DocIntelPanel pin={pin} />}

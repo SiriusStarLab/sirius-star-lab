@@ -10,6 +10,15 @@ import { recordPinFailure, clearPinRecord, securityLog } from "../middlewares/se
 const router: IRouter = Router();
 
 const LAB_PIN = process.env.STAR_LAB_PIN || "2025";
+const GUEST_PIN = process.env.STAR_LAB_GUEST_PIN || "";
+
+type AccessRole = "owner" | "guest";
+
+function getPinRole(pin: string): AccessRole | null {
+  if (pin === LAB_PIN) return "owner";
+  if (GUEST_PIN && pin === GUEST_PIN) return "guest";
+  return null;
+}
 
 const TODAY = () => new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
@@ -357,11 +366,12 @@ async function streamWithSearch(
 // Auth — PIN checked here; brute-force handled by security middleware + recordPinFailure
 router.post("/lab/auth", (req: Request, res: Response) => {
   const { pin } = req.body;
+  const role = getPinRole(pin);
 
-  if (pin === LAB_PIN) {
+  if (role) {
     clearPinRecord(req);
-    securityLog("LAB_AUTH_SUCCESS", req);
-    res.json({ success: true });
+    securityLog("LAB_AUTH_SUCCESS", req, `Role: ${role}`);
+    res.json({ success: true, role });
   } else {
     const { banned, remaining, banExpiresAt } = recordPinFailure(req);
     if (banned) {
@@ -2495,8 +2505,10 @@ const TOOL_META: Record<string, { label: string; color: string; icon: string }> 
 };
 
 router.post("/lab/chat", async (req, res): Promise<void> => {
-  const pin = req.headers["x-lab-pin"];
-  if (pin !== LAB_PIN) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const pinHeader = req.headers["x-lab-pin"] as string;
+  const role = getPinRole(pinHeader);
+  if (!role) { res.status(401).json({ error: "Unauthorized" }); return; }
+
   const { messages } = req.body ?? {};
   if (!Array.isArray(messages) || messages.length === 0) { res.status(400).json({ error: "messages required" }); return; }
 
@@ -2517,7 +2529,18 @@ router.post("/lab/chat", async (req, res): Promise<void> => {
       p.memories ? `Memories:\n${p.memories}` : null,
     ].filter(Boolean).join("\n") : "";
 
-    const systemPrompt = `${LAB_SYSTEM_PROMPT()}
+    // Guest gets a restricted system prompt — no private memories
+    const guestSystemPrompt = `You are Sirius, a Star Lab intelligence assistant. Today is ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}.
+
+You are in guest access mode. You can have conversations and answer questions, but you cannot access or modify private owner data. You are a highly capable business, engineering and strategy assistant. Be direct, commercially sharp, and genuinely helpful. You can view the project list and run market scans, but you cannot save memories or update business profiles.
+
+Company context:
+${brainContext ? [
+  p?.businessName ? `Business: ${p.businessName}` : null,
+  p?.businessSector ? `Sectors: ${p.businessSector}` : null,
+].filter(Boolean).join("\n") : "A precision engineering and AI technology business in Scotland."}`;
+
+    const ownerSystemPrompt = `${LAB_SYSTEM_PROMPT()}
 
 You are now in STAR LAB MODE — a direct private channel between you and Garry. This is not a public chat. This is the inner sanctum.
 
@@ -2541,8 +2564,13 @@ ${brainContext ? `WHAT YOU ALREADY KNOW ABOUT THIS BUSINESS:\n${brainContext}` :
 
 Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}.`;
 
+    // Guest-restricted tools: no memory writing, no brain access, no profile updates
+    const GUEST_TOOLS = LAB_TOOLS.filter(t => ["list_projects", "run_market_scan"].includes(t.function.name));
+    const activeSystemPrompt = role === "owner" ? ownerSystemPrompt : guestSystemPrompt;
+    const activeTools = role === "owner" ? LAB_TOOLS : GUEST_TOOLS;
+
     const chatMessages: any[] = [
-      { role: "system", content: systemPrompt },
+      { role: "system", content: activeSystemPrompt },
       ...messages.map((m: { role: string; content: string }) => ({ role: m.role, content: m.content })),
     ];
 
@@ -2550,7 +2578,7 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
     const phase1 = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: chatMessages,
-      tools: LAB_TOOLS,
+      tools: activeTools,
       tool_choice: "auto",
       temperature: 0.75,
       max_tokens: 2000,
@@ -2623,8 +2651,8 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
         if (delta) { finalText += delta; sendEvent({ type: "text", delta }); }
       }
 
-      // Background: auto-extract any additional facts from this exchange
-      setImmediate(async () => {
+      // Background: auto-extract any additional facts from this exchange (owner only)
+      if (role === "owner") setImmediate(async () => {
         try {
           const lastUserMsg = messages[messages.length - 1]?.content || "";
           const extraction = await openai.chat.completions.create({
@@ -2654,8 +2682,8 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
       });
 
     } else {
-      // No tools used — already streamed in phase 1. Background extraction still runs.
-      setImmediate(async () => {
+      // No tools used — already streamed in phase 1. Background extraction (owner only).
+      if (role === "owner") setImmediate(async () => {
         try {
           const lastUserMsg = messages[messages.length - 1]?.content || "";
           if (lastUserMsg.length < 20) return;
