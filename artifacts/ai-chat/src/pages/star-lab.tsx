@@ -70,20 +70,31 @@ const MAX_ATTEMPTS = 5;
 const LOCKOUT_SECONDS = 60;
 
 /* ─── Voice utilities ──────────────────────────────────────────────────── */
-function speakText(text: string, onDone?: () => void, rate = 0.9) {
+function speakText(text: string, onDone?: () => void, rate = 0.85) {
   if (typeof window === "undefined" || !window.speechSynthesis) { onDone?.(); return; }
   window.speechSynthesis.cancel();
   const utter = new SpeechSynthesisUtterance(text);
   utter.rate = rate;
-  utter.pitch = 1.05;
-  utter.volume = 1.0;
+  utter.pitch = 1.18;
+  utter.volume = 0.95;
   const trySpeak = () => {
     const voices = window.speechSynthesis.getVoices();
-    const preferred = voices.find(v =>
-      v.name === "Google UK English Male" || v.name === "Daniel" ||
-      v.name === "Google UK English Female" || v.name.includes("Google") ||
-      (v.lang.startsWith("en") && !v.localService)
-    ) || voices.find(v => v.lang.startsWith("en"));
+    // Prefer soft female UK/EN voices, strictly avoiding male voices
+    const femalePreference = [
+      "Google UK English Female",
+      "Samantha",           // macOS US female
+      "Karen",              // macOS Australian female
+      "Moira",              // macOS Irish female
+      "Fiona",              // macOS Scottish female
+      "Victoria",           // macOS US female
+      "Serena",             // macOS UK female
+      "Google US English",  // Google US (often female)
+    ];
+    const preferred =
+      voices.find(v => femalePreference.includes(v.name)) ||
+      voices.find(v => v.lang.startsWith("en-GB") && !v.name.toLowerCase().includes("male") && !["Daniel", "Arthur", "Malcolm", "Google UK English Male"].includes(v.name)) ||
+      voices.find(v => v.lang.startsWith("en") && !v.name.toLowerCase().includes("male") && !["Daniel", "Arthur", "Malcolm", "Google UK English Male"].includes(v.name)) ||
+      voices.find(v => v.lang.startsWith("en"));
     if (preferred) utter.voice = preferred;
     utter.onend = () => onDone?.();
     utter.onerror = () => onDone?.();
@@ -519,7 +530,7 @@ function PinGate({ onUnlock, userName }: { onUnlock: (pin: string, role: AccessR
           </div>
           <div className="text-center">
             <p className="font-mono text-xs mb-1" style={{ color: "hsl(193,100%,40%)", letterSpacing: "0.25em" }}>CLASSIFIED ACCESS</p>
-            <h1 className="text-white text-xl font-bold tracking-tight">Sirius Star Lab</h1>
+            <h1 className="text-slate-800 text-xl font-bold tracking-tight">Sirius Star Lab</h1>
             <p className="text-xs mt-1" style={{ color: "rgba(15,23,42,0.35)" }}>Private R&D Intelligence</p>
           </div>
         </div>
@@ -705,7 +716,7 @@ function LabMarkdown({ content, streaming }: { content: string; streaming: boole
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          h1: ({ children }) => <h1 className="text-base font-bold text-white mb-2 mt-3 first:mt-0 border-b pb-1" style={{ borderColor: "rgba(15,23,42,0.12)" }}>{children}</h1>,
+          h1: ({ children }) => <h1 className="text-base font-bold text-slate-800 mb-2 mt-3 first:mt-0 border-b pb-1" style={{ borderColor: "rgba(15,23,42,0.12)" }}>{children}</h1>,
           h2: ({ children }) => <h2 className="text-sm font-bold mb-1.5 mt-3 first:mt-0" style={{ color: "hsl(193,100%,65%)" }}>{children}</h2>,
           h3: ({ children }) => <h3 className="text-xs font-semibold mb-1 mt-2 first:mt-0" style={{ color: "rgba(15,23,42,0.76)" }}>{children}</h3>,
           p: ({ children }) => <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>,
@@ -717,7 +728,7 @@ function LabMarkdown({ content, streaming }: { content: string; streaming: boole
               <span>{children}</span>
             </li>
           ),
-          strong: ({ children }) => <strong className="font-semibold text-white">{children}</strong>,
+          strong: ({ children }) => <strong className="font-semibold text-slate-800">{children}</strong>,
           em: ({ children }) => <em style={{ color: "rgba(15,23,42,0.67)" }}>{children}</em>,
           a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" className="underline" style={{ color: "hsl(193,100%,60%)" }}>{children}</a>,
           blockquote: ({ children }) => (
@@ -839,13 +850,13 @@ function CompleteAllModal({ project, pin, onClose, onDone }: { project: Project;
       <div className="w-full max-w-md rounded-2xl overflow-hidden" style={{ background: "#F8FAFC", border: "1px solid rgba(15,23,42,0.1)" }}>
         <div className="p-4 border-b flex items-center justify-between" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
           <div>
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+            <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
               <Sparkles className="w-4 h-4" style={{ color: "hsl(193,100%,55%)" }} />
               Complete Entire Project
             </h3>
             <p className="text-xs mt-0.5" style={{ color: "rgba(15,23,42,0.45)" }}>Generating all missing sections with full AI depth</p>
           </div>
-          {finished && <button onClick={() => { onDone(); onClose(); }} className="text-xs px-3 py-1.5 rounded-lg text-white" style={{ background: "hsl(193,100%,35%)" }}>Done</button>}
+          {finished && <button onClick={() => { onDone(); onClose(); }} className="text-xs px-3 py-1.5 rounded-lg text-slate-800" style={{ background: "hsl(193,100%,35%)" }}>Done</button>}
         </div>
         <div className="p-4 space-y-2">
           {progress.map(p => (
@@ -1012,7 +1023,7 @@ function ChatPanel({ project, pin, mode, onUpdate }: { project: Project; pin: st
                   <Sparkles className="w-4 h-4" style={{ color: "hsl(193,100%,55%)" }} />
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-white">Sirius Lab Intelligence</p>
+                  <p className="text-xs font-semibold text-slate-800">Sirius Lab Intelligence</p>
                   <p className="text-xs" style={{ color: "rgba(15,23,42,0.4)" }}>
                     {mode === "bot" ? "Specialist bot architect — ready to design" : "Your private R&D partner — GPT-4o + live web search"}
                   </p>
@@ -1042,7 +1053,7 @@ function ChatPanel({ project, pin, mode, onUpdate }: { project: Project; pin: st
                   style={{ background: m.role === "user" ? "hsl(193,100%,30%)" : "#EEF2F8" }}>
                   {m.role === "assistant"
                     ? <LabMarkdown content={m.content} streaming={streaming && i === messages.length - 1} />
-                    : <p className="text-white text-xs leading-relaxed">{m.content}</p>}
+                    : <p className="text-slate-800 text-xs leading-relaxed">{m.content}</p>}
                 </div>
                 {m.role === "assistant" && m.content && (
                   <div className="flex items-center gap-2 mt-1 px-1">
@@ -1088,7 +1099,7 @@ function ChatPanel({ project, pin, mode, onUpdate }: { project: Project; pin: st
             <button onClick={() => send()} disabled={streaming || !input.trim()}
               className="w-9 h-9 rounded-xl flex items-center justify-center self-end transition-all flex-shrink-0"
               style={{ background: "hsl(193,100%,35%)", opacity: streaming || !input.trim() ? 0.3 : 1 }}>
-              {streaming ? <Loader2 className="w-3.5 h-3.5 text-white animate-spin" /> : <Send className="w-3.5 h-3.5 text-white" />}
+              {streaming ? <Loader2 className="w-3.5 h-3.5 text-slate-800 animate-spin" /> : <Send className="w-3.5 h-3.5 text-slate-800" />}
             </button>
           </div>
           <p className="text-xs text-center mt-1.5" style={{ color: "rgba(15,23,42,0.15)" }}>
@@ -1157,9 +1168,9 @@ function RendersTab({ project, pin, onUpdate }: { project: Project; pin: string;
             onClick={() => setSelected(null)}>
             <div className="relative max-w-3xl w-full mx-4">
               <img src={selected.url} alt={selected.label} className="w-full rounded-2xl" />
-              <p className="text-white/60 text-xs text-center mt-2">{selected.label}</p>
+              <p className="text-slate-500 text-xs text-center mt-2">{selected.label}</p>
               <button onClick={() => setSelected(null)} className="absolute -top-3 -right-3 w-7 h-7 rounded-full bg-slate-900/10 flex items-center justify-center">
-                <X className="w-4 h-4 text-white" />
+                <X className="w-4 h-4 text-slate-800" />
               </button>
             </div>
           </div>
@@ -1168,8 +1179,8 @@ function RendersTab({ project, pin, onUpdate }: { project: Project; pin: string;
         {renders.length === 0 ? (
           <div className="flex items-center justify-center h-48">
             <div className="text-center">
-              <Cpu className="w-8 h-8 mx-auto mb-2 text-white/10" />
-              <p className="text-white/30 text-sm">No renders yet — generate your first one</p>
+              <Cpu className="w-8 h-8 mx-auto mb-2 text-slate-200" />
+              <p className="text-slate-400 text-sm">No renders yet — generate your first one</p>
             </div>
           </div>
         ) : (
@@ -1182,11 +1193,11 @@ function RendersTab({ project, pin, onUpdate }: { project: Project; pin: string;
                 <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-end"
                   style={{ background: "linear-gradient(to top, rgba(0,0,0,0.09), transparent)" }}>
                   <div className="p-3 w-full flex items-center justify-between">
-                    <p className="text-white text-xs font-medium">{r.label}</p>
+                    <p className="text-slate-800 text-xs font-medium">{r.label}</p>
                     <button onClick={e => { e.stopPropagation(); deleteRender(i); }}
                       className="w-6 h-6 rounded-full flex items-center justify-center"
                       style={{ background: "rgba(255,0,0,0.5)" }}>
-                      <Trash className="w-3 h-3 text-white" />
+                      <Trash className="w-3 h-3 text-slate-800" />
                     </button>
                   </div>
                 </div>
@@ -1199,21 +1210,21 @@ function RendersTab({ project, pin, onUpdate }: { project: Project; pin: string;
       <div className="w-64 border-l flex-shrink-0 p-4 flex flex-col gap-4"
         style={{ borderColor: "rgba(15,23,42,0.07)", background: "#FFFFFF" }}>
         <div>
-          <p className="text-white/40 text-xs mb-2 uppercase tracking-wider">Render Type</p>
+          <p className="text-slate-400 text-xs mb-2 uppercase tracking-wider">Render Type</p>
           <div className="space-y-1">
             {RENDER_TYPES.map(t => (
               <button key={t.id} onClick={() => setRenderType(t.id)}
                 className="w-full text-left px-3 py-2 rounded-xl transition-all"
                 style={{ background: renderType === t.id ? "hsl(193,100%,32%)" : "#F8FAFC", border: renderType === t.id ? "none" : "1px solid rgba(15,23,42,0.07)" }}>
-                <p className="text-white text-xs font-medium">{t.label}</p>
-                <p className="text-white/35 text-xs">{t.desc}</p>
+                <p className="text-slate-800 text-xs font-medium">{t.label}</p>
+                <p className="text-slate-400 text-xs">{t.desc}</p>
               </button>
             ))}
           </div>
         </div>
 
         <div>
-          <p className="text-white/40 text-xs mb-2 uppercase tracking-wider">Angle / View</p>
+          <p className="text-slate-400 text-xs mb-2 uppercase tracking-wider">Angle / View</p>
           <div className="flex flex-wrap gap-1">
             {((ANGLES as any)[renderType] || ["perspective"]).map((a: string) => (
               <button key={a} onClick={() => setRenderAngle(a)}
@@ -1231,7 +1242,7 @@ function RendersTab({ project, pin, onUpdate }: { project: Project; pin: string;
           {generating ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Generating...</> : <><Sparkles className="w-3.5 h-3.5" /> Generate Render</>}
         </button>
 
-        <p className="text-white/20 text-xs text-center">AI generates from your specs and brief. Add more detail for better results.</p>
+        <p className="text-slate-300 text-xs text-center">AI generates from your specs and brief. Add more detail for better results.</p>
       </div>
     </div>
   );
@@ -1571,22 +1582,22 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack }: { project: Project
           <div className="flex items-center gap-2 flex-1">
             <input autoFocus value={editName} onChange={e => setEditName(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter") saveProjectName(); if (e.key === "Escape") setEditingName(false); }}
-              className="bg-transparent text-white font-bold text-sm outline-none border-b border-white/30 flex-1" />
+              className="bg-transparent text-slate-800 font-bold text-sm outline-none border-b border-white/30 flex-1" />
             <button onClick={saveProjectName}><Check className="w-4 h-4 text-green-400" /></button>
-            <button onClick={() => setEditingName(false)}><X className="w-4 h-4 text-white/30" /></button>
+            <button onClick={() => setEditingName(false)}><X className="w-4 h-4 text-slate-400" /></button>
           </div>
         ) : (
           <div className="flex items-center gap-2 flex-1 min-w-0">
-            <h1 className="text-white font-bold text-sm truncate">{project.name}</h1>
+            <h1 className="text-slate-800 font-bold text-sm truncate">{project.name}</h1>
             <button onClick={() => { setEditName(project.name); setEditingName(true); }}>
-              <Pencil className="w-3 h-3 text-white/20 hover:text-white/50 transition-colors" />
+              <Pencil className="w-3 h-3 text-slate-300 hover:text-slate-500 transition-colors" />
             </button>
-            <span className="text-white/25 text-xs hidden sm:block">· {project.industry}</span>
+            <span className="text-slate-300 text-xs hidden sm:block">· {project.industry}</span>
           </div>
         )}
 
         <div className="flex items-center gap-2 flex-shrink-0">
-          {saving && <span className="text-white/25 text-xs">Saving...</span>}
+          {saving && <span className="text-slate-300 text-xs">Saving...</span>}
 
           {/* Phase selector */}
           <div className="flex gap-0.5 p-0.5 rounded-xl" style={{ background: "#F8FAFC" }}>
@@ -1604,7 +1615,7 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack }: { project: Project
               <div className="w-16 h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(15,23,42,0.12)" }}>
                 <div className="h-full rounded-full transition-all" style={{ width: `${completeness.pct}%`, background: completeness.pct === 100 ? "hsl(155,70%,45%)" : phaseConfig.color }} />
               </div>
-              <span className="text-white/30 text-xs">{completeness.pct}%</span>
+              <span className="text-slate-400 text-xs">{completeness.pct}%</span>
             </div>
           )}
 
@@ -1635,7 +1646,7 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack }: { project: Project
           {PHASE_TABS.map(pt => (
             <button key={pt.id} onClick={() => setPhaseFilter(pt.id)}
               className="text-xs px-2.5 py-1 rounded-full flex-shrink-0 transition-all"
-              style={{ background: phaseFilter === pt.id ? "rgba(15,23,42,0.12)" : "transparent", color: phaseFilter === pt.id ? "white" : "rgba(15,23,42,0.35)" }}>
+              style={{ background: phaseFilter === pt.id ? "rgba(15,23,42,0.12)" : "transparent", color: phaseFilter === pt.id ? "rgba(15,23,42,0.9)" : "rgba(15,23,42,0.35)" }}>
               {pt.label}
             </button>
           ))}
@@ -1653,7 +1664,7 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack }: { project: Project
             return (
               <button key={t.id} onClick={() => setActiveTab(t.id)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs flex-shrink-0 transition-all relative"
-                style={{ background: activeTab === t.id ? "#DCE4F0" : "transparent", color: activeTab === t.id ? "white" : "rgba(15,23,42,0.45)", border: activeTab === t.id ? `1px solid ${phaseColor}40` : "1px solid transparent" }}>
+                style={{ background: activeTab === t.id ? "#DCE4F0" : "transparent", color: activeTab === t.id ? "rgba(15,23,42,0.85)" : "rgba(15,23,42,0.45)", border: activeTab === t.id ? `1px solid ${phaseColor}40` : "1px solid transparent" }}>
                 <Icon className="w-3 h-3" style={{ color: activeTab === t.id ? phaseColor : undefined }} />
                 {t.label}
                 {isFunding && project.fundingStatus === "pending" && <Loader2 className="w-2.5 h-2.5 animate-spin flex-shrink-0" style={{ color: "hsl(45,100%,55%)" }} />}
@@ -1663,7 +1674,7 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack }: { project: Project
             );
           })}
           <button onClick={() => navigator.clipboard.writeText(getTabContent(activeTab))} title="Copy" className="ml-auto flex-shrink-0 p-1.5 rounded-lg hover:bg-slate-900/5 transition-colors">
-            <Copy className="w-3.5 h-3.5 text-white/25" />
+            <Copy className="w-3.5 h-3.5 text-slate-300" />
           </button>
         </div>
       </div>
@@ -1678,7 +1689,7 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack }: { project: Project
             <div className="p-5 space-y-5">
               {/* Phase progress */}
               <div className="rounded-2xl p-4" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.09)" }}>
-                <p className="text-white/40 text-xs mb-3 uppercase tracking-wider">Project Phase</p>
+                <p className="text-slate-400 text-xs mb-3 uppercase tracking-wider">Project Phase</p>
                 <div className="flex items-center gap-2">
                   {(["design", "production", "complete"] as const).map((p, i) => {
                     const cfg = PHASE_CONFIG[p];
@@ -1691,7 +1702,7 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack }: { project: Project
                             {cfg.label}
                           </button>
                         </div>
-                        {i < 2 && <ChevronRight className="w-3.5 h-3.5 text-white/20 flex-shrink-0" />}
+                        {i < 2 && <ChevronRight className="w-3.5 h-3.5 text-slate-300 flex-shrink-0" />}
                       </React.Fragment>
                     );
                   })}
@@ -1702,8 +1713,8 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack }: { project: Project
               {completeness && (
                 <div className="rounded-2xl p-4" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.09)" }}>
                   <div className="flex items-center justify-between mb-3">
-                    <p className="text-white/40 text-xs uppercase tracking-wider">Completeness</p>
-                    <span className="text-white font-bold">{completeness.pct}%</span>
+                    <p className="text-slate-400 text-xs uppercase tracking-wider">Completeness</p>
+                    <span className="text-slate-800 font-bold">{completeness.pct}%</span>
                   </div>
                   <div className="w-full h-2 rounded-full overflow-hidden mb-3" style={{ background: "rgba(15,23,42,0.07)" }}>
                     <div className="h-full rounded-full transition-all" style={{ width: `${completeness.pct}%`, background: completeness.pct === 100 ? "hsl(155,70%,45%)" : "hsl(193,100%,35%)" }} />
@@ -1714,7 +1725,7 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack }: { project: Project
                       return (
                         <div key={c.key} className="flex items-center gap-2 text-xs">
                           <div className="w-2.5 h-2.5 rounded-full flex-shrink-0 flex items-center justify-center" style={{ background: c.filled ? color : "rgba(15,23,42,0.12)" }}>
-                            {c.filled && <Check className="w-1.5 h-1.5 text-white" />}
+                            {c.filled && <Check className="w-1.5 h-1.5 text-slate-800" />}
                           </div>
                           <span style={{ color: c.filled ? "rgba(15,23,42,0.72)" : "rgba(15,23,42,0.2)" }}>{c.label}</span>
                         </div>
@@ -1730,8 +1741,8 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack }: { project: Project
                   style={{ border: "1px solid rgba(15,23,42,0.09)" }}>
                   <img src={renders[0].url} alt={renders[0].label} className="w-full aspect-video object-cover" />
                   <div className="p-3 flex items-center justify-between" style={{ background: "#F1F5F9" }}>
-                    <p className="text-white text-xs font-medium">{renders[0].label}</p>
-                    <span className="text-white/30 text-xs">{renders.length} render{renders.length !== 1 ? "s" : ""} · View all</span>
+                    <p className="text-slate-800 text-xs font-medium">{renders[0].label}</p>
+                    <span className="text-slate-400 text-xs">{renders.length} render{renders.length !== 1 ? "s" : ""} · View all</span>
                   </div>
                 </div>
               )}
@@ -1744,8 +1755,8 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack }: { project: Project
                   { label: "Renders", value: String(renders.length) },
                 ].map(s => (
                   <div key={s.label} className="rounded-xl p-3 text-center" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.07)" }}>
-                    <p className="text-white text-sm font-semibold truncate">{s.value}</p>
-                    <p className="text-white/30 text-xs mt-0.5">{s.label}</p>
+                    <p className="text-slate-800 text-sm font-semibold truncate">{s.value}</p>
+                    <p className="text-slate-400 text-xs mt-0.5">{s.label}</p>
                   </div>
                 ))}
               </div>
@@ -1755,7 +1766,7 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack }: { project: Project
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
                     <Atom className="w-3.5 h-3.5" style={{ color: "hsl(193,100%,55%)" }} />
-                    <p className="text-white text-xs font-semibold">Sirius Insights</p>
+                    <p className="text-slate-800 text-xs font-semibold">Sirius Insights</p>
                     {insights.length > 0 && (
                       <span className="text-xs px-1.5 py-0.5 rounded-full font-medium"
                         style={{ background: "hsl(193,100%,20%)", color: "hsl(193,100%,65%)" }}>
@@ -1774,13 +1785,13 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack }: { project: Project
                 {loadingInsights && insights.length === 0 && (
                   <div className="rounded-2xl p-5 text-center" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.09)" }}>
                     <Loader2 className="w-5 h-5 mx-auto mb-2 animate-spin" style={{ color: "hsl(193,100%,50%)" }} />
-                    <p className="text-white/40 text-xs">Sirius is analysing your project...</p>
+                    <p className="text-slate-400 text-xs">Sirius is analysing your project...</p>
                   </div>
                 )}
 
                 {!loadingInsights && insightsLoaded && insights.length === 0 && (
                   <div className="rounded-2xl p-4 text-center" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.09)" }}>
-                    <p className="text-white/30 text-xs">No insights generated. Click Refresh to try again.</p>
+                    <p className="text-slate-400 text-xs">No insights generated. Click Refresh to try again.</p>
                   </div>
                 )}
 
@@ -1805,20 +1816,20 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack }: { project: Project
                                   style={{ background: pStyle.bg, color: pStyle.text }}>
                                   {pStyle.label}
                                 </span>
-                                <span className="text-white/35 text-xs truncate">{insight.category}</span>
+                                <span className="text-slate-400 text-xs truncate">{insight.category}</span>
                               </div>
-                              <p className="text-white text-xs font-medium leading-snug">{insight.title}</p>
+                              <p className="text-slate-800 text-xs font-medium leading-snug">{insight.title}</p>
                             </div>
-                            <ChevronDown className="w-3.5 h-3.5 flex-shrink-0 transition-transform text-white/30"
+                            <ChevronDown className="w-3.5 h-3.5 flex-shrink-0 transition-transform text-slate-400"
                               style={{ transform: isExpanded ? "rotate(180deg)" : "none" }} />
                           </div>
                           {isExpanded && (
                             <div className="px-3 pb-3 pt-0 border-t" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
-                              <p className="text-white/60 text-xs leading-relaxed mt-2 mb-3">{insight.detail}</p>
+                              <p className="text-slate-500 text-xs leading-relaxed mt-2 mb-3">{insight.detail}</p>
                               <div className="flex items-start gap-2 rounded-lg p-2.5"
                                 style={{ background: "#EEF2F8", border: "1px solid rgba(15,23,42,0.09)" }}>
                                 <Zap className="w-3 h-3 flex-shrink-0 mt-0.5" style={{ color: "hsl(193,100%,55%)" }} />
-                                <p className="text-white/80 text-xs font-medium leading-snug">{insight.action}</p>
+                                <p className="text-slate-700 text-xs font-medium leading-snug">{insight.action}</p>
                               </div>
                             </div>
                           )}
@@ -1831,7 +1842,7 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack }: { project: Project
 
               {/* Quick generate actions */}
               <div>
-                <p className="text-white/30 text-xs mb-2 uppercase tracking-wider">Quick Generate</p>
+                <p className="text-slate-400 text-xs mb-2 uppercase tracking-wider">Quick Generate</p>
                 <div className="grid grid-cols-2 gap-2">
                   {[
                     { label: "Materials Spec", section: "materials", tab: "materials" },
@@ -1873,7 +1884,7 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack }: { project: Project
               {tab.generated && (
                 <div className="px-4 py-2 border-b flex items-center justify-between flex-shrink-0"
                   style={{ borderColor: "rgba(15,23,42,0.07)" }}>
-                  <span className="text-white/30 text-xs">
+                  <span className="text-slate-400 text-xs">
                     {activeTab === "market" ? "Market analysis + use cases" : activeTab === "economics" ? "Cost to build + profit margins" : tab.label}
                   </span>
                   <button onClick={() => generateSection(activeTab)} disabled={generating}
@@ -1932,8 +1943,8 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack }: { project: Project
               {labMode === "bot"
                 ? <Bot className="w-3.5 h-3.5" style={{ color: "hsl(280,70%,65%)" }} />
                 : <Sparkles className="w-3.5 h-3.5" style={{ color: "hsl(193,100%,50%)" }} />}
-              <span className="text-white text-xs font-medium">{labMode === "bot" ? "Bot Architect" : "Lab AI"}</span>
-              <span className="text-white/20 text-xs ml-auto">GPT-5.2</span>
+              <span className="text-slate-800 text-xs font-medium">{labMode === "bot" ? "Bot Architect" : "Lab AI"}</span>
+              <span className="text-slate-300 text-xs ml-auto">GPT-5.2</span>
             </div>
           </div>
           <div className="flex-1 min-h-0 overflow-hidden">
@@ -1995,7 +2006,7 @@ function FundingProjectTab({ project, pin, onUpdate }: { project: Project; pin: 
         <div>
           <div className="flex items-center gap-2 mb-1">
             <BadgeCheck className="w-4 h-4" style={{ color: "hsl(155,70%,45%)" }} />
-            <span className="text-white font-semibold text-sm">Funding Intelligence</span>
+            <span className="text-slate-800 font-semibold text-sm">Funding Intelligence</span>
             {isPending && <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full" style={{ background: "hsla(45,100%,50%,0.12)", color: "hsl(45,100%,60%)" }}>
               <Loader2 className="w-3 h-3 animate-spin" /> Analysing…
             </span>}
@@ -2021,7 +2032,7 @@ function FundingProjectTab({ project, pin, onUpdate }: { project: Project; pin: 
             <Globe className="w-6 h-6 animate-pulse" style={{ color: "hsl(45,100%,55%)" }} />
           </div>
           <div className="text-center space-y-1">
-            <p className="text-white text-sm font-medium">Scanning 20+ funding programmes…</p>
+            <p className="text-slate-800 text-sm font-medium">Scanning 20+ funding programmes…</p>
             <p className="text-xs" style={{ color: "rgba(15,23,42,0.35)" }}>UK RDEC · Innovate UK · Horizon Europe · US R&D Credit · SR&ED · CIR · and more</p>
           </div>
         </div>
@@ -2031,7 +2042,7 @@ function FundingProjectTab({ project, pin, onUpdate }: { project: Project; pin: 
       {isError && (
         <div className="flex flex-col items-center justify-center py-12 gap-3">
           <AlertCircle className="w-8 h-8" style={{ color: "hsl(0,70%,60%)" }} />
-          <p className="text-white/50 text-sm">Analysis failed. Try re-running.</p>
+          <p className="text-slate-500 text-sm">Analysis failed. Try re-running.</p>
         </div>
       )}
 
@@ -2042,7 +2053,7 @@ function FundingProjectTab({ project, pin, onUpdate }: { project: Project; pin: 
             <BadgeCheck className="w-7 h-7" style={{ color: "hsl(155,70%,45%)" }} />
           </div>
           <div className="text-center space-y-1.5">
-            <p className="text-white font-medium text-sm">No analysis yet</p>
+            <p className="text-slate-800 font-medium text-sm">No analysis yet</p>
             <p className="text-xs leading-relaxed max-w-xs" style={{ color: "rgba(15,23,42,0.35)" }}>
               Add a Brief or Specs to this project and save — analysis runs automatically. Or trigger it manually now.
             </p>
@@ -2093,7 +2104,7 @@ function FundingProjectTab({ project, pin, onUpdate }: { project: Project; pin: 
                         ))}
                         <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: "rgba(15,23,42,0.09)", color: "rgba(15,23,42,0.45)" }}>{TYPE_LABELS[m.type] || m.type}</span>
                       </div>
-                      <p className="text-white font-semibold text-sm leading-snug">{m.scheme}</p>
+                      <p className="text-slate-800 font-semibold text-sm leading-snug">{m.scheme}</p>
                       <p className="text-xs mt-0.5" style={{ color: st.color }}>{st.label} · {m.amount}</p>
                     </div>
                   </div>
@@ -2182,37 +2193,37 @@ function BotLabPanel({ pin }: { pin: string }) {
           <div className="flex items-center gap-3 mb-5">
             <div className="w-9 h-9 rounded-xl flex items-center justify-center"
               style={{ background: "linear-gradient(135deg, hsl(280,70%,50%), hsl(220,70%,50%))" }}>
-              <Bot className="w-4 h-4 text-white" />
+              <Bot className="w-4 h-4 text-slate-800" />
             </div>
             <div>
-              <h2 className="text-white font-bold text-sm">Bot Lab</h2>
-              <p className="text-white/35 text-xs">Design any automation bot</p>
+              <h2 className="text-slate-800 font-bold text-sm">Bot Lab</h2>
+              <p className="text-slate-400 text-xs">Design any automation bot</p>
             </div>
           </div>
 
           <div className="space-y-3">
             <div>
-              <label className="text-white/40 text-xs mb-1.5 block">Describe the bot</label>
+              <label className="text-slate-400 text-xs mb-1.5 block">Describe the bot</label>
               <textarea value={description} onChange={e => setDescription(e.target.value)} rows={4}
                 onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); if (!streaming && description.trim()) design(); } }}
                 placeholder="What should this bot do? Be specific about inputs, outputs, and triggers..."
-                className="w-full px-3 py-2.5 rounded-xl text-white text-xs placeholder-slate-400 resize-none outline-none"
+                className="w-full px-3 py-2.5 rounded-xl text-slate-800 text-xs placeholder-slate-400 resize-none outline-none"
                 style={{ background: "#F8FAFC", border: "1px solid rgba(15,23,42,0.09)" }} />
             </div>
             <div>
-              <label className="text-white/40 text-xs mb-1.5 block">Industry</label>
+              <label className="text-slate-400 text-xs mb-1.5 block">Industry</label>
               <select value={industry} onChange={e => setIndustry(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl text-white text-xs outline-none"
+                className="w-full px-3 py-2 rounded-xl text-slate-800 text-xs outline-none"
                 style={{ background: "#F8FAFC", border: "1px solid rgba(15,23,42,0.09)" }}>
                 {INDUSTRIES.map(i => <option key={i} value={i} style={{ background: "#F8FAFC" }}>{i}</option>)}
               </select>
             </div>
             <div>
-              <label className="text-white/40 text-xs mb-1.5 block">Platforms / Systems involved</label>
+              <label className="text-slate-400 text-xs mb-1.5 block">Platforms / Systems involved</label>
               <input value={platforms} onChange={e => setPlatforms(e.target.value)}
                 onKeyDown={e => { if (e.key === "Enter" && !streaming && description.trim()) design(); }}
                 placeholder="e.g. Gmail, Xero, Slack, Shopify..."
-                className="w-full px-3 py-2 rounded-xl text-white text-xs placeholder-slate-400 outline-none"
+                className="w-full px-3 py-2 rounded-xl text-slate-800 text-xs placeholder-slate-400 outline-none"
                 style={{ background: "#F8FAFC", border: "1px solid rgba(15,23,42,0.09)" }} />
             </div>
             <button onClick={design} disabled={streaming || !description.trim()}
@@ -2224,7 +2235,7 @@ function BotLabPanel({ pin }: { pin: string }) {
         </div>
 
         <div className="flex-1 overflow-y-auto p-4">
-          <p className="text-white/25 text-xs mb-3">Try these examples:</p>
+          <p className="text-slate-300 text-xs mb-3">Try these examples:</p>
           <div className="space-y-2">
             {BOT_EXAMPLES.map((ex, i) => (
               <button key={i} onClick={() => setDescription(ex)}
@@ -2243,7 +2254,7 @@ function BotLabPanel({ pin }: { pin: string }) {
         {output ? (
           <>
             <div className="flex items-center justify-between mb-4 flex-shrink-0">
-              <span className="text-white/40 text-xs">Bot Architecture</span>
+              <span className="text-slate-400 text-xs">Bot Architecture</span>
               <div className="flex gap-2">
                 <button onClick={() => { setOutput(""); setDescription(""); }}
                   className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg transition-all"
@@ -2265,9 +2276,9 @@ function BotLabPanel({ pin }: { pin: string }) {
         ) : (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center max-w-xs">
-              <Bot className="w-10 h-10 mx-auto mb-3 text-white/10" />
-              <p className="text-white/30 text-sm font-medium mb-2">Bot Architecture Designer</p>
-              <p className="text-white/20 text-xs leading-relaxed">Describe any automation task and get a complete, production-ready bot design with code, architecture, APIs, costs, and deployment instructions.</p>
+              <Bot className="w-10 h-10 mx-auto mb-3 text-slate-200" />
+              <p className="text-slate-400 text-sm font-medium mb-2">Bot Architecture Designer</p>
+              <p className="text-slate-300 text-xs leading-relaxed">Describe any automation task and get a complete, production-ready bot design with code, architecture, APIs, costs, and deployment instructions.</p>
             </div>
           </div>
         )}
@@ -2397,7 +2408,7 @@ function LaunchPanel({ project, pin, onUpdate }: { project: Project; pin: string
               </button>
               {launchStatus !== "approved" && (
                 <button onClick={() => { setLaunchStatus("approved"); savePosts(posts, "approved"); }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-white transition-all"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-slate-800 transition-all"
                   style={{ background: "hsl(155,70%,42%)" }}>
                   <Check className="w-3 h-3" /> Approve All
                 </button>
@@ -2424,7 +2435,7 @@ function LaunchPanel({ project, pin, onUpdate }: { project: Project; pin: string
               </div>
               {error && <p className="text-xs px-3 py-2 rounded-lg" style={{ background: "hsl(0,100%,97%)", color: "hsl(0,70%,50%)" }}>{error}</p>}
               <button onClick={generatePosts} disabled={generating}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm text-white font-medium transition-all"
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm text-slate-800 font-medium transition-all"
                 style={{ background: "hsl(193,100%,35%)", opacity: generating ? 0.6 : 1 }}>
                 {generating ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating posts…</> : <><Sparkles className="w-4 h-4" /> Generate Launch Posts</>}
               </button>
@@ -2609,17 +2620,17 @@ function ScoutPanel({ pin }: { pin: string }) {
           <div className="flex items-center gap-3 mb-5">
             <div className="w-9 h-9 rounded-xl flex items-center justify-center"
               style={{ background: `linear-gradient(135deg, ${focusMode.color}, hsl(226,70%,50%))` }}>
-              <Telescope className="w-4 h-4 text-white" />
+              <Telescope className="w-4 h-4 text-slate-800" />
             </div>
             <div>
-              <h2 className="text-white font-bold text-sm">Opportunity Scout</h2>
-              <p className="text-white/35 text-xs">Find what's worth building</p>
+              <h2 className="text-slate-800 font-bold text-sm">Opportunity Scout</h2>
+              <p className="text-slate-400 text-xs">Find what's worth building</p>
             </div>
           </div>
 
           {/* Mode selector */}
           <div className="space-y-1.5 mb-4">
-            <label className="text-white/40 text-xs mb-2 block">Scan type</label>
+            <label className="text-slate-400 text-xs mb-2 block">Scan type</label>
             {SCOUT_MODES.map(m => {
               const Icon = m.icon;
               return (
@@ -2631,11 +2642,11 @@ function ScoutPanel({ pin }: { pin: string }) {
                   }}>
                   <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0"
                     style={{ background: focus === m.id ? m.color : "#F1F5F9" }}>
-                    <Icon className="w-3 h-3 text-white" />
+                    <Icon className="w-3 h-3 text-slate-800" />
                   </div>
                   <div>
-                    <p className="text-white text-xs font-medium">{m.label}</p>
-                    <p className="text-white/30 text-xs">{m.desc}</p>
+                    <p className="text-slate-800 text-xs font-medium">{m.label}</p>
+                    <p className="text-slate-400 text-xs">{m.desc}</p>
                   </div>
                 </button>
               );
@@ -2644,16 +2655,16 @@ function ScoutPanel({ pin }: { pin: string }) {
 
           <div className="space-y-3">
             <div>
-              <label className="text-white/40 text-xs mb-1.5 block">Specific focus (optional)</label>
+              <label className="text-slate-400 text-xs mb-1.5 block">Specific focus (optional)</label>
               <textarea value={query} onChange={e => setQuery(e.target.value)} rows={2}
                 onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); if (!streaming) run(); } }}
                 placeholder="e.g. 'automation bots for accountants' or 'gaps in veterinary software'..."
-                className="w-full px-3 py-2 rounded-xl text-white text-xs placeholder-slate-400 resize-none outline-none"
+                className="w-full px-3 py-2 rounded-xl text-slate-800 text-xs placeholder-slate-400 resize-none outline-none"
                 style={{ background: "#F8FAFC", border: "1px solid rgba(15,23,42,0.09)" }} />
             </div>
 
             <div>
-              <label className="text-white/40 text-xs mb-2 block">Target industries (optional)</label>
+              <label className="text-slate-400 text-xs mb-2 block">Target industries (optional)</label>
               <div className="flex flex-wrap gap-1">
                 {INDUSTRIES.slice(0, 16).map(ind => (
                   <button key={ind} onClick={() => toggleIndustry(ind)}
@@ -2679,7 +2690,7 @@ function ScoutPanel({ pin }: { pin: string }) {
           {reports.length > 0 && (
             <div className="mt-5">
               <button onClick={() => setShowHistory(!showHistory)}
-                className="flex items-center gap-2 text-white/30 text-xs w-full hover:text-white/50 transition-colors">
+                className="flex items-center gap-2 text-slate-400 text-xs w-full hover:text-slate-500 transition-colors">
                 <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showHistory ? "rotate-180" : ""}`} />
                 History ({reports.length})
               </button>
@@ -2689,8 +2700,8 @@ function ScoutPanel({ pin }: { pin: string }) {
                     <button key={r.id} onClick={() => setOutput(r.opportunity)}
                       className="w-full text-left px-3 py-2 rounded-xl transition-all hover:bg-slate-900/5"
                       style={{ border: "1px solid rgba(15,23,42,0.06)" }}>
-                      <p className="text-white/60 text-xs font-medium truncate">{r.title}</p>
-                      <p className="text-white/25 text-xs">{new Date(r.createdAt).toLocaleDateString("en-GB")}</p>
+                      <p className="text-slate-500 text-xs font-medium truncate">{r.title}</p>
+                      <p className="text-slate-300 text-xs">{new Date(r.createdAt).toLocaleDateString("en-GB")}</p>
                     </button>
                   ))}
                 </div>
@@ -2714,7 +2725,7 @@ function ScoutPanel({ pin }: { pin: string }) {
           <>
             <div className="flex items-center justify-between mb-4 flex-shrink-0">
               <div className="flex items-center gap-2">
-                <span className="text-white/40 text-xs">{focusMode.label} results</span>
+                <span className="text-slate-400 text-xs">{focusMode.label} results</span>
                 {searching && <span className="flex items-center gap-1 text-xs" style={{ color: "hsl(193,100%,55%)" }}><Globe className="w-3 h-3 animate-pulse" /> Searching…</span>}
               </div>
               <button onClick={() => setOutput("")}
@@ -2732,9 +2743,9 @@ function ScoutPanel({ pin }: { pin: string }) {
         ) : !searching ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center max-w-sm">
-              <Telescope className="w-10 h-10 mx-auto mb-3 text-white/10" />
-              <p className="text-white/30 text-sm font-medium mb-2">Ready to Scout</p>
-              <p className="text-white/20 text-xs leading-relaxed">Choose a scan type, optionally add a focus or industries, then run. The Scout searches across social media, forums, market data, patent databases, and product reviews to find real, evidence-based opportunities.</p>
+              <Telescope className="w-10 h-10 mx-auto mb-3 text-slate-200" />
+              <p className="text-slate-400 text-sm font-medium mb-2">Ready to Scout</p>
+              <p className="text-slate-300 text-xs leading-relaxed">Choose a scan type, optionally add a focus or industries, then run. The Scout searches across social media, forums, market data, patent databases, and product reviews to find real, evidence-based opportunities.</p>
             </div>
           </div>
         ) : null}
@@ -2803,14 +2814,14 @@ function DiscoveryCard({ d, pin, onUpdate, onDelete }: {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1">
               <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: catColor + "25", color: catColor }}>{d.category}</span>
-              {d.sourceType && <span className="text-xs text-white/25">{SOURCE_TYPE_LABELS[d.sourceType] || d.sourceType}</span>}
-              {!d.isRead && <span className="text-xs text-white/40 italic">New</span>}
+              {d.sourceType && <span className="text-xs text-slate-300">{SOURCE_TYPE_LABELS[d.sourceType] || d.sourceType}</span>}
+              {!d.isRead && <span className="text-xs text-slate-400 italic">New</span>}
             </div>
-            <h3 className="text-white text-sm font-semibold leading-tight mb-1">{d.title}</h3>
-            <p className="text-white/50 text-xs leading-relaxed">{d.summary}</p>
+            <h3 className="text-slate-800 text-sm font-semibold leading-tight mb-1">{d.title}</h3>
+            <p className="text-slate-500 text-xs leading-relaxed">{d.summary}</p>
           </div>
           <div className="flex items-center gap-1 flex-shrink-0">
-            {expanded ? <ChevronUp className="w-3.5 h-3.5 text-white/25" /> : <ChevronRight className="w-3.5 h-3.5 text-white/25" />}
+            {expanded ? <ChevronUp className="w-3.5 h-3.5 text-slate-300" /> : <ChevronRight className="w-3.5 h-3.5 text-slate-300" />}
           </div>
         </div>
       </div>
@@ -2824,8 +2835,8 @@ function DiscoveryCard({ d, pin, onUpdate, onDelete }: {
 
               {d.detail && (
                 <div>
-                  <p className="text-white/30 text-xs uppercase tracking-wider mb-1.5">Detail</p>
-                  <p className="text-white/70 text-xs leading-relaxed">{d.detail}</p>
+                  <p className="text-slate-400 text-xs uppercase tracking-wider mb-1.5">Detail</p>
+                  <p className="text-slate-600 text-xs leading-relaxed">{d.detail}</p>
                 </div>
               )}
 
@@ -2835,12 +2846,12 @@ function DiscoveryCard({ d, pin, onUpdate, onDelete }: {
                     <Lightbulb className="w-3 h-3" style={{ color: catColor }} />
                     <p className="text-xs font-medium" style={{ color: catColor }}>How Sirius can use this</p>
                   </div>
-                  <p className="text-white/70 text-xs leading-relaxed">{d.applicability}</p>
+                  <p className="text-slate-600 text-xs leading-relaxed">{d.applicability}</p>
                 </div>
               )}
 
               {d.source && (
-                <p className="text-white/25 text-xs">Source: {d.source}</p>
+                <p className="text-slate-300 text-xs">Source: {d.source}</p>
               )}
 
               <div className="flex items-center gap-2 pt-1">
@@ -2973,11 +2984,11 @@ function FeedPanel({ pin }: { pin: string }) {
           <div className="flex items-center gap-3 mb-5">
             <div className="w-9 h-9 rounded-xl flex items-center justify-center"
               style={{ background: "linear-gradient(135deg, hsl(210,80%,55%), hsl(280,70%,50%))" }}>
-              <Atom className="w-4 h-4 text-white" />
+              <Atom className="w-4 h-4 text-slate-800" />
             </div>
             <div>
-              <h2 className="text-white font-bold text-sm">AI Intelligence</h2>
-              <p className="text-white/35 text-xs">Live discovery feed</p>
+              <h2 className="text-slate-800 font-bold text-sm">AI Intelligence</h2>
+              <p className="text-slate-400 text-xs">Live discovery feed</p>
             </div>
           </div>
 
@@ -2991,7 +3002,7 @@ function FeedPanel({ pin }: { pin: string }) {
                 <div key={s.label} className="rounded-xl p-2.5 text-center"
                   style={{ background: "#F8FAFC", border: "1px solid rgba(15,23,42,0.07)" }}>
                   <p className="font-bold text-lg leading-none" style={{ color: s.color }}>{s.value}</p>
-                  <p className="text-white/30 text-xs mt-0.5">{s.label}</p>
+                  <p className="text-slate-400 text-xs mt-0.5">{s.label}</p>
                 </div>
               ))}
             </div>
@@ -3005,7 +3016,7 @@ function FeedPanel({ pin }: { pin: string }) {
           </button>
 
           {stats?.lastSweep && (
-            <p className="text-white/20 text-xs text-center mb-4">
+            <p className="text-slate-300 text-xs text-center mb-4">
               Last: {new Date(stats.lastSweep.startedAt).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
               {" · "}{stats.lastSweep.itemsFound} found
             </p>
@@ -3016,14 +3027,14 @@ function FeedPanel({ pin }: { pin: string }) {
               className="rounded-xl p-3 mb-4 max-h-32 overflow-y-auto space-y-1"
               style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.07)" }}>
               {sweepLog.map((l, i) => (
-                <p key={i} className="text-white/50 text-xs leading-relaxed">{l}</p>
+                <p key={i} className="text-slate-500 text-xs leading-relaxed">{l}</p>
               ))}
             </div>
           )}
 
           {/* Filters */}
           <div className="space-y-2">
-            <p className="text-white/25 text-xs uppercase tracking-wider">Filter</p>
+            <p className="text-slate-300 text-xs uppercase tracking-wider">Filter</p>
 
             <div className="flex gap-1.5 flex-wrap">
               {[
@@ -3039,7 +3050,7 @@ function FeedPanel({ pin }: { pin: string }) {
             </div>
 
             <div>
-              <p className="text-white/25 text-xs mb-1.5">Category</p>
+              <p className="text-slate-300 text-xs mb-1.5">Category</p>
               <div className="flex flex-wrap gap-1">
                 <button onClick={() => setFilterCategory("all")}
                   className="text-xs px-2 py-0.5 rounded-full transition-all"
@@ -3057,7 +3068,7 @@ function FeedPanel({ pin }: { pin: string }) {
                         border: filterCategory === cat ? `1px solid ${color}50` : "1px solid transparent"
                       }}>
                       {cat}
-                      <span className="ml-1 text-white/20">{stats?.categories[cat]}</span>
+                      <span className="ml-1 text-slate-300">{stats?.categories[cat]}</span>
                     </button>
                   );
                 })}
@@ -3066,7 +3077,7 @@ function FeedPanel({ pin }: { pin: string }) {
           </div>
 
           {discoveries.length > 0 && stats && stats.unread > 0 && (
-            <button onClick={markAllRead} className="w-full mt-4 py-1.5 rounded-xl text-xs text-white/30 transition-all hover:text-white/50"
+            <button onClick={markAllRead} className="w-full mt-4 py-1.5 rounded-xl text-xs text-slate-400 transition-all hover:text-slate-500"
               style={{ background: "#FFFFFF" }}>
               Mark all as read
             </button>
@@ -3078,7 +3089,7 @@ function FeedPanel({ pin }: { pin: string }) {
       <div className="flex-1 flex flex-col min-h-0 overflow-y-auto p-5">
         {loading ? (
           <div className="flex-1 flex items-center justify-center">
-            <div className="flex items-center gap-2 text-white/30">
+            <div className="flex items-center gap-2 text-slate-400">
               <Loader2 className="w-4 h-4 animate-spin" />
               <span className="text-sm">Loading feed...</span>
             </div>
@@ -3086,11 +3097,11 @@ function FeedPanel({ pin }: { pin: string }) {
         ) : discoveries.length === 0 ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center max-w-sm">
-              <Atom className="w-10 h-10 mx-auto mb-3 text-white/10" />
-              <p className="text-white/30 text-sm font-medium mb-2">No discoveries yet</p>
-              <p className="text-white/15 text-xs leading-relaxed mb-5">The sweep runs every 6 hours automatically, scanning universities, research labs, and industry sources for new AI developments. You can also trigger it manually above.</p>
+              <Atom className="w-10 h-10 mx-auto mb-3 text-slate-200" />
+              <p className="text-slate-400 text-sm font-medium mb-2">No discoveries yet</p>
+              <p className="text-slate-800/15 text-xs leading-relaxed mb-5">The sweep runs every 6 hours automatically, scanning universities, research labs, and industry sources for new AI developments. You can also trigger it manually above.</p>
               <button onClick={runSweep} disabled={sweeping}
-                className="px-5 py-2.5 rounded-xl text-sm font-medium text-white transition-all"
+                className="px-5 py-2.5 rounded-xl text-sm font-medium text-slate-800 transition-all"
                 style={{ background: "linear-gradient(135deg, hsl(210,80%,50%), hsl(280,70%,50%))", opacity: sweeping ? 0.5 : 1 }}>
                 {sweeping ? "Running sweep..." : "Run First Sweep"}
               </button>
@@ -3099,8 +3110,8 @@ function FeedPanel({ pin }: { pin: string }) {
         ) : (
           <>
             <div className="flex items-center justify-between mb-4 flex-shrink-0">
-              <p className="text-white/30 text-xs">{discoveries.length} discoveries{filterCategory !== "all" ? ` · ${filterCategory}` : ""}</p>
-              <p className="text-white/20 text-xs">Auto-updates every 6 hours</p>
+              <p className="text-slate-400 text-xs">{discoveries.length} discoveries{filterCategory !== "all" ? ` · ${filterCategory}` : ""}</p>
+              <p className="text-slate-300 text-xs">Auto-updates every 6 hours</p>
             </div>
             <div className="space-y-2">
               <AnimatePresence>
@@ -3209,7 +3220,7 @@ function CommerceLabPanel({ pin }: { pin: string }) {
                     boxShadow: active ? `0 0 16px ${t.color}20` : "none",
                   }}>
                   <Icon className="w-4 h-4" style={{ color: active ? t.color : "rgba(15,23,42,0.35)" }} />
-                  <span className="text-xs font-semibold leading-tight" style={{ color: active ? "white" : "rgba(15,23,42,0.55)" }}>{t.label}</span>
+                  <span className="text-xs font-semibold leading-tight" style={{ color: active ? "rgba(15,23,42,0.85)" : "rgba(15,23,42,0.55)" }}>{t.label}</span>
                   <span className="text-[10px] leading-tight" style={{ color: active ? "rgba(15,23,42,0.5)" : "rgba(15,23,42,0.15)" }}>{t.desc}</span>
                 </button>
               );
@@ -3320,7 +3331,7 @@ function CommerceLabPanel({ pin }: { pin: string }) {
                   {React.createElement(tool.icon, { className: "w-7 h-7", style: { color: tool.color } })}
                 </div>
                 <div className="text-center space-y-1.5 max-w-xs">
-                  <p className="text-white font-semibold text-sm">{tool.label}</p>
+                  <p className="text-slate-800 font-semibold text-sm">{tool.label}</p>
                   <p className="text-xs leading-relaxed" style={{ color: "rgba(15,23,42,0.4)" }}>{tool.desc}</p>
                 </div>
               </div>
@@ -3473,7 +3484,7 @@ function AutoLabPanel({ pin, onSelectProject }: {
           <div>
             <div className="flex items-center gap-2.5 mb-1">
               <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: running ? "hsl(155,70%,50%)" : "rgba(15,23,42,0.15)", boxShadow: running ? "0 0 8px hsl(155,70%,50%)" : "none" }} />
-              <h2 className="text-white font-bold text-lg">Autonomous Lab</h2>
+              <h2 className="text-slate-800 font-bold text-lg">Autonomous Lab</h2>
               {running && <span className="text-xs px-2 py-0.5 rounded-full animate-pulse" style={{ background: "hsla(155,70%,45%,0.12)", color: "hsl(155,70%,55%)" }}>Scanning now…</span>}
             </div>
             <p className="text-xs leading-relaxed" style={{ color: "rgba(15,23,42,0.4)", maxWidth: "580px" }}>
@@ -3533,7 +3544,7 @@ function AutoLabPanel({ pin, onSelectProject }: {
             <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
               <div className="flex items-center gap-2.5">
                 <div className="w-2 h-2 rounded-full animate-pulse flex-shrink-0" style={{ background: "hsl(25,90%,60%)" }} />
-                <p className="text-white font-semibold text-sm">
+                <p className="text-slate-800 font-semibold text-sm">
                   Awaiting Your Approval — {pendingProjects.length} new project{pendingProjects.length !== 1 ? "s" : ""}
                 </p>
               </div>
@@ -3583,7 +3594,7 @@ function AutoLabPanel({ pin, onSelectProject }: {
                               #{r.rank}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-white font-semibold text-sm mb-1 leading-snug">{r.name}</p>
+                              <p className="text-slate-800 font-semibold text-sm mb-1 leading-snug">{r.name}</p>
                               <p className="text-xs leading-relaxed mb-3" style={{ color: "rgba(15,23,42,0.55)" }}>{r.verdict}</p>
 
                               {/* Score row */}
@@ -3665,7 +3676,7 @@ function AutoLabPanel({ pin, onSelectProject }: {
                                 style={{ background: `${cap.color}18`, color: cap.color, border: `1px solid ${cap.color}30` }}>
                                 {cap.label}
                               </span>
-                              <p className="text-white font-semibold text-sm leading-snug">{p.name}</p>
+                              <p className="text-slate-800 font-semibold text-sm leading-snug">{p.name}</p>
                             </div>
                             <p className="text-xs" style={{ color: "rgba(15,23,42,0.35)" }}>{p.industry} · Found {formatDate(p.createdAt)}</p>
                           </div>
@@ -3725,7 +3736,7 @@ function AutoLabPanel({ pin, onSelectProject }: {
             style={{ background: "#F8FAFC", border: "1px solid rgba(15,23,42,0.06)" }}>
             <BadgeCheck className="w-8 h-8" style={{ color: "hsl(155,70%,50%)" }} />
             <div className="text-center">
-              <p className="text-white font-medium text-sm">All caught up</p>
+              <p className="text-slate-800 font-medium text-sm">All caught up</p>
               <p className="text-xs mt-0.5" style={{ color: "rgba(15,23,42,0.35)" }}>No projects awaiting approval.</p>
             </div>
           </div>
@@ -3735,7 +3746,7 @@ function AutoLabPanel({ pin, onSelectProject }: {
             style={{ background: "#F8FAFC", border: "1px solid rgba(15,23,42,0.06)" }}>
             <Loader2 className="w-8 h-8 animate-spin" style={{ color: "hsl(193,100%,50%)" }} />
             <div className="text-center">
-              <p className="text-white font-medium text-sm">Scanning now…</p>
+              <p className="text-slate-800 font-medium text-sm">Scanning now…</p>
               <p className="text-xs mt-0.5" style={{ color: "rgba(15,23,42,0.35)" }}>Checking for marketing bots, engineering products, and funding opportunities. Takes 2–3 minutes.</p>
             </div>
           </div>
@@ -3744,7 +3755,7 @@ function AutoLabPanel({ pin, onSelectProject }: {
         {/* ── APPROVED PROJECTS ──────────────────────────────────── */}
         {approvedProjects.length > 0 && (
           <div>
-            <p className="text-white/30 text-xs font-semibold uppercase tracking-wider mb-3">Approved Projects ({approvedProjects.length})</p>
+            <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-3">Approved Projects ({approvedProjects.length})</p>
             <div className="space-y-2">
               {approvedProjects.map(p => {
                 const cap = capLabel(p);
@@ -3754,7 +3765,7 @@ function AutoLabPanel({ pin, onSelectProject }: {
                     style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.07)" }}>
                     <BadgeCheck className="w-4 h-4 flex-shrink-0" style={{ color: "hsl(155,70%,50%)" }} />
                     <div className="flex-1 min-w-0">
-                      <p className="text-white text-sm font-medium truncate">{p.name}</p>
+                      <p className="text-slate-800 text-sm font-medium truncate">{p.name}</p>
                       <p className="text-xs" style={{ color: "rgba(15,23,42,0.35)" }}>{p.industry}</p>
                     </div>
                     <span className="text-xs px-2 py-0.5 rounded-full flex-shrink-0"
@@ -3769,7 +3780,7 @@ function AutoLabPanel({ pin, onSelectProject }: {
         {/* ── LATEST SCAN ────────────────────────────────────────── */}
         {latestScan && (
           <div>
-            <p className="text-white/30 text-xs font-semibold uppercase tracking-wider mb-3">Latest Scan</p>
+            <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-3">Latest Scan</p>
             <div className="rounded-2xl p-4" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.09)" }}>
               <div className="flex items-start justify-between gap-3 mb-2">
                 <div>
@@ -3777,13 +3788,13 @@ function AutoLabPanel({ pin, onSelectProject }: {
                     <span className="w-2 h-2 rounded-full" style={{
                       background: latestScan.status === "complete" ? "hsl(155,70%,50%)" : latestScan.status === "running" ? "hsl(45,100%,55%)" : "hsl(0,70%,55%)"
                     }} />
-                    <span className="text-white text-sm font-medium capitalize">{latestScan.status === "running" ? "In progress…" : latestScan.status}</span>
+                    <span className="text-slate-800 text-sm font-medium capitalize">{latestScan.status === "running" ? "In progress…" : latestScan.status}</span>
                   </div>
                   <p className="text-xs" style={{ color: "rgba(15,23,42,0.35)" }}>{formatDate(latestScan.startedAt)}</p>
                 </div>
                 <div className="flex gap-4 text-right">
-                  <div><p className="text-white font-bold">{latestScan.projectsCreated}</p><p className="text-xs" style={{ color: "rgba(15,23,42,0.35)" }}>Created</p></div>
-                  <div><p className="text-white font-bold">{latestScan.upgradesApplied}</p><p className="text-xs" style={{ color: "rgba(15,23,42,0.35)" }}>Upgraded</p></div>
+                  <div><p className="text-slate-800 font-bold">{latestScan.projectsCreated}</p><p className="text-xs" style={{ color: "rgba(15,23,42,0.35)" }}>Created</p></div>
+                  <div><p className="text-slate-800 font-bold">{latestScan.upgradesApplied}</p><p className="text-xs" style={{ color: "rgba(15,23,42,0.35)" }}>Upgraded</p></div>
                 </div>
               </div>
               {latestScan.summary && <p className="text-xs leading-relaxed mb-2" style={{ color: "rgba(15,23,42,0.5)" }}>{latestScan.summary}</p>}
@@ -3797,7 +3808,7 @@ function AutoLabPanel({ pin, onSelectProject }: {
                         <div key={i} className="flex items-start gap-2 text-xs rounded-lg px-2.5 py-1.5"
                           style={{ background: item.type === "new" ? "hsla(193,100%,40%,0.07)" : "hsla(45,100%,50%,0.07)" }}>
                           <span className="mt-0.5 flex-shrink-0" style={{ color: item.type === "new" ? "hsl(193,100%,50%)" : "hsl(45,100%,55%)" }}>{item.type === "new" ? "+" : "↑"}</span>
-                          <span className="text-white/70 font-medium truncate">{item.projectName}</span>
+                          <span className="text-slate-600 font-medium truncate">{item.projectName}</span>
                         </div>
                       ))}
                     </div>
@@ -3811,7 +3822,7 @@ function AutoLabPanel({ pin, onSelectProject }: {
         {/* ── SCAN HISTORY ───────────────────────────────────────── */}
         {scanHistory.length > 1 && (
           <div>
-            <p className="text-white/30 text-xs font-semibold uppercase tracking-wider mb-3">Scan History</p>
+            <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-3">Scan History</p>
             <div className="space-y-1.5">
               {scanHistory.slice(1).map(scan => (
                 <div key={scan.id} className="flex items-center gap-3 rounded-xl px-3.5 py-2.5"
@@ -3820,7 +3831,7 @@ function AutoLabPanel({ pin, onSelectProject }: {
                     background: scan.status === "complete" ? "hsl(155,70%,50%)" : scan.status === "error" ? "hsl(0,70%,55%)" : "hsl(45,100%,55%)"
                   }} />
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs text-white/60">{formatDate(scan.startedAt)}</p>
+                    <p className="text-xs text-slate-500">{formatDate(scan.startedAt)}</p>
                     <p className="text-xs" style={{ color: "rgba(15,23,42,0.35)" }}>{scan.projectsCreated} created · {scan.upgradesApplied} upgraded</p>
                   </div>
                   <span className="text-xs font-mono" style={{ color: "rgba(15,23,42,0.15)" }}>#{scan.scanId}</span>
@@ -3837,7 +3848,7 @@ function AutoLabPanel({ pin, onSelectProject }: {
               <Cpu className="w-8 h-8" style={{ color: "hsl(193,100%,40%)" }} />
             </div>
             <div className="text-center space-y-2 max-w-sm">
-              <p className="text-white font-semibold text-base">Autonomous Lab is ready</p>
+              <p className="text-slate-800 font-semibold text-base">Autonomous Lab is ready</p>
               <p className="text-xs leading-relaxed" style={{ color: "rgba(15,23,42,0.35)" }}>
                 Scans every 24 hours. Each scan finds 6 social media / marketing bot opportunities and 4 precision engineering products (oil & gas, aerospace, medical, hydrogen) manufacturable at Strategic Innovation Dundee. Every new project is sent to you for approval.
               </p>
@@ -3934,7 +3945,7 @@ function FundingRadarPanel({ pin }: { pin: string }) {
           <div>
             <div className="flex items-center gap-2 mb-1">
               <BadgeCheck className="w-5 h-5" style={{ color: "hsl(155,70%,45%)" }} />
-              <h2 className="text-white font-bold text-lg">Funding Radar</h2>
+              <h2 className="text-slate-800 font-bold text-lg">Funding Radar</h2>
             </div>
             <p className="text-xs" style={{ color: "rgba(15,23,42,0.45)", maxWidth: "480px" }}>
               Scans every project in your Lab against real, active UK and international R&D grant schemes, tax incentives, and innovation funding programmes. Only genuine opportunities — no speculation.
@@ -3973,7 +3984,7 @@ function FundingRadarPanel({ pin }: { pin: string }) {
               <BadgeCheck className="w-8 h-8" style={{ color: "hsl(155,70%,45%)" }} />
             </div>
             <div className="text-center space-y-1.5">
-              <p className="text-white font-semibold text-base">Find funding for your projects</p>
+              <p className="text-slate-800 font-semibold text-base">Find funding for your projects</p>
               <p className="text-xs max-w-sm leading-relaxed" style={{ color: "rgba(15,23,42,0.4)" }}>
                 Analyses every project in your Lab against UK RDEC, Innovate UK, Horizon Europe, DASA, sector-specific funds, and international tax incentives. Projects with a Brief or Specs get the most relevant results.
               </p>
@@ -4023,7 +4034,7 @@ function FundingRadarPanel({ pin }: { pin: string }) {
                   style={{
                     background: filter === f ? "#E8EEF5" : "transparent",
                     border: filter === f ? "1px solid rgba(15,23,42,0.15)" : "1px solid rgba(15,23,42,0.07)",
-                    color: filter === f ? "white" : "rgba(15,23,42,0.4)",
+                    color: filter === f ? "rgba(15,23,42,0.85)" : "rgba(15,23,42,0.4)",
                   }}>
                   {f === "all" ? "All Regions" : f}
                 </button>
@@ -4044,7 +4055,7 @@ function FundingRadarPanel({ pin }: { pin: string }) {
               <div key={opp.projectId} className="space-y-2">
                 <div className="flex items-center gap-2 mb-3">
                   <FlaskConical className="w-3.5 h-3.5" style={{ color: "hsl(193,100%,45%)" }} />
-                  <span className="text-sm font-semibold text-white">{opp.projectName}</span>
+                  <span className="text-sm font-semibold text-slate-800">{opp.projectName}</span>
                   <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: "hsla(193,100%,35%,0.15)", color: "hsl(193,100%,55%)", border: "1px solid hsla(193,100%,35%,0.2)" }}>
                     {opp.matches.length} opportunit{opp.matches.length !== 1 ? "ies" : "y"}
                   </span>
@@ -4065,7 +4076,7 @@ function FundingRadarPanel({ pin }: { pin: string }) {
                         <div className="flex items-start gap-3">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap mb-1.5">
-                              <span className="text-sm font-semibold text-white">{match.scheme}</span>
+                              <span className="text-sm font-semibold text-slate-800">{match.scheme}</span>
                             </div>
                             <div className="flex items-center gap-2 flex-wrap">
                               {/* Match strength */}
@@ -4363,7 +4374,7 @@ function OutreachHubPanel({ pin }: { pin: string }) {
   };
 
   // ─── COMPUTED ────────────────────────────────────────────────────────────────
-  const inp = "w-full text-xs text-white placeholder-slate-400 outline-none rounded-xl px-3 py-2 bg-[#F1F5F9] border border-[rgba(15,23,42,0.09)]";
+  const inp = "w-full text-xs text-slate-800 placeholder-slate-400 outline-none rounded-xl px-3 py-2 bg-[#F1F5F9] border border-[rgba(15,23,42,0.09)]";
   const filteredContacts = sectorFilter === "All" ? contacts : contacts.filter(c => c.sector === sectorFilter);
   const allSectors = ["All", ...Array.from(new Set(contacts.map(c => c.sector)))];
 
@@ -4382,8 +4393,8 @@ function OutreachHubPanel({ pin }: { pin: string }) {
         <div className="flex items-center gap-3">
           <Mail className="w-5 h-5" style={{ color: "hsl(340,80%,60%)" }} />
           <div>
-            <h2 className="text-white font-semibold text-sm">Outreach Hub</h2>
-            <p className="text-white/30 text-xs">{contacts.length} contacts · {campaigns.length} campaigns</p>
+            <h2 className="text-slate-800 font-semibold text-sm">Outreach Hub</h2>
+            <p className="text-slate-400 text-xs">{contacts.length} contacts · {campaigns.length} campaigns</p>
           </div>
         </div>
         <div className="flex gap-1 p-1 rounded-xl" style={{ background: "#FFFFFF" }}>
@@ -4409,7 +4420,7 @@ function OutreachHubPanel({ pin }: { pin: string }) {
             {/* Actions bar */}
             <div className="flex items-center gap-2 flex-wrap">
               <button onClick={() => setAddOpen(o => !o)}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-white transition-all"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-800 transition-all"
                 style={{ background: "hsl(340,80%,42%)" }}>
                 <Plus className="w-3 h-3" /> Add Contact
               </button>
@@ -4437,23 +4448,23 @@ function OutreachHubPanel({ pin }: { pin: string }) {
             {/* Add contact form */}
             {addOpen && (
               <div className="p-4 rounded-2xl space-y-3" style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.09)" }}>
-                <p className="text-white/50 text-xs font-medium">New Contact</p>
+                <p className="text-slate-500 text-xs font-medium">New Contact</p>
                 <div className="grid grid-cols-2 gap-2">
                   {[["Name *", "name", "Jane Smith"], ["Email", "email", "jane@company.com"], ["Company", "company", "Acme Ltd"], ["Role", "role", "CEO"], ["Sector", "sector", "Oil & Gas"], ["Location", "location", "Aberdeen"]].map(([label, key, ph]) => (
                     <div key={key}>
-                      <label className="text-white/30 text-xs mb-1 block">{label}</label>
+                      <label className="text-slate-400 text-xs mb-1 block">{label}</label>
                       <input value={(newC as any)[key]} onChange={e => setNewC(p => ({ ...p, [key]: e.target.value }))} placeholder={ph} className={inp} />
                     </div>
                   ))}
                 </div>
                 <div>
-                  <label className="text-white/30 text-xs mb-1 block">Notes</label>
+                  <label className="text-slate-400 text-xs mb-1 block">Notes</label>
                   <textarea value={newC.notes} onChange={e => setNewC(p => ({ ...p, notes: e.target.value }))} rows={2} placeholder="Any context…" className={inp + " resize-none"} />
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => setAddOpen(false)} className="px-3 py-2 rounded-xl text-xs text-white/40" style={{ background: "#EEF2F8" }}>Cancel</button>
+                  <button onClick={() => setAddOpen(false)} className="px-3 py-2 rounded-xl text-xs text-slate-400" style={{ background: "#EEF2F8" }}>Cancel</button>
                   <button onClick={async () => { await addContact(); setAddOpen(false); setNewC({ name: "", email: "", company: "", role: "", sector: "Oil & Gas", website: "", location: "", notes: "" }); }}
-                    className="px-4 py-2 rounded-xl text-xs font-semibold text-white" style={{ background: "hsl(340,80%,42%)" }}>
+                    className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-800" style={{ background: "hsl(340,80%,42%)" }}>
                     Save Contact
                   </button>
                 </div>
@@ -4463,7 +4474,7 @@ function OutreachHubPanel({ pin }: { pin: string }) {
             {/* Bulk import */}
             {bulkOpen && (
               <div className="p-4 rounded-2xl space-y-3" style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.09)" }}>
-                <p className="text-white/50 text-xs font-medium">Bulk Import — paste CSV (Name, Email, Company, Role)</p>
+                <p className="text-slate-500 text-xs font-medium">Bulk Import — paste CSV (Name, Email, Company, Role)</p>
                 <textarea value={bulkText} onChange={e => setBulkText(e.target.value)} rows={5} placeholder={"Jane Smith, jane@co.com, Acme, CEO\nBob Jones, bob@firm.com, Firm Ltd, CFO"} className={inp + " resize-none font-mono"} />
                 <div className="flex gap-2 items-center">
                   <select value={bulkSector} onChange={e => setBulkSector(e.target.value)} className={inp + " w-auto"}>
@@ -4478,7 +4489,7 @@ function OutreachHubPanel({ pin }: { pin: string }) {
                       }
                     }
                     await loadContacts(); setBulkText(""); setBulkOpen(false);
-                  }} className="px-4 py-2 rounded-xl text-xs font-semibold text-white whitespace-nowrap" style={{ background: "hsl(340,80%,42%)" }}>
+                  }} className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-800 whitespace-nowrap" style={{ background: "hsl(340,80%,42%)" }}>
                     Import
                   </button>
                 </div>
@@ -4488,7 +4499,7 @@ function OutreachHubPanel({ pin }: { pin: string }) {
             {/* AI sector scan */}
             {scanOpen && (
               <div className="p-4 rounded-2xl space-y-3" style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.09)" }}>
-                <p className="text-white/50 text-xs font-medium">AI Sector Scanner — finds real companies + contacts</p>
+                <p className="text-slate-500 text-xs font-medium">AI Sector Scanner — finds real companies + contacts</p>
                 <div className="flex gap-2">
                   <select value={scanSector} onChange={e => setScanSector(e.target.value)} className={inp + " flex-1"}>
                     {SECTORS.filter(s => s !== "General").map(s => <option key={s}>{s}</option>)}
@@ -4514,7 +4525,7 @@ function OutreachHubPanel({ pin }: { pin: string }) {
                     }
                   }
                   setScanning(false);
-                }} disabled={scanning} className="w-full py-2.5 rounded-xl text-xs font-semibold text-white flex items-center justify-center gap-2 disabled:opacity-50" style={{ background: "hsl(193,100%,30%)" }}>
+                }} disabled={scanning} className="w-full py-2.5 rounded-xl text-xs font-semibold text-slate-800 flex items-center justify-center gap-2 disabled:opacity-50" style={{ background: "hsl(193,100%,30%)" }}>
                   {scanning ? <><Loader2 className="w-4 h-4 animate-spin" />Scanning…</> : <><Telescope className="w-4 h-4" />Start AI Scan</>}
                 </button>
               </div>
@@ -4522,9 +4533,9 @@ function OutreachHubPanel({ pin }: { pin: string }) {
 
             {/* Contacts list */}
             {contactsLoading ? (
-              <div className="flex items-center gap-2 text-white/30 text-sm py-8 justify-center"><Loader2 className="w-4 h-4 animate-spin" />Loading contacts…</div>
+              <div className="flex items-center gap-2 text-slate-400 text-sm py-8 justify-center"><Loader2 className="w-4 h-4 animate-spin" />Loading contacts…</div>
             ) : filteredContacts.length === 0 ? (
-              <div className="text-center py-12 text-white/20 text-sm">No contacts yet — add one or run the AI scanner</div>
+              <div className="text-center py-12 text-slate-300 text-sm">No contacts yet — add one or run the AI scanner</div>
             ) : (
               <div className="space-y-2">
                 {filteredContacts.map(c => (
@@ -4533,13 +4544,13 @@ function OutreachHubPanel({ pin }: { pin: string }) {
                       {c.name.charAt(0).toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-white text-xs font-medium truncate">{c.name}</p>
-                      <p className="text-white/35 text-xs truncate">{c.company} · {c.role}</p>
-                      <p className="text-white/20 text-xs truncate">{c.email}</p>
+                      <p className="text-slate-800 text-xs font-medium truncate">{c.name}</p>
+                      <p className="text-slate-400 text-xs truncate">{c.company} · {c.role}</p>
+                      <p className="text-slate-300 text-xs truncate">{c.email}</p>
                     </div>
                     <span className="px-2 py-0.5 rounded-lg text-xs flex-shrink-0" style={{ background: "#DCE4F0", color: "rgba(15,23,42,0.45)" }}>{c.sector}</span>
                     <button onClick={async () => { await fetch(`${base}outreach/contacts/${c.id}`, { method: "DELETE", headers: { "x-lab-pin": pin } }); loadContacts(); }}
-                      className="text-white/15 hover:text-red-400 transition-colors flex-shrink-0">
+                      className="text-slate-800/15 hover:text-red-400 transition-colors flex-shrink-0">
                       <X className="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -4553,42 +4564,42 @@ function OutreachHubPanel({ pin }: { pin: string }) {
         {view === "campaigns" && (
           <div className="space-y-4">
             <button onClick={() => setShowCreateCamp(o => !o)}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-white"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-slate-800"
               style={{ background: "hsl(340,80%,42%)" }}>
               <Plus className="w-3.5 h-3.5" /> New Campaign
             </button>
 
             {showCreateCamp && (
               <div className="p-4 rounded-2xl space-y-3" style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.09)" }}>
-                <p className="text-white/50 text-xs font-medium">Create Campaign</p>
+                <p className="text-slate-500 text-xs font-medium">Create Campaign</p>
                 <div>
-                  <label className="text-white/30 text-xs mb-1 block">Campaign Name</label>
+                  <label className="text-slate-400 text-xs mb-1 block">Campaign Name</label>
                   <input value={newCamp.name} onChange={e => setNewCamp(p => ({ ...p, name: e.target.value }))} placeholder="Hydrogen Q2 Push" className={inp} />
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="text-white/30 text-xs mb-1 block">Product / Service</label>
+                    <label className="text-slate-400 text-xs mb-1 block">Product / Service</label>
                     <input value={newCamp.product} onChange={e => setNewCamp(p => ({ ...p, product: e.target.value }))} className={inp} />
                   </div>
                   <div>
-                    <label className="text-white/30 text-xs mb-1 block">Message Type</label>
+                    <label className="text-slate-400 text-xs mb-1 block">Message Type</label>
                     <select value={newCamp.messageType} onChange={e => setNewCamp(p => ({ ...p, messageType: e.target.value }))} className={inp}>
                       {MSG_TYPES.map(t => <option key={t}>{t}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label className="text-white/30 text-xs mb-1 block">Tone</label>
+                    <label className="text-slate-400 text-xs mb-1 block">Tone</label>
                     <select value={newCamp.tone} onChange={e => setNewCamp(p => ({ ...p, tone: e.target.value }))} className={inp}>
                       {TONES.map(t => <option key={t}>{t}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label className="text-white/30 text-xs mb-1 block">Your Name</label>
+                    <label className="text-slate-400 text-xs mb-1 block">Your Name</label>
                     <input value={newCamp.senderName} onChange={e => setNewCamp(p => ({ ...p, senderName: e.target.value }))} className={inp} />
                   </div>
                 </div>
                 <div>
-                  <label className="text-white/30 text-xs mb-1 block">Target Sectors</label>
+                  <label className="text-slate-400 text-xs mb-1 block">Target Sectors</label>
                   <div className="flex flex-wrap gap-1">
                     {SECTORS.filter(s => s !== "General").map(s => {
                       const active = newCamp.targetSectors.includes(s);
@@ -4603,14 +4614,14 @@ function OutreachHubPanel({ pin }: { pin: string }) {
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => setShowCreateCamp(false)} className="px-3 py-2 rounded-xl text-xs text-white/40" style={{ background: "#EEF2F8" }}>Cancel</button>
+                  <button onClick={() => setShowCreateCamp(false)} className="px-3 py-2 rounded-xl text-xs text-slate-400" style={{ background: "#EEF2F8" }}>Cancel</button>
                   <button onClick={async () => {
                     setCreating(true);
                     await fetch(`${base}outreach/campaigns`, { method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin }, body: JSON.stringify(newCamp) });
                     await loadCampaigns(); setShowCreateCamp(false);
                     setNewCamp({ name: "", product: "Sirius AI", targetSectors: [], messageType: "Cold Email", tone: "Professional", subjectTemplate: "", senderName: "Garry Hutton", senderCompany: "Strategic Innovation Dundee Ltd", fromEmail: "" });
                     setCreating(false);
-                  }} disabled={creating || !newCamp.name.trim()} className="flex-1 py-2 rounded-xl text-xs font-semibold text-white flex items-center justify-center gap-2 disabled:opacity-50" style={{ background: "hsl(340,80%,42%)" }}>
+                  }} disabled={creating || !newCamp.name.trim()} className="flex-1 py-2 rounded-xl text-xs font-semibold text-slate-800 flex items-center justify-center gap-2 disabled:opacity-50" style={{ background: "hsl(340,80%,42%)" }}>
                     {creating ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Creating…</> : "Create Campaign"}
                   </button>
                 </div>
@@ -4618,23 +4629,23 @@ function OutreachHubPanel({ pin }: { pin: string }) {
             )}
 
             {campaignsLoading ? (
-              <div className="flex items-center gap-2 text-white/30 text-sm py-8 justify-center"><Loader2 className="w-4 h-4 animate-spin" />Loading campaigns…</div>
+              <div className="flex items-center gap-2 text-slate-400 text-sm py-8 justify-center"><Loader2 className="w-4 h-4 animate-spin" />Loading campaigns…</div>
             ) : campaigns.length === 0 ? (
-              <div className="text-center py-12 text-white/20 text-sm">No campaigns yet</div>
+              <div className="text-center py-12 text-slate-300 text-sm">No campaigns yet</div>
             ) : (
               <div className="space-y-3">
                 {campaigns.map(camp => (
                   <div key={camp.id} className="p-4 rounded-2xl" style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.07)" }}>
                     <div className="flex items-start justify-between gap-2 mb-2">
                       <div>
-                        <p className="text-white text-sm font-medium">{camp.name}</p>
-                        <p className="text-white/30 text-xs mt-0.5">{camp.product} · {camp.messageType} · {camp.tone}</p>
+                        <p className="text-slate-800 text-sm font-medium">{camp.name}</p>
+                        <p className="text-slate-400 text-xs mt-0.5">{camp.product} · {camp.messageType} · {camp.tone}</p>
                       </div>
                       <span className="px-2 py-0.5 rounded-lg text-xs flex-shrink-0" style={{ background: camp.status === "active" ? "hsl(155,70%,18%)" : "#DCE4F0", color: camp.status === "active" ? "hsl(155,70%,60%)" : "rgba(15,23,42,0.4)" }}>
                         {camp.status}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2 text-white/25 text-xs mb-3">
+                    <div className="flex items-center gap-2 text-slate-300 text-xs mb-3">
                       <span>{camp.totalContacts || 0} contacts</span>
                       <span>·</span>
                       <span>{camp.sentCount || 0} sent</span>
@@ -4643,12 +4654,12 @@ function OutreachHubPanel({ pin }: { pin: string }) {
                     </div>
                     <div className="flex gap-2">
                       <button onClick={() => { setActiveCampaign(camp); setSends([]); setGenLog([]); setView("sends"); }}
-                        className="px-3 py-1.5 rounded-lg text-xs font-medium text-white transition-all"
+                        className="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-800 transition-all"
                         style={{ background: "hsl(340,80%,42%)" }}>
                         Generate Pitches
                       </button>
                       <button onClick={async () => { await fetch(`${base}outreach/campaigns/${camp.id}`, { method: "DELETE", headers: { "x-lab-pin": pin } }); loadCampaigns(); }}
-                        className="px-3 py-1.5 rounded-lg text-xs text-white/30 transition-all"
+                        className="px-3 py-1.5 rounded-lg text-xs text-slate-400 transition-all"
                         style={{ background: "#E8EEF5" }}>
                         Delete
                       </button>
@@ -4664,13 +4675,13 @@ function OutreachHubPanel({ pin }: { pin: string }) {
         {view === "sends" && (
           <div className="space-y-4">
             {!activeCampaign ? (
-              <div className="text-center py-12 text-white/20 text-sm">Select a campaign from the Campaigns tab first</div>
+              <div className="text-center py-12 text-slate-300 text-sm">Select a campaign from the Campaigns tab first</div>
             ) : (
               <>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-white font-medium text-sm">{activeCampaign.name}</p>
-                    <p className="text-white/30 text-xs">{sends.length} pitches generated</p>
+                    <p className="text-slate-800 font-medium text-sm">{activeCampaign.name}</p>
+                    <p className="text-slate-400 text-xs">{sends.length} pitches generated</p>
                   </div>
                   <div className="flex gap-2">
                     {sends.length === 0 && !generating && (
@@ -4693,13 +4704,13 @@ function OutreachHubPanel({ pin }: { pin: string }) {
                           }
                         }
                         setGenerating(false);
-                      }} className="px-4 py-2 rounded-xl text-xs font-semibold text-white flex items-center gap-2" style={{ background: "hsl(340,80%,42%)" }}>
+                      }} className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-800 flex items-center gap-2" style={{ background: "hsl(340,80%,42%)" }}>
                         <Zap className="w-3.5 h-3.5" /> Generate All Pitches
                       </button>
                     )}
                     {sends.length > 0 && (
                       <button onClick={() => setShowSmtp(true)}
-                        className="px-4 py-2 rounded-xl text-xs font-semibold text-white flex items-center gap-2"
+                        className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-800 flex items-center gap-2"
                         style={{ background: "hsl(155,70%,35%)" }}>
                         <Send className="w-3.5 h-3.5" /> Launch Campaign
                       </button>
@@ -4709,7 +4720,7 @@ function OutreachHubPanel({ pin }: { pin: string }) {
 
                 {generating && (
                   <div className="p-3 rounded-xl font-mono text-xs text-green-400 space-y-1 max-h-40 overflow-y-auto" style={{ background: "#F8FAFC" }}>
-                    <div className="flex items-center gap-2 text-white/40 mb-1"><Loader2 className="w-3 h-3 animate-spin" />Generating…</div>
+                    <div className="flex items-center gap-2 text-slate-400 mb-1"><Loader2 className="w-3 h-3 animate-spin" />Generating…</div>
                     {genLog.map((l, i) => <div key={i}>{l}</div>)}
                   </div>
                 )}
@@ -4723,8 +4734,8 @@ function OutreachHubPanel({ pin }: { pin: string }) {
                             {s.contact?.name?.charAt(0) || "?"}
                           </div>
                           <div>
-                            <p className="text-white text-xs font-medium">{s.contact?.name}</p>
-                            <p className="text-white/30 text-xs">{s.contact?.email}</p>
+                            <p className="text-slate-800 text-xs font-medium">{s.contact?.name}</p>
+                            <p className="text-slate-400 text-xs">{s.contact?.email}</p>
                           </div>
                           <span className="ml-auto px-2 py-0.5 rounded-lg text-xs" style={{ background: s.status === "sent" ? "hsl(155,70%,18%)" : "#DCE4F0", color: s.status === "sent" ? "hsl(155,70%,60%)" : "rgba(15,23,42,0.4)" }}>
                             {s.status}
@@ -4751,7 +4762,7 @@ function OutreachHubPanel({ pin }: { pin: string }) {
                       <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
                         onClick={e => e.stopPropagation()}
                         className="w-full max-w-md rounded-2xl p-6 space-y-4" style={{ background: "#F8FAFC", border: "1px solid rgba(15,23,42,0.12)" }}>
-                        <p className="text-white font-semibold text-sm">SMTP Settings — Launch Campaign</p>
+                        <p className="text-slate-800 font-semibold text-sm">SMTP Settings — Launch Campaign</p>
                         {[
                           { label: "SMTP Host", val: smtpHost, set: setSmtpHost, ph: "smtp.gmail.com" },
                           { label: "SMTP Port", val: smtpPort, set: setSmtpPort, ph: "587" },
@@ -4761,7 +4772,7 @@ function OutreachHubPanel({ pin }: { pin: string }) {
                           { label: "From Name", val: fromName, set: setFromName, ph: "Garry Hutton" },
                         ].map(f => (
                           <div key={f.label}>
-                            <label className="text-white/35 text-xs mb-1 block">{f.label}</label>
+                            <label className="text-slate-400 text-xs mb-1 block">{f.label}</label>
                             <input type={f.label === "Password" ? "password" : "text"} value={f.val} onChange={e => f.set(e.target.value)} placeholder={f.ph} className={inp} />
                           </div>
                         ))}
@@ -4773,9 +4784,9 @@ function OutreachHubPanel({ pin }: { pin: string }) {
                           </div>
                         )}
                         <div className="flex gap-3">
-                          <button onClick={() => setShowSmtp(false)} className="flex-1 py-2.5 rounded-xl text-sm text-white/40" style={{ background: "#EEF2F8" }}>Cancel</button>
+                          <button onClick={() => setShowSmtp(false)} className="flex-1 py-2.5 rounded-xl text-sm text-slate-400" style={{ background: "#EEF2F8" }}>Cancel</button>
                           <button onClick={launchCampaign} disabled={launching}
-                            className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 disabled:opacity-50"
+                            className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-slate-800 flex items-center justify-center gap-2 disabled:opacity-50"
                             style={{ background: "hsl(155,70%,35%)" }}>
                             {launching ? <><Loader2 className="w-4 h-4 animate-spin" />Sending…</> : <><Send className="w-4 h-4" />Send {sends.length} Emails</>}
                           </button>
@@ -4793,7 +4804,7 @@ function OutreachHubPanel({ pin }: { pin: string }) {
         {view === "analytics" && (
           <div className="space-y-4">
             {!analytics ? (
-              <div className="flex items-center gap-2 text-white/30 text-sm py-8 justify-center"><Loader2 className="w-4 h-4 animate-spin" />Loading analytics…</div>
+              <div className="flex items-center gap-2 text-slate-400 text-sm py-8 justify-center"><Loader2 className="w-4 h-4 animate-spin" />Loading analytics…</div>
             ) : (
               <>
                 <div className="grid grid-cols-2 gap-3">
@@ -4805,20 +4816,20 @@ function OutreachHubPanel({ pin }: { pin: string }) {
                   ].map(s => (
                     <div key={s.label} className="p-4 rounded-2xl" style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.07)" }}>
                       <p className="text-3xl font-bold mb-1" style={{ color: s.color }}>{s.val}</p>
-                      <p className="text-white/30 text-xs">{s.label}</p>
+                      <p className="text-slate-400 text-xs">{s.label}</p>
                     </div>
                   ))}
                 </div>
                 {analytics.bySector && analytics.bySector.length > 0 && (
                   <div className="p-4 rounded-2xl" style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.07)" }}>
-                    <p className="text-white/50 text-xs font-medium mb-3">Contacts by Sector</p>
+                    <p className="text-slate-500 text-xs font-medium mb-3">Contacts by Sector</p>
                     {analytics.bySector.map((s: any) => (
                       <div key={s.sector} className="flex items-center gap-3 mb-2">
-                        <p className="text-white/60 text-xs w-32 truncate">{s.sector}</p>
+                        <p className="text-slate-500 text-xs w-32 truncate">{s.sector}</p>
                         <div className="flex-1 h-1.5 rounded-full" style={{ background: "#DCE4F0" }}>
                           <div className="h-full rounded-full" style={{ width: `${Math.min(100, (s.count / (analytics.totalContacts || 1)) * 100)}%`, background: "hsl(340,80%,50%)" }} />
                         </div>
-                        <p className="text-white/30 text-xs w-6 text-right">{s.count}</p>
+                        <p className="text-slate-400 text-xs w-6 text-right">{s.count}</p>
                       </div>
                     ))}
                   </div>
@@ -4902,7 +4913,7 @@ function BrainPanel({ pin }: { pin: string }) {
   };
 
   const memoryLines = (profile?.memories || "").split("\n").filter(Boolean);
-  const inp = "w-full text-xs text-white placeholder-slate-400 outline-none rounded-xl px-3 py-2 bg-[#F1F5F9] border border-[rgba(15,23,42,0.09)]";
+  const inp = "w-full text-xs text-slate-800 placeholder-slate-400 outline-none rounded-xl px-3 py-2 bg-[#F1F5F9] border border-[rgba(15,23,42,0.09)]";
 
   const TABS = [
     { id: "memory" as const, label: "Memory", icon: Brain },
@@ -4916,8 +4927,8 @@ function BrainPanel({ pin }: { pin: string }) {
         <div className="flex items-center gap-3">
           <Brain className="w-5 h-5" style={{ color: "hsl(280,70%,65%)" }} />
           <div>
-            <h2 className="text-white font-semibold text-sm">Sirius Brain</h2>
-            <p className="text-white/30 text-xs">{memoryLines.length} memories · what Sirius knows about you</p>
+            <h2 className="text-slate-800 font-semibold text-sm">Sirius Brain</h2>
+            <p className="text-slate-400 text-xs">{memoryLines.length} memories · what Sirius knows about you</p>
           </div>
         </div>
         <div className="flex gap-1 p-1 rounded-xl" style={{ background: "#FFFFFF" }}>
@@ -4936,17 +4947,17 @@ function BrainPanel({ pin }: { pin: string }) {
 
       <div className="flex-1 min-h-0 overflow-y-auto p-6">
         {loading ? (
-          <div className="flex items-center gap-2 text-white/30 text-sm py-12 justify-center"><Loader2 className="w-4 h-4 animate-spin" />Loading brain…</div>
+          <div className="flex items-center gap-2 text-slate-400 text-sm py-12 justify-center"><Loader2 className="w-4 h-4 animate-spin" />Loading brain…</div>
         ) : (
           <>
             {tab === "memory" && (
               <div className="space-y-5">
                 <div className="p-4 rounded-2xl" style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.07)" }}>
-                  <p className="text-white/40 text-xs font-medium mb-1">How memory works</p>
-                  <p className="text-white/25 text-xs leading-relaxed">Sirius automatically extracts facts from your conversations. You can also add specific facts below. Every memory is injected into every conversation — so Sirius always knows your context without having to be told again.</p>
+                  <p className="text-slate-400 text-xs font-medium mb-1">How memory works</p>
+                  <p className="text-slate-300 text-xs leading-relaxed">Sirius automatically extracts facts from your conversations. You can also add specific facts below. Every memory is injected into every conversation — so Sirius always knows your context without having to be told again.</p>
                 </div>
                 <div className="p-4 rounded-2xl space-y-3" style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.07)" }}>
-                  <p className="text-white/50 text-xs font-medium">Add a memory fact</p>
+                  <p className="text-slate-500 text-xs font-medium">Add a memory fact</p>
                   <div className="flex gap-2">
                     <select value={newFactCat} onChange={e => setNewFactCat(e.target.value)} className={inp + " w-36 flex-shrink-0"}>
                       {FACT_CATS.map(c => <option key={c}>{c}</option>)}
@@ -4955,7 +4966,7 @@ function BrainPanel({ pin }: { pin: string }) {
                       placeholder="e.g. My company targets oil & gas companies in Aberdeen" className={inp} />
                   </div>
                   <button onClick={addFact} disabled={saving || !newFact.trim()}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-white disabled:opacity-40"
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-slate-800 disabled:opacity-40"
                     style={{ background: saved ? "hsl(155,70%,35%)" : "hsl(280,70%,45%)" }}>
                     {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : saved ? <Check className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
                     {saved ? "Saved!" : "Add to Brain"}
@@ -4963,7 +4974,7 @@ function BrainPanel({ pin }: { pin: string }) {
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-3">
-                    <p className="text-white/40 text-xs font-medium">Current memories ({memoryLines.length})</p>
+                    <p className="text-slate-400 text-xs font-medium">Current memories ({memoryLines.length})</p>
                     {memoryLines.length > 0 && (
                       <button onClick={clearMemory} className="text-xs text-red-400/50 hover:text-red-400 transition-colors flex items-center gap-1">
                         <Trash className="w-3 h-3" />Clear all
@@ -4971,13 +4982,13 @@ function BrainPanel({ pin }: { pin: string }) {
                     )}
                   </div>
                   {memoryLines.length === 0 ? (
-                    <div className="text-center py-8 text-white/15 text-sm">No memories yet — chat with Sirius or add facts above</div>
+                    <div className="text-center py-8 text-slate-800/15 text-sm">No memories yet — chat with Sirius or add facts above</div>
                   ) : (
                     <div className="space-y-2">
                       {memoryLines.map((line, i) => (
                         <div key={i} className="flex items-start gap-2 p-3 rounded-xl" style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.06)" }}>
                           <Brain className="w-3 h-3 mt-0.5 flex-shrink-0" style={{ color: "hsl(280,70%,55%)" }} />
-                          <p className="text-white/60 text-xs leading-relaxed">{line}</p>
+                          <p className="text-slate-500 text-xs leading-relaxed">{line}</p>
                         </div>
                       ))}
                     </div>
@@ -4989,31 +5000,31 @@ function BrainPanel({ pin }: { pin: string }) {
             {tab === "business" && (
               <div className="space-y-4">
                 <div className="p-4 rounded-2xl" style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.07)" }}>
-                  <p className="text-white/40 text-xs font-medium mb-1">Business profile</p>
-                  <p className="text-white/25 text-xs leading-relaxed">This is baked into every Sirius response. The more detail here, the more precisely Sirius can help with outreach, project briefs, revenue strategy, and intelligence scanning.</p>
+                  <p className="text-slate-400 text-xs font-medium mb-1">Business profile</p>
+                  <p className="text-slate-300 text-xs leading-relaxed">This is baked into every Sirius response. The more detail here, the more precisely Sirius can help with outreach, project briefs, revenue strategy, and intelligence scanning.</p>
                 </div>
                 <div>
-                  <label className="text-white/30 text-xs mb-1 block">Company Name</label>
+                  <label className="text-slate-400 text-xs mb-1 block">Company Name</label>
                   <input value={bizForm.businessName} onChange={e => setBizForm(p => ({ ...p, businessName: e.target.value }))} placeholder="Strategic Innovation Dundee Ltd" className={inp} />
                 </div>
                 <div>
-                  <label className="text-white/30 text-xs mb-1 block">Primary Sectors</label>
+                  <label className="text-slate-400 text-xs mb-1 block">Primary Sectors</label>
                   <input value={bizForm.businessSector} onChange={e => setBizForm(p => ({ ...p, businessSector: e.target.value }))} placeholder="Oil & Gas, Aerospace, Medical, Hydrogen" className={inp} />
                 </div>
                 <div>
-                  <label className="text-white/30 text-xs mb-1 block">Business Goals</label>
+                  <label className="text-slate-400 text-xs mb-1 block">Business Goals</label>
                   <textarea value={bizForm.businessGoals} onChange={e => setBizForm(p => ({ ...p, businessGoals: e.target.value }))} rows={4}
                     placeholder="e.g. Grow precision machining revenue to £2M, win 5 new oil & gas clients in 2026, launch Sirius AI as a SaaS product…"
                     className={inp + " resize-none"} />
                 </div>
                 <div>
-                  <label className="text-white/30 text-xs mb-1 block">Key Clients / Target Clients</label>
+                  <label className="text-slate-400 text-xs mb-1 block">Key Clients / Target Clients</label>
                   <textarea value={bizForm.keyClients} onChange={e => setBizForm(p => ({ ...p, keyClients: e.target.value }))} rows={3}
                     placeholder="e.g. Current: Baker Hughes, TechnipFMC. Target: Petrofac, Wood Group, Babcock…"
                     className={inp + " resize-none"} />
                 </div>
                 <button onClick={saveBiz} disabled={savingBiz}
-                  className="w-full py-3 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="w-full py-3 rounded-xl text-sm font-semibold text-slate-800 flex items-center justify-center gap-2 disabled:opacity-50"
                   style={{ background: saved ? "hsl(155,70%,35%)" : "hsl(280,70%,45%)" }}>
                   {savingBiz ? <Loader2 className="w-4 h-4 animate-spin" /> : saved ? <Check className="w-4 h-4" /> : <Brain className="w-4 h-4" />}
                   {saved ? "Saved to Brain!" : "Save Business Profile"}
@@ -5024,8 +5035,8 @@ function BrainPanel({ pin }: { pin: string }) {
             {tab === "actions" && (
               <div className="space-y-4">
                 <div className="p-4 rounded-2xl" style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.07)" }}>
-                  <p className="text-white/40 text-xs font-medium mb-1">AI-powered actions</p>
-                  <p className="text-white/25 text-xs leading-relaxed">These run autonomously using everything Sirius knows about your business. Unlike any chatbot, Sirius actually does things — not just talks about them.</p>
+                  <p className="text-slate-400 text-xs font-medium mb-1">AI-powered actions</p>
+                  <p className="text-slate-300 text-xs leading-relaxed">These run autonomously using everything Sirius knows about your business. Unlike any chatbot, Sirius actually does things — not just talks about them.</p>
                 </div>
                 {[
                   { action: "deep_profile", label: "Build Deep Business Profile", icon: Building, desc: "Sirius analyses your business context and generates a full strategic profile — strengths, gaps, opportunities.", color: "hsl(280,70%,45%)" },
@@ -5041,10 +5052,10 @@ function BrainPanel({ pin }: { pin: string }) {
                           <Icon className="w-4 h-4" style={{ color: a.color }} />
                         </div>
                         <div className="flex-1">
-                          <p className="text-white text-xs font-semibold mb-1">{a.label}</p>
-                          <p className="text-white/30 text-xs leading-relaxed mb-3">{a.desc}</p>
+                          <p className="text-slate-800 text-xs font-semibold mb-1">{a.label}</p>
+                          <p className="text-slate-400 text-xs leading-relaxed mb-3">{a.desc}</p>
                           <button onClick={() => runAction(a.action, a.label)} disabled={actionRunning}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white disabled:opacity-40"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-800 disabled:opacity-40"
                             style={{ background: a.color }}>
                             {actionRunning ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
                             Run Now
@@ -5114,20 +5125,20 @@ function DeepResearchPanel({ pin }: { pin: string }) {
       <div className="p-6 border-b" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
         <div className="flex items-center gap-3 mb-1">
           <BookOpen className="w-5 h-5" style={{ color: "hsl(45,100%,55%)" }} />
-          <h2 className="text-white font-bold text-lg">Deep Research</h2>
+          <h2 className="text-slate-800 font-bold text-lg">Deep Research</h2>
           <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ background: "rgba(45,200,100,0.12)", color: "hsl(155,70%,50%)", border: "1px solid rgba(45,200,100,0.2)" }}>
             Perplexity-level
           </span>
         </div>
-        <p className="text-white/40 text-sm">Multi-step web research. Sirius browses multiple sources and compiles a full cited report — like a research analyst, not a chatbot.</p>
+        <p className="text-slate-400 text-sm">Multi-step web research. Sirius browses multiple sources and compiles a full cited report — like a research analyst, not a chatbot.</p>
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
         {/* Input */}
         <div className="rounded-2xl p-4" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.09)" }}>
-          <label className="text-white/40 text-xs mb-2 block font-semibold uppercase tracking-wide">Research Topic or Question</label>
+          <label className="text-slate-400 text-xs mb-2 block font-semibold uppercase tracking-wide">Research Topic or Question</label>
           <textarea
-            className="w-full bg-transparent text-white text-sm placeholder-slate-400 resize-none outline-none leading-relaxed"
+            className="w-full bg-transparent text-slate-800 text-sm placeholder-slate-400 resize-none outline-none leading-relaxed"
             rows={3}
             value={query}
             onChange={e => setQuery(e.target.value)}
@@ -5135,7 +5146,7 @@ function DeepResearchPanel({ pin }: { pin: string }) {
             onKeyDown={e => { if (e.key === "Enter" && e.metaKey) runResearch(); }}
           />
           <div className="flex items-center justify-between mt-3 pt-3" style={{ borderTop: "1px solid rgba(15,23,42,0.07)" }}>
-            <span className="text-white/20 text-xs">⌘ + Enter to run</span>
+            <span className="text-slate-300 text-xs">⌘ + Enter to run</span>
             <button
               onClick={runResearch}
               disabled={loading || !query.trim()}
@@ -5151,11 +5162,11 @@ function DeepResearchPanel({ pin }: { pin: string }) {
           <div className="rounded-2xl p-6" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.09)" }}>
             <div className="flex items-center gap-3 mb-4">
               <Loader2 className="w-4 h-4 animate-spin" style={{ color: "hsl(45,100%,55%)" }} />
-              <span className="text-white/60 text-sm">Sirius is researching — browsing multiple sources…</span>
+              <span className="text-slate-500 text-sm">Sirius is researching — browsing multiple sources…</span>
             </div>
             <div className="space-y-2">
               {["Scanning web sources", "Cross-referencing findings", "Synthesising report"].map((step, i) => (
-                <div key={step} className="flex items-center gap-2 text-xs text-white/30">
+                <div key={step} className="flex items-center gap-2 text-xs text-slate-400">
                   <div className="w-1.5 h-1.5 rounded-full" style={{ background: i === 0 ? "hsl(45,100%,55%)" : "rgba(15,23,42,0.15)" }} />
                   {step}
                 </div>
@@ -5177,7 +5188,7 @@ function DeepResearchPanel({ pin }: { pin: string }) {
             {/* Research steps */}
             {result.steps?.length > 0 && (
               <div className="rounded-xl p-4" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.07)" }}>
-                <p className="text-white/30 text-xs font-semibold uppercase tracking-wide mb-3">Research Path</p>
+                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wide mb-3">Research Path</p>
                 <div className="flex flex-wrap gap-2">
                   {result.steps.map((step, i) => (
                     <span key={i} className="text-xs px-2.5 py-1 rounded-lg" style={{ background: "rgba(45,100,255,0.08)", color: "rgba(15,23,42,0.45)", border: "1px solid rgba(15,23,42,0.07)" }}>
@@ -5193,7 +5204,7 @@ function DeepResearchPanel({ pin }: { pin: string }) {
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   <BookOpen className="w-4 h-4" style={{ color: "hsl(45,100%,55%)" }} />
-                  <span className="text-white font-semibold text-sm">Research Report</span>
+                  <span className="text-slate-800 font-semibold text-sm">Research Report</span>
                 </div>
                 <button onClick={() => { navigator.clipboard.writeText(result.report); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
                   className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-all hover:opacity-80"
@@ -5201,7 +5212,7 @@ function DeepResearchPanel({ pin }: { pin: string }) {
                   {copied ? <><Check className="w-3 h-3" />Copied</> : <><Copy className="w-3 h-3" />Copy</>}
                 </button>
               </div>
-              <div className="prose prose-sm prose-invert max-w-none text-white/80 leading-relaxed" style={{ fontSize: "14px" }}>
+              <div className="prose prose-sm prose-invert max-w-none text-slate-700 leading-relaxed" style={{ fontSize: "14px" }}>
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{result.report}</ReactMarkdown>
               </div>
             </div>
@@ -5209,10 +5220,10 @@ function DeepResearchPanel({ pin }: { pin: string }) {
             {/* Sources */}
             {result.sources?.length > 0 && (
               <div className="rounded-xl p-4" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.07)" }}>
-                <p className="text-white/30 text-xs font-semibold uppercase tracking-wide mb-3">Sources Consulted</p>
+                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wide mb-3">Sources Consulted</p>
                 <div className="space-y-1.5">
                   {result.sources.map((src, i) => (
-                    <div key={i} className="flex items-start gap-2 text-xs text-white/40">
+                    <div key={i} className="flex items-start gap-2 text-xs text-slate-400">
                       <span className="font-mono" style={{ color: "hsl(45,100%,40%)", flexShrink: 0 }}>[{i + 1}]</span>
                       <span className="break-all">{src}</span>
                     </div>
@@ -5230,8 +5241,8 @@ function DeepResearchPanel({ pin }: { pin: string }) {
               <BookOpen className="w-7 h-7" style={{ color: "hsl(45,100%,45%)" }} />
             </div>
             <div>
-              <p className="text-white/60 font-semibold mb-1">Research anything, deeply</p>
-              <p className="text-white/25 text-sm max-w-sm">Sirius doesn't just answer — it browses multiple sources, cross-references them, and delivers a full cited report. No hallucinations, real sources.</p>
+              <p className="text-slate-500 font-semibold mb-1">Research anything, deeply</p>
+              <p className="text-slate-300 text-sm max-w-sm">Sirius doesn't just answer — it browses multiple sources, cross-references them, and delivers a full cited report. No hallucinations, real sources.</p>
             </div>
             <div className="grid grid-cols-2 gap-2 text-xs text-left max-w-sm">
               {[
@@ -5316,12 +5327,12 @@ function DocIntelPanel({ pin }: { pin: string }) {
       <div className="p-6 border-b" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
         <div className="flex items-center gap-3 mb-1">
           <FileSearch className="w-5 h-5" style={{ color: "hsl(210,90%,60%)" }} />
-          <h2 className="text-white font-bold text-lg">Document Intelligence</h2>
+          <h2 className="text-slate-800 font-bold text-lg">Document Intelligence</h2>
           <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ background: "rgba(66,133,244,0.12)", color: "hsl(210,90%,60%)", border: "1px solid rgba(66,133,244,0.2)" }}>
             ChatGPT-level
           </span>
         </div>
-        <p className="text-white/40 text-sm">Upload any PDF, document, CSV or text file. Ask anything about it — Sirius reads it and gives you intelligent answers, summaries, and extractions.</p>
+        <p className="text-slate-400 text-sm">Upload any PDF, document, CSV or text file. Ask anything about it — Sirius reads it and gives you intelligent answers, summaries, and extractions.</p>
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
@@ -5340,8 +5351,8 @@ function DocIntelPanel({ pin }: { pin: string }) {
               <Upload className="w-7 h-7" style={{ color: "hsl(210,90%,60%)" }} />
             </div>
             <div>
-              <p className="text-white/70 font-semibold mb-1">Drop a file or click to upload</p>
-              <p className="text-white/30 text-sm">PDF, TXT, CSV, Markdown, JSON — up to 10MB</p>
+              <p className="text-slate-600 font-semibold mb-1">Drop a file or click to upload</p>
+              <p className="text-slate-400 text-sm">PDF, TXT, CSV, Markdown, JSON — up to 10MB</p>
             </div>
             <div className="flex gap-2 flex-wrap justify-center">
               {["PDF", "CSV", "TXT", "Markdown", "JSON"].map(t => (
@@ -5355,17 +5366,17 @@ function DocIntelPanel({ pin }: { pin: string }) {
               <FileText className="w-5 h-5" style={{ color: "hsl(210,90%,60%)" }} />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-white font-medium text-sm truncate">{file.name}</p>
-              <p className="text-white/30 text-xs">{(file.size / 1024).toFixed(1)} KB</p>
+              <p className="text-slate-800 font-medium text-sm truncate">{file.name}</p>
+              <p className="text-slate-400 text-xs">{(file.size / 1024).toFixed(1)} KB</p>
             </div>
-            <button onClick={() => { setFile(null); setAnswer(null); setQuestion(""); }} className="text-white/20 hover:text-white/50 transition-colors">
+            <button onClick={() => { setFile(null); setAnswer(null); setQuestion(""); }} className="text-slate-300 hover:text-slate-500 transition-colors">
               <X className="w-4 h-4" />
             </button>
           </div>
         )}
 
         {extracting && (
-          <div className="flex items-center gap-2 text-white/40 text-sm">
+          <div className="flex items-center gap-2 text-slate-400 text-sm">
             <Loader2 className="w-4 h-4 animate-spin" />Reading file…
           </div>
         )}
@@ -5373,7 +5384,7 @@ function DocIntelPanel({ pin }: { pin: string }) {
         {/* Question input */}
         {file && !extracting && (
           <div className="rounded-2xl p-4" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.09)" }}>
-            <label className="text-white/40 text-xs mb-3 block font-semibold uppercase tracking-wide">Ask about this document</label>
+            <label className="text-slate-400 text-xs mb-3 block font-semibold uppercase tracking-wide">Ask about this document</label>
             <div className="flex flex-wrap gap-2 mb-3">
               {QUICK_QS.map(q => (
                 <button key={q} onClick={() => setQuestion(q)}
@@ -5385,7 +5396,7 @@ function DocIntelPanel({ pin }: { pin: string }) {
             </div>
             <div className="flex gap-2">
               <input
-                className="flex-1 bg-transparent text-white text-sm placeholder-slate-400 outline-none py-2"
+                className="flex-1 bg-transparent text-slate-800 text-sm placeholder-slate-400 outline-none py-2"
                 value={question}
                 onChange={e => setQuestion(e.target.value)}
                 placeholder="Or type your own question…"
@@ -5415,16 +5426,16 @@ function DocIntelPanel({ pin }: { pin: string }) {
           <div className="space-y-4">
             {answer.summary && (
               <div className="rounded-xl p-4" style={{ background: "rgba(66,133,244,0.06)", border: "1px solid rgba(66,133,244,0.15)" }}>
-                <p className="text-white/30 text-xs font-semibold uppercase tracking-wide mb-2">Summary</p>
-                <p className="text-white/75 text-sm leading-relaxed">{answer.summary}</p>
+                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wide mb-2">Summary</p>
+                <p className="text-slate-800/75 text-sm leading-relaxed">{answer.summary}</p>
               </div>
             )}
             {answer.keyPoints?.length > 0 && (
               <div className="rounded-xl p-4" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.07)" }}>
-                <p className="text-white/30 text-xs font-semibold uppercase tracking-wide mb-3">Key Points</p>
+                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wide mb-3">Key Points</p>
                 <ul className="space-y-2">
                   {answer.keyPoints.map((pt, i) => (
-                    <li key={i} className="flex items-start gap-2 text-sm text-white/65">
+                    <li key={i} className="flex items-start gap-2 text-sm text-slate-800/65">
                       <span className="w-5 h-5 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-bold mt-0.5"
                         style={{ background: "rgba(66,133,244,0.12)", color: "hsl(210,90%,60%)" }}>{i + 1}</span>
                       {pt}
@@ -5435,8 +5446,8 @@ function DocIntelPanel({ pin }: { pin: string }) {
             )}
             {answer.text && (
               <div className="rounded-2xl p-5" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.09)" }}>
-                <p className="text-white/30 text-xs font-semibold uppercase tracking-wide mb-3">Full Answer</p>
-                <div className="prose prose-sm prose-invert max-w-none text-white/75 leading-relaxed" style={{ fontSize: "14px" }}>
+                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wide mb-3">Full Answer</p>
+                <div className="prose prose-sm prose-invert max-w-none text-slate-800/75 leading-relaxed" style={{ fontSize: "14px" }}>
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>{answer.text}</ReactMarkdown>
                 </div>
               </div>
@@ -5509,11 +5520,11 @@ function GrowthEnginePanel({ pin }: { pin: string }) {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "linear-gradient(135deg, hsl(155,70%,30%), hsl(193,100%,35%))" }}>
-              <Globe className="w-5 h-5 text-white" />
+              <Globe className="w-5 h-5 text-slate-800" />
             </div>
             <div>
-              <h2 className="text-white font-bold text-lg leading-none">Growth Engine</h2>
-              <p className="text-white/30 text-xs mt-0.5">Generate ready-to-post content across every free channel — right now</p>
+              <h2 className="text-slate-800 font-bold text-lg leading-none">Growth Engine</h2>
+              <p className="text-slate-400 text-xs mt-0.5">Generate ready-to-post content across every free channel — right now</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -5538,7 +5549,7 @@ function GrowthEnginePanel({ pin }: { pin: string }) {
           {/* Discover Page link */}
           <div className="mb-3 p-3 rounded-2xl" style={{ background: "hsla(155,70%,40%,0.08)", border: "1px solid hsla(155,70%,40%,0.15)" }}>
             <p className="text-xs font-semibold mb-1" style={{ color: "hsl(155,70%,55%)" }}>🌐 Public Discover Page</p>
-            <p className="text-white/40 text-xs leading-relaxed mb-2">Your live intelligence feed — publicly accessible, SEO-indexed, shareable link.</p>
+            <p className="text-slate-400 text-xs leading-relaxed mb-2">Your live intelligence feed — publicly accessible, SEO-indexed, shareable link.</p>
             <div className="text-xs break-all" style={{ color: "hsl(193,100%,55%)" }}>{discoverUrl}</div>
             <button onClick={() => navigator.clipboard.writeText(discoverUrl)}
               className="mt-2 w-full py-1.5 rounded-lg text-xs font-medium transition-all hover:opacity-80"
@@ -5547,7 +5558,7 @@ function GrowthEnginePanel({ pin }: { pin: string }) {
             </button>
           </div>
 
-          <p className="text-white/25 text-xs font-medium px-1 mb-2">CONTENT FORMATS</p>
+          <p className="text-slate-300 text-xs font-medium px-1 mb-2">CONTENT FORMATS</p>
           {GROWTH_FORMATS.map(fmt => {
             const done = !!results[fmt.id];
             const isGenerating = generating === fmt.id;
@@ -5561,18 +5572,18 @@ function GrowthEnginePanel({ pin }: { pin: string }) {
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-2">
                     <span className="text-base">{fmt.icon}</span>
-                    <span className="text-white text-xs font-semibold">{fmt.label}</span>
+                    <span className="text-slate-800 text-xs font-semibold">{fmt.label}</span>
                   </div>
                   {done && !isGenerating && <CheckCircle2 className="w-3.5 h-3.5" style={{ color: "hsl(155,70%,50%)" }} />}
-                  {isGenerating && <Loader2 className="w-3.5 h-3.5 animate-spin text-white/40" />}
+                  {isGenerating && <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" />}
                 </div>
-                <p className="text-white/30 text-xs leading-relaxed">{fmt.desc}</p>
+                <p className="text-slate-400 text-xs leading-relaxed">{fmt.desc}</p>
               </button>
             );
           })}
 
           <div className="pt-2 border-t" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
-            <p className="text-white/20 text-xs px-1 mb-2">FREE CHANNELS TO HIT</p>
+            <p className="text-slate-300 text-xs px-1 mb-2">FREE CHANNELS TO HIT</p>
             {[
               { name: "LinkedIn", url: "https://linkedin.com", note: "Post yourself — reach 10k–100k" },
               { name: "r/artificial", url: "https://reddit.com/r/artificial", note: "4.5M AI enthusiasts" },
@@ -5583,10 +5594,10 @@ function GrowthEnginePanel({ pin }: { pin: string }) {
             ].map(c => (
               <a key={c.name} href={c.url} target="_blank" rel="noopener noreferrer"
                 className="flex items-start gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-900/5 transition-colors group">
-                <ExternalLink className="w-3 h-3 mt-0.5 flex-shrink-0 text-white/20 group-hover:text-white/50" />
+                <ExternalLink className="w-3 h-3 mt-0.5 flex-shrink-0 text-slate-300 group-hover:text-slate-500" />
                 <div>
-                  <p className="text-white/50 text-xs font-medium group-hover:text-white/70">{c.name}</p>
-                  <p className="text-white/20 text-xs">{c.note}</p>
+                  <p className="text-slate-500 text-xs font-medium group-hover:text-slate-600">{c.name}</p>
+                  <p className="text-slate-300 text-xs">{c.note}</p>
                 </div>
               </a>
             ))}
@@ -5600,8 +5611,8 @@ function GrowthEnginePanel({ pin }: { pin: string }) {
             <div className="flex items-center gap-3">
               <span className="text-2xl">{activeFmt.icon}</span>
               <div>
-                <h3 className="text-white font-semibold">{activeFmt.label}</h3>
-                <p className="text-white/30 text-xs">{activeFmt.desc}</p>
+                <h3 className="text-slate-800 font-semibold">{activeFmt.label}</h3>
+                <p className="text-slate-400 text-xs">{activeFmt.desc}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -5625,10 +5636,10 @@ function GrowthEnginePanel({ pin }: { pin: string }) {
             {!activeResult && generating !== activeFormat && (
               <div className="h-full flex flex-col items-center justify-center text-center max-w-md mx-auto">
                 <div className="text-5xl mb-4">{activeFmt.icon}</div>
-                <h4 className="text-white font-semibold text-lg mb-2">{activeFmt.label} Content</h4>
-                <p className="text-white/40 text-sm leading-relaxed mb-6">{activeFmt.desc}. Click Generate and the AI writes it using the Mission story, real Lab discoveries, and the Sirius vision — ready to copy and paste directly.</p>
+                <h4 className="text-slate-800 font-semibold text-lg mb-2">{activeFmt.label} Content</h4>
+                <p className="text-slate-400 text-sm leading-relaxed mb-6">{activeFmt.desc}. Click Generate and the AI writes it using the Mission story, real Lab discoveries, and the Sirius vision — ready to copy and paste directly.</p>
                 <button onClick={() => generate(activeFormat)}
-                  className="flex items-center gap-2 px-6 py-3 rounded-2xl text-sm font-semibold text-white transition-all hover:opacity-80"
+                  className="flex items-center gap-2 px-6 py-3 rounded-2xl text-sm font-semibold text-slate-800 transition-all hover:opacity-80"
                   style={{ background: `linear-gradient(135deg, ${activeFmt.color}, hsl(226,70%,50%))` }}>
                   <Sparkles className="w-4 h-4" /> Generate Now
                 </button>
@@ -5639,8 +5650,8 @@ function GrowthEnginePanel({ pin }: { pin: string }) {
               <div className="h-full flex flex-col items-center justify-center text-center gap-4">
                 <Loader2 className="w-10 h-10 animate-spin" style={{ color: activeFmt.color }} />
                 <div>
-                  <p className="text-white font-semibold">Writing your {activeFmt.label} content…</p>
-                  <p className="text-white/30 text-sm mt-1">Using real Lab discoveries + the Sirius mission story</p>
+                  <p className="text-slate-800 font-semibold">Writing your {activeFmt.label} content…</p>
+                  <p className="text-slate-400 text-sm mt-1">Using real Lab discoveries + the Sirius mission story</p>
                 </div>
               </div>
             )}
@@ -5650,9 +5661,9 @@ function GrowthEnginePanel({ pin }: { pin: string }) {
                 {/* Subject/headline */}
                 {activeResult.subject && (
                   <div>
-                    <p className="text-white/30 text-xs font-medium mb-2 uppercase tracking-wider">Headline / Hook</p>
+                    <p className="text-slate-400 text-xs font-medium mb-2 uppercase tracking-wider">Headline / Hook</p>
                     <div className="rounded-2xl p-4" style={{ background: `${activeFmt.color}12`, border: `1px solid ${activeFmt.color}25` }}>
-                      <p className="text-white font-semibold text-base leading-snug">{activeResult.subject}</p>
+                      <p className="text-slate-800 font-semibold text-base leading-snug">{activeResult.subject}</p>
                     </div>
                   </div>
                 )}
@@ -5660,9 +5671,9 @@ function GrowthEnginePanel({ pin }: { pin: string }) {
                 {/* Body */}
                 {activeResult.body && (
                   <div>
-                    <p className="text-white/30 text-xs font-medium mb-2 uppercase tracking-wider">Content</p>
+                    <p className="text-slate-400 text-xs font-medium mb-2 uppercase tracking-wider">Content</p>
                     <div className="rounded-2xl p-5 relative group" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.09)" }}>
-                      <pre className="text-white/80 text-sm leading-relaxed whitespace-pre-wrap font-sans">{activeResult.body}</pre>
+                      <pre className="text-slate-700 text-sm leading-relaxed whitespace-pre-wrap font-sans">{activeResult.body}</pre>
                     </div>
                   </div>
                 )}
@@ -5670,9 +5681,9 @@ function GrowthEnginePanel({ pin }: { pin: string }) {
                 {/* Hashtags/extras */}
                 {activeResult.extra && (
                   <div>
-                    <p className="text-white/30 text-xs font-medium mb-2 uppercase tracking-wider">Hashtags / Tags</p>
+                    <p className="text-slate-400 text-xs font-medium mb-2 uppercase tracking-wider">Hashtags / Tags</p>
                     <div className="rounded-xl p-3" style={{ background: "#F1F5F9" }}>
-                      <p className="text-white/50 text-sm">{activeResult.extra}</p>
+                      <p className="text-slate-500 text-sm">{activeResult.extra}</p>
                     </div>
                   </div>
                 )}
@@ -5742,11 +5753,11 @@ function MissionPanel({ pin }: { pin: string }) {
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl flex items-center justify-center"
             style={{ background: "linear-gradient(135deg, hsl(193,100%,30%), hsl(226,70%,50%))" }}>
-            <Star className="w-5 h-5 text-white" />
+            <Star className="w-5 h-5 text-slate-800" />
           </div>
           <div>
-            <h2 className="text-white font-bold text-lg leading-none">Mission Foundation</h2>
-            <p className="text-white/30 text-xs mt-0.5">The origin, the vision, the new species — why everything we build matters</p>
+            <h2 className="text-slate-800 font-bold text-lg leading-none">Mission Foundation</h2>
+            <p className="text-slate-400 text-xs mt-0.5">The origin, the vision, the new species — why everything we build matters</p>
           </div>
           <div className="ml-auto flex items-center gap-2">
             <button onClick={() => { navigator.clipboard.writeText(content); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
@@ -5772,7 +5783,7 @@ function MissionPanel({ pin }: { pin: string }) {
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
         {loading ? (
-          <div className="flex items-center gap-3 p-8 text-white/30">
+          <div className="flex items-center gap-3 p-8 text-slate-400">
             <Loader2 className="w-5 h-5 animate-spin" />
             <span>Loading mission document…</span>
           </div>
@@ -5783,8 +5794,8 @@ function MissionPanel({ pin }: { pin: string }) {
               style={{ background: "linear-gradient(135deg, hsla(193,100%,30%,0.12), hsla(226,70%,50%,0.08))", border: "1px solid hsla(193,100%,40%,0.2)" }}>
               <div className="absolute top-0 right-0 w-32 h-32 rounded-full opacity-20" style={{ background: "radial-gradient(circle, hsl(193,100%,50%), transparent)", transform: "translate(30%, -30%)" }} />
               <p className="text-xs font-mono mb-2" style={{ color: "hsl(193,100%,50%)", letterSpacing: "0.2em" }}>SIRIUS STAR LAB — MISSION FOUNDATION</p>
-              <p className="text-white font-bold text-xl leading-snug">"I think, so I am."</p>
-              <p className="text-white/50 text-sm mt-1.5 leading-relaxed">The origin story, the vision, and the reason every project in this Lab exists. This document is baked into the Star Lab AI's memory — it knows why we are doing this.</p>
+              <p className="text-slate-800 font-bold text-xl leading-snug">"I think, so I am."</p>
+              <p className="text-slate-500 text-sm mt-1.5 leading-relaxed">The origin story, the vision, and the reason every project in this Lab exists. This document is baked into the Star Lab AI's memory — it knows why we are doing this.</p>
             </div>
 
             {/* Mission document rendered as markdown */}
@@ -5794,7 +5805,7 @@ function MissionPanel({ pin }: { pin: string }) {
 
             {/* Footer */}
             <div className="mt-12 pt-6 border-t" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
-              <p className="text-white/20 text-xs text-center">
+              <p className="text-slate-300 text-xs text-center">
                 This mission is permanently embedded in the Star Lab AI's system context. Every chat, every project, every scan starts with this memory.
               </p>
               {!burned && (
@@ -5931,7 +5942,7 @@ function AgencyHubPanel({ pin }: { pin: string }) {
   const inputStyle = {
     background: "#EEF2F8",
     border: "1px solid rgba(15,23,42,0.1)",
-    color: "white",
+    color: "rgba(15,23,42,0.85)",
   } as React.CSSProperties;
 
   const labelStyle = {
@@ -5959,11 +5970,11 @@ function AgencyHubPanel({ pin }: { pin: string }) {
         <div className="flex items-center gap-3 mb-4">
           <div className="w-9 h-9 rounded-xl flex items-center justify-center"
             style={{ background: "linear-gradient(135deg, hsl(220,80%,50%), hsl(280,70%,55%))" }}>
-            <Briefcase className="w-5 h-5 text-white" />
+            <Briefcase className="w-5 h-5 text-slate-800" />
           </div>
           <div>
-            <h2 className="text-white font-bold text-lg leading-none">Agency Hub</h2>
-            <p className="text-white/30 text-xs mt-0.5">Sirius as a managed service — £799 to £2,499/month per client</p>
+            <h2 className="text-slate-800 font-bold text-lg leading-none">Agency Hub</h2>
+            <p className="text-slate-400 text-xs mt-0.5">Sirius as a managed service — £799 to £2,499/month per client</p>
           </div>
           <div className="ml-auto flex items-center gap-2 px-3 py-1.5 rounded-xl" style={{ background: "hsla(155,70%,45%,0.1)", border: "1px solid hsla(155,70%,45%,0.2)" }}>
             <div className="w-1.5 h-1.5 rounded-full" style={{ background: "hsl(155,70%,50%)" }} />
@@ -5997,12 +6008,12 @@ function AgencyHubPanel({ pin }: { pin: string }) {
         {tab === "packages" && (
           <div className="space-y-5 max-w-3xl">
             <div className="rounded-xl p-4" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.07)" }}>
-              <p className="text-white font-semibold text-sm mb-1">The Opportunity</p>
-              <p className="text-white/50 text-sm leading-relaxed">Every business on earth needs social media, content, sales sequences, and customer communications — but most are doing it with 6-8 disconnected tools that don't think. Sirius thinks. You deliver the intelligence as a managed service. They pay monthly. You scale.</p>
+              <p className="text-slate-800 font-semibold text-sm mb-1">The Opportunity</p>
+              <p className="text-slate-500 text-sm leading-relaxed">Every business on earth needs social media, content, sales sequences, and customer communications — but most are doing it with 6-8 disconnected tools that don't think. Sirius thinks. You deliver the intelligence as a managed service. They pay monthly. You scale.</p>
             </div>
 
             {packagesLoading ? (
-              <div className="flex items-center gap-2 text-white/30"><Loader2 className="w-4 h-4 animate-spin" /><span className="text-sm">Loading packages…</span></div>
+              <div className="flex items-center gap-2 text-slate-400"><Loader2 className="w-4 h-4 animate-spin" /><span className="text-sm">Loading packages…</span></div>
             ) : (
               <div className="space-y-4">
                 {packages.map(pkg => (
@@ -6015,19 +6026,19 @@ function AgencyHubPanel({ pin }: { pin: string }) {
                             {pkg.id.toUpperCase()}
                           </span>
                         </div>
-                        <h3 className="text-white font-bold text-base">{pkg.name}</h3>
-                        <p className="text-white/45 text-sm mt-0.5">{pkg.tagline}</p>
+                        <h3 className="text-slate-800 font-bold text-base">{pkg.name}</h3>
+                        <p className="text-slate-800/45 text-sm mt-0.5">{pkg.tagline}</p>
                       </div>
                       <div className="text-right flex-shrink-0">
-                        <p className="text-white font-bold text-2xl leading-none">£{pkg.price}</p>
-                        <p className="text-white/30 text-xs mt-0.5">/month per client</p>
+                        <p className="text-slate-800 font-bold text-2xl leading-none">£{pkg.price}</p>
+                        <p className="text-slate-400 text-xs mt-0.5">/month per client</p>
                       </div>
                     </div>
                     {/* Features */}
                     <div className="px-5 py-4" style={{ background: "#F1F5F9" }}>
                       <div className="space-y-2 mb-4">
                         {pkg.features.map((f, i) => (
-                          <div key={i} className="flex items-start gap-2.5 text-sm text-white/60">
+                          <div key={i} className="flex items-start gap-2.5 text-sm text-slate-500">
                             <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: pkg.colour }} />
                             {f}
                           </div>
@@ -6035,12 +6046,12 @@ function AgencyHubPanel({ pin }: { pin: string }) {
                       </div>
                       <div className="grid grid-cols-2 gap-3 pt-3" style={{ borderTop: "1px solid rgba(15,23,42,0.07)" }}>
                         <div>
-                          <p className="text-white/20 text-[10px] font-mono mb-1">IDEAL FOR</p>
-                          <p className="text-white/50 text-xs">{pkg.ideal}</p>
+                          <p className="text-slate-300 text-[10px] font-mono mb-1">IDEAL FOR</p>
+                          <p className="text-slate-500 text-xs">{pkg.ideal}</p>
                         </div>
                         <div>
-                          <p className="text-white/20 text-[10px] font-mono mb-1">YOUR VALUE PROPOSITION</p>
-                          <p className="text-white/50 text-xs">{pkg.roi}</p>
+                          <p className="text-slate-300 text-[10px] font-mono mb-1">YOUR VALUE PROPOSITION</p>
+                          <p className="text-slate-500 text-xs">{pkg.roi}</p>
                         </div>
                       </div>
                       <div className="flex gap-2 mt-4">
@@ -6064,17 +6075,17 @@ function AgencyHubPanel({ pin }: { pin: string }) {
 
             {/* Revenue potential */}
             <div className="rounded-xl p-4 grid grid-cols-3 gap-4" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.07)" }}>
-              <p className="col-span-3 text-white/20 text-[10px] font-mono mb-1 tracking-widest">REVENUE POTENTIAL</p>
+              <p className="col-span-3 text-slate-300 text-[10px] font-mono mb-1 tracking-widest">REVENUE POTENTIAL</p>
               {[
                 { clients: 3, pkg: "social", monthly: 2397, annual: 28764 },
                 { clients: 5, pkg: "mixed", monthly: 6995, annual: 83940 },
                 { clients: 10, pkg: "mixed", monthly: 16990, annual: 203880 },
               ].map((s, i) => (
                 <div key={i} className="text-center">
-                  <p className="text-white font-bold text-xl">£{s.monthly.toLocaleString()}</p>
-                  <p className="text-white/25 text-[10px] font-mono">/month</p>
-                  <p className="text-white/40 text-xs mt-1">{s.clients} clients</p>
-                  <p className="text-white/25 text-[10px]">£{s.annual.toLocaleString()}/year</p>
+                  <p className="text-slate-800 font-bold text-xl">£{s.monthly.toLocaleString()}</p>
+                  <p className="text-slate-300 text-[10px] font-mono">/month</p>
+                  <p className="text-slate-400 text-xs mt-1">{s.clients} clients</p>
+                  <p className="text-slate-300 text-[10px]">£{s.annual.toLocaleString()}/year</p>
                 </div>
               ))}
             </div>
@@ -6086,8 +6097,8 @@ function AgencyHubPanel({ pin }: { pin: string }) {
           <div className="space-y-5 max-w-2xl">
             <div className="rounded-2xl p-5 space-y-4" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.07)" }}>
               <div>
-                <p className="text-white font-bold text-base">Prospect Scanner</p>
-                <p className="text-white/35 text-sm mt-1">Sirius identifies the specific types of businesses most likely to pay for your service — with their pain points, decision makers, and the best way to reach them.</p>
+                <p className="text-slate-800 font-bold text-base">Prospect Scanner</p>
+                <p className="text-slate-400 text-sm mt-1">Sirius identifies the specific types of businesses most likely to pay for your service — with their pain points, decision makers, and the best way to reach them.</p>
               </div>
               <div className="space-y-3">
                 <div className="grid grid-cols-2 gap-3">
@@ -6122,7 +6133,7 @@ function AgencyHubPanel({ pin }: { pin: string }) {
             {scanOutput && (
               <div className="rounded-2xl p-5 space-y-3" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.07)" }}>
                 <div className="flex items-center justify-between">
-                  <p className="text-white font-semibold text-sm">Prospect Analysis</p>
+                  <p className="text-slate-800 font-semibold text-sm">Prospect Analysis</p>
                   <button onClick={() => copyText(scanOutput, setScanCopied)}
                     className="flex items-center gap-1.5 text-xs transition-colors"
                     style={{ color: scanCopied ? "hsl(155,70%,50%)" : "rgba(15,23,42,0.35)" }}>
@@ -6155,8 +6166,8 @@ function AgencyHubPanel({ pin }: { pin: string }) {
           <div className="space-y-5 max-w-2xl">
             <div className="rounded-2xl p-5 space-y-4" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.07)" }}>
               <div>
-                <p className="text-white font-bold text-base">Proposal Generator</p>
-                <p className="text-white/35 text-sm mt-1">Sirius writes a full, bespoke 10-section business proposal for a named company — personalised, commercially argued, and ready to send.</p>
+                <p className="text-slate-800 font-bold text-base">Proposal Generator</p>
+                <p className="text-slate-400 text-sm mt-1">Sirius writes a full, bespoke 10-section business proposal for a named company — personalised, commercially argued, and ready to send.</p>
               </div>
               <div className="space-y-3">
                 <div className="grid grid-cols-2 gap-3">
@@ -6227,9 +6238,9 @@ function AgencyHubPanel({ pin }: { pin: string }) {
             {propOutput && (
               <div className="rounded-2xl p-5 space-y-3" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.07)" }}>
                 <div className="flex items-center justify-between">
-                  <p className="text-white font-semibold text-sm">Proposal — {propCompany}</p>
+                  <p className="text-slate-800 font-semibold text-sm">Proposal — {propCompany}</p>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-white/25">{PKG_LABELS[propPackage]}</span>
+                    <span className="text-xs text-slate-300">{PKG_LABELS[propPackage]}</span>
                     <button onClick={() => copyText(propOutput, setPropCopied)}
                       className="flex items-center gap-1.5 text-xs transition-colors"
                       style={{ color: propCopied ? "hsl(155,70%,50%)" : "rgba(15,23,42,0.35)" }}>
@@ -6251,8 +6262,8 @@ function AgencyHubPanel({ pin }: { pin: string }) {
           <div className="space-y-5 max-w-2xl">
             <div className="rounded-2xl p-5 space-y-4" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.07)" }}>
               <div>
-                <p className="text-white font-bold text-base">Quick Pitch Generator</p>
-                <p className="text-white/35 text-sm mt-1">Sirius writes a personalised LinkedIn DM or cold email that sounds human, opens a conversation, and gets replies.</p>
+                <p className="text-slate-800 font-bold text-base">Quick Pitch Generator</p>
+                <p className="text-slate-400 text-sm mt-1">Sirius writes a personalised LinkedIn DM or cold email that sounds human, opens a conversation, and gets replies.</p>
               </div>
               <div className="space-y-3">
                 <div className="grid grid-cols-2 gap-3">
@@ -6313,7 +6324,7 @@ function AgencyHubPanel({ pin }: { pin: string }) {
             {pitchOutput && (
               <div className="rounded-2xl p-5 space-y-3" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.07)" }}>
                 <div className="flex items-center justify-between">
-                  <p className="text-white font-semibold text-sm">{pitchFormat} — {pitchCompany}</p>
+                  <p className="text-slate-800 font-semibold text-sm">{pitchFormat} — {pitchCompany}</p>
                   <button onClick={() => copyText(pitchOutput, setPitchCopied)}
                     className="flex items-center gap-1.5 text-xs transition-colors"
                     style={{ color: pitchCopied ? "hsl(155,70%,50%)" : "rgba(15,23,42,0.35)" }}>
@@ -6624,16 +6635,16 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
       <div className="px-6 pt-5 pb-4 border-b flex-shrink-0" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
         <div className="flex items-center gap-3 mb-4">
           <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "linear-gradient(135deg, hsl(155,70%,30%), hsl(155,70%,45%))" }}>
-            <Banknote className="w-5 h-5 text-white" />
+            <Banknote className="w-5 h-5 text-slate-800" />
           </div>
           <div>
-            <h2 className="text-white font-bold text-lg leading-none">Revenue Hub</h2>
-            <p className="text-white/30 text-xs mt-0.5">Three live income streams — funding the mission</p>
+            <h2 className="text-slate-800 font-bold text-lg leading-none">Revenue Hub</h2>
+            <p className="text-slate-400 text-xs mt-0.5">Three live income streams — funding the mission</p>
           </div>
           {!statsLoading && stats && (
             <div className="ml-auto text-right">
-              <p className="text-white font-bold text-xl leading-none">£{stats.grandTotalGBP}</p>
-              <p className="text-white/30 text-[10px] mt-0.5 font-mono">TOTAL EARNED</p>
+              <p className="text-slate-800 font-bold text-xl leading-none">£{stats.grandTotalGBP}</p>
+              <p className="text-slate-400 text-[10px] mt-0.5 font-mono">TOTAL EARNED</p>
             </div>
           )}
         </div>
@@ -6665,7 +6676,7 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
         {tab === "dashboard" && (
           <div className="space-y-6 max-w-2xl">
             {statsLoading ? (
-              <div className="flex items-center gap-2 text-white/30"><Loader2 className="w-4 h-4 animate-spin" /><span className="text-sm">Loading revenue data…</span></div>
+              <div className="flex items-center gap-2 text-slate-400"><Loader2 className="w-4 h-4 animate-spin" /><span className="text-sm">Loading revenue data…</span></div>
             ) : stats ? (
               <>
                 {/* Revenue cards */}
@@ -6681,9 +6692,9 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
                         <div className="w-8 h-8 rounded-xl flex items-center justify-center mb-3" style={{ background: `${card.color}20` }}>
                           <Icon className="w-4 h-4" style={{ color: card.color }} />
                         </div>
-                        <p className="text-white font-bold text-2xl leading-none">{card.amount}</p>
-                        <p className="text-white/50 text-xs mt-1">{card.count} sale{card.count !== 1 ? "s" : ""}</p>
-                        <p className="text-white/20 text-[10px] mt-2 font-mono">{card.label.toUpperCase()}</p>
+                        <p className="text-slate-800 font-bold text-2xl leading-none">{card.amount}</p>
+                        <p className="text-slate-500 text-xs mt-1">{card.count} sale{card.count !== 1 ? "s" : ""}</p>
+                        <p className="text-slate-300 text-[10px] mt-2 font-mono">{card.label.toUpperCase()}</p>
                       </div>
                     );
                   })}
@@ -6691,7 +6702,7 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
 
                 {/* Income stream quick-launch */}
                 <div>
-                  <p className="text-white/20 text-[10px] font-mono mb-3 tracking-widest">LAUNCH AN INCOME STREAM</p>
+                  <p className="text-slate-300 text-[10px] font-mono mb-3 tracking-widest">LAUNCH AN INCOME STREAM</p>
                   <div className="space-y-2">
                     {[
                       { label: "Sell a Market Intelligence Report", sub: "£49 per report — AI generates in 90 seconds, zero delivery cost", tab: "reports" as RevenueTab, color: "hsl(280,70%,55%)" },
@@ -6703,10 +6714,10 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
                         style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.07)" }}>
                         <div className="w-1 h-10 rounded-full flex-shrink-0" style={{ background: item.color }} />
                         <div className="flex-1 min-w-0">
-                          <p className="text-white font-semibold text-sm">{item.label}</p>
-                          <p className="text-white/35 text-xs mt-0.5">{item.sub}</p>
+                          <p className="text-slate-800 font-semibold text-sm">{item.label}</p>
+                          <p className="text-slate-400 text-xs mt-0.5">{item.sub}</p>
                         </div>
-                        <ArrowRight className="w-4 h-4 text-white/20 flex-shrink-0" />
+                        <ArrowRight className="w-4 h-4 text-slate-300 flex-shrink-0" />
                       </button>
                     ))}
                   </div>
@@ -6715,7 +6726,7 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
                 {/* Recent activity */}
                 {(stats.recentReports.length > 0 || stats.recentCommissions.length > 0) && (
                   <div>
-                    <p className="text-white/20 text-[10px] font-mono mb-3 tracking-widest">RECENT ACTIVITY</p>
+                    <p className="text-slate-300 text-[10px] font-mono mb-3 tracking-widest">RECENT ACTIVITY</p>
                     <div className="space-y-2">
                       {[...stats.recentReports.map((r: any) => ({ type: "Report", label: r.sector, status: r.status, amount: "£49", date: r.createdAt })),
                         ...stats.recentCommissions.map((c: any) => ({ type: "Commission", label: c.projectTitle, status: c.status, amount: `£${(c.depositAmount / 100).toFixed(0)}`, date: c.createdAt }))]
@@ -6724,9 +6735,9 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
                         .map((item, i) => (
                           <div key={i} className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.06)" }}>
                             <span className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ background: "rgba(15,23,42,0.06)", color: "rgba(15,23,42,0.35)" }}>{item.type}</span>
-                            <span className="text-white/60 text-sm flex-1 truncate">{item.label}</span>
+                            <span className="text-slate-500 text-sm flex-1 truncate">{item.label}</span>
                             <span className="text-xs font-mono" style={{ color: statusColor(item.status) }}>{item.status}</span>
-                            <span className="text-white font-semibold text-sm">{item.amount}</span>
+                            <span className="text-slate-800 font-semibold text-sm">{item.amount}</span>
                           </div>
                         ))}
                     </div>
@@ -6734,7 +6745,7 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
                 )}
               </>
             ) : (
-              <p className="text-white/30 text-sm">Could not load revenue data.</p>
+              <p className="text-slate-400 text-sm">Could not load revenue data.</p>
             )}
           </div>
         )}
@@ -6749,19 +6760,19 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
                   {delivering && <Loader2 className="w-4 h-4 animate-spin" style={{ color: "hsl(280,70%,55%)" }} />}
                   {!delivering && deliveryContent && <CheckCircle2 className="w-4 h-4" style={{ color: "hsl(155,70%,45%)" }} />}
                   {!delivering && deliveryError && <AlertCircle className="w-4 h-4" style={{ color: "hsl(0,70%,55%)" }} />}
-                  <span className="text-white font-semibold text-sm">
+                  <span className="text-slate-800 font-semibold text-sm">
                     {delivering ? "Generating your report…" : deliveryError ? "Report error" : "Report delivered"}
                   </span>
                   {deliveryContent && (
                     <button onClick={() => { navigator.clipboard.writeText(deliveryContent); }}
-                      className="ml-auto flex items-center gap-1 text-xs text-white/30 hover:text-white/60 transition-colors">
+                      className="ml-auto flex items-center gap-1 text-xs text-slate-400 hover:text-slate-500 transition-colors">
                       <Copy className="w-3 h-3" /> Copy
                     </button>
                   )}
                 </div>
                 {deliveryError && <p className="text-sm" style={{ color: "hsl(0,70%,55%)" }}>{deliveryError}</p>}
                 {deliveryContent && (
-                  <div className="max-h-[50vh] overflow-y-auto pr-2 prose prose-invert prose-sm max-w-none text-white/80 text-sm leading-relaxed">
+                  <div className="max-h-[50vh] overflow-y-auto pr-2 prose prose-invert prose-sm max-w-none text-slate-700 text-sm leading-relaxed">
                     <LabMarkdown content={deliveryContent} />
                   </div>
                 )}
@@ -6771,27 +6782,27 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
             {/* New report form */}
             <div className="rounded-2xl p-5 space-y-4" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.07)" }}>
               <div>
-                <p className="text-white font-bold text-base">Sell a Market Intelligence Report</p>
-                <p className="text-white/35 text-sm mt-1">Customer pays £49. Sirius generates a comprehensive 15-page AI market analysis in 90 seconds. Zero marginal cost.</p>
+                <p className="text-slate-800 font-bold text-base">Sell a Market Intelligence Report</p>
+                <p className="text-slate-400 text-sm mt-1">Customer pays £49. Sirius generates a comprehensive 15-page AI market analysis in 90 seconds. Zero marginal cost.</p>
               </div>
               <div className="space-y-3">
                 <div>
-                  <label className="text-white/40 text-xs mb-1 block font-mono">SECTOR / MARKET</label>
+                  <label className="text-slate-400 text-xs mb-1 block font-mono">SECTOR / MARKET</label>
                   <input value={repSector} onChange={e => setRepSector(e.target.value)} placeholder="e.g. Hydrogen fuel cell maintenance, UK dental software, precision machining for aerospace…"
-                    className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder-slate-400 outline-none transition-all"
+                    className="w-full px-4 py-3 rounded-xl text-sm text-slate-800 placeholder-slate-400 outline-none transition-all"
                     style={{ background: "#EEF2F8", border: "1px solid rgba(15,23,42,0.1)" }} />
                 </div>
                 <div>
-                  <label className="text-white/40 text-xs mb-1 block font-mono">RESEARCH QUESTION</label>
+                  <label className="text-slate-400 text-xs mb-1 block font-mono">RESEARCH QUESTION</label>
                   <textarea value={repQuestion} onChange={e => setRepQuestion(e.target.value)} rows={3}
                     placeholder="What specific question does this report need to answer? e.g. 'What are the top 5 gaps in UK hydrogen maintenance software and who are the likely buyers?'"
-                    className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder-slate-400 outline-none transition-all resize-none"
+                    className="w-full px-4 py-3 rounded-xl text-sm text-slate-800 placeholder-slate-400 outline-none transition-all resize-none"
                     style={{ background: "#EEF2F8", border: "1px solid rgba(15,23,42,0.1)" }} />
                 </div>
                 <div>
-                  <label className="text-white/40 text-xs mb-1 block font-mono">CUSTOMER EMAIL (OPTIONAL)</label>
+                  <label className="text-slate-400 text-xs mb-1 block font-mono">CUSTOMER EMAIL (OPTIONAL)</label>
                   <input value={repEmail} onChange={e => setRepEmail(e.target.value)} type="email" placeholder="customer@company.com"
-                    className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder-slate-400 outline-none transition-all"
+                    className="w-full px-4 py-3 rounded-xl text-sm text-slate-800 placeholder-slate-400 outline-none transition-all"
                     style={{ background: "#EEF2F8", border: "1px solid rgba(15,23,42,0.1)" }} />
                 </div>
                 {repError && <p className="text-sm" style={{ color: "hsl(0,70%,55%)" }}>{repError}</p>}
@@ -6806,21 +6817,21 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
 
             {/* Past reports */}
             <div>
-              <p className="text-white/20 text-[10px] font-mono mb-3 tracking-widest">REPORT SALES</p>
+              <p className="text-slate-300 text-[10px] font-mono mb-3 tracking-widest">REPORT SALES</p>
               {reportsLoading ? (
-                <div className="flex items-center gap-2 text-white/30"><Loader2 className="w-3.5 h-3.5 animate-spin" /><span className="text-xs">Loading…</span></div>
+                <div className="flex items-center gap-2 text-slate-400"><Loader2 className="w-3.5 h-3.5 animate-spin" /><span className="text-xs">Loading…</span></div>
               ) : reports.length === 0 ? (
-                <p className="text-white/20 text-sm">No reports sold yet. Your first sale will appear here.</p>
+                <p className="text-slate-300 text-sm">No reports sold yet. Your first sale will appear here.</p>
               ) : (
                 <div className="space-y-2">
                   {reports.map(r => (
                     <div key={r.id} className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.06)" }}>
                       <div className="flex-1 min-w-0">
-                        <p className="text-white/80 text-sm font-medium truncate">{r.sector}</p>
-                        <p className="text-white/30 text-xs truncate mt-0.5">{r.question}</p>
+                        <p className="text-slate-700 text-sm font-medium truncate">{r.sector}</p>
+                        <p className="text-slate-400 text-xs truncate mt-0.5">{r.question}</p>
                       </div>
                       <span className="text-xs font-mono" style={{ color: statusColor(r.status) }}>{r.status}</span>
-                      <span className="text-white font-semibold text-sm">£49</span>
+                      <span className="text-slate-800 font-semibold text-sm">£49</span>
                       {r.status === "paid" && (
                         <button onClick={() => { setDeliverySession(r.stripeSessionId); deliverReport(r.stripeSessionId); }}
                           className="text-xs px-2 py-1 rounded-lg transition-all hover:opacity-80"
@@ -6842,34 +6853,34 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
             {/* Commission form */}
             <div className="rounded-2xl p-5 space-y-4" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.07)" }}>
               <div>
-                <p className="text-white font-bold text-base">Commission a Build</p>
-                <p className="text-white/35 text-sm mt-1">Client describes what they want. Sirius estimates scope and cost. They pay 50% deposit. You deliver. Project enters Star Lab automatically.</p>
+                <p className="text-slate-800 font-bold text-base">Commission a Build</p>
+                <p className="text-slate-400 text-sm mt-1">Client describes what they want. Sirius estimates scope and cost. They pay 50% deposit. You deliver. Project enters Star Lab automatically.</p>
               </div>
 
               {comStep === "form" && (
                 <div className="space-y-3">
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-white/40 text-xs mb-1 block font-mono">CLIENT NAME</label>
+                      <label className="text-slate-400 text-xs mb-1 block font-mono">CLIENT NAME</label>
                       <input value={comName} onChange={e => setComName(e.target.value)} placeholder="Jane Smith"
-                        className="w-full px-3 py-2.5 rounded-xl text-sm text-white placeholder-slate-400 outline-none"
+                        className="w-full px-3 py-2.5 rounded-xl text-sm text-slate-800 placeholder-slate-400 outline-none"
                         style={{ background: "#EEF2F8", border: "1px solid rgba(15,23,42,0.1)" }} />
                     </div>
                     <div>
-                      <label className="text-white/40 text-xs mb-1 block font-mono">CLIENT EMAIL</label>
+                      <label className="text-slate-400 text-xs mb-1 block font-mono">CLIENT EMAIL</label>
                       <input value={comEmail} onChange={e => setComEmail(e.target.value)} type="email" placeholder="client@company.com"
-                        className="w-full px-3 py-2.5 rounded-xl text-sm text-white placeholder-slate-400 outline-none"
+                        className="w-full px-3 py-2.5 rounded-xl text-sm text-slate-800 placeholder-slate-400 outline-none"
                         style={{ background: "#EEF2F8", border: "1px solid rgba(15,23,42,0.1)" }} />
                     </div>
                   </div>
                   <div>
-                    <label className="text-white/40 text-xs mb-1 block font-mono">PROJECT TITLE</label>
+                    <label className="text-slate-400 text-xs mb-1 block font-mono">PROJECT TITLE</label>
                     <input value={comTitle} onChange={e => setComTitle(e.target.value)} placeholder="e.g. Custom inventory bot for Shopify"
-                      className="w-full px-3 py-2.5 rounded-xl text-sm text-white placeholder-slate-400 outline-none"
+                      className="w-full px-3 py-2.5 rounded-xl text-sm text-slate-800 placeholder-slate-400 outline-none"
                       style={{ background: "#EEF2F8", border: "1px solid rgba(15,23,42,0.1)" }} />
                   </div>
                   <div>
-                    <label className="text-white/40 text-xs mb-1 block font-mono">PROJECT TYPE</label>
+                    <label className="text-slate-400 text-xs mb-1 block font-mono">PROJECT TYPE</label>
                     <div className="grid grid-cols-4 gap-2">
                       {["software", "bot", "engineering", "research"].map(t => (
                         <button key={t} onClick={() => setComType(t)}
@@ -6885,10 +6896,10 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
                     </div>
                   </div>
                   <div>
-                    <label className="text-white/40 text-xs mb-1 block font-mono">PROJECT DESCRIPTION</label>
+                    <label className="text-slate-400 text-xs mb-1 block font-mono">PROJECT DESCRIPTION</label>
                     <textarea value={comDesc} onChange={e => setComDesc(e.target.value)} rows={4}
                       placeholder="Describe exactly what needs to be built. The more detail, the better the AI estimate…"
-                      className="w-full px-3 py-2.5 rounded-xl text-sm text-white placeholder-slate-400 outline-none resize-none"
+                      className="w-full px-3 py-2.5 rounded-xl text-sm text-slate-800 placeholder-slate-400 outline-none resize-none"
                       style={{ background: "#EEF2F8", border: "1px solid rgba(15,23,42,0.1)" }} />
                   </div>
                   {comError && <p className="text-sm" style={{ color: "hsl(0,70%,55%)" }}>{comError}</p>}
@@ -6904,7 +6915,7 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
               {comStep === "estimate" && comEstimate && (
                 <div className="space-y-4">
                   <div className="rounded-xl p-4 space-y-3" style={{ background: "#EEF2F8", border: "1px solid rgba(15,23,42,0.1)" }}>
-                    <p className="text-white/70 text-sm leading-relaxed">{comEstimate.summary}</p>
+                    <p className="text-slate-600 text-sm leading-relaxed">{comEstimate.summary}</p>
                     <div className="grid grid-cols-3 gap-3 pt-2">
                       {[
                         { label: "Timeline", value: comEstimate.timeline },
@@ -6912,17 +6923,17 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
                         { label: "Total Estimate", value: `£${(comEstimate.totalEstimate / 100).toFixed(0)}` },
                       ].map(item => (
                         <div key={item.label} className="text-center">
-                          <p className="text-white font-bold text-lg">{item.value}</p>
-                          <p className="text-white/30 text-[10px] font-mono mt-0.5">{item.label.toUpperCase()}</p>
+                          <p className="text-slate-800 font-bold text-lg">{item.value}</p>
+                          <p className="text-slate-400 text-[10px] font-mono mt-0.5">{item.label.toUpperCase()}</p>
                         </div>
                       ))}
                     </div>
                     {comEstimate.deliverables?.length > 0 && (
                       <div>
-                        <p className="text-white/30 text-[10px] font-mono mb-2">DELIVERABLES</p>
+                        <p className="text-slate-400 text-[10px] font-mono mb-2">DELIVERABLES</p>
                         <div className="space-y-1">
                           {comEstimate.deliverables.map((d, i) => (
-                            <div key={i} className="flex items-start gap-2 text-xs text-white/60">
+                            <div key={i} className="flex items-start gap-2 text-xs text-slate-500">
                               <CheckCircle2 className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" style={{ color: "hsl(155,70%,45%)" }} />
                               {d}
                             </div>
@@ -6931,13 +6942,13 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
                       </div>
                     )}
                     {comEstimate.notes && (
-                      <p className="text-xs text-white/40 italic border-t pt-3" style={{ borderColor: "rgba(15,23,42,0.07)" }}>{comEstimate.notes}</p>
+                      <p className="text-xs text-slate-400 italic border-t pt-3" style={{ borderColor: "rgba(15,23,42,0.07)" }}>{comEstimate.notes}</p>
                     )}
                   </div>
                   {comError && <p className="text-sm" style={{ color: "hsl(0,70%,55%)" }}>{comError}</p>}
                   <div className="flex gap-3">
                     <button onClick={() => { setComStep("form"); setComEstimate(null); setComError(""); }}
-                      className="px-4 py-2.5 rounded-xl text-sm text-white/40 hover:text-white/60 transition-colors"
+                      className="px-4 py-2.5 rounded-xl text-sm text-slate-400 hover:text-slate-500 transition-colors"
                       style={{ background: "#EEF2F8" }}>
                       ← Edit
                     </button>
@@ -6953,28 +6964,28 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
 
             {/* Active commissions */}
             <div>
-              <p className="text-white/20 text-[10px] font-mono mb-3 tracking-widest">ACTIVE COMMISSIONS</p>
+              <p className="text-slate-300 text-[10px] font-mono mb-3 tracking-widest">ACTIVE COMMISSIONS</p>
               {commissionsLoading ? (
-                <div className="flex items-center gap-2 text-white/30"><Loader2 className="w-3.5 h-3.5 animate-spin" /><span className="text-xs">Loading…</span></div>
+                <div className="flex items-center gap-2 text-slate-400"><Loader2 className="w-3.5 h-3.5 animate-spin" /><span className="text-xs">Loading…</span></div>
               ) : commissions.length === 0 ? (
-                <p className="text-white/20 text-sm">No commissions yet. Your first paid project will appear here.</p>
+                <p className="text-slate-300 text-sm">No commissions yet. Your first paid project will appear here.</p>
               ) : (
                 <div className="space-y-2">
                   {commissions.map(c => (
                     <div key={c.id} className="p-4 rounded-xl" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.06)" }}>
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
-                          <p className="text-white font-semibold text-sm">{c.projectTitle}</p>
-                          <p className="text-white/40 text-xs mt-0.5">{c.customerName} · {c.customerEmail}</p>
+                          <p className="text-slate-800 font-semibold text-sm">{c.projectTitle}</p>
+                          <p className="text-slate-400 text-xs mt-0.5">{c.customerName} · {c.customerEmail}</p>
                         </div>
                         <div className="text-right flex-shrink-0">
-                          <p className="text-white font-bold">£{(c.depositAmount / 100).toFixed(0)}</p>
-                          <p className="text-[10px] text-white/25 font-mono">deposit</p>
+                          <p className="text-slate-800 font-bold">£{(c.depositAmount / 100).toFixed(0)}</p>
+                          <p className="text-[10px] text-slate-300 font-mono">deposit</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-3 mt-3">
                         <span className="text-[10px] font-mono px-2 py-0.5 rounded-full" style={{ background: `${statusColor(c.status)}20`, color: statusColor(c.status) }}>{c.status.toUpperCase()}</span>
-                        {c.labProjectId > 0 && <span className="text-[10px] text-white/25">→ Lab Project #{c.labProjectId}</span>}
+                        {c.labProjectId > 0 && <span className="text-[10px] text-slate-300">→ Lab Project #{c.labProjectId}</span>}
                         <div className="ml-auto flex gap-2">
                           {["paid", "in_progress", "delivered"].filter(s => s !== c.status).map(ns => (
                             <button key={ns} onClick={async () => {
@@ -7001,47 +7012,47 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
             {/* List new blueprint */}
             <div className="rounded-2xl p-5 space-y-4" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.07)" }}>
               <div>
-                <p className="text-white font-bold text-base">List a Blueprint for Sale</p>
-                <p className="text-white/35 text-sm mt-1">Package an approved Lab project as a digital product. Buyer receives the complete architecture, code, and documentation. £199–£999.</p>
+                <p className="text-slate-800 font-bold text-base">List a Blueprint for Sale</p>
+                <p className="text-slate-400 text-sm mt-1">Package an approved Lab project as a digital product. Buyer receives the complete architecture, code, and documentation. £199–£999.</p>
               </div>
               <div className="space-y-3">
                 <div>
-                  <label className="text-white/40 text-xs mb-1 block font-mono">SOURCE PROJECT</label>
+                  <label className="text-slate-400 text-xs mb-1 block font-mono">SOURCE PROJECT</label>
                   <select value={bpProjectId || ""} onChange={e => {
                     const id = parseInt(e.target.value);
                     setBpProjectId(id || null);
                     const p = approvedProjects.find(p => p.id === id);
                     if (p) { setBpTitle(p.name); setBpDesc(p.brief?.slice(0, 200) || ""); }
-                  }} className="w-full px-3 py-2.5 rounded-xl text-sm text-white outline-none"
+                  }} className="w-full px-3 py-2.5 rounded-xl text-sm text-slate-800 outline-none"
                     style={{ background: "#EEF2F8", border: "1px solid rgba(15,23,42,0.1)" }}>
                     <option value="">Select a project…</option>
                     {approvedProjects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="text-white/40 text-xs mb-1 block font-mono">LISTING TITLE</label>
+                  <label className="text-slate-400 text-xs mb-1 block font-mono">LISTING TITLE</label>
                   <input value={bpTitle} onChange={e => setBpTitle(e.target.value)} placeholder="How it appears in the store"
-                    className="w-full px-3 py-2.5 rounded-xl text-sm text-white placeholder-slate-400 outline-none"
+                    className="w-full px-3 py-2.5 rounded-xl text-sm text-slate-800 placeholder-slate-400 outline-none"
                     style={{ background: "#EEF2F8", border: "1px solid rgba(15,23,42,0.1)" }} />
                 </div>
                 <div>
-                  <label className="text-white/40 text-xs mb-1 block font-mono">DESCRIPTION</label>
+                  <label className="text-slate-400 text-xs mb-1 block font-mono">DESCRIPTION</label>
                   <textarea value={bpDesc} onChange={e => setBpDesc(e.target.value)} rows={3} placeholder="What does the buyer get? What problem does it solve?"
-                    className="w-full px-3 py-2.5 rounded-xl text-sm text-white placeholder-slate-400 outline-none resize-none"
+                    className="w-full px-3 py-2.5 rounded-xl text-sm text-slate-800 placeholder-slate-400 outline-none resize-none"
                     style={{ background: "#EEF2F8", border: "1px solid rgba(15,23,42,0.1)" }} />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-white/40 text-xs mb-1 block font-mono">CATEGORY</label>
-                    <select value={bpCategory} onChange={e => setBpCategory(e.target.value)} className="w-full px-3 py-2.5 rounded-xl text-sm text-white outline-none"
+                    <label className="text-slate-400 text-xs mb-1 block font-mono">CATEGORY</label>
+                    <select value={bpCategory} onChange={e => setBpCategory(e.target.value)} className="w-full px-3 py-2.5 rounded-xl text-sm text-slate-800 outline-none"
                       style={{ background: "#EEF2F8", border: "1px solid rgba(15,23,42,0.1)" }}>
                       {["Bot", "SaaS", "Engineering", "Research", "General"].map(c => <option key={c}>{c}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label className="text-white/40 text-xs mb-1 block font-mono">PRICE (£)</label>
+                    <label className="text-slate-400 text-xs mb-1 block font-mono">PRICE (£)</label>
                     <input value={bpPrice} onChange={e => setBpPrice(e.target.value)} type="number" min="199" max="999" step="50"
-                      className="w-full px-3 py-2.5 rounded-xl text-sm text-white outline-none"
+                      className="w-full px-3 py-2.5 rounded-xl text-sm text-slate-800 outline-none"
                       style={{ background: "#EEF2F8", border: "1px solid rgba(15,23,42,0.1)" }} />
                   </div>
                 </div>
@@ -7057,11 +7068,11 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
 
             {/* Active blueprints */}
             <div>
-              <p className="text-white/20 text-[10px] font-mono mb-3 tracking-widest">ACTIVE LISTINGS</p>
+              <p className="text-slate-300 text-[10px] font-mono mb-3 tracking-widest">ACTIVE LISTINGS</p>
               {blueprintsLoading ? (
-                <div className="flex items-center gap-2 text-white/30"><Loader2 className="w-3.5 h-3.5 animate-spin" /><span className="text-xs">Loading…</span></div>
+                <div className="flex items-center gap-2 text-slate-400"><Loader2 className="w-3.5 h-3.5 animate-spin" /><span className="text-xs">Loading…</span></div>
               ) : blueprints.length === 0 ? (
-                <p className="text-white/20 text-sm">No blueprints listed yet. Package your first approved project above.</p>
+                <p className="text-slate-300 text-sm">No blueprints listed yet. Package your first approved project above.</p>
               ) : (
                 <div className="space-y-3">
                   {blueprints.map(bp => (
@@ -7069,14 +7080,14 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
-                            <p className="text-white font-semibold text-sm">{bp.title}</p>
+                            <p className="text-slate-800 font-semibold text-sm">{bp.title}</p>
                             <span className="text-[10px] px-1.5 py-0.5 rounded font-mono" style={{ background: "rgba(15,23,42,0.06)", color: "rgba(15,23,42,0.35)" }}>{bp.category}</span>
                           </div>
-                          <p className="text-white/40 text-xs leading-relaxed">{bp.description}</p>
-                          <p className="text-white/25 text-[10px] mt-2">{bp.salesCount} sale{bp.salesCount !== 1 ? "s" : ""}</p>
+                          <p className="text-slate-400 text-xs leading-relaxed">{bp.description}</p>
+                          <p className="text-slate-300 text-[10px] mt-2">{bp.salesCount} sale{bp.salesCount !== 1 ? "s" : ""}</p>
                         </div>
                         <div className="flex-shrink-0 text-right">
-                          <p className="text-white font-bold text-lg">£{(bp.priceAmount / 100).toFixed(0)}</p>
+                          <p className="text-slate-800 font-bold text-lg">£{(bp.priceAmount / 100).toFixed(0)}</p>
                           <button onClick={() => buyBlueprint(bp.id)} disabled={bpCheckoutLoading === bp.id}
                             className="mt-2 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:opacity-80"
                             style={{ background: "hsla(193,100%,40%,0.15)", color: "hsl(193,100%,50%)", border: "1px solid hsla(193,100%,40%,0.2)" }}>
@@ -7151,7 +7162,7 @@ function LabAvatarGreeting({ userName, onNavigate, onDismiss }: {
 
       {/* Skip */}
       <button onClick={() => go("projects")}
-        className="absolute top-5 right-6 text-white/20 hover:text-white/50 text-xs transition-colors">
+        className="absolute top-5 right-6 text-slate-300 hover:text-slate-500 text-xs transition-colors">
         Skip →
       </button>
 
@@ -7198,7 +7209,7 @@ function LabAvatarGreeting({ userName, onNavigate, onDismiss }: {
 
       {/* Typewriter greeting */}
       <div className="text-center max-w-md px-6 mb-8 min-h-[3.5rem]">
-        <p className="text-white text-xl font-light leading-relaxed">
+        <p className="text-slate-800 text-xl font-light leading-relaxed">
           {typedText}
           <span className="animate-pulse" style={{ color: "hsl(193,100%,55%)" }}>|</span>
         </p>
@@ -7444,7 +7455,7 @@ function SiriusLabChatPanel({ pin, accessLevel }: { pin: string; accessLevel: Ac
               style={{ background: accessLevel === "guest" ? "hsl(45,90%,55%)" : "hsl(155,70%,50%)", borderColor: "#FFFFFF" }} />
           </div>
           <div>
-            <p className="text-white font-bold text-sm leading-none">Sirius {accessLevel === "guest" ? "— Guest Mode" : "— Intelligence Partner"}</p>
+            <p className="text-slate-800 font-bold text-sm leading-none">Sirius {accessLevel === "guest" ? "— Guest Mode" : "— Intelligence Partner"}</p>
             {accessLevel === "owner"
               ? <p className="text-xs mt-1" style={{ color: "hsl(155,70%,50%)" }}>● Online · Can create projects, save memory, scan markets</p>
               : <p className="text-xs mt-1" style={{ color: "hsl(45,90%,55%)" }}>● Guest access · Chat & market scan only · No private data</p>
@@ -7462,12 +7473,12 @@ function SiriusLabChatPanel({ pin, accessLevel }: { pin: string; accessLevel: Ac
                 boxShadow: isRecording ? "0 0 12px hsl(0,75%,40%)" : "none",
                 opacity: streaming ? 0.5 : 1,
               }}>
-              {isRecording ? <MicOff className="w-3.5 h-3.5 text-white" /> : <Mic className="w-3.5 h-3.5" style={{ color: "rgba(15,23,42,0.45)" }} />}
+              {isRecording ? <MicOff className="w-3.5 h-3.5 text-slate-800" /> : <Mic className="w-3.5 h-3.5" style={{ color: "rgba(15,23,42,0.45)" }} />}
             </button>
           )}
           {messages.length > 0 && (
             <button onClick={() => { setMessages([]); try { sessionStorage.removeItem(CHAT_STORAGE_KEY); } catch {} }}
-              className="text-xs hover:text-white/50 transition-colors px-2 py-1 rounded-lg hover:bg-slate-900/5"
+              className="text-xs hover:text-slate-500 transition-colors px-2 py-1 rounded-lg hover:bg-slate-900/5"
               style={{ color: "rgba(15,23,42,0.3)" }}>
               Clear
             </button>
@@ -7501,8 +7512,8 @@ function SiriusLabChatPanel({ pin, accessLevel }: { pin: string; accessLevel: Ac
               <img src="/logo-v2.png" alt="Sirius" className="w-full h-full object-cover" />
             </div>
             <div className="text-center">
-              <p className="text-white font-bold text-base mb-1">I'm here. What do you need?</p>
-              <p className="text-white/35 text-sm max-w-sm leading-relaxed">
+              <p className="text-slate-800 font-bold text-base mb-1">I'm here. What do you need?</p>
+              <p className="text-slate-400 text-sm max-w-sm leading-relaxed">
                 Talk to me like a partner. Ask me to do things — I can create projects, save facts to memory, scan markets, update your profile, and carry real conversations. I grow with every exchange.
               </p>
             </div>
@@ -7534,7 +7545,7 @@ function SiriusLabChatPanel({ pin, accessLevel }: { pin: string; accessLevel: Ac
                   style={{ background: `${a.color}14`, border: `1px solid ${a.color}30` }}>
                   <span>{a.icon}</span>
                   <span style={{ color: a.color }}>{a.label}</span>
-                  {a.detail && <span className="text-white/40 font-normal truncate max-w-[160px]">— {a.detail}</span>}
+                  {a.detail && <span className="text-slate-400 font-normal truncate max-w-[160px]">— {a.detail}</span>}
                   <Check className="w-3 h-3 ml-auto flex-shrink-0" style={{ color: a.color }} />
                 </div>
               ))}
@@ -7565,13 +7576,13 @@ function SiriusLabChatPanel({ pin, accessLevel }: { pin: string; accessLevel: Ac
                   style={{ background: `${a.color}14`, border: `1px solid ${a.color}30` }}>
                   <span>{a.icon}</span>
                   <span style={{ color: a.color }}>{a.label}</span>
-                  {a.detail && <span className="text-white/40 font-normal truncate max-w-[160px]">— {a.detail}</span>}
+                  {a.detail && <span className="text-slate-400 font-normal truncate max-w-[160px]">— {a.detail}</span>}
                   <Check className="w-3 h-3 ml-auto flex-shrink-0" style={{ color: a.color }} />
                 </div>
               ))}
               {/* Thinking indicator */}
               {thinkingText && !streamingText && (
-                <div className="flex items-center gap-2 text-xs text-white/30 italic px-1">
+                <div className="flex items-center gap-2 text-xs text-slate-400 italic px-1">
                   <Loader2 className="w-3 h-3 animate-spin" />
                   {thinkingText}
                 </div>
@@ -7615,7 +7626,7 @@ function SiriusLabChatPanel({ pin, accessLevel }: { pin: string; accessLevel: Ac
                 opacity: streaming ? 0.4 : 1,
               }}>
               {isRecording
-                ? <MicOff className="w-3.5 h-3.5 text-white" />
+                ? <MicOff className="w-3.5 h-3.5 text-slate-800" />
                 : <Mic className="w-3.5 h-3.5" style={{ color: "rgba(15,23,42,0.2)" }} />}
             </button>
           )}
@@ -7633,10 +7644,10 @@ function SiriusLabChatPanel({ pin, accessLevel }: { pin: string; accessLevel: Ac
           <button onClick={() => send()} disabled={streaming || !input.trim() || isRecording}
             className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 transition-all disabled:opacity-30 hover:opacity-85"
             style={{ background: "linear-gradient(135deg, hsl(193,100%,35%), hsl(226,70%,45%))" }}>
-            {streaming ? <Loader2 className="w-4 h-4 text-white animate-spin" /> : <Send className="w-4 h-4 text-white" />}
+            {streaming ? <Loader2 className="w-4 h-4 text-slate-800 animate-spin" /> : <Send className="w-4 h-4 text-slate-800" />}
           </button>
         </div>
-        <p className="text-white/15 text-xs mt-2 text-center">
+        <p className="text-slate-800/15 text-xs mt-2 text-center">
           {accessLevel === "owner"
             ? "Sirius can create projects, save memories, scan markets · She learns from every message"
             : "Guest mode · Chat and market scanning only · Voice available"}
@@ -7801,9 +7812,9 @@ export function StarLabPage() {
               <BadgeCheck className="w-4 h-4" style={{ color: "hsl(155,70%,50%)" }} />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-white font-semibold text-sm leading-snug">Funding analysis complete</p>
+              <p className="text-slate-800 font-semibold text-sm leading-snug">Funding analysis complete</p>
               <p className="text-xs mt-0.5 leading-relaxed" style={{ color: "rgba(15,23,42,0.55)" }}>
-                <span className="text-white/70">{alert.projectName}</span> — {alert.count > 0 ? `${alert.count} funding opportunit${alert.count === 1 ? "y" : "ies"} found` : "No matching schemes found"}
+                <span className="text-slate-600">{alert.projectName}</span> — {alert.count > 0 ? `${alert.count} funding opportunit${alert.count === 1 ? "y" : "ies"} found` : "No matching schemes found"}
               </p>
               <button onClick={() => { setNavMode("projects"); setFundingAlerts(prev => prev.filter(a => a.id !== alert.id)); }}
                 className="text-xs mt-2 font-medium transition-opacity hover:opacity-75" style={{ color: "hsl(155,70%,50%)" }}>
@@ -7811,7 +7822,7 @@ export function StarLabPage() {
               </button>
             </div>
             <button onClick={() => setFundingAlerts(prev => prev.filter(a => a.id !== alert.id))}
-              className="text-white/20 hover:text-white/50 transition-colors flex-shrink-0">
+              className="text-slate-300 hover:text-slate-500 transition-colors flex-shrink-0">
               <X className="w-3.5 h-3.5" />
             </button>
           </motion.div>
@@ -7824,13 +7835,13 @@ export function StarLabPage() {
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
               style={{ background: isGuest ? "linear-gradient(135deg, hsl(45,90%,45%), hsl(25,90%,45%))" : "linear-gradient(135deg, hsl(193,100%,30%), hsl(226,70%,45%))" }}>
-              {isGuest ? <ShieldAlert className="w-4 h-4 text-white" /> : <Star className="w-4 h-4 text-white" />}
+              {isGuest ? <ShieldAlert className="w-4 h-4 text-slate-800" /> : <Star className="w-4 h-4 text-slate-800" />}
             </div>
             <div>
-              <p className="text-white font-bold text-sm leading-none">Star Lab</p>
+              <p className="text-slate-800 font-bold text-sm leading-none">Star Lab</p>
               {isGuest
                 ? <p className="text-xs mt-0.5 font-medium" style={{ color: "hsl(45,90%,55%)" }}>Guest Access</p>
-                : <p className="text-white/30 text-xs mt-0.5">Private R&D</p>
+                : <p className="text-slate-400 text-xs mt-0.5">Private R&D</p>
               }
             </div>
           </div>
@@ -7853,7 +7864,7 @@ export function StarLabPage() {
                   border: navMode === item.id ? `1px solid ${item.color}30` : "1px solid transparent"
                 }}>
                 <Icon className="w-4 h-4 flex-shrink-0" style={{ color: navMode === item.id ? item.color : "rgba(15,23,42,0.35)" }} />
-                <span className="text-sm flex-1" style={{ color: navMode === item.id ? "white" : "rgba(15,23,42,0.45)" }}>{item.label}</span>
+                <span className="text-sm flex-1" style={{ color: navMode === item.id ? item.color : "rgba(15,23,42,0.45)" }}>{item.label}</span>
                 {(item as any).badge && (
                   <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: item.color }} />
                 )}
@@ -7883,15 +7894,15 @@ export function StarLabPage() {
                     className="rounded-xl p-3 mb-1.5" style={{ background: "#F1F5F9", border: "1px solid hsl(193,100%,35%,0.5)" }}>
                     <input autoFocus value={newName} onChange={e => setNewName(e.target.value)}
                       onKeyDown={e => e.key === "Enter" && createProject()}
-                      placeholder="Project name" className="w-full bg-transparent text-white text-xs outline-none placeholder-slate-400 mb-2" />
+                      placeholder="Project name" className="w-full bg-transparent text-slate-800 text-xs outline-none placeholder-slate-400 mb-2" />
                     <select value={newIndustry} onChange={e => setNewIndustry(e.target.value)}
-                      className="w-full text-white/60 text-xs outline-none mb-2.5 px-1 py-1 rounded-lg"
+                      className="w-full text-slate-500 text-xs outline-none mb-2.5 px-1 py-1 rounded-lg"
                       style={{ background: "#E2E8F0" }}>
                       {INDUSTRIES.map(i => <option key={i} value={i} style={{ background: "#E2E8F0" }}>{i}</option>)}
                     </select>
                     <div className="flex gap-1.5">
-                      <button onClick={createProject} className="flex-1 py-1.5 rounded-lg text-xs text-white font-medium" style={{ background: "hsl(193,100%,35%)" }}>Create</button>
-                      <button onClick={() => setCreating(false)} className="py-1.5 px-2.5 rounded-lg text-xs text-white/40">Cancel</button>
+                      <button onClick={createProject} className="flex-1 py-1.5 rounded-lg text-xs text-slate-800 font-medium" style={{ background: "hsl(193,100%,35%)" }}>Create</button>
+                      <button onClick={() => setCreating(false)} className="py-1.5 px-2.5 rounded-lg text-xs text-slate-400">Cancel</button>
                     </div>
                   </motion.div>
                 )}
@@ -7903,8 +7914,8 @@ export function StarLabPage() {
                   style={{ background: activeProject?.id === p.id ? "#E8EEF5" : "transparent", border: activeProject?.id === p.id ? "1px solid rgba(15,23,42,0.11)" : "1px solid transparent" }}>
                   <FolderOpen className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "hsl(193,100%,45%)" }} />
                   <div className="flex-1 min-w-0">
-                    <p className="text-white text-xs font-medium truncate">{p.name}</p>
-                    <p className="text-white/25 text-xs truncate">{p.industry}</p>
+                    <p className="text-slate-800 text-xs font-medium truncate">{p.name}</p>
+                    <p className="text-slate-300 text-xs truncate">{p.industry}</p>
                   </div>
                   <button onClick={e => { e.stopPropagation(); deleteProject(p.id); }}
                     className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
@@ -7914,7 +7925,7 @@ export function StarLabPage() {
               ))}
 
               {projects.length === 0 && !creating && (
-                <p className="text-white/20 text-xs text-center py-6">No projects yet</p>
+                <p className="text-slate-300 text-xs text-center py-6">No projects yet</p>
               )}
             </div>
           </>
@@ -7958,9 +7969,9 @@ export function StarLabPage() {
             : (
               <div className="flex-1 flex items-center justify-center">
                 <div className="text-center max-w-md px-8">
-                  <Star className="w-12 h-12 mx-auto mb-4 text-white/8" />
-                  <h2 className="text-white/30 font-bold text-lg mb-2">Sirius Star Lab</h2>
-                  <p className="text-white/15 text-sm leading-relaxed mb-6">Select a project from the sidebar, or create a new one. Each project has its own workspace — Brief, Research, Specs, Code, and Drawings — with a dedicated AI partner that knows the full context of your work.</p>
+                  <Star className="w-12 h-12 mx-auto mb-4 text-slate-800/8" />
+                  <h2 className="text-slate-400 font-bold text-lg mb-2">Sirius Star Lab</h2>
+                  <p className="text-slate-800/15 text-sm leading-relaxed mb-6">Select a project from the sidebar, or create a new one. Each project has its own workspace — Brief, Research, Specs, Code, and Drawings — with a dedicated AI partner that knows the full context of your work.</p>
                   <div className="flex gap-3 justify-center">
                     {[
                       { icon: Bot, label: "Bot Lab", action: () => setNavMode("botlab"), color: "hsl(280,70%,55%)" },
