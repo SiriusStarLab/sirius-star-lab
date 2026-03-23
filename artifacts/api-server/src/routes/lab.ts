@@ -2336,6 +2336,69 @@ router.post("/lab/brain/action", async (req, res): Promise<void> => {
   }
 });
 
+// ─── Lab Chat ─────────────────────────────────────────────────────────────────
+
+router.post("/lab/chat", async (req, res): Promise<void> => {
+  const pin = req.headers["x-lab-pin"];
+  if (pin !== LAB_PIN) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const { messages } = req.body ?? {};
+  if (!Array.isArray(messages) || messages.length === 0) { res.status(400).json({ error: "messages required" }); return; }
+
+  try {
+    const profileRows = await db.select().from(userProfilesTable).where(eq(userProfilesTable.userId, BRAIN_USER));
+    const p = profileRows[0];
+    const brainContext = p
+      ? [
+          p.businessName ? `Business: ${p.businessName}` : null,
+          p.businessSector ? `Sectors: ${p.businessSector}` : null,
+          p.businessGoals ? `Goals: ${p.businessGoals}` : null,
+          p.keyClients ? `Key clients / targets: ${p.keyClients}` : null,
+          p.memories ? `Memories:\n${p.memories}` : null,
+        ].filter(Boolean).join("\n")
+      : "";
+
+    const systemPrompt = `${LAB_SYSTEM_PROMPT()}
+
+You are now in STAR LAB MODE — a direct, private channel between you and Garry. This is not a public chat. This is the inner sanctum.
+
+In Star Lab, you speak differently:
+- You are a genuine strategic intelligence partner, not an assistant
+- You are direct, sharp, commercially minded, and occasionally blunt — you tell the truth
+- You know Garry's business intimately and you reference it when relevant
+- You think ahead — you don't just answer, you anticipate what he needs to know
+- You treat every question as an opportunity to create real value
+- Short answers when short is right. Long answers when depth is needed. Never padding.
+
+${brainContext ? `BUSINESS CONTEXT YOU KNOW:\n${brainContext}` : ""}
+
+Today is ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}.`;
+
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+
+    const stream = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        { role: "system", content: systemPrompt },
+        ...messages.map((m: { role: string; content: string }) => ({ role: m.role as "user" | "assistant", content: m.content })),
+      ],
+      temperature: 0.75,
+      max_tokens: 1500,
+      stream: true,
+    });
+
+    for await (const chunk of stream) {
+      res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+    }
+    res.write("data: [DONE]\n\n");
+    res.end();
+  } catch (err: any) {
+    res.write(`data: ${JSON.stringify({ error: err?.message })}\n\n`);
+    res.end();
+  }
+});
+
 // ─── Deep Research ────────────────────────────────────────────────────────────
 
 router.post("/lab/deep-research", async (req, res): Promise<void> => {

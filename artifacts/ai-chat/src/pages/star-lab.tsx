@@ -62,7 +62,7 @@ type RankResult = {
   keyStrengths: string[]; estimatedMonthlyRevenue: string;
   buildEffort: string;
 };
-type NavMode = "projects" | "botlab" | "scout" | "feed" | "grants" | "commerce" | "outreach" | "autolab" | "revenue" | "agency" | "mission" | "growth" | "brain" | "research" | "docs";
+type NavMode = "projects" | "botlab" | "scout" | "feed" | "grants" | "commerce" | "outreach" | "autolab" | "revenue" | "agency" | "mission" | "growth" | "brain" | "research" | "docs" | "labchat";
 
 const MAX_PIN_DIGITS = 8;
 const MAX_ATTEMPTS = 5;
@@ -6591,10 +6591,326 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
   );
 }
 
+// ─── Lab Avatar Greeting ──────────────────────────────────────────────────────
+
+function LabAvatarGreeting({ userName, onNavigate, onDismiss }: {
+  userName?: string;
+  onNavigate: (mode: NavMode) => void;
+  onDismiss: () => void;
+}) {
+  const [visible, setVisible] = useState(false);
+  const [typedText, setTypedText] = useState("");
+  const [showActions, setShowActions] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+
+  const hour = new Date().getHours();
+  const timeGreet = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  const name = userName ? `, ${userName}` : "";
+  const fullText = `${timeGreet}${name}. I'm online and ready. What would you like to do today?`;
+
+  useEffect(() => {
+    setTimeout(() => setVisible(true), 80);
+    let i = 0;
+    const interval = setInterval(() => {
+      i++;
+      setTypedText(fullText.slice(0, i));
+      if (i >= fullText.length) {
+        clearInterval(interval);
+        setTimeout(() => setShowActions(true), 400);
+      }
+    }, 28);
+    return () => clearInterval(interval);
+  }, []);
+
+  const go = (mode: NavMode) => {
+    setLeaving(true);
+    setTimeout(() => { onNavigate(mode); onDismiss(); }, 350);
+  };
+
+  const QUICK_ACTIONS = [
+    { label: "Chat with me", mode: "labchat" as NavMode, color: "hsl(193,100%,35%)", icon: "💬" },
+    { label: "View Projects", mode: "projects" as NavMode, color: "hsl(193,100%,30%)", icon: "📁" },
+    { label: "Scan Market", mode: "scout" as NavMode, color: "hsl(45,100%,40%)", icon: "🔭" },
+    { label: "Deep Research", mode: "research" as NavMode, color: "hsl(280,70%,50%)", icon: "📖" },
+  ];
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex flex-col items-center justify-center"
+      style={{
+        background: "hsl(226,45%,4%)",
+        opacity: leaving ? 0 : visible ? 1 : 0,
+        transition: "opacity 0.35s ease",
+      }}>
+
+      {/* Skip */}
+      <button onClick={() => go("projects")}
+        className="absolute top-5 right-6 text-white/20 hover:text-white/50 text-xs transition-colors">
+        Skip →
+      </button>
+
+      {/* Avatar */}
+      <div className="relative mb-8">
+        {/* Outer glow rings */}
+        <div className="absolute inset-0 rounded-full animate-ping"
+          style={{ background: "radial-gradient(circle, rgba(0,212,255,0.12), transparent 70%)", animationDuration: "3s" }} />
+        <div className="absolute inset-0 rounded-full"
+          style={{ boxShadow: "0 0 80px 20px rgba(0,212,255,0.15), 0 0 160px 40px rgba(0,100,200,0.08)" }} />
+
+        {/* Avatar image */}
+        <div className="relative w-48 h-48 rounded-full overflow-hidden flex items-center justify-center"
+          style={{
+            background: "hsl(226,45%,9%)",
+            border: "2px solid rgba(0,212,255,0.3)",
+            boxShadow: "0 0 40px rgba(0,212,255,0.2), inset 0 0 30px rgba(0,0,0,0.4)"
+          }}>
+          <img src="/logo-v2.png" alt="Sirius" className="w-full h-full object-cover" />
+
+          {/* Scanning line effect */}
+          <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-full">
+            <div className="absolute w-full h-0.5 opacity-30"
+              style={{
+                background: "linear-gradient(90deg, transparent, rgba(0,212,255,0.8), transparent)",
+                animation: "scan 2.5s linear infinite",
+                top: 0,
+              }} />
+          </div>
+        </div>
+
+        {/* Online indicator */}
+        <div className="absolute bottom-3 right-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full"
+          style={{ background: "hsl(226,45%,11%)", border: "1px solid rgba(0,212,255,0.2)" }}>
+          <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "hsl(155,70%,50%)" }} />
+          <span className="text-xs font-semibold" style={{ color: "hsl(155,70%,55%)" }}>ONLINE</span>
+        </div>
+      </div>
+
+      {/* Sirius label */}
+      <p className="text-xs font-bold tracking-[0.3em] mb-5 uppercase" style={{ color: "rgba(0,212,255,0.5)" }}>
+        SIRIUS AI · STAR LAB
+      </p>
+
+      {/* Typewriter greeting */}
+      <div className="text-center max-w-md px-6 mb-8 min-h-[3.5rem]">
+        <p className="text-white text-xl font-light leading-relaxed">
+          {typedText}
+          <span className="animate-pulse" style={{ color: "hsl(193,100%,55%)" }}>|</span>
+        </p>
+      </div>
+
+      {/* Quick actions */}
+      <div
+        className="flex flex-wrap gap-3 justify-center max-w-sm"
+        style={{ opacity: showActions ? 1 : 0, transform: showActions ? "translateY(0)" : "translateY(12px)", transition: "all 0.4s ease" }}>
+        {QUICK_ACTIONS.map(a => (
+          <button key={a.mode} onClick={() => go(a.mode)}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all hover:scale-105 active:scale-95"
+            style={{ background: `${a.color}22`, border: `1px solid ${a.color}44`, color: "rgba(255,255,255,0.85)" }}>
+            <span>{a.icon}</span>
+            {a.label}
+          </button>
+        ))}
+      </div>
+
+      <style>{`
+        @keyframes scan {
+          0% { top: -2px; }
+          100% { top: 100%; }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+// ─── Sirius Lab Chat Panel ────────────────────────────────────────────────────
+
+type LabChatMsg = { role: "user" | "assistant"; content: string };
+
+function SiriusLabChatPanel({ pin }: { pin: string }) {
+  const base = getApiBase();
+  const [messages, setMessages] = useState<LabChatMsg[]>([]);
+  const [input, setInput] = useState("");
+  const [streaming, setStreaming] = useState(false);
+  const [streamingText, setStreamingText] = useState("");
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, streamingText]);
+
+  const send = async (text?: string) => {
+    const content = (text ?? input).trim();
+    if (!content || streaming) return;
+    setInput("");
+
+    const userMsg: LabChatMsg = { role: "user", content };
+    const newMessages = [...messages, userMsg];
+    setMessages(newMessages);
+    setStreaming(true);
+    setStreamingText("");
+
+    try {
+      const res = await fetch(`${base}lab/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+        body: JSON.stringify({ messages: newMessages }),
+      });
+      if (!res.ok) throw new Error("Chat failed");
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+      let full = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split("\n");
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            const data = line.slice(6).trim();
+            if (data === "[DONE]") break;
+            try {
+              const parsed = JSON.parse(data);
+              const delta = parsed.choices?.[0]?.delta?.content || "";
+              if (delta) { full += delta; setStreamingText(full); }
+            } catch { /* skip */ }
+          }
+        }
+      }
+      setMessages(prev => [...prev, { role: "assistant", content: full }]);
+    } catch {
+      setMessages(prev => [...prev, { role: "assistant", content: "Sorry — something went wrong. Try again." }]);
+    } finally {
+      setStreaming(false);
+      setStreamingText("");
+      setTimeout(() => inputRef.current?.focus(), 50);
+    }
+  };
+
+  const CHIPS = [
+    "What should I focus on today?",
+    "Summarise my business opportunities",
+    "What's my biggest revenue lever?",
+    "Write a cold email for Baker Hughes",
+    "What sectors should I target first?",
+    "Review my business strategy",
+  ];
+
+  return (
+    <div className="flex-1 flex flex-col min-h-0" style={{ background: "hsl(226,45%,6%)" }}>
+
+      {/* Header */}
+      <div className="flex items-center gap-4 p-5 border-b" style={{ borderColor: "rgba(255,255,255,0.06)", background: "hsl(226,45%,7%)" }}>
+        <div className="relative flex-shrink-0">
+          <div className="w-12 h-12 rounded-2xl overflow-hidden"
+            style={{ border: "1.5px solid rgba(0,212,255,0.3)", boxShadow: "0 0 20px rgba(0,212,255,0.15)" }}>
+            <img src="/logo-v2.png" alt="Sirius" className="w-full h-full object-cover" />
+          </div>
+          <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 animate-pulse"
+            style={{ background: "hsl(155,70%,50%)", borderColor: "hsl(226,45%,7%)" }} />
+        </div>
+        <div>
+          <p className="text-white font-bold text-base leading-none">Sirius</p>
+          <p className="text-xs mt-1" style={{ color: "hsl(155,70%,50%)" }}>● Online · Star Lab mode · Knows your business</p>
+        </div>
+      </div>
+
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
+        {messages.length === 0 && !streaming && (
+          <div className="flex flex-col items-center justify-center flex-1 py-10 gap-6">
+            <div className="w-20 h-20 rounded-3xl overflow-hidden"
+              style={{ border: "1.5px solid rgba(0,212,255,0.25)", boxShadow: "0 0 40px rgba(0,212,255,0.12)" }}>
+              <img src="/logo-v2.png" alt="Sirius" className="w-full h-full object-cover" />
+            </div>
+            <div className="text-center">
+              <p className="text-white font-semibold text-base mb-1">I'm right here inside the Lab</p>
+              <p className="text-white/35 text-sm max-w-xs">Ask me anything — strategy, clients, revenue, what to build next. I know your business.</p>
+            </div>
+            <div className="flex flex-wrap gap-2 justify-center max-w-md">
+              {CHIPS.map(chip => (
+                <button key={chip} onClick={() => send(chip)}
+                  className="text-xs px-3 py-2 rounded-xl transition-all hover:border-cyan-400/30 hover:text-white/70"
+                  style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.4)" }}>
+                  {chip}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {messages.map((msg, i) => (
+          <div key={i} className={`flex gap-3 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}>
+            {msg.role === "assistant" && (
+              <div className="w-8 h-8 rounded-xl overflow-hidden flex-shrink-0 mt-1"
+                style={{ border: "1px solid rgba(0,212,255,0.2)" }}>
+                <img src="/logo-v2.png" alt="Sirius" className="w-full h-full object-cover" />
+              </div>
+            )}
+            <div className="max-w-[75%] px-4 py-3 rounded-2xl text-sm leading-relaxed"
+              style={msg.role === "user"
+                ? { background: "hsl(226,60%,18%)", color: "rgba(255,255,255,0.9)", borderRadius: "18px 18px 4px 18px" }
+                : { background: "hsl(226,45%,10%)", color: "rgba(255,255,255,0.80)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "18px 18px 18px 4px" }}>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+            </div>
+          </div>
+        ))}
+
+        {/* Streaming bubble */}
+        {streaming && (
+          <div className="flex gap-3">
+            <div className="w-8 h-8 rounded-xl overflow-hidden flex-shrink-0 mt-1"
+              style={{ border: "1px solid rgba(0,212,255,0.2)" }}>
+              <img src="/logo-v2.png" alt="Sirius" className="w-full h-full object-cover" />
+            </div>
+            <div className="max-w-[75%] px-4 py-3 rounded-2xl text-sm leading-relaxed"
+              style={{ background: "hsl(226,45%,10%)", color: "rgba(255,255,255,0.80)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "18px 18px 18px 4px" }}>
+              {streamingText
+                ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamingText}</ReactMarkdown>
+                : <div className="flex items-center gap-1.5 py-1">
+                    <div className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce" style={{ animationDelay: "0ms" }} />
+                    <div className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce" style={{ animationDelay: "150ms" }} />
+                    <div className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce" style={{ animationDelay: "300ms" }} />
+                  </div>
+              }
+            </div>
+          </div>
+        )}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* Input */}
+      <div className="p-4 border-t" style={{ borderColor: "rgba(255,255,255,0.06)", background: "hsl(226,45%,7%)" }}>
+        <div className="flex items-center gap-3 px-4 py-3 rounded-2xl"
+          style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.08)" }}>
+          <input
+            ref={inputRef}
+            className="flex-1 bg-transparent text-white text-sm placeholder-white/20 outline-none"
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+            placeholder="Ask Sirius anything — strategy, clients, what to build next…"
+            disabled={streaming}
+            autoFocus
+          />
+          <button onClick={() => send()} disabled={streaming || !input.trim()}
+            className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 transition-all disabled:opacity-30"
+            style={{ background: "linear-gradient(135deg, hsl(193,100%,35%), hsl(226,70%,45%))" }}>
+            {streaming ? <Loader2 className="w-4 h-4 text-white animate-spin" /> : <Send className="w-4 h-4 text-white" />}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 type FundingAlert = { id: string; projectName: string; count: number; timestamp: number };
 
 export function StarLabPage() {
   const [unlocked, setUnlocked] = useState(false);
+  const [showGreeting, setShowGreeting] = useState(false);
   const [pin, setPin] = useState("");
   const userName = typeof window !== "undefined"
     ? (localStorage.getItem("sirius_display_name") || "").trim() || undefined
@@ -6658,6 +6974,7 @@ export function StarLabPage() {
   const onUnlock = (p: string) => {
     setPin(p);
     setUnlocked(true);
+    setShowGreeting(true);
     // Parse Stripe redirect URL params
     const params = new URLSearchParams(window.location.search);
     if (params.get("tab") === "revenue") {
@@ -6701,6 +7018,7 @@ export function StarLabPage() {
     { id: "revenue" as NavMode, label: "Revenue Hub", icon: Banknote, color: "hsl(155,70%,45%)" },
     { id: "agency" as NavMode, label: "Agency Hub", icon: Briefcase, color: "hsl(220,80%,55%)" },
     { id: "growth" as NavMode, label: "Growth Engine", icon: Globe, color: "hsl(155,70%,50%)" },
+    { id: "labchat" as NavMode, label: "Chat with Sirius", icon: MessageSquare, color: "hsl(193,100%,50%)" },
     { id: "brain" as NavMode, label: "Sirius Brain", icon: Brain, color: "hsl(280,70%,65%)" },
     { id: "research" as NavMode, label: "Deep Research", icon: BookOpen, color: "hsl(45,100%,50%)" },
     { id: "docs" as NavMode, label: "Document Intel", icon: FileSearch, color: "hsl(210,90%,55%)" },
@@ -6711,6 +7029,15 @@ export function StarLabPage() {
 
   return (
     <div className="min-h-screen flex relative" style={{ background: "hsl(226,45%,5%)" }}>
+
+      {/* Twin avatar greeting overlay */}
+      {showGreeting && (
+        <LabAvatarGreeting
+          userName={userName}
+          onNavigate={(mode) => setNavMode(mode)}
+          onDismiss={() => setShowGreeting(false)}
+        />
+      )}
 
       {/* Funding alert toasts */}
       <AnimatePresence>
@@ -6847,6 +7174,7 @@ export function StarLabPage() {
         {navMode === "commerce" && <CommerceLabPanel pin={pin} />}
         {navMode === "agency" && <AgencyHubPanel pin={pin} />}
         {navMode === "growth" && <GrowthEnginePanel pin={pin} />}
+        {navMode === "labchat" && <SiriusLabChatPanel pin={pin} />}
         {navMode === "brain" && <BrainPanel pin={pin} />}
         {navMode === "research" && <DeepResearchPanel pin={pin} />}
         {navMode === "docs" && <DocIntelPanel pin={pin} />}
