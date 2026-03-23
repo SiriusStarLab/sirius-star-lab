@@ -62,7 +62,7 @@ type RankResult = {
   keyStrengths: string[]; estimatedMonthlyRevenue: string;
   buildEffort: string;
 };
-type NavMode = "projects" | "botlab" | "scout" | "feed" | "grants" | "commerce" | "outreach" | "autolab" | "revenue" | "agency" | "mission" | "growth" | "brain";
+type NavMode = "projects" | "botlab" | "scout" | "feed" | "grants" | "commerce" | "outreach" | "autolab" | "revenue" | "agency" | "mission" | "growth" | "brain" | "research" | "docs";
 
 const MAX_PIN_DIGITS = 8;
 const MAX_ATTEMPTS = 5;
@@ -4574,6 +4574,376 @@ const GROWTH_FORMATS = [
   { id: "week", label: "Week Plan", icon: "📅", color: "hsl(280,70%,60%)", desc: "7-day content calendar with angles and hooks" },
 ];
 
+// ─── Deep Research Panel ─────────────────────────────────────────────────────
+
+function DeepResearchPanel({ pin }: { pin: string }) {
+  const base = getApiBase();
+  const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<{ report: string; sources: string[]; steps: string[] } | null>(null);
+  const [error, setError] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  const runResearch = async () => {
+    if (!query.trim()) return;
+    setLoading(true); setError(""); setResult(null);
+    try {
+      const r = await fetch(`${base}lab/deep-research`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+        body: JSON.stringify({ query }),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || "Research failed");
+      setResult(data);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex-1 flex flex-col min-h-0" style={{ background: "hsl(226,45%,6%)" }}>
+      <div className="p-6 border-b" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+        <div className="flex items-center gap-3 mb-1">
+          <BookOpen className="w-5 h-5" style={{ color: "hsl(45,100%,55%)" }} />
+          <h2 className="text-white font-bold text-lg">Deep Research</h2>
+          <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ background: "rgba(45,200,100,0.12)", color: "hsl(155,70%,50%)", border: "1px solid rgba(45,200,100,0.2)" }}>
+            Perplexity-level
+          </span>
+        </div>
+        <p className="text-white/40 text-sm">Multi-step web research. Sirius browses multiple sources and compiles a full cited report — like a research analyst, not a chatbot.</p>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
+        {/* Input */}
+        <div className="rounded-2xl p-4" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.07)" }}>
+          <label className="text-white/40 text-xs mb-2 block font-semibold uppercase tracking-wide">Research Topic or Question</label>
+          <textarea
+            className="w-full bg-transparent text-white text-sm placeholder-white/20 resize-none outline-none leading-relaxed"
+            rows={3}
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="e.g. What are the biggest opportunities in hydrogen fuel cell technology for UK manufacturers in 2025? Include market size, key players, and entry points."
+            onKeyDown={e => { if (e.key === "Enter" && e.metaKey) runResearch(); }}
+          />
+          <div className="flex items-center justify-between mt-3 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+            <span className="text-white/20 text-xs">⌘ + Enter to run</span>
+            <button
+              onClick={runResearch}
+              disabled={loading || !query.trim()}
+              className="flex items-center gap-2 px-5 py-2 rounded-xl font-semibold text-sm transition-all disabled:opacity-40"
+              style={{ background: "hsl(45,100%,45%)", color: "#000" }}>
+              {loading ? <><Loader2 className="w-4 h-4 animate-spin" />Researching…</> : <><BookOpen className="w-4 h-4" />Run Deep Research</>}
+            </button>
+          </div>
+        </div>
+
+        {/* Loading state */}
+        {loading && (
+          <div className="rounded-2xl p-6" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.07)" }}>
+            <div className="flex items-center gap-3 mb-4">
+              <Loader2 className="w-4 h-4 animate-spin" style={{ color: "hsl(45,100%,55%)" }} />
+              <span className="text-white/60 text-sm">Sirius is researching — browsing multiple sources…</span>
+            </div>
+            <div className="space-y-2">
+              {["Scanning web sources", "Cross-referencing findings", "Synthesising report"].map((step, i) => (
+                <div key={step} className="flex items-center gap-2 text-xs text-white/30">
+                  <div className="w-1.5 h-1.5 rounded-full" style={{ background: i === 0 ? "hsl(45,100%,55%)" : "rgba(255,255,255,0.15)" }} />
+                  {step}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Error */}
+        {error && (
+          <div className="rounded-xl p-4 text-sm" style={{ background: "rgba(255,80,80,0.08)", border: "1px solid rgba(255,80,80,0.2)", color: "rgba(255,120,120,0.9)" }}>
+            {error}
+          </div>
+        )}
+
+        {/* Result */}
+        {result && (
+          <div className="space-y-4">
+            {/* Research steps */}
+            {result.steps?.length > 0 && (
+              <div className="rounded-xl p-4" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                <p className="text-white/30 text-xs font-semibold uppercase tracking-wide mb-3">Research Path</p>
+                <div className="flex flex-wrap gap-2">
+                  {result.steps.map((step, i) => (
+                    <span key={i} className="text-xs px-2.5 py-1 rounded-lg" style={{ background: "rgba(45,100,255,0.08)", color: "rgba(255,255,255,0.4)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                      {i + 1}. {step}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Report */}
+            <div className="rounded-2xl p-6" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(45,100%,55%,0.2)" }}>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <BookOpen className="w-4 h-4" style={{ color: "hsl(45,100%,55%)" }} />
+                  <span className="text-white font-semibold text-sm">Research Report</span>
+                </div>
+                <button onClick={() => { navigator.clipboard.writeText(result.report); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-all hover:opacity-80"
+                  style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)" }}>
+                  {copied ? <><Check className="w-3 h-3" />Copied</> : <><Copy className="w-3 h-3" />Copy</>}
+                </button>
+              </div>
+              <div className="prose prose-sm prose-invert max-w-none text-white/80 leading-relaxed" style={{ fontSize: "14px" }}>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{result.report}</ReactMarkdown>
+              </div>
+            </div>
+
+            {/* Sources */}
+            {result.sources?.length > 0 && (
+              <div className="rounded-xl p-4" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                <p className="text-white/30 text-xs font-semibold uppercase tracking-wide mb-3">Sources Consulted</p>
+                <div className="space-y-1.5">
+                  {result.sources.map((src, i) => (
+                    <div key={i} className="flex items-start gap-2 text-xs text-white/40">
+                      <span className="font-mono" style={{ color: "hsl(45,100%,40%)", flexShrink: 0 }}>[{i + 1}]</span>
+                      <span className="break-all">{src}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Empty state */}
+        {!loading && !result && !error && (
+          <div className="flex-1 flex flex-col items-center justify-center text-center py-10 gap-4">
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: "rgba(45,100%,55%,0.08)" }}>
+              <BookOpen className="w-7 h-7" style={{ color: "hsl(45,100%,45%)" }} />
+            </div>
+            <div>
+              <p className="text-white/60 font-semibold mb-1">Research anything, deeply</p>
+              <p className="text-white/25 text-sm max-w-sm">Sirius doesn't just answer — it browses multiple sources, cross-references them, and delivers a full cited report. No hallucinations, real sources.</p>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-xs text-left max-w-sm">
+              {[
+                "Hydrogen fuel cell market UK 2025",
+                "Top aerospace subcontract opportunities Scotland",
+                "Grant funding for manufacturing automation",
+                "Oil & gas digital transformation trends",
+              ].map(ex => (
+                <button key={ex} onClick={() => setQuery(ex)}
+                  className="px-3 py-2.5 rounded-xl text-left transition-all hover:border-white/15"
+                  style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.4)" }}>
+                  "{ex}"
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Document Intelligence Panel ─────────────────────────────────────────────
+
+function DocIntelPanel({ pin }: { pin: string }) {
+  const base = getApiBase();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [file, setFile] = useState<{ name: string; size: number; type: string; base64: string } | null>(null);
+  const [question, setQuestion] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [answer, setAnswer] = useState<{ text: string; keyPoints: string[]; summary: string } | null>(null);
+  const [error, setError] = useState("");
+  const [extracting, setExtracting] = useState(false);
+
+  const handleFile = async (f: File) => {
+    setExtracting(true); setAnswer(null); setError(""); setQuestion("");
+    const reader = new FileReader();
+    reader.onload = e => {
+      const b64 = (e.target?.result as string).split(",")[1] || "";
+      setFile({ name: f.name, size: f.size, type: f.type, base64: b64 });
+      setExtracting(false);
+    };
+    reader.readAsDataURL(f);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const f = e.dataTransfer.files[0];
+    if (f) handleFile(f);
+  };
+
+  const ask = async () => {
+    if (!file || !question.trim()) return;
+    setLoading(true); setError(""); setAnswer(null);
+    try {
+      const r = await fetch(`${base}lab/docs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+        body: JSON.stringify({ fileBase64: file.base64, fileName: file.name, fileType: file.type, question }),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || "Analysis failed");
+      setAnswer(data);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const QUICK_QS = [
+    "Summarise this document",
+    "What are the key action points?",
+    "What risks or issues are mentioned?",
+    "Extract all numbers and figures",
+    "What are the main conclusions?",
+    "Identify any deadlines or dates",
+  ];
+
+  return (
+    <div className="flex-1 flex flex-col min-h-0" style={{ background: "hsl(226,45%,6%)" }}>
+      <div className="p-6 border-b" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+        <div className="flex items-center gap-3 mb-1">
+          <FileSearch className="w-5 h-5" style={{ color: "hsl(210,90%,60%)" }} />
+          <h2 className="text-white font-bold text-lg">Document Intelligence</h2>
+          <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ background: "rgba(66,133,244,0.12)", color: "hsl(210,90%,60%)", border: "1px solid rgba(66,133,244,0.2)" }}>
+            ChatGPT-level
+          </span>
+        </div>
+        <p className="text-white/40 text-sm">Upload any PDF, document, CSV or text file. Ask anything about it — Sirius reads it and gives you intelligent answers, summaries, and extractions.</p>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
+
+        {/* Upload zone */}
+        {!file ? (
+          <div
+            className="rounded-2xl p-10 flex flex-col items-center gap-4 text-center cursor-pointer transition-all hover:border-blue-400/30"
+            style={{ background: "hsl(226,45%,9%)", border: "2px dashed rgba(255,255,255,0.1)" }}
+            onDrop={handleDrop}
+            onDragOver={e => e.preventDefault()}
+            onClick={() => fileInputRef.current?.click()}>
+            <input ref={fileInputRef} type="file" accept=".pdf,.txt,.csv,.md,.doc,.docx,.json" className="hidden"
+              onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: "rgba(66,133,244,0.1)" }}>
+              <Upload className="w-7 h-7" style={{ color: "hsl(210,90%,60%)" }} />
+            </div>
+            <div>
+              <p className="text-white/70 font-semibold mb-1">Drop a file or click to upload</p>
+              <p className="text-white/30 text-sm">PDF, TXT, CSV, Markdown, JSON — up to 10MB</p>
+            </div>
+            <div className="flex gap-2 flex-wrap justify-center">
+              {["PDF", "CSV", "TXT", "Markdown", "JSON"].map(t => (
+                <span key={t} className="text-xs px-2.5 py-1 rounded-lg" style={{ background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.3)", border: "1px solid rgba(255,255,255,0.07)" }}>{t}</span>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-2xl p-4 flex items-center gap-3" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(66,133,244,0.2)" }}>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(66,133,244,0.12)" }}>
+              <FileText className="w-5 h-5" style={{ color: "hsl(210,90%,60%)" }} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-white font-medium text-sm truncate">{file.name}</p>
+              <p className="text-white/30 text-xs">{(file.size / 1024).toFixed(1)} KB</p>
+            </div>
+            <button onClick={() => { setFile(null); setAnswer(null); setQuestion(""); }} className="text-white/20 hover:text-white/50 transition-colors">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        {extracting && (
+          <div className="flex items-center gap-2 text-white/40 text-sm">
+            <Loader2 className="w-4 h-4 animate-spin" />Reading file…
+          </div>
+        )}
+
+        {/* Question input */}
+        {file && !extracting && (
+          <div className="rounded-2xl p-4" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.07)" }}>
+            <label className="text-white/40 text-xs mb-3 block font-semibold uppercase tracking-wide">Ask about this document</label>
+            <div className="flex flex-wrap gap-2 mb-3">
+              {QUICK_QS.map(q => (
+                <button key={q} onClick={() => setQuestion(q)}
+                  className="text-xs px-2.5 py-1.5 rounded-lg transition-all hover:border-blue-400/30"
+                  style={{ background: "rgba(66,133,244,0.06)", color: "rgba(255,255,255,0.45)", border: "1px solid rgba(66,133,244,0.12)" }}>
+                  {q}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <input
+                className="flex-1 bg-transparent text-white text-sm placeholder-white/20 outline-none py-2"
+                value={question}
+                onChange={e => setQuestion(e.target.value)}
+                placeholder="Or type your own question…"
+                onKeyDown={e => { if (e.key === "Enter") ask(); }}
+              />
+              <button
+                onClick={ask}
+                disabled={loading || !question.trim()}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm transition-all disabled:opacity-40"
+                style={{ background: "hsl(210,90%,45%)", color: "white" }}>
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                {loading ? "Analysing…" : "Ask"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Error */}
+        {error && (
+          <div className="rounded-xl p-4 text-sm" style={{ background: "rgba(255,80,80,0.08)", border: "1px solid rgba(255,80,80,0.2)", color: "rgba(255,120,120,0.9)" }}>
+            {error}
+          </div>
+        )}
+
+        {/* Answer */}
+        {answer && (
+          <div className="space-y-4">
+            {answer.summary && (
+              <div className="rounded-xl p-4" style={{ background: "rgba(66,133,244,0.06)", border: "1px solid rgba(66,133,244,0.15)" }}>
+                <p className="text-white/30 text-xs font-semibold uppercase tracking-wide mb-2">Summary</p>
+                <p className="text-white/75 text-sm leading-relaxed">{answer.summary}</p>
+              </div>
+            )}
+            {answer.keyPoints?.length > 0 && (
+              <div className="rounded-xl p-4" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                <p className="text-white/30 text-xs font-semibold uppercase tracking-wide mb-3">Key Points</p>
+                <ul className="space-y-2">
+                  {answer.keyPoints.map((pt, i) => (
+                    <li key={i} className="flex items-start gap-2 text-sm text-white/65">
+                      <span className="w-5 h-5 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-bold mt-0.5"
+                        style={{ background: "rgba(66,133,244,0.12)", color: "hsl(210,90%,60%)" }}>{i + 1}</span>
+                      {pt}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {answer.text && (
+              <div className="rounded-2xl p-5" style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                <p className="text-white/30 text-xs font-semibold uppercase tracking-wide mb-3">Full Answer</p>
+                <div className="prose prose-sm prose-invert max-w-none text-white/75 leading-relaxed" style={{ fontSize: "14px" }}>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{answer.text}</ReactMarkdown>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Growth Engine Panel ──────────────────────────────────────────────────────
+
 function GrowthEnginePanel({ pin }: { pin: string }) {
   const base = getApiBase();
   const [activeFormat, setActiveFormat] = useState("linkedin");
@@ -6332,6 +6702,8 @@ export function StarLabPage() {
     { id: "agency" as NavMode, label: "Agency Hub", icon: Briefcase, color: "hsl(220,80%,55%)" },
     { id: "growth" as NavMode, label: "Growth Engine", icon: Globe, color: "hsl(155,70%,50%)" },
     { id: "brain" as NavMode, label: "Sirius Brain", icon: Brain, color: "hsl(280,70%,65%)" },
+    { id: "research" as NavMode, label: "Deep Research", icon: BookOpen, color: "hsl(45,100%,50%)" },
+    { id: "docs" as NavMode, label: "Document Intel", icon: FileSearch, color: "hsl(210,90%,55%)" },
     { id: "mission" as NavMode, label: "Mission", icon: Star, color: "hsl(193,100%,50%)" },
     { id: "outreach" as NavMode, label: "Outreach Hub", icon: Mail, color: "hsl(340,80%,60%)" },
     { id: "autolab" as NavMode, label: "Autonomous Lab", icon: Cpu, color: "hsl(193,100%,40%)" },
@@ -6476,6 +6848,8 @@ export function StarLabPage() {
         {navMode === "agency" && <AgencyHubPanel pin={pin} />}
         {navMode === "growth" && <GrowthEnginePanel pin={pin} />}
         {navMode === "brain" && <BrainPanel pin={pin} />}
+        {navMode === "research" && <DeepResearchPanel pin={pin} />}
+        {navMode === "docs" && <DocIntelPanel pin={pin} />}
         {navMode === "mission" && <MissionPanel pin={pin} />}
         {navMode === "revenue" && (
           <RevenuePanel

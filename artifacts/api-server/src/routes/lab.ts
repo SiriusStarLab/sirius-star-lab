@@ -2336,5 +2336,122 @@ router.post("/lab/brain/action", async (req, res): Promise<void> => {
   }
 });
 
+// ─── Deep Research ────────────────────────────────────────────────────────────
+
+router.post("/lab/deep-research", async (req, res): Promise<void> => {
+  const pin = req.headers["x-lab-pin"];
+  if (pin !== LAB_PIN) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const { query } = req.body ?? {};
+  if (!query?.trim()) { res.status(400).json({ error: "query is required" }); return; }
+
+  try {
+    const steps = [
+      `Finding authoritative sources on: ${query}`,
+      "Cross-referencing multiple perspectives",
+      "Synthesising findings into structured report",
+    ];
+
+    const stream = await (openai as any).responses.create({
+      model: "gpt-4o",
+      tools: [{ type: "web_search_preview" }],
+      input: `You are a professional research analyst. Conduct thorough multi-source web research on the following topic and produce a comprehensive, well-structured report with clear sections, key findings, and actionable insights.
+
+RESEARCH TOPIC: ${query}
+
+Your report should include:
+1. Executive Summary (2-3 sentences)
+2. Key Findings (bullet points)
+3. Market/Industry Context (relevant data, size, trends)
+4. Key Players / Important Names (companies, people, organisations)
+5. Opportunities & Risks
+6. Actionable Recommendations
+7. Sources used
+
+Be specific, cite real data where possible, and make the report genuinely useful for a business owner.`,
+      stream: true,
+    });
+
+    let fullText = "";
+    const sources: string[] = [];
+
+    for await (const event of stream) {
+      if (event.type === "response.output_text.delta") {
+        fullText += event.delta || "";
+      }
+      if (event.type === "response.web_search_call.completed" || event.type === "response.output_item.added") {
+        const url = (event as any).url || (event as any).item?.url;
+        if (url && !sources.includes(url)) sources.push(url);
+      }
+    }
+
+    if (!fullText) throw new Error("No research results returned");
+
+    res.json({ ok: true, report: fullText, sources: sources.slice(0, 10), steps });
+  } catch (err: any) {
+    res.status(500).json({ error: "Research failed", detail: err?.message });
+  }
+});
+
+// ─── Document Intelligence ────────────────────────────────────────────────────
+
+router.post("/lab/docs", async (req, res): Promise<void> => {
+  const pin = req.headers["x-lab-pin"];
+  if (pin !== LAB_PIN) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const { fileBase64, fileName, fileType, question } = req.body ?? {};
+  if (!fileBase64 || !question) { res.status(400).json({ error: "fileBase64 and question are required" }); return; }
+
+  try {
+    let extractedText = "";
+    const buffer = Buffer.from(fileBase64, "base64");
+
+    if (fileType === "application/pdf" || fileName?.toLowerCase().endsWith(".pdf")) {
+      try {
+        const pdfParse = (await import("pdf-parse")).default;
+        const parsed = await pdfParse(buffer);
+        extractedText = parsed.text;
+      } catch {
+        extractedText = buffer.toString("utf-8").replace(/[^\x20-\x7E\n\r\t]/g, " ").trim();
+      }
+    } else {
+      extractedText = buffer.toString("utf-8");
+    }
+
+    const truncated = extractedText.slice(0, 28000);
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        {
+          role: "system",
+          content: `You are a document intelligence analyst. You have been given a document to analyse. Answer the user's question thoroughly based on the document content. Always respond with a JSON object containing:
+- "summary": a 1-2 sentence summary of the document
+- "keyPoints": an array of 3-7 key points from the document (strings)
+- "text": your full detailed answer to the user's specific question
+
+Return ONLY valid JSON, no markdown code blocks.`
+        },
+        {
+          role: "user",
+          content: `DOCUMENT: ${fileName || "Uploaded file"}\n\nCONTENT:\n${truncated}\n\n---\nQUESTION: ${question}`
+        }
+      ],
+      temperature: 0.3,
+      max_tokens: 1500,
+      response_format: { type: "json_object" },
+    });
+
+    let parsed: any = {};
+    try {
+      parsed = JSON.parse(completion.choices[0]?.message?.content || "{}");
+    } catch {
+      parsed = { text: completion.choices[0]?.message?.content || "Analysis complete.", summary: "", keyPoints: [] };
+    }
+
+    res.json({ ok: true, text: parsed.text || "", summary: parsed.summary || "", keyPoints: parsed.keyPoints || [] });
+  } catch (err: any) {
+    res.status(500).json({ error: "Document analysis failed", detail: err?.message });
+  }
+});
+
 export default router;
 

@@ -11,6 +11,7 @@ import { StarLabPage } from "@/pages/star-lab";
 import { MarketingPage } from "@/pages/marketing";
 import { DiscoverPage } from "@/pages/discover";
 import { LearnPage } from "@/pages/learn";
+import { ComparePage } from "@/pages/compare";
 import NotFound from "@/pages/not-found";
 import { PWAInstallPrompt } from "@/components/pwa-install-prompt";
 
@@ -34,6 +35,7 @@ function Router() {
       <Route path="/star-lab" component={StarLabPage} />
       <Route path="/learn" component={LearnPage} />
       <Route path="/why-sirius" component={MarketingPage} />
+      <Route path="/compare" component={ComparePage} />
       <Route path="/discover" component={DiscoverPage} />
       {/*
         ChatPage is the catch-all — it handles "/" and "/c/:id" internally
