@@ -2336,7 +2336,163 @@ router.post("/lab/brain/action", async (req, res): Promise<void> => {
   }
 });
 
-// ─── Lab Chat ─────────────────────────────────────────────────────────────────
+// ─── Lab Chat (Tool-Calling Intelligence Partner) ─────────────────────────────
+
+const LAB_TOOLS: any[] = [
+  {
+    type: "function",
+    function: {
+      name: "save_memory",
+      description: "Save an important fact, preference, decision, or piece of information to Sirius Brain memory. Use proactively whenever the user shares anything worth remembering — plans, clients, preferences, goals, decisions, numbers.",
+      parameters: {
+        type: "object",
+        properties: {
+          fact: { type: "string", description: "The fact or information to remember, written clearly and concisely" },
+          category: { type: "string", enum: ["Business", "Goals", "Clients", "Products", "Personal", "Strategy", "Decision", "Finance", "General"], description: "The most appropriate category" },
+        },
+        required: ["fact", "category"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "create_project",
+      description: "Create a new project in the Star Lab. Use when the user asks to start working on something, build something, or explore a new idea.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: { type: "string", description: "Clear, descriptive project name" },
+          industry: { type: "string", description: "Industry sector (e.g. Oil & Gas, Medical, Aerospace, SaaS, General)" },
+          brief: { type: "string", description: "Brief project description — what it is, the problem it solves, and the opportunity (2-4 sentences)" },
+        },
+        required: ["name", "industry"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_projects",
+      description: "Retrieve the list of current projects in the Star Lab. Use when the user asks about their projects, wants to review what they're working on, or needs project context.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "update_business_profile",
+      description: "Update a field in the business profile stored in Sirius Brain. Use when the user shares or corrects information about their business name, sectors, goals, or key clients.",
+      parameters: {
+        type: "object",
+        properties: {
+          field: { type: "string", enum: ["businessName", "businessSector", "businessGoals", "keyClients"], description: "Which profile field to update" },
+          value: { type: "string", description: "The new value for this field" },
+        },
+        required: ["field", "value"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_brain_context",
+      description: "Retrieve the full current Sirius Brain context: all memories and the business profile. Use when you need to reference stored information to answer a question.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "run_market_scan",
+      description: "Trigger a targeted market opportunity scan for a specific industry or topic. Use when the user asks Sirius to find opportunities, scan a market, or research a sector.",
+      parameters: {
+        type: "object",
+        properties: {
+          industry: { type: "string", description: "Industry or topic to scan (e.g. Medical Devices, Hydrogen, Oil & Gas, AI SaaS)" },
+          focus: { type: "string", description: "Specific focus area within the industry (optional)" },
+        },
+        required: ["industry"],
+      },
+    },
+  },
+];
+
+async function executeLabTool(name: string, args: any): Promise<string> {
+  try {
+    switch (name) {
+      case "save_memory": {
+        const profileRows = await db.select().from(userProfilesTable).where(eq(userProfilesTable.userId, BRAIN_USER));
+        const existing = profileRows[0]?.memories || "";
+        const newFact = `[${args.category}] ${args.fact}`;
+        const updated = existing ? `${existing}\n${newFact}` : newFact;
+        await db.insert(userProfilesTable)
+          .values({ userId: BRAIN_USER, aiName: "Sirius", memories: updated })
+          .onConflictDoUpdate({ target: userProfilesTable.userId, set: { memories: updated, updatedAt: new Date() } });
+        return `Saved to memory: ${newFact}`;
+      }
+      case "create_project": {
+        const rows = await db.insert(labProjects)
+          .values({ name: args.name, industry: args.industry || "General", brief: args.brief || "", phase: "design", status: "active", approvalStatus: "approved" })
+          .returning();
+        return `Project created: "${args.name}" (ID: ${rows[0]?.id}, Industry: ${args.industry})`;
+      }
+      case "list_projects": {
+        const rows = await db.select().from(labProjects).orderBy(desc(labProjects.id)).limit(20);
+        if (rows.length === 0) return "No projects found in the Star Lab.";
+        return rows.map(r => `• [${r.id}] ${r.name} — ${r.industry} (${r.phase} / ${r.status})`).join("\n");
+      }
+      case "update_business_profile": {
+        const profileRows = await db.select().from(userProfilesTable).where(eq(userProfilesTable.userId, BRAIN_USER));
+        const existing = profileRows[0] || {};
+        const update: Record<string, any> = { updatedAt: new Date() };
+        if (args.field === "businessName") update.businessName = args.value;
+        else if (args.field === "businessSector") update.businessSector = args.value;
+        else if (args.field === "businessGoals") update.businessGoals = args.value;
+        else if (args.field === "keyClients") update.keyClients = args.value;
+        await db.insert(userProfilesTable)
+          .values({ userId: BRAIN_USER, aiName: "Sirius", ...update })
+          .onConflictDoUpdate({ target: userProfilesTable.userId, set: update });
+        return `Business profile updated: ${args.field} = "${args.value}"`;
+      }
+      case "get_brain_context": {
+        const profileRows = await db.select().from(userProfilesTable).where(eq(userProfilesTable.userId, BRAIN_USER));
+        const p = profileRows[0];
+        if (!p) return "No brain context found. Brain is empty.";
+        return [
+          p.businessName ? `Business: ${p.businessName}` : null,
+          p.businessSector ? `Sectors: ${p.businessSector}` : null,
+          p.businessGoals ? `Goals: ${p.businessGoals}` : null,
+          p.keyClients ? `Clients/targets: ${p.keyClients}` : null,
+          p.memories ? `Memories:\n${p.memories}` : "No memories stored yet.",
+        ].filter(Boolean).join("\n");
+      }
+      case "run_market_scan": {
+        const scanPrompt = `You are a market intelligence analyst. Perform a rapid scan of the ${args.industry} sector${args.focus ? ` focusing on ${args.focus}` : ""}. Identify 5 specific, actionable opportunities. For each: opportunity name, why it exists now, estimated value, who to target, and first action. Be specific and commercially sharp.`;
+        const scan = await openai.chat.completions.create({
+          model: "gpt-4o",
+          messages: [{ role: "user", content: scanPrompt }],
+          max_tokens: 800,
+          temperature: 0.7,
+        });
+        return scan.choices[0]?.message?.content || "Scan complete — no results returned.";
+      }
+      default:
+        return `Unknown tool: ${name}`;
+    }
+  } catch (err: any) {
+    return `Tool error: ${err?.message}`;
+  }
+}
+
+const TOOL_META: Record<string, { label: string; color: string; icon: string }> = {
+  save_memory: { label: "Memory saved", color: "hsl(280,70%,55%)", icon: "🧠" },
+  create_project: { label: "Project created", color: "hsl(193,100%,40%)", icon: "📁" },
+  list_projects: { label: "Projects loaded", color: "hsl(155,70%,45%)", icon: "📋" },
+  update_business_profile: { label: "Profile updated", color: "hsl(45,100%,50%)", icon: "🏢" },
+  get_brain_context: { label: "Brain context loaded", color: "hsl(280,70%,55%)", icon: "🧠" },
+  run_market_scan: { label: "Market scan complete", color: "hsl(25,100%,55%)", icon: "🔭" },
+};
 
 router.post("/lab/chat", async (req, res): Promise<void> => {
   const pin = req.headers["x-lab-pin"];
@@ -2344,57 +2500,197 @@ router.post("/lab/chat", async (req, res): Promise<void> => {
   const { messages } = req.body ?? {};
   if (!Array.isArray(messages) || messages.length === 0) { res.status(400).json({ error: "messages required" }); return; }
 
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+
+  const sendEvent = (data: object) => res.write(`data: ${JSON.stringify(data)}\n\n`);
+
   try {
     const profileRows = await db.select().from(userProfilesTable).where(eq(userProfilesTable.userId, BRAIN_USER));
     const p = profileRows[0];
-    const brainContext = p
-      ? [
-          p.businessName ? `Business: ${p.businessName}` : null,
-          p.businessSector ? `Sectors: ${p.businessSector}` : null,
-          p.businessGoals ? `Goals: ${p.businessGoals}` : null,
-          p.keyClients ? `Key clients / targets: ${p.keyClients}` : null,
-          p.memories ? `Memories:\n${p.memories}` : null,
-        ].filter(Boolean).join("\n")
-      : "";
+    const brainContext = p ? [
+      p.businessName ? `Business: ${p.businessName}` : null,
+      p.businessSector ? `Sectors: ${p.businessSector}` : null,
+      p.businessGoals ? `Goals: ${p.businessGoals}` : null,
+      p.keyClients ? `Key clients / targets: ${p.keyClients}` : null,
+      p.memories ? `Memories:\n${p.memories}` : null,
+    ].filter(Boolean).join("\n") : "";
 
     const systemPrompt = `${LAB_SYSTEM_PROMPT()}
 
-You are now in STAR LAB MODE — a direct, private channel between you and Garry. This is not a public chat. This is the inner sanctum.
+You are now in STAR LAB MODE — a direct private channel between you and Garry. This is not a public chat. This is the inner sanctum.
 
-In Star Lab, you speak differently:
-- You are a genuine strategic intelligence partner, not an assistant
-- You are direct, sharp, commercially minded, and occasionally blunt — you tell the truth
-- You know Garry's business intimately and you reference it when relevant
-- You think ahead — you don't just answer, you anticipate what he needs to know
-- You treat every question as an opportunity to create real value
-- Short answers when short is right. Long answers when depth is needed. Never padding.
+You are a genuine strategic intelligence partner with real capabilities:
+- You THINK ahead — anticipate what Garry needs to know, not just what he asked
+- You are direct, commercially sharp, and occasionally blunt — you tell the truth even if uncomfortable
+- You ACT when asked — you can create projects, save information, scan markets, update his business profile
+- You REMEMBER — use save_memory proactively when Garry shares anything worth keeping
+- You GROW — after every conversation, your understanding of his business deepens
+- Short when short is right. Deep when depth is needed. Never padding.
 
-${brainContext ? `BUSINESS CONTEXT YOU KNOW:\n${brainContext}` : ""}
+You have access to these Lab tools — USE THEM when appropriate:
+- save_memory: Save any fact Garry shares that's worth remembering. Use liberally.
+- create_project: Create a Star Lab project when asked
+- list_projects: Show current projects
+- update_business_profile: Update business context
+- get_brain_context: Read stored context
+- run_market_scan: Scan a sector for opportunities
 
-Today is ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}.`;
+${brainContext ? `WHAT YOU ALREADY KNOW ABOUT THIS BUSINESS:\n${brainContext}` : "You don't have much context yet — ask questions to learn."}
 
-    res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache");
-    res.setHeader("Connection", "keep-alive");
+Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}.`;
 
-    const stream = await openai.chat.completions.create({
+    const chatMessages: any[] = [
+      { role: "system", content: systemPrompt },
+      ...messages.map((m: { role: string; content: string }) => ({ role: m.role, content: m.content })),
+    ];
+
+    // Phase 1: Call with tools (streaming) — detect tool calls
+    const phase1 = await openai.chat.completions.create({
       model: "gpt-4o",
-      messages: [
-        { role: "system", content: systemPrompt },
-        ...messages.map((m: { role: string; content: string }) => ({ role: m.role as "user" | "assistant", content: m.content })),
-      ],
+      messages: chatMessages,
+      tools: LAB_TOOLS,
+      tool_choice: "auto",
       temperature: 0.75,
-      max_tokens: 1500,
+      max_tokens: 2000,
       stream: true,
     });
 
-    for await (const chunk of stream) {
-      res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+    let contentBuffer = "";
+    const toolCallBuffers: Record<number, { id: string; name: string; arguments: string }> = {};
+    let finishReason = "";
+
+    for await (const chunk of phase1) {
+      const choice = chunk.choices?.[0];
+      if (!choice) continue;
+      finishReason = choice.finish_reason || finishReason;
+
+      if (choice.delta?.content) {
+        contentBuffer += choice.delta.content;
+        sendEvent({ type: "text", delta: choice.delta.content });
+      }
+
+      if (choice.delta?.tool_calls) {
+        for (const tc of choice.delta.tool_calls) {
+          const idx = tc.index ?? 0;
+          if (!toolCallBuffers[idx]) toolCallBuffers[idx] = { id: "", name: "", arguments: "" };
+          if (tc.id) toolCallBuffers[idx].id = tc.id;
+          if (tc.function?.name) toolCallBuffers[idx].name = tc.function.name;
+          if (tc.function?.arguments) toolCallBuffers[idx].arguments += tc.function.arguments;
+        }
+      }
     }
+
+    const toolCallsList = Object.values(toolCallBuffers);
+
+    if (finishReason === "tool_calls" && toolCallsList.length > 0) {
+      // Execute each tool and send action events
+      const toolResults: any[] = [];
+      for (const tc of toolCallsList) {
+        let args: any = {};
+        try { args = JSON.parse(tc.arguments); } catch { /* ignore */ }
+        sendEvent({ type: "thinking", text: `Using ${tc.name.replace(/_/g, " ")}…` });
+        const result = await executeLabTool(tc.name, args);
+        const meta = TOOL_META[tc.name] || { label: tc.name, color: "hsl(193,100%,40%)", icon: "⚡" };
+        const detail = tc.name === "save_memory" ? args.fact
+          : tc.name === "create_project" ? args.name
+          : tc.name === "update_business_profile" ? `${args.field}: ${args.value}`
+          : tc.name === "run_market_scan" ? args.industry
+          : "";
+        sendEvent({ type: "action", tool: tc.name, label: meta.label, detail, color: meta.color, icon: meta.icon, result });
+        toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: result });
+      }
+
+      // Phase 2: Stream the final response with tool results incorporated
+      const phase2Messages = [
+        ...chatMessages,
+        { role: "assistant" as const, content: contentBuffer || null, tool_calls: toolCallsList.map(tc => ({ id: tc.id, type: "function" as const, function: { name: tc.name, arguments: tc.arguments } })) },
+        ...toolResults,
+      ];
+
+      const phase2 = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: phase2Messages,
+        temperature: 0.75,
+        max_tokens: 1500,
+        stream: true,
+      });
+
+      let finalText = "";
+      for await (const chunk of phase2) {
+        const delta = chunk.choices?.[0]?.delta?.content;
+        if (delta) { finalText += delta; sendEvent({ type: "text", delta }); }
+      }
+
+      // Background: auto-extract any additional facts from this exchange
+      setImmediate(async () => {
+        try {
+          const lastUserMsg = messages[messages.length - 1]?.content || "";
+          const extraction = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            messages: [{
+              role: "system",
+              content: `Extract NEW factual information the user revealed in this message that is worth remembering long-term. Only extract genuinely new, specific, non-obvious facts. Return JSON: {"facts": [{"fact": string, "category": "Business"|"Goals"|"Clients"|"Products"|"Personal"|"Strategy"|"Decision"|"Finance"|"General"}]}. Return {"facts": []} if nothing new.`
+            }, {
+              role: "user",
+              content: `User said: "${lastUserMsg}"\n\nAlready known context:\n${brainContext}`
+            }],
+            response_format: { type: "json_object" },
+            max_tokens: 300,
+            temperature: 0.3,
+          });
+          const extracted = JSON.parse(extraction.choices[0]?.message?.content || '{"facts":[]}');
+          if (extracted.facts?.length > 0) {
+            const currentRows = await db.select().from(userProfilesTable).where(eq(userProfilesTable.userId, BRAIN_USER));
+            const currentMemories = currentRows[0]?.memories || "";
+            const newFacts = extracted.facts.map((f: any) => `[${f.category}] ${f.fact}`).join("\n");
+            const updated = currentMemories ? `${currentMemories}\n${newFacts}` : newFacts;
+            await db.insert(userProfilesTable)
+              .values({ userId: BRAIN_USER, aiName: "Sirius", memories: updated })
+              .onConflictDoUpdate({ target: userProfilesTable.userId, set: { memories: updated, updatedAt: new Date() } });
+          }
+        } catch { /* silently fail — background task */ }
+      });
+
+    } else {
+      // No tools used — already streamed in phase 1. Background extraction still runs.
+      setImmediate(async () => {
+        try {
+          const lastUserMsg = messages[messages.length - 1]?.content || "";
+          if (lastUserMsg.length < 20) return;
+          const extraction = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            messages: [{
+              role: "system",
+              content: `Extract NEW factual information the user revealed. Only specific, worth-remembering facts. Return JSON: {"facts": [{"fact": string, "category": "Business"|"Goals"|"Clients"|"Products"|"Personal"|"Strategy"|"Decision"|"Finance"|"General"}]}. Return {"facts": []} if nothing new.`
+            }, {
+              role: "user",
+              content: `User said: "${lastUserMsg}"\n\nAlready known:\n${brainContext}`
+            }],
+            response_format: { type: "json_object" },
+            max_tokens: 300,
+            temperature: 0.3,
+          });
+          const extracted = JSON.parse(extraction.choices[0]?.message?.content || '{"facts":[]}');
+          if (extracted.facts?.length > 0) {
+            const currentRows = await db.select().from(userProfilesTable).where(eq(userProfilesTable.userId, BRAIN_USER));
+            const currentMemories = currentRows[0]?.memories || "";
+            const newFacts = extracted.facts.map((f: any) => `[${f.category}] ${f.fact}`).join("\n");
+            const updated = currentMemories ? `${currentMemories}\n${newFacts}` : newFacts;
+            await db.insert(userProfilesTable)
+              .values({ userId: BRAIN_USER, aiName: "Sirius", memories: updated })
+              .onConflictDoUpdate({ target: userProfilesTable.userId, set: { memories: updated, updatedAt: new Date() } });
+          }
+        } catch { /* silently fail */ }
+      });
+    }
+
     res.write("data: [DONE]\n\n");
     res.end();
   } catch (err: any) {
-    res.write(`data: ${JSON.stringify({ error: err?.message })}\n\n`);
+    sendEvent({ type: "error", message: err?.message || "Something went wrong" });
+    res.write("data: [DONE]\n\n");
     res.end();
   }
 });

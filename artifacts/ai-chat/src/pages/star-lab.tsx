@@ -6724,7 +6724,8 @@ function LabAvatarGreeting({ userName, onNavigate, onDismiss }: {
 
 // ─── Sirius Lab Chat Panel ────────────────────────────────────────────────────
 
-type LabChatMsg = { role: "user" | "assistant"; content: string };
+type ActionCard = { tool: string; label: string; detail: string; color: string; icon: string; result?: string };
+type LabChatMsg = { role: "user" | "assistant"; content: string; actions?: ActionCard[] };
 
 function SiriusLabChatPanel({ pin }: { pin: string }) {
   const base = getApiBase();
@@ -6732,12 +6733,14 @@ function SiriusLabChatPanel({ pin }: { pin: string }) {
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [streamingText, setStreamingText] = useState("");
+  const [streamingActions, setStreamingActions] = useState<ActionCard[]>([]);
+  const [thinkingText, setThinkingText] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, streamingText]);
+  }, [messages, streamingText, streamingActions]);
 
   const send = async (text?: string) => {
     const content = (text ?? input).trim();
@@ -6745,92 +6748,124 @@ function SiriusLabChatPanel({ pin }: { pin: string }) {
     setInput("");
 
     const userMsg: LabChatMsg = { role: "user", content };
-    const newMessages = [...messages, userMsg];
-    setMessages(newMessages);
+    const apiMessages = [...messages, userMsg].map(m => ({ role: m.role, content: m.content }));
+    setMessages(prev => [...prev, userMsg]);
     setStreaming(true);
     setStreamingText("");
+    setStreamingActions([]);
+    setThinkingText("");
+
+    let fullText = "";
+    const actions: ActionCard[] = [];
 
     try {
       const res = await fetch(`${base}lab/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-lab-pin": pin },
-        body: JSON.stringify({ messages: newMessages }),
+        body: JSON.stringify({ messages: apiMessages }),
       });
       if (!res.ok) throw new Error("Chat failed");
+
       const reader = res.body!.getReader();
       const decoder = new TextDecoder();
-      let full = "";
+      let buffer = "";
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split("\n");
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
         for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            const data = line.slice(6).trim();
-            if (data === "[DONE]") break;
-            try {
-              const parsed = JSON.parse(data);
-              const delta = parsed.choices?.[0]?.delta?.content || "";
-              if (delta) { full += delta; setStreamingText(full); }
-            } catch { /* skip */ }
-          }
+          if (!line.startsWith("data: ")) continue;
+          const raw = line.slice(6).trim();
+          if (raw === "[DONE]") break;
+          try {
+            const evt = JSON.parse(raw);
+            if (evt.type === "text" && evt.delta) {
+              fullText += evt.delta;
+              setStreamingText(fullText);
+              setThinkingText("");
+            } else if (evt.type === "action") {
+              const card: ActionCard = { tool: evt.tool, label: evt.label, detail: evt.detail, color: evt.color, icon: evt.icon, result: evt.result };
+              actions.push(card);
+              setStreamingActions([...actions]);
+            } else if (evt.type === "thinking") {
+              setThinkingText(evt.text || "");
+            }
+          } catch { /* skip malformed */ }
         }
       }
-      setMessages(prev => [...prev, { role: "assistant", content: full }]);
+
+      setMessages(prev => [...prev, { role: "assistant", content: fullText, actions: actions.length > 0 ? [...actions] : undefined }]);
     } catch {
-      setMessages(prev => [...prev, { role: "assistant", content: "Sorry — something went wrong. Try again." }]);
+      setMessages(prev => [...prev, { role: "assistant", content: "Something went wrong — try again." }]);
     } finally {
       setStreaming(false);
       setStreamingText("");
+      setStreamingActions([]);
+      setThinkingText("");
       setTimeout(() => inputRef.current?.focus(), 50);
     }
   };
 
   const CHIPS = [
-    "What should I focus on today?",
-    "Summarise my business opportunities",
-    "What's my biggest revenue lever?",
-    "Write a cold email for Baker Hughes",
-    "What sectors should I target first?",
-    "Review my business strategy",
+    "What should I focus on this week?",
+    "Create a project for oil & gas CNC components",
+    "Save to memory: we're targeting Baker Hughes as priority client",
+    "Scan medical device market for opportunities",
+    "What's my biggest revenue lever right now?",
+    "Show me all my current projects",
   ];
 
   return (
     <div className="flex-1 flex flex-col min-h-0" style={{ background: "hsl(226,45%,6%)" }}>
 
       {/* Header */}
-      <div className="flex items-center gap-4 p-5 border-b" style={{ borderColor: "rgba(255,255,255,0.06)", background: "hsl(226,45%,7%)" }}>
-        <div className="relative flex-shrink-0">
-          <div className="w-12 h-12 rounded-2xl overflow-hidden"
-            style={{ border: "1.5px solid rgba(0,212,255,0.3)", boxShadow: "0 0 20px rgba(0,212,255,0.15)" }}>
-            <img src="/logo-v2.png" alt="Sirius" className="w-full h-full object-cover" />
+      <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: "rgba(255,255,255,0.06)", background: "hsl(226,45%,7%)" }}>
+        <div className="flex items-center gap-3">
+          <div className="relative flex-shrink-0">
+            <div className="w-11 h-11 rounded-2xl overflow-hidden"
+              style={{ border: "1.5px solid rgba(0,212,255,0.3)", boxShadow: "0 0 18px rgba(0,212,255,0.15)" }}>
+              <img src="/logo-v2.png" alt="Sirius" className="w-full h-full object-cover" />
+            </div>
+            <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 animate-pulse"
+              style={{ background: "hsl(155,70%,50%)", borderColor: "hsl(226,45%,7%)" }} />
           </div>
-          <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 animate-pulse"
-            style={{ background: "hsl(155,70%,50%)", borderColor: "hsl(226,45%,7%)" }} />
+          <div>
+            <p className="text-white font-bold text-sm leading-none">Sirius — Intelligence Partner</p>
+            <p className="text-xs mt-1" style={{ color: "hsl(155,70%,50%)" }}>● Online · Can create projects, save memory, scan markets</p>
+          </div>
         </div>
-        <div>
-          <p className="text-white font-bold text-base leading-none">Sirius</p>
-          <p className="text-xs mt-1" style={{ color: "hsl(155,70%,50%)" }}>● Online · Star Lab mode · Knows your business</p>
-        </div>
+        {messages.length > 0 && (
+          <button onClick={() => setMessages([])}
+            className="text-xs text-white/20 hover:text-white/50 transition-colors px-2 py-1 rounded-lg hover:bg-white/5">
+            Clear
+          </button>
+        )}
       </div>
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
+
+        {/* Empty state */}
         {messages.length === 0 && !streaming && (
-          <div className="flex flex-col items-center justify-center flex-1 py-10 gap-6">
+          <div className="flex flex-col items-center justify-center flex-1 py-8 gap-5">
             <div className="w-20 h-20 rounded-3xl overflow-hidden"
               style={{ border: "1.5px solid rgba(0,212,255,0.25)", boxShadow: "0 0 40px rgba(0,212,255,0.12)" }}>
               <img src="/logo-v2.png" alt="Sirius" className="w-full h-full object-cover" />
             </div>
             <div className="text-center">
-              <p className="text-white font-semibold text-base mb-1">I'm right here inside the Lab</p>
-              <p className="text-white/35 text-sm max-w-xs">Ask me anything — strategy, clients, revenue, what to build next. I know your business.</p>
+              <p className="text-white font-bold text-base mb-1">I'm here. What do you need?</p>
+              <p className="text-white/35 text-sm max-w-sm leading-relaxed">
+                Talk to me like a partner. Ask me to do things — I can create projects, save facts to memory, scan markets, update your profile, and carry real conversations. I grow with every exchange.
+              </p>
             </div>
-            <div className="flex flex-wrap gap-2 justify-center max-w-md">
+            <div className="grid grid-cols-2 gap-2 max-w-md w-full">
               {CHIPS.map(chip => (
                 <button key={chip} onClick={() => send(chip)}
-                  className="text-xs px-3 py-2 rounded-xl transition-all hover:border-cyan-400/30 hover:text-white/70"
+                  className="text-xs px-3 py-2.5 rounded-xl transition-all hover:border-white/15 text-left leading-snug"
                   style={{ background: "hsl(226,45%,9%)", border: "1px solid rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.4)" }}>
                   {chip}
                 </button>
@@ -6839,6 +6874,7 @@ function SiriusLabChatPanel({ pin }: { pin: string }) {
           </div>
         )}
 
+        {/* Message history */}
         {messages.map((msg, i) => (
           <div key={i} className={`flex gap-3 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}>
             {msg.role === "assistant" && (
@@ -6847,32 +6883,71 @@ function SiriusLabChatPanel({ pin }: { pin: string }) {
                 <img src="/logo-v2.png" alt="Sirius" className="w-full h-full object-cover" />
               </div>
             )}
-            <div className="max-w-[75%] px-4 py-3 rounded-2xl text-sm leading-relaxed"
-              style={msg.role === "user"
-                ? { background: "hsl(226,60%,18%)", color: "rgba(255,255,255,0.9)", borderRadius: "18px 18px 4px 18px" }
-                : { background: "hsl(226,45%,10%)", color: "rgba(255,255,255,0.80)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "18px 18px 18px 4px" }}>
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+            <div className="flex flex-col gap-2 max-w-[78%]">
+              {/* Action cards */}
+              {msg.actions && msg.actions.map((a, ai) => (
+                <div key={ai} className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold"
+                  style={{ background: `${a.color}14`, border: `1px solid ${a.color}30` }}>
+                  <span>{a.icon}</span>
+                  <span style={{ color: a.color }}>{a.label}</span>
+                  {a.detail && <span className="text-white/40 font-normal truncate max-w-[160px]">— {a.detail}</span>}
+                  <Check className="w-3 h-3 ml-auto flex-shrink-0" style={{ color: a.color }} />
+                </div>
+              ))}
+              {/* Message bubble */}
+              {msg.content && (
+                <div className="px-4 py-3 rounded-2xl text-sm leading-relaxed"
+                  style={msg.role === "user"
+                    ? { background: "hsl(226,60%,18%)", color: "rgba(255,255,255,0.9)", borderRadius: "18px 18px 4px 18px" }
+                    : { background: "hsl(226,45%,10%)", color: "rgba(255,255,255,0.82)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "18px 18px 18px 4px" }}>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                </div>
+              )}
             </div>
           </div>
         ))}
 
-        {/* Streaming bubble */}
+        {/* Live streaming bubble */}
         {streaming && (
           <div className="flex gap-3">
             <div className="w-8 h-8 rounded-xl overflow-hidden flex-shrink-0 mt-1"
               style={{ border: "1px solid rgba(0,212,255,0.2)" }}>
               <img src="/logo-v2.png" alt="Sirius" className="w-full h-full object-cover" />
             </div>
-            <div className="max-w-[75%] px-4 py-3 rounded-2xl text-sm leading-relaxed"
-              style={{ background: "hsl(226,45%,10%)", color: "rgba(255,255,255,0.80)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "18px 18px 18px 4px" }}>
-              {streamingText
-                ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamingText}</ReactMarkdown>
-                : <div className="flex items-center gap-1.5 py-1">
+            <div className="flex flex-col gap-2 max-w-[78%]">
+              {/* Live action cards */}
+              {streamingActions.map((a, ai) => (
+                <div key={ai} className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold"
+                  style={{ background: `${a.color}14`, border: `1px solid ${a.color}30` }}>
+                  <span>{a.icon}</span>
+                  <span style={{ color: a.color }}>{a.label}</span>
+                  {a.detail && <span className="text-white/40 font-normal truncate max-w-[160px]">— {a.detail}</span>}
+                  <Check className="w-3 h-3 ml-auto flex-shrink-0" style={{ color: a.color }} />
+                </div>
+              ))}
+              {/* Thinking indicator */}
+              {thinkingText && !streamingText && (
+                <div className="flex items-center gap-2 text-xs text-white/30 italic px-1">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  {thinkingText}
+                </div>
+              )}
+              {/* Streaming text */}
+              {streamingText ? (
+                <div className="px-4 py-3 rounded-2xl text-sm leading-relaxed"
+                  style={{ background: "hsl(226,45%,10%)", color: "rgba(255,255,255,0.82)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "18px 18px 18px 4px" }}>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamingText}</ReactMarkdown>
+                </div>
+              ) : !thinkingText && streamingActions.length === 0 && (
+                <div className="px-4 py-3 rounded-2xl"
+                  style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "18px 18px 18px 4px" }}>
+                  <div className="flex items-center gap-1.5">
                     <div className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce" style={{ animationDelay: "0ms" }} />
                     <div className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce" style={{ animationDelay: "150ms" }} />
                     <div className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce" style={{ animationDelay: "300ms" }} />
                   </div>
-              }
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -6882,23 +6957,24 @@ function SiriusLabChatPanel({ pin }: { pin: string }) {
       {/* Input */}
       <div className="p-4 border-t" style={{ borderColor: "rgba(255,255,255,0.06)", background: "hsl(226,45%,7%)" }}>
         <div className="flex items-center gap-3 px-4 py-3 rounded-2xl"
-          style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.08)" }}>
+          style={{ background: "hsl(226,45%,10%)", border: `1px solid ${streaming ? "rgba(0,212,255,0.2)" : "rgba(255,255,255,0.08)"}`, transition: "border-color 0.3s" }}>
           <input
             ref={inputRef}
             className="flex-1 bg-transparent text-white text-sm placeholder-white/20 outline-none"
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-            placeholder="Ask Sirius anything — strategy, clients, what to build next…"
+            placeholder="Talk to me — strategy, decisions, tasks, anything…"
             disabled={streaming}
             autoFocus
           />
           <button onClick={() => send()} disabled={streaming || !input.trim()}
-            className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 transition-all disabled:opacity-30"
+            className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 transition-all disabled:opacity-30 hover:opacity-85"
             style={{ background: "linear-gradient(135deg, hsl(193,100%,35%), hsl(226,70%,45%))" }}>
             {streaming ? <Loader2 className="w-4 h-4 text-white animate-spin" /> : <Send className="w-4 h-4 text-white" />}
           </button>
         </div>
+        <p className="text-white/15 text-xs mt-2 text-center">Sirius can create projects, save memories, scan markets · She learns from every message</p>
       </div>
     </div>
   );
