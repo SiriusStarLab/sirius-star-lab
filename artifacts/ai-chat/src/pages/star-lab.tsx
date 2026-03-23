@@ -65,7 +65,7 @@ type RankResult = {
   keyStrengths: string[]; estimatedMonthlyRevenue: string;
   buildEffort: string;
 };
-type NavMode = "dashboard" | "projects" | "botlab" | "scout" | "feed" | "grants" | "commerce" | "outreach" | "autolab" | "revenue" | "agency" | "mission" | "growth" | "brain" | "research" | "docs" | "labchat";
+type NavMode = "dashboard" | "projects" | "botlab" | "scout" | "feed" | "grants" | "commerce" | "outreach" | "autolab" | "revenue" | "agency" | "mission" | "growth" | "brain" | "research" | "docs" | "labchat" | "appbuilder";
 
 const MAX_PIN_DIGITS = 8;
 const MAX_ATTEMPTS = 5;
@@ -3540,6 +3540,680 @@ type FundingMatch = {
 };
 type FundingOpportunity = { projectId: number; projectName: string; matches: FundingMatch[] };
 type FundingResult = { opportunities: FundingOpportunity[]; summary: string };
+
+// ── App Builder — 6-Phase Autonomous Agent System ────────────────────────────
+
+type AppRequirements = {
+  appName: string; summary: string; appType: string; techStack: string;
+  coreFeatures: string[]; targetUsers: string; keyPages: string[];
+  estimatedComplexity: string; estimatedBuildTime: string;
+};
+type BuildTask = {
+  id: string; agent: string; emoji: string; title: string;
+  description: string; outputs: string[]; estimatedTime: string; dependsOn: string[];
+  status?: "pending" | "running" | "done" | "error";
+};
+type AgentStatus = { id: string; name: string; emoji: string; color: string; status: "waiting" | "running" | "done" | "error"; output: string; files: string[] };
+type Bug = { file: string; desc: string; severity: string; fix: string };
+
+const BUILD_PHASES = [
+  { id: 1, label: "Interpret",  icon: "🔍", desc: "Parse requirements"    },
+  { id: 2, label: "Plan",       icon: "📋", desc: "Task list approval"    },
+  { id: 3, label: "Execute",    icon: "⚙️",  desc: "Agents build code"    },
+  { id: 4, label: "Self-Test",  icon: "🧪", desc: "AI reviews for bugs"  },
+  { id: 5, label: "Self-Debug", icon: "🔧", desc: "Auto-patch issues"    },
+  { id: 6, label: "Deploy",     icon: "🚀", desc: "Download & launch"    },
+];
+
+const BUILDER_AGENTS: AgentStatus[] = [
+  { id: "architect",   name: "Architect Agent",   emoji: "🏛️", color: "hsl(45,90%,50%)",   status: "waiting", output: "", files: [] },
+  { id: "frontend",    name: "Frontend Agent",    emoji: "🎨", color: "hsl(210,80%,50%)",  status: "waiting", output: "", files: [] },
+  { id: "backend",     name: "Backend Agent",     emoji: "⚙️", color: "hsl(193,100%,40%)", status: "waiting", output: "", files: [] },
+  { id: "database",    name: "Database Agent",    emoji: "🗄️", color: "hsl(280,70%,55%)",  status: "waiting", output: "", files: [] },
+  { id: "integration", name: "Integration Agent", emoji: "🔗", color: "hsl(155,70%,45%)",  status: "waiting", output: "", files: [] },
+];
+
+function AppBuilderPanel({ pin }: { pin: string }) {
+  const API = getApiBase();
+  const [phase, setPhase] = useState(1);
+  const [prompt, setPrompt] = useState("");
+  const [reqs, setReqs] = useState<AppRequirements | null>(null);
+  const [plan, setPlan] = useState<BuildTask[]>([]);
+  const [agents, setAgents] = useState<AgentStatus[]>(BUILDER_AGENTS.map(a => ({ ...a })));
+  const [allFiles, setAllFiles] = useState<Record<string, string>>({});
+  const [bugs, setBugs] = useState<Bug[]>([]);
+  const [testOutput, setTestOutput] = useState("");
+  const [debugOutput, setDebugOutput] = useState("");
+  const [activeFile, setActiveFile] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [buildLog, setBuildLog] = useState("");
+  const outputRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    setTimeout(() => { outputRef.current?.scrollTo({ top: outputRef.current.scrollHeight, behavior: "smooth" }); }, 50);
+  };
+
+  // Phase 1 → 2: Interpret prompt
+  const handleInterpret = async () => {
+    if (!prompt.trim()) return;
+    setLoading(true); setError("");
+    try {
+      const res = await fetch(`${API}/lab/app-builder/interpret`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt, pin }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setReqs(data);
+      setPhase(2);
+    } catch (e: any) { setError(e.message); }
+    finally { setLoading(false); }
+  };
+
+  // Phase 2 → 3: Generate plan
+  const handlePlan = async () => {
+    if (!reqs) return;
+    setLoading(true); setError("");
+    try {
+      const res = await fetch(`${API}/lab/app-builder/plan`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ requirements: reqs, pin }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setPlan((data.tasks || []).map((t: BuildTask) => ({ ...t, status: "pending" })));
+      setPhase(3);
+    } catch (e: any) { setError(e.message); }
+    finally { setLoading(false); }
+  };
+
+  // Phase 3: Execute build
+  const handleBuild = async () => {
+    if (!reqs) return;
+    setPhase(4); setError(""); setBuildLog("");
+    setAgents(BUILDER_AGENTS.map(a => ({ ...a })));
+    setAllFiles({});
+    const collectedFiles: Record<string, string> = {};
+
+    const res = await fetch(`${API}/lab/build-app`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ appName: reqs.appName, description: reqs.summary, appType: reqs.appType, techStack: reqs.techStack, features: reqs.coreFeatures, pin }),
+    });
+    if (!res.body) { setError("No stream"); return; }
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const lines = buf.split("\n");
+      buf = lines.pop() || "";
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        try {
+          const evt = JSON.parse(line.slice(6));
+          if (evt.type === "agent_start") {
+            setAgents(prev => prev.map(a => a.id === evt.agentId ? { ...a, status: "running" } : a));
+            setBuildLog(prev => prev + `\n[${evt.emoji} ${evt.name}] Starting...\n`);
+            scrollToBottom();
+          } else if (evt.type === "agent_delta") {
+            setAgents(prev => prev.map(a => a.id === evt.agentId ? { ...a, output: a.output + evt.content } : a));
+            setBuildLog(prev => prev + evt.content);
+            scrollToBottom();
+          } else if (evt.type === "file") {
+            collectedFiles[evt.filename] = evt.content;
+            setAllFiles({ ...collectedFiles });
+            setAgents(prev => prev.map(a => a.id === evt.agentId ? { ...a, files: [...a.files, evt.filename] } : a));
+          } else if (evt.type === "agent_done") {
+            setAgents(prev => prev.map(a => a.id === evt.agentId ? { ...a, status: "done" } : a));
+          } else if (evt.type === "agent_error") {
+            setAgents(prev => prev.map(a => a.id === evt.agentId ? { ...a, status: "error" } : a));
+          } else if (evt.type === "done") {
+            if (evt.files) { Object.assign(collectedFiles, evt.files); setAllFiles({ ...collectedFiles }); }
+          }
+        } catch {}
+      }
+    }
+    if (Object.keys(collectedFiles).length > 0) {
+      setAllFiles({ ...collectedFiles });
+      setPhase(5); // move to self-test phase
+    }
+  };
+
+  // Phase 4 (UI 5): Self-Test
+  const handleTest = async () => {
+    setLoading(true); setTestOutput(""); setBugs([]); setError("");
+    const collectedBugs: Bug[] = [];
+
+    const res = await fetch(`${API}/lab/app-builder/test`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ files: allFiles, appName: reqs?.appName, techStack: reqs?.techStack, pin }),
+    });
+    if (!res.body) { setLoading(false); return; }
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const lines = buf.split("\n");
+      buf = lines.pop() || "";
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        try {
+          const evt = JSON.parse(line.slice(6));
+          if (evt.type === "test_delta") {
+            setTestOutput(prev => prev + evt.content);
+            scrollToBottom();
+          } else if (evt.type === "test_done") {
+            if (evt.bugs) { collectedBugs.push(...evt.bugs); setBugs([...collectedBugs]); }
+            setPhase(6);
+          }
+        } catch {}
+      }
+    }
+    setLoading(false);
+  };
+
+  // Phase 5 (UI 6): Self-Debug
+  const handleDebug = async () => {
+    if (bugs.length === 0) { setPhase(7); return; }
+    setLoading(true); setDebugOutput(""); setError("");
+
+    const res = await fetch(`${API}/lab/app-builder/debug`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ files: allFiles, bugs, appName: reqs?.appName, pin }),
+    });
+    if (!res.body) { setLoading(false); setPhase(7); return; }
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const lines = buf.split("\n");
+      buf = lines.pop() || "";
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        try {
+          const evt = JSON.parse(line.slice(6));
+          if (evt.type === "debug_delta") {
+            setDebugOutput(prev => prev + evt.content);
+          } else if (evt.type === "debug_patched") {
+            setDebugOutput(prev => prev + `\n✓ Patched ${evt.filename}\n`);
+          } else if (evt.type === "debug_done") {
+            if (evt.patchedFiles) setAllFiles(prev => ({ ...prev, ...evt.patchedFiles }));
+            setPhase(7);
+          }
+        } catch {}
+      }
+    }
+    setLoading(false);
+  };
+
+  // Download all files as a text blob
+  const handleDownload = () => {
+    const content = Object.entries(allFiles)
+      .map(([name, code]) => `${"=".repeat(60)}\nFILE: ${name}\n${"=".repeat(60)}\n${code}`)
+      .join("\n\n");
+    const blob = new Blob([content], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `${reqs?.appName?.replace(/\s+/g, "-").toLowerCase() || "app"}-source.txt`;
+    a.click(); URL.revokeObjectURL(url);
+  };
+
+  const severityColor = (s: string) =>
+    s === "Critical" ? "hsl(0,80%,50%)" : s === "High" ? "hsl(25,90%,55%)" :
+    s === "Medium" ? "hsl(45,90%,50%)" : "rgba(15,23,42,0.45)";
+
+  const phaseLabel = phase === 1 ? "Describe" : phase === 2 ? "Review" : phase === 3 ? "Approve Plan"
+    : phase === 4 ? "Building" : phase === 5 ? "Self-Testing" : phase === 6 ? "Self-Debugging" : "Done";
+
+  return (
+    <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+      {/* Header */}
+      <div className="flex-shrink-0 px-6 pt-5 pb-4" style={{ borderBottom: "1px solid rgba(15,23,42,0.08)" }}>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-xl font-bold" style={{ color: "rgba(15,23,42,0.85)" }}>App Builder</h2>
+            <p className="text-sm mt-0.5" style={{ color: "rgba(15,23,42,0.5)" }}>Autonomous 6-phase AI build system — describe it, approve the plan, watch agents build it</p>
+          </div>
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold" style={{ background: "hsla(193,100%,40%,0.1)", color: "hsl(193,100%,35%)" }}>
+            <Cpu className="w-3.5 h-3.5" /> Phase {Math.min(phase, 6)}/6 — {phaseLabel}
+          </div>
+        </div>
+
+        {/* Phase stepper */}
+        <div className="flex items-center gap-1">
+          {BUILD_PHASES.map((p, i) => {
+            const isActive = phase === p.id || (phase === 4 && p.id === 3) || (phase === 5 && p.id === 4) || (phase === 6 && p.id === 5) || (phase === 7 && p.id === 6);
+            const isDone = (p.id === 1 && phase >= 2) || (p.id === 2 && phase >= 3) || (p.id === 3 && phase >= 5) || (p.id === 4 && phase >= 6) || (p.id === 5 && phase >= 7) || (p.id === 6 && phase >= 7);
+            const displayPhase = p.id === 3 ? (phase === 4 ? true : false) : false;
+            const isCurrentPhase = (p.id === 1 && phase === 1) || (p.id === 2 && phase === 2) || (p.id === 2 && phase === 3) || (p.id === 3 && phase === 4) || (p.id === 4 && phase === 5) || (p.id === 5 && phase === 6) || (p.id === 6 && phase === 7);
+            return (
+              <React.Fragment key={p.id}>
+                <div className="flex flex-col items-center gap-1">
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-sm font-bold transition-all`}
+                    style={{
+                      background: isDone ? "hsl(155,70%,45%)" : isCurrentPhase ? "hsl(193,100%,40%)" : "rgba(15,23,42,0.06)",
+                      color: isDone || isCurrentPhase ? "white" : "rgba(15,23,42,0.35)",
+                    }}>
+                    {isDone ? "✓" : p.icon}
+                  </div>
+                  <span className="text-[9px] font-medium text-center leading-tight" style={{ color: isCurrentPhase ? "hsl(193,100%,35%)" : isDone ? "hsl(155,70%,40%)" : "rgba(15,23,42,0.35)", maxWidth: "52px" }}>{p.label}</span>
+                </div>
+                {i < BUILD_PHASES.length - 1 && (
+                  <div className="flex-1 h-px mb-4" style={{ background: isDone ? "hsl(155,70%,45%)" : "rgba(15,23,42,0.1)" }} />
+                )}
+              </React.Fragment>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Body */}
+      <div className="flex-1 overflow-auto min-h-0">
+
+        {/* ── Phase 1: Describe ── */}
+        {phase === 1 && (
+          <div className="p-6 max-w-2xl mx-auto">
+            <div className="rounded-2xl p-6" style={{ background: "white", border: "1px solid rgba(15,23,42,0.08)", boxShadow: "0 2px 12px rgba(0,0,0,0.04)" }}>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ background: "hsla(193,100%,40%,0.1)" }}>🔍</div>
+                <div>
+                  <h3 className="font-bold text-slate-800">Describe Your App</h3>
+                  <p className="text-xs" style={{ color: "rgba(15,23,42,0.5)" }}>Speak naturally — Sirius will interpret your vision</p>
+                </div>
+              </div>
+              <textarea
+                value={prompt}
+                onChange={e => setPrompt(e.target.value)}
+                placeholder="e.g. I want a SaaS platform for oil & gas field engineers to log equipment inspections, generate automated compliance reports, and get AI-powered maintenance recommendations. It needs user authentication, a mobile-friendly dashboard, and email alerts for critical issues."
+                rows={6}
+                className="w-full rounded-xl p-4 text-sm resize-none outline-none transition-all"
+                style={{ background: "rgba(15,23,42,0.03)", border: "1px solid rgba(15,23,42,0.12)", color: "rgba(15,23,42,0.8)", lineHeight: 1.6 }}
+                onFocus={e => e.target.style.borderColor = "hsl(193,100%,40%)"}
+                onBlur={e => e.target.style.borderColor = "rgba(15,23,42,0.12)"}
+              />
+              {error && <p className="text-xs mt-2" style={{ color: "hsl(0,80%,55%)" }}>{error}</p>}
+              <div className="flex items-center justify-between mt-4">
+                <p className="text-xs" style={{ color: "rgba(15,23,42,0.4)" }}>More detail = better output. Describe users, features, industry, scale.</p>
+                <button onClick={handleInterpret} disabled={loading || !prompt.trim()}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all disabled:opacity-40"
+                  style={{ background: "hsl(193,100%,40%)", color: "white" }}>
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                  {loading ? "Interpreting…" : "Interpret →"}
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-4 grid grid-cols-3 gap-3">
+              {[
+                { icon: "🏭", title: "Field Ops App", prompt: "A mobile-first app for oil & gas field engineers to log equipment inspections, track maintenance, and generate compliance reports with AI recommendations." },
+                { icon: "🤖", title: "AI Sales Bot", prompt: "A SaaS platform with an AI-powered sales bot that qualifies leads, books meetings automatically, and sends personalised follow-up emails. Needs a CRM dashboard and Stripe billing." },
+                { icon: "📊", title: "Analytics Dashboard", prompt: "A real-time analytics dashboard for aerospace manufacturers to track production KPIs, defect rates, and supply chain status. Needs role-based access and PDF report exports." },
+              ].map(ex => (
+                <button key={ex.title} onClick={() => setPrompt(ex.prompt)}
+                  className="rounded-xl p-3 text-left transition-all hover:shadow-sm"
+                  style={{ background: "white", border: "1px solid rgba(15,23,42,0.08)" }}>
+                  <div className="text-lg mb-1">{ex.icon}</div>
+                  <div className="text-xs font-semibold" style={{ color: "rgba(15,23,42,0.7)" }}>{ex.title}</div>
+                  <div className="text-[10px] mt-0.5 leading-snug line-clamp-2" style={{ color: "rgba(15,23,42,0.4)" }}>{ex.prompt.slice(0, 60)}…</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── Phase 2: Review Requirements ── */}
+        {phase === 2 && reqs && (
+          <div className="p-6 max-w-2xl mx-auto">
+            <div className="rounded-2xl p-6" style={{ background: "white", border: "1px solid rgba(15,23,42,0.08)", boxShadow: "0 2px 12px rgba(0,0,0,0.04)" }}>
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ background: "hsla(45,90%,50%,0.12)" }}>📋</div>
+                <div>
+                  <h3 className="font-bold text-slate-800">Sirius Understood Your Vision</h3>
+                  <p className="text-xs" style={{ color: "rgba(15,23,42,0.5)" }}>Review and edit these requirements before generating your build plan</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] font-semibold uppercase tracking-wide mb-1 block" style={{ color: "rgba(15,23,42,0.4)" }}>App Name</label>
+                    <input value={reqs.appName} onChange={e => setReqs(r => r ? { ...r, appName: e.target.value } : r)}
+                      className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ background: "rgba(15,23,42,0.04)", border: "1px solid rgba(15,23,42,0.1)", color: "rgba(15,23,42,0.8)" }} />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-semibold uppercase tracking-wide mb-1 block" style={{ color: "rgba(15,23,42,0.4)" }}>App Type</label>
+                    <input value={reqs.appType} onChange={e => setReqs(r => r ? { ...r, appType: e.target.value } : r)}
+                      className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ background: "rgba(15,23,42,0.04)", border: "1px solid rgba(15,23,42,0.1)", color: "rgba(15,23,42,0.8)" }} />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-semibold uppercase tracking-wide mb-1 block" style={{ color: "rgba(15,23,42,0.4)" }}>Summary</label>
+                  <textarea value={reqs.summary} onChange={e => setReqs(r => r ? { ...r, summary: e.target.value } : r)} rows={2}
+                    className="w-full rounded-lg px-3 py-2 text-sm outline-none resize-none" style={{ background: "rgba(15,23,42,0.04)", border: "1px solid rgba(15,23,42,0.1)", color: "rgba(15,23,42,0.8)" }} />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-semibold uppercase tracking-wide mb-1 block" style={{ color: "rgba(15,23,42,0.4)" }}>Tech Stack</label>
+                  <input value={reqs.techStack} onChange={e => setReqs(r => r ? { ...r, techStack: e.target.value } : r)}
+                    className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ background: "rgba(15,23,42,0.04)", border: "1px solid rgba(15,23,42,0.1)", color: "rgba(15,23,42,0.8)" }} />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-semibold uppercase tracking-wide mb-2 block" style={{ color: "rgba(15,23,42,0.4)" }}>Core Features</label>
+                  <div className="flex flex-wrap gap-2">
+                    {reqs.coreFeatures.map((f, i) => (
+                      <div key={i} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs" style={{ background: "hsla(193,100%,40%,0.08)", border: "1px solid hsla(193,100%,40%,0.2)", color: "hsl(193,100%,30%)" }}>
+                        <Check className="w-3 h-3" /> {f}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { label: "Target Users", value: reqs.targetUsers },
+                    { label: "Complexity", value: reqs.estimatedComplexity },
+                    { label: "Build Time", value: reqs.estimatedBuildTime },
+                  ].map(item => (
+                    <div key={item.label} className="rounded-xl p-3 text-center" style={{ background: "rgba(15,23,42,0.03)", border: "1px solid rgba(15,23,42,0.06)" }}>
+                      <div className="text-[10px] font-semibold uppercase tracking-wide mb-1" style={{ color: "rgba(15,23,42,0.4)" }}>{item.label}</div>
+                      <div className="text-sm font-semibold" style={{ color: "rgba(15,23,42,0.75)" }}>{item.value}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {error && <p className="text-xs mt-3" style={{ color: "hsl(0,80%,55%)" }}>{error}</p>}
+              <div className="flex items-center justify-between mt-5">
+                <button onClick={() => setPhase(1)} className="text-sm transition-opacity hover:opacity-75" style={{ color: "rgba(15,23,42,0.45)" }}>← Edit description</button>
+                <button onClick={handlePlan} disabled={loading}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all disabled:opacity-40"
+                  style={{ background: "hsl(45,90%,50%)", color: "white" }}>
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ClipboardList className="w-4 h-4" />}
+                  {loading ? "Generating plan…" : "Generate Build Plan →"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Phase 3: Approve Plan ── */}
+        {phase === 3 && (
+          <div className="p-6 max-w-2xl mx-auto">
+            <div className="rounded-2xl p-6" style={{ background: "white", border: "1px solid rgba(15,23,42,0.08)", boxShadow: "0 2px 12px rgba(0,0,0,0.04)" }}>
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ background: "hsla(155,70%,45%,0.12)" }}>📋</div>
+                <div>
+                  <h3 className="font-bold text-slate-800">Agent Build Plan</h3>
+                  <p className="text-xs" style={{ color: "rgba(15,23,42,0.5)" }}>Sirius will execute these tasks in order. Review before approving.</p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                {plan.map((task, i) => (
+                  <div key={task.id} className="rounded-xl p-4" style={{ background: "rgba(15,23,42,0.02)", border: "1px solid rgba(15,23,42,0.08)" }}>
+                    <div className="flex items-start gap-3">
+                      <div className="w-7 h-7 rounded-lg flex items-center justify-center text-sm flex-shrink-0 font-mono font-bold" style={{ background: "rgba(15,23,42,0.06)", color: "rgba(15,23,42,0.45)" }}>{i + 1}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-sm">{task.emoji}</span>
+                          <span className="text-xs font-semibold" style={{ color: "rgba(15,23,42,0.55)" }}>{task.agent}</span>
+                          <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: "rgba(15,23,42,0.05)", color: "rgba(15,23,42,0.4)" }}>{task.estimatedTime}</span>
+                        </div>
+                        <p className="text-sm font-semibold mb-1" style={{ color: "rgba(15,23,42,0.8)" }}>{task.title}</p>
+                        <p className="text-xs leading-relaxed" style={{ color: "rgba(15,23,42,0.5)" }}>{task.description}</p>
+                        {task.outputs.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {task.outputs.map(f => (
+                              <span key={f} className="text-[10px] font-mono px-2 py-0.5 rounded" style={{ background: "hsla(193,100%,40%,0.08)", color: "hsl(193,100%,35%)" }}>{f}</span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex items-center justify-between mt-5">
+                <button onClick={() => setPhase(2)} className="text-sm transition-opacity hover:opacity-75" style={{ color: "rgba(15,23,42,0.45)" }}>← Back to requirements</button>
+                <button onClick={handleBuild}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all"
+                  style={{ background: "hsl(155,70%,42%)", color: "white" }}>
+                  <Rocket className="w-4 h-4" /> Approve & Build →
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Phase 4: Building (Execute) ── */}
+        {phase === 4 && (
+          <div className="flex flex-1 min-h-0 h-full gap-0">
+            {/* Agent panel */}
+            <div className="w-64 flex-shrink-0 flex flex-col" style={{ borderRight: "1px solid rgba(15,23,42,0.08)" }}>
+              <div className="px-4 py-3" style={{ borderBottom: "1px solid rgba(15,23,42,0.08)" }}>
+                <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "rgba(15,23,42,0.45)" }}>Active Agents</p>
+              </div>
+              <div className="flex-1 overflow-auto p-3 space-y-2">
+                {agents.map(agent => (
+                  <div key={agent.id} className="rounded-xl p-3" style={{ background: agent.status === "running" ? `${agent.color}12` : "rgba(15,23,42,0.03)", border: `1px solid ${agent.status === "running" ? `${agent.color}35` : "rgba(15,23,42,0.06)"}`, transition: "all 0.3s" }}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-base">{agent.emoji}</span>
+                      <span className="text-xs font-semibold truncate" style={{ color: agent.status === "running" ? agent.color : "rgba(15,23,42,0.6)" }}>{agent.name}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-1.5 h-1.5 rounded-full" style={{ background: agent.status === "done" ? "hsl(155,70%,45%)" : agent.status === "running" ? agent.color : agent.status === "error" ? "hsl(0,80%,55%)" : "rgba(15,23,42,0.2)" }} />
+                      <span className="text-[10px] capitalize" style={{ color: "rgba(15,23,42,0.4)" }}>{agent.status}</span>
+                      {agent.status === "running" && <Loader2 className="w-2.5 h-2.5 animate-spin ml-auto" style={{ color: agent.color }} />}
+                      {agent.status === "done" && <Check className="w-2.5 h-2.5 ml-auto" style={{ color: "hsl(155,70%,45%)" }} />}
+                    </div>
+                    {agent.files.length > 0 && (
+                      <div className="mt-2 space-y-0.5">
+                        {agent.files.map(f => <div key={f} className="text-[9px] font-mono truncate" style={{ color: "rgba(15,23,42,0.4)" }}>📄 {f}</div>)}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Live output */}
+            <div className="flex-1 flex flex-col min-w-0">
+              <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: "1px solid rgba(15,23,42,0.08)" }}>
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: "hsl(155,70%,45%)" }} />
+                  <span className="text-xs font-semibold" style={{ color: "rgba(15,23,42,0.6)" }}>Live Build Stream</span>
+                </div>
+                <span className="text-xs" style={{ color: "rgba(15,23,42,0.35)" }}>{Object.keys(allFiles).length} files generated</span>
+              </div>
+              <div ref={outputRef} className="flex-1 overflow-auto p-4 font-mono text-xs leading-relaxed" style={{ background: "rgba(15,23,42,0.02)", color: "rgba(15,23,42,0.65)", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                {buildLog || "Initialising agents…"}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Phase 5: Self-Test ── */}
+        {phase === 5 && (
+          <div className="p-6 max-w-2xl mx-auto">
+            <div className="rounded-2xl p-6" style={{ background: "white", border: "1px solid rgba(15,23,42,0.08)", boxShadow: "0 2px 12px rgba(0,0,0,0.04)" }}>
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ background: "hsla(210,80%,50%,0.1)" }}>🧪</div>
+                <div>
+                  <h3 className="font-bold text-slate-800">Self-Testing Phase</h3>
+                  <p className="text-xs" style={{ color: "rgba(15,23,42,0.5)" }}>Sirius reviews all {Object.keys(allFiles).length} generated files for bugs and issues</p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2 mb-5">
+                {Object.keys(allFiles).map(f => (
+                  <span key={f} className="text-[10px] font-mono px-2 py-1 rounded" style={{ background: "rgba(15,23,42,0.05)", color: "rgba(15,23,42,0.55)" }}>📄 {f}</span>
+                ))}
+              </div>
+
+              {testOutput && (
+                <div ref={outputRef} className="rounded-xl p-4 max-h-64 overflow-auto font-mono text-xs leading-relaxed mb-4" style={{ background: "rgba(15,23,42,0.03)", color: "rgba(15,23,42,0.65)", whiteSpace: "pre-wrap" }}>
+                  {testOutput}
+                </div>
+              )}
+
+              <div className="flex items-center justify-between">
+                <p className="text-xs" style={{ color: "rgba(15,23,42,0.4)" }}>AI will review imports, types, runtime errors, logic, and security</p>
+                <button onClick={handleTest} disabled={loading}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all disabled:opacity-40"
+                  style={{ background: "hsl(210,80%,50%)", color: "white" }}>
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
+                  {loading ? "Testing…" : "Run Self-Test →"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Phase 6: Self-Debug ── */}
+        {phase === 6 && (
+          <div className="p-6 max-w-2xl mx-auto">
+            <div className="rounded-2xl p-6" style={{ background: "white", border: "1px solid rgba(15,23,42,0.08)", boxShadow: "0 2px 12px rgba(0,0,0,0.04)" }}>
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ background: "hsla(280,70%,55%,0.1)" }}>🔧</div>
+                <div>
+                  <h3 className="font-bold text-slate-800">Self-Debugging Phase</h3>
+                  <p className="text-xs" style={{ color: "rgba(15,23,42,0.5)" }}>{bugs.length} issues found — Sirius will auto-patch Critical and High severity bugs</p>
+                </div>
+              </div>
+
+              {bugs.length > 0 ? (
+                <div className="space-y-2 mb-5 max-h-56 overflow-auto">
+                  {bugs.map((bug, i) => (
+                    <div key={i} className="rounded-lg p-3 flex items-start gap-3" style={{ background: "rgba(15,23,42,0.03)", border: "1px solid rgba(15,23,42,0.07)" }}>
+                      <div className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ background: severityColor(bug.severity) }} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className="text-[10px] font-mono" style={{ color: "hsl(193,100%,35%)" }}>{bug.file}</span>
+                          <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded" style={{ background: `${severityColor(bug.severity)}18`, color: severityColor(bug.severity) }}>{bug.severity}</span>
+                        </div>
+                        <p className="text-xs" style={{ color: "rgba(15,23,42,0.7)" }}>{bug.desc}</p>
+                        <p className="text-[10px] mt-0.5" style={{ color: "rgba(15,23,42,0.45)" }}>Fix: {bug.fix}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-xl p-4 mb-5 text-center" style={{ background: "hsla(155,70%,45%,0.08)", border: "1px solid hsla(155,70%,45%,0.2)" }}>
+                  <p className="text-sm font-semibold" style={{ color: "hsl(155,70%,40%)" }}>✓ No bugs found — code passed all checks</p>
+                </div>
+              )}
+
+              {debugOutput && (
+                <div className="rounded-xl p-4 max-h-40 overflow-auto font-mono text-xs leading-relaxed mb-4" style={{ background: "rgba(15,23,42,0.03)", color: "rgba(15,23,42,0.65)", whiteSpace: "pre-wrap" }}>
+                  {debugOutput}
+                </div>
+              )}
+
+              <div className="flex items-center justify-between">
+                <p className="text-xs" style={{ color: "rgba(15,23,42,0.4)" }}>{bugs.filter(b => b.severity === "Critical" || b.severity === "High").length} critical/high bugs will be auto-patched</p>
+                <button onClick={handleDebug} disabled={loading}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all disabled:opacity-40"
+                  style={{ background: "hsl(280,70%,55%)", color: "white" }}>
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wrench className="w-4 h-4" />}
+                  {loading ? "Debugging…" : bugs.length === 0 ? "Continue to Deploy →" : "Auto-Debug & Continue →"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Phase 7: Deploy ── */}
+        {phase === 7 && (
+          <div className="flex flex-1 min-h-0 h-full">
+            {/* File tree */}
+            <div className="w-56 flex-shrink-0 flex flex-col" style={{ borderRight: "1px solid rgba(15,23,42,0.08)" }}>
+              <div className="px-4 py-3" style={{ borderBottom: "1px solid rgba(15,23,42,0.08)" }}>
+                <p className="text-xs font-semibold" style={{ color: "rgba(15,23,42,0.6)" }}>Generated Files</p>
+                <p className="text-[10px]" style={{ color: "rgba(15,23,42,0.35)" }}>{Object.keys(allFiles).length} files</p>
+              </div>
+              <div className="flex-1 overflow-auto p-2">
+                {Object.keys(allFiles).map(fname => (
+                  <button key={fname} onClick={() => setActiveFile(fname)}
+                    className="w-full text-left px-3 py-2 rounded-lg text-[10px] font-mono truncate transition-all"
+                    style={{ background: activeFile === fname ? "hsla(193,100%,40%,0.1)" : "transparent", color: activeFile === fname ? "hsl(193,100%,35%)" : "rgba(15,23,42,0.55)" }}>
+                    📄 {fname}
+                  </button>
+                ))}
+              </div>
+              <div className="p-3 space-y-2" style={{ borderTop: "1px solid rgba(15,23,42,0.08)" }}>
+                <button onClick={handleDownload}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-semibold text-xs transition-all"
+                  style={{ background: "hsl(193,100%,40%)", color: "white" }}>
+                  <Download className="w-3.5 h-3.5" /> Download All
+                </button>
+                <button onClick={() => { setPhase(1); setPrompt(""); setReqs(null); setPlan([]); setAllFiles({}); setBugs([]); setTestOutput(""); setDebugOutput(""); setBuildLog(""); setActiveFile(null); setAgents(BUILDER_AGENTS.map(a => ({ ...a }))); }}
+                  className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-xs transition-all"
+                  style={{ background: "rgba(15,23,42,0.05)", color: "rgba(15,23,42,0.55)" }}>
+                  <Plus className="w-3 h-3" /> New App
+                </button>
+              </div>
+            </div>
+
+            {/* Code viewer / deploy */}
+            <div className="flex-1 flex flex-col min-w-0">
+              {!activeFile ? (
+                <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
+                  <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl mb-4" style={{ background: "hsla(155,70%,45%,0.1)" }}>🚀</div>
+                  <h3 className="text-lg font-bold mb-1" style={{ color: "rgba(15,23,42,0.8)" }}>{reqs?.appName} is ready</h3>
+                  <p className="text-sm mb-6 max-w-sm" style={{ color: "rgba(15,23,42,0.5)" }}>{Object.keys(allFiles).length} files generated, self-tested, and debugged. Select a file to view its code, or download everything.</p>
+                  <div className="grid grid-cols-2 gap-3 w-full max-w-sm">
+                    {[
+                      { icon: "▲", label: "Deploy to Vercel", color: "hsl(0,0%,10%)", url: "https://vercel.com/new" },
+                      { icon: "🚂", label: "Deploy to Railway", color: "hsl(280,70%,55%)", url: "https://railway.app/new" },
+                      { icon: "🪰", label: "Deploy to Fly.io", color: "hsl(193,100%,40%)", url: "https://fly.io/docs/getting-started" },
+                      { icon: "☁️", label: "Deploy to AWS", color: "hsl(25,90%,50%)", url: "https://aws.amazon.com" },
+                    ].map(d => (
+                      <a key={d.label} href={d.url} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90"
+                        style={{ background: d.color }}>
+                        <span>{d.icon}</span> {d.label}
+                      </a>
+                    ))}
+                  </div>
+                  <p className="text-xs mt-4" style={{ color: "rgba(15,23,42,0.35)" }}>Check README.md and DEPLOYMENT.md in your downloaded files for setup instructions</p>
+                </div>
+              ) : (
+                <>
+                  <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: "1px solid rgba(15,23,42,0.08)" }}>
+                    <span className="text-xs font-mono font-semibold" style={{ color: "rgba(15,23,42,0.7)" }}>📄 {activeFile}</span>
+                    <button onClick={() => { navigator.clipboard.writeText(allFiles[activeFile] || ""); }}
+                      className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-all hover:opacity-75"
+                      style={{ background: "rgba(15,23,42,0.06)", color: "rgba(15,23,42,0.55)" }}>
+                      <Copy className="w-3 h-3" /> Copy
+                    </button>
+                  </div>
+                  <div className="flex-1 overflow-auto p-4 font-mono text-xs leading-relaxed" style={{ background: "rgba(15,23,42,0.02)", color: "rgba(15,23,42,0.72)", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                    {allFiles[activeFile]}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // ── Star Lab Dashboard ────────────────────────────────────────────────────────
 
@@ -7541,6 +8215,7 @@ const NAV_DESTINATIONS: { mode: NavMode; label: string; icon: string; color: str
   { mode: "outreach", label: "Outreach Hub",      icon: "✉️", color: "hsl(340,80%,60%)",  desc: "Email and contact outreach", keywords: ["outreach","email","contact","message","reach out","send","follow up"] },
   { mode: "mission",  label: "Mission",           icon: "⭐", color: "hsl(193,100%,50%)", desc: "Sirius mission and vision", keywords: ["mission","vision","goals","strategy","foundation","purpose"] },
   { mode: "autolab",  label: "Autonomous Lab",    icon: "🔬", color: "hsl(193,100%,40%)", desc: "Self-running AI analysis", keywords: ["autonomous","auto","self","automatic","lab","autolab","running"] },
+  { mode: "appbuilder", label: "App Builder", icon: "🚀", color: "hsl(155,70%,42%)", desc: "Build apps with AI agents", keywords: ["build","app","builder","create app","generate app","code","develop","software","agent build","autonomous build"] },
 ];
 
 function matchDestination(transcript: string): typeof NAV_DESTINATIONS[0] | null {
@@ -8333,6 +9008,7 @@ export function StarLabPage() {
     { id: "mission" as NavMode, label: "Mission", icon: Star, color: "hsl(193,100%,50%)", guestAllowed: true },
     { id: "outreach" as NavMode, label: "Outreach Hub", icon: Mail, color: "hsl(340,80%,60%)", guestAllowed: false },
     { id: "autolab" as NavMode, label: "Autonomous Lab", icon: Cpu, color: "hsl(193,100%,40%)", guestAllowed: false },
+    { id: "appbuilder" as NavMode, label: "App Builder", icon: Rocket, color: "hsl(155,70%,42%)", guestAllowed: false },
   ];
   const NAV_ITEMS = isGuest ? ALL_NAV_ITEMS.filter(n => n.guestAllowed) : ALL_NAV_ITEMS;
 
@@ -8555,6 +9231,7 @@ export function StarLabPage() {
             onSelectProject={p => { setActiveProject(p); setNavMode("projects"); }}
           />
         )}
+        {navMode === "appbuilder" && <AppBuilderPanel pin={pin} />}
         {navMode === "projects" && (
           activeProject
             ? <ProjectWorkspace project={activeProject} pin={pin} onUpdate={p => setActiveProject(p)} onBack={() => setActiveProject(null)} />

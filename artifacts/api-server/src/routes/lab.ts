@@ -3403,5 +3403,423 @@ router.post("/lab/projects/:id/media-match", authMiddleware, async (req: Request
   res.json(sorted.slice(0, 12));
 });
 
+// ─── App Builder — 6-Phase Autonomous Agent System ────────────────────────────
+const APP_AGENTS = [
+  { id: "architect",   name: "Architect Agent",   emoji: "🏛️", color: "hsl(45,90%,55%)",   role: "system design" },
+  { id: "frontend",    name: "Frontend Agent",    emoji: "🎨", color: "hsl(210,80%,55%)",  role: "UI & components" },
+  { id: "backend",     name: "Backend Agent",     emoji: "⚙️", color: "hsl(193,100%,40%)", role: "server & API" },
+  { id: "database",    name: "Database Agent",    emoji: "🗄️", color: "hsl(280,70%,55%)",  role: "data & schema" },
+  { id: "integration", name: "Integration Agent", emoji: "🔗", color: "hsl(155,70%,45%)",  role: "glue & config" },
+];
+
+function buildAgentPrompt(
+  agentId: string,
+  appName: string,
+  description: string,
+  appType: string,
+  techStack: string,
+  features: string[],
+  existingFiles: Record<string, string>
+): string {
+  const fileList = Object.keys(existingFiles).join(", ") || "none yet";
+  const featureList = features.join(", ") || "standard features";
+  const base = `You are building "${appName}" — a ${appType} application.
+Description: ${description}
+Tech stack: ${techStack}
+Features required: ${featureList}
+Files already created: ${fileList}
+
+CRITICAL RULES:
+- Output ONLY code files, no explanation text outside files
+- Wrap every file exactly like this:
+  ### FILE: path/filename.ext ###
+  [full file content here]
+  ### END FILE ###
+- Write complete, production-quality code — no placeholders, no TODOs
+- Every file must be fully functional and immediately usable`;
+
+  const prompts: Record<string, string> = {
+    architect: `${base}
+
+Your role: System Architect
+Create the complete project structure and foundational files:
+1. package.json (with all required dependencies and scripts)
+2. README.md (setup instructions, feature overview, env vars needed)
+3. .env.example (all environment variables with descriptions)
+4. A clear architecture overview file at ARCHITECTURE.md
+
+Think carefully about the full system. List every file that will be needed across all layers.`,
+
+    frontend: `${base}
+
+Your role: Frontend Agent
+Build ALL frontend UI files. For React apps this includes:
+- src/App.tsx or src/App.jsx (main app shell with routing)
+- src/index.tsx or src/main.tsx (entry point)
+- src/pages/ — all page components (Home, Dashboard, Login, etc.)
+- src/components/ — reusable UI components
+- src/styles/ or index.css — all styling
+- tailwind.config.js or vite.config.ts if needed
+
+Make the UI beautiful, modern, and responsive. Use a dark theme with accent colors if appropriate for the app type.`,
+
+    backend: `${base}
+
+Your role: Backend Agent  
+Build ALL backend/server files:
+- src/index.ts or server.js (Express/FastAPI server entry)
+- src/routes/ — all API route files
+- src/middleware/ — auth, error handling, rate limiting
+- src/lib/ — utility functions, helpers
+- src/services/ — business logic layer
+
+Include proper error handling, input validation, and security headers.`,
+
+    database: `${base}
+
+Your role: Database Agent
+Build ALL data layer files:
+- Database schema/migrations
+- Models or ORM config (Drizzle, Prisma, SQLAlchemy, etc.)
+- Seed data file
+- Database connection utility
+
+Use appropriate DB for the stack. Write clean, indexed schemas.`,
+
+    integration: `${base}
+
+Your role: Integration Agent
+Review all the files created and produce the final integration files:
+- docker-compose.yml (full local dev environment)
+- Dockerfile (production build)
+- .github/workflows/deploy.yml (CI/CD pipeline)
+- scripts/setup.sh (one-command local setup script)
+- Any missing config files that tie the system together
+
+Also write a final DEPLOYMENT.md with step-by-step deployment instructions for Vercel, Railway, or Fly.io depending on the tech stack.`,
+  };
+
+  return prompts[agentId] || base;
+}
+
+function parseAgentFiles(raw: string): Record<string, string> {
+  const files: Record<string, string> = {};
+  const regex = /### FILE: (.+?) ###\n([\s\S]*?)### END FILE ###/g;
+  let match;
+  while ((match = regex.exec(raw)) !== null) {
+    files[match[1].trim()] = match[2].trim();
+  }
+  return files;
+}
+
+// Phase 1 — Interpret: parse prompt into structured requirements
+router.post("/lab/app-builder/interpret", authMiddleware, async (req: Request, res: Response) => {
+  const { prompt } = req.body as { prompt: string };
+  if (!prompt?.trim()) return res.status(400).json({ error: "Prompt is required" });
+
+  try {
+    const result = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [{
+        role: "user",
+        content: `You are an expert software architect. A user wants to build an app. Parse their description and extract structured requirements.
+
+User's description: "${prompt}"
+
+Respond ONLY with valid JSON (no markdown, no explanation) in this exact format:
+{
+  "appName": "short app name",
+  "summary": "one sentence describing what this app does",
+  "appType": "one of: Web App, SaaS Platform, REST API, AI-Powered Bot, Mobile App, Browser Extension, CLI Tool, Dashboard",
+  "techStack": "recommended tech stack e.g. React + Node.js + PostgreSQL",
+  "coreFeatures": ["feature 1", "feature 2", "feature 3", "feature 4", "feature 5"],
+  "targetUsers": "who will use this",
+  "keyPages": ["page or screen 1", "page or screen 2", "page or screen 3"],
+  "estimatedComplexity": "Simple | Medium | Complex",
+  "estimatedBuildTime": "e.g. 2-3 hours of agent time"
+}`
+      }],
+      max_tokens: 800,
+    });
+
+    const raw = result.choices[0]?.message?.content || "{}";
+    const clean = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+    const parsed = JSON.parse(clean);
+    res.json(parsed);
+  } catch (err: any) {
+    console.error("[AppBuilder/interpret]", err?.message);
+    res.status(500).json({ error: err?.message });
+  }
+});
+
+// Phase 2 — Plan: create ordered task list for user approval
+router.post("/lab/app-builder/plan", authMiddleware, async (req: Request, res: Response) => {
+  const { requirements } = req.body as { requirements: Record<string, any> };
+  if (!requirements) return res.status(400).json({ error: "Requirements are required" });
+
+  try {
+    const result = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [{
+        role: "user",
+        content: `You are a senior software architect. Create a detailed build plan for this application:
+
+App: ${requirements.appName}
+Type: ${requirements.appType}
+Stack: ${requirements.techStack}
+Features: ${(requirements.coreFeatures || []).join(", ")}
+Complexity: ${requirements.estimatedComplexity}
+
+Generate an ordered build plan. Respond ONLY with valid JSON (no markdown):
+{
+  "tasks": [
+    {
+      "id": "T001",
+      "agent": "Architect Agent",
+      "emoji": "🏛️",
+      "title": "task title",
+      "description": "what this agent will do",
+      "outputs": ["file1.ts", "file2.json"],
+      "estimatedTime": "~30 seconds",
+      "dependsOn": []
+    }
+  ]
+}
+
+Create tasks for: Architect Agent, Frontend Agent, Backend Agent, Database Agent, Integration Agent, Test Agent, Debug Agent.
+Each agent should have 1-2 tasks. List concrete output files for each.`
+      }],
+      max_tokens: 1200,
+    });
+
+    const raw = result.choices[0]?.message?.content || "{}";
+    const clean = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+    const parsed = JSON.parse(clean);
+    res.json(parsed);
+  } catch (err: any) {
+    console.error("[AppBuilder/plan]", err?.message);
+    res.status(500).json({ error: err?.message });
+  }
+});
+
+// Phase 4 — Test: AI reviews generated code for bugs
+router.post("/lab/app-builder/test", authMiddleware, async (req: Request, res: Response) => {
+  const { files, appName, techStack } = req.body as {
+    files: Record<string, string>; appName: string; techStack: string;
+  };
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  const send = (data: object) => { try { res.write(`data: ${JSON.stringify(data)}\n\n`); } catch {} };
+
+  try {
+    const fileSummary = Object.entries(files)
+      .map(([name, content]) => `### ${name}\n${content.slice(0, 600)}${content.length > 600 ? "\n...(truncated)" : ""}`)
+      .join("\n\n");
+
+    send({ type: "test_start", message: "Initialising virtual test environment..." });
+
+    const stream = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [{
+        role: "user",
+        content: `You are a senior QA engineer and code reviewer. Review this ${techStack} application "${appName}" for bugs, errors, and issues.
+
+FILES GENERATED:
+${fileSummary}
+
+Perform a thorough code review. Find:
+1. Import errors / missing dependencies
+2. TypeScript type errors
+3. Runtime errors (undefined vars, null refs, missing async/await)
+4. Logic errors
+5. Missing environment variable handling
+6. Security issues
+7. Missing error handling
+
+For EACH issue found, output exactly:
+BUG [filename] [line estimate]: [brief description]
+SEVERITY: [Critical|High|Medium|Low]
+FIX: [exactly what needs to change]
+---
+
+After all bugs, output:
+SUMMARY: Found X critical, Y high, Z medium, W low severity issues.`
+      }],
+      stream: true,
+      max_tokens: 2000,
+    });
+
+    let buffer = "";
+    for await (const chunk of stream) {
+      const delta = chunk.choices[0]?.delta?.content || "";
+      if (delta) {
+        buffer += delta;
+        send({ type: "test_delta", content: delta });
+      }
+    }
+
+    // Parse bugs from output
+    const bugs: Array<{ file: string; desc: string; severity: string; fix: string }> = [];
+    const bugMatches = buffer.matchAll(/BUG \[(.+?)\] .+?: (.+?)\nSEVERITY: (\w+)\nFIX: (.+?)\n---/gs);
+    for (const m of bugMatches) {
+      bugs.push({ file: m[1], desc: m[2], severity: m[3], fix: m[4] });
+    }
+
+    send({ type: "test_done", bugs, raw: buffer });
+  } catch (err: any) {
+    console.error("[AppBuilder/test]", err?.message);
+    send({ type: "error", error: err?.message });
+  } finally {
+    res.end();
+  }
+});
+
+// Phase 5 — Debug: auto-patch bugs found in testing
+router.post("/lab/app-builder/debug", authMiddleware, async (req: Request, res: Response) => {
+  const { files, bugs, appName } = req.body as {
+    files: Record<string, string>;
+    bugs: Array<{ file: string; desc: string; severity: string; fix: string }>;
+    appName: string;
+  };
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  const send = (data: object) => { try { res.write(`data: ${JSON.stringify(data)}\n\n`); } catch {} };
+
+  try {
+    const criticalBugs = bugs.filter(b => b.severity === "Critical" || b.severity === "High");
+    send({ type: "debug_start", fixing: criticalBugs.length, total: bugs.length });
+
+    const patchedFiles: Record<string, string> = { ...files };
+    const affectedFiles = [...new Set(criticalBugs.map(b => b.file))];
+
+    for (const filename of affectedFiles) {
+      const originalContent = files[filename];
+      if (!originalContent) continue;
+
+      const fileBugs = criticalBugs.filter(b => b.file === filename);
+      send({ type: "debug_fixing", filename, bugCount: fileBugs.length });
+
+      const stream = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [{
+          role: "user",
+          content: `You are a senior engineer fixing bugs in "${appName}".
+
+FILE: ${filename}
+CURRENT CONTENT:
+${originalContent}
+
+BUGS TO FIX:
+${fileBugs.map((b, i) => `${i + 1}. ${b.desc}\n   Fix: ${b.fix}`).join("\n")}
+
+Output the COMPLETE corrected file, wrapped exactly as:
+### FILE: ${filename} ###
+[complete corrected file content]
+### END FILE ###
+
+Fix ALL listed bugs. Do not add new features. Output only the file, nothing else.`
+        }],
+        stream: true,
+        max_tokens: 3000,
+      });
+
+      let buffer = "";
+      for await (const chunk of stream) {
+        const delta = chunk.choices[0]?.delta?.content || "";
+        if (delta) {
+          buffer += delta;
+          send({ type: "debug_delta", filename, content: delta });
+        }
+      }
+
+      const match = buffer.match(/### FILE: .+? ###\n([\s\S]*?)### END FILE ###/);
+      if (match) {
+        patchedFiles[filename] = match[1].trim();
+        send({ type: "debug_patched", filename });
+      }
+    }
+
+    send({ type: "debug_done", patchedFiles, fixedCount: affectedFiles.length });
+  } catch (err: any) {
+    console.error("[AppBuilder/debug]", err?.message);
+    send({ type: "error", error: err?.message });
+  } finally {
+    res.end();
+  }
+});
+
+// Phase 3 — Build: 5 specialist agents build the code (SSE)
+router.post("/lab/build-app", authMiddleware, async (req: Request, res: Response) => {
+  const { appName, description, appType, techStack, features } = req.body as {
+    appName: string; description: string; appType: string;
+    techStack: string; features: string[];
+  };
+
+  if (!appName?.trim() || !description?.trim()) {
+    return res.status(400).json({ error: "App name and description are required" });
+  }
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+
+  const send = (data: object) => {
+    try { res.write(`data: ${JSON.stringify(data)}\n\n`); } catch {}
+  };
+
+  const allFiles: Record<string, string> = {};
+
+  try {
+    send({ type: "start", agents: APP_AGENTS });
+
+    for (const agent of APP_AGENTS) {
+      send({ type: "agent_start", agentId: agent.id, name: agent.name, emoji: agent.emoji, color: agent.color });
+
+      const prompt = buildAgentPrompt(agent.id, appName, description, appType, techStack, features || [], allFiles);
+
+      let raw = "";
+      try {
+        const stream = await openai.chat.completions.create({
+          model: "gpt-4o",
+          messages: [{ role: "user", content: prompt }],
+          stream: true,
+          max_tokens: 4000,
+        });
+
+        for await (const chunk of stream) {
+          const delta = chunk.choices[0]?.delta?.content || "";
+          if (delta) {
+            raw += delta;
+            send({ type: "agent_delta", agentId: agent.id, content: delta });
+          }
+        }
+      } catch (agentErr: any) {
+        console.error(`[AppBuilder] ${agent.id} agent error:`, agentErr?.message);
+        send({ type: "agent_error", agentId: agent.id, error: agentErr?.message });
+      }
+
+      const parsed = parseAgentFiles(raw);
+      Object.assign(allFiles, parsed);
+
+      for (const [filename, content] of Object.entries(parsed)) {
+        send({ type: "file", agentId: agent.id, filename, content });
+      }
+
+      send({ type: "agent_done", agentId: agent.id, fileCount: Object.keys(parsed).length });
+    }
+
+    send({ type: "done", totalFiles: Object.keys(allFiles).length, files: allFiles });
+  } catch (err: any) {
+    console.error("[AppBuilder] Fatal error:", err?.message);
+    send({ type: "error", error: err?.message });
+  } finally {
+    res.end();
+  }
+});
+
 export default router;
 
