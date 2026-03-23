@@ -4317,7 +4317,36 @@ router.get("/lab/app-builder/view/:id", async (req: Request, res: Response) => {
   } catch (err: any) { res.status(500).json({ error: err?.message }); }
 });
 
-// Phase 3 — Build: 6 specialist agents build the code (SSE)
+// ─── Agent doc-search helper ──────────────────────────────────────────────────
+async function searchDocsForAgent(agentId: string, techStack: string, appName: string): Promise<string> {
+  const queries: Record<string, string> = {
+    architect: `${techStack} project structure best practices ${new Date().getFullYear()}`,
+    frontend: `${techStack.split("+")[0]?.trim()} component patterns routing ${new Date().getFullYear()}`,
+    backend: `${techStack.split("+")[1]?.trim() || "Node.js"} API REST authentication middleware ${new Date().getFullYear()}`,
+    database: `${techStack.includes("Prisma") ? "Prisma" : techStack.includes("Drizzle") ? "Drizzle ORM" : "PostgreSQL"} schema relations ${new Date().getFullYear()}`,
+    integration: `Docker CI/CD GitHub Actions deploy ${techStack} ${new Date().getFullYear()}`,
+    monitoring: `Node.js application monitoring health check logging best practices ${new Date().getFullYear()}`,
+  };
+
+  const query = queries[agentId] || `${techStack} development ${new Date().getFullYear()}`;
+
+  try {
+    const result = await (openai as any).responses.create({
+      model: "gpt-4o",
+      tools: [{ type: "web_search_preview" }],
+      input: `Search for: "${query}". Return a concise summary (3-5 bullet points) of the most current best practices and API patterns relevant to: ${agentId} development for a ${techStack} application.`,
+      max_output_tokens: 400,
+    });
+
+    const text = result.output?.find((o: any) => o.type === "message")?.content
+      ?.find((c: any) => c.type === "output_text")?.text || "";
+    return text;
+  } catch {
+    return "";
+  }
+}
+
+// Phase 3 — Build: 6 specialist agents build the code (SSE) with live doc search + checkpoints
 router.post("/lab/build-app", authMiddleware, async (req: Request, res: Response) => {
   const { appName, description, appType, techStack, features } = req.body as {
     appName: string; description: string; appType: string;
@@ -4337,6 +4366,7 @@ router.post("/lab/build-app", authMiddleware, async (req: Request, res: Response
   };
 
   const allFiles: Record<string, string> = {};
+  let checkpointIndex = 0;
 
   try {
     send({ type: "start", agents: APP_AGENTS });
@@ -4344,7 +4374,31 @@ router.post("/lab/build-app", authMiddleware, async (req: Request, res: Response
     for (const agent of APP_AGENTS) {
       send({ type: "agent_start", agentId: agent.id, name: agent.name, emoji: agent.emoji, color: agent.color });
 
-      const prompt = buildAgentPrompt(agent.id, appName, description, appType, techStack, features || [], allFiles);
+      // ── Real-time doc search before agent generates code ──────────────────
+      const searchQuery = {
+        architect: `${techStack} architecture patterns ${new Date().getFullYear()}`,
+        frontend: `${techStack.split("+")[0]?.trim()} UI components ${new Date().getFullYear()}`,
+        backend: `REST API ${techStack} auth middleware ${new Date().getFullYear()}`,
+        database: `${techStack.includes("Prisma") ? "Prisma ORM" : "Drizzle ORM"} schema ${new Date().getFullYear()}`,
+        integration: `Docker GitHub Actions ${techStack} deploy ${new Date().getFullYear()}`,
+        monitoring: `Node.js observability health checks ${new Date().getFullYear()}`,
+      }[agent.id] || `${techStack} ${new Date().getFullYear()}`;
+
+      send({ type: "doc_search_start", agentId: agent.id, query: searchQuery });
+
+      let docContext = "";
+      try {
+        docContext = await searchDocsForAgent(agent.id, techStack, appName);
+        send({ type: "doc_search_done", agentId: agent.id, query: searchQuery, snippet: docContext.slice(0, 300) });
+      } catch {
+        send({ type: "doc_search_done", agentId: agent.id, query: searchQuery, snippet: "" });
+      }
+
+      // ── Agent prompt with live doc context injected ───────────────────────
+      const basePrompt = buildAgentPrompt(agent.id, appName, description, appType, techStack, features || [], allFiles);
+      const prompt = docContext
+        ? `${basePrompt}\n\n## Live Documentation Context (fetched now, ${new Date().toISOString().slice(0, 10)}):\n${docContext}`
+        : basePrompt;
 
       let raw = "";
       try {
@@ -4373,6 +4427,22 @@ router.post("/lab/build-app", authMiddleware, async (req: Request, res: Response
       for (const [filename, content] of Object.entries(parsed)) {
         send({ type: "file", agentId: agent.id, filename, content });
       }
+
+      // ── Checkpoint: snapshot of all files after this agent completes ───────
+      checkpointIndex++;
+      send({
+        type: "checkpoint",
+        id: `cp-${checkpointIndex}`,
+        index: checkpointIndex,
+        agentId: agent.id,
+        agentName: agent.name,
+        agentEmoji: agent.emoji,
+        timestamp: new Date().toISOString(),
+        fileCount: Object.keys(allFiles).length,
+        newFiles: Object.keys(parsed),
+        // Include full file snapshot for rollback
+        files: { ...allFiles },
+      });
 
       send({ type: "agent_done", agentId: agent.id, fileCount: Object.keys(parsed).length });
     }

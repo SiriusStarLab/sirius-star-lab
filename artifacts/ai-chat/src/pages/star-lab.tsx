@@ -3634,6 +3634,19 @@ function AppBuilderPanel({ pin }: { pin: string }) {
   const [deployDone, setDeployDone] = useState<{ url: string; appName: string } | null>(null);
   const deployRef = useRef<HTMLDivElement>(null);
 
+  // Checkpoints — per-agent file snapshots for rollback
+  type BuildCheckpoint = {
+    id: string; index: number; agentId: string; agentName: string; agentEmoji: string;
+    timestamp: string; fileCount: number; newFiles: string[]; files: Record<string, string>;
+  };
+  const [checkpoints, setCheckpoints] = useState<BuildCheckpoint[]>([]);
+  const [activeCheckpoint, setActiveCheckpoint] = useState<string | null>(null);
+  const [showCheckpoints, setShowCheckpoints] = useState(false);
+
+  // Live doc-search activity per agent (real-time web search)
+  type DocSearch = { agentId: string; query: string; done: boolean; snippet: string };
+  const [docSearches, setDocSearches] = useState<DocSearch[]>([]);
+
   // Ghostwriter — inline code assistant
   const [ghostwriterOpen, setGhostwriterOpen] = useState(false);
   const [ghostMessages, setGhostMessages] = useState<Array<{ role: "user" | "assistant"; content: string; updatedCode?: string | null }>>([]);
@@ -3861,6 +3874,9 @@ function AppBuilderPanel({ pin }: { pin: string }) {
     setPhase(4); setError(""); setBuildLog("");
     setAgents(BUILDER_AGENTS.map(a => ({ ...a })));
     setAllFiles({});
+    setCheckpoints([]);
+    setActiveCheckpoint(null);
+    setDocSearches([]);
     const collectedFiles: Record<string, string> = {};
 
     const res = await fetch(`${API}/lab/build-app`, {
@@ -3882,7 +3898,20 @@ function AppBuilderPanel({ pin }: { pin: string }) {
         if (!line.startsWith("data: ")) continue;
         try {
           const evt = JSON.parse(line.slice(6));
-          if (evt.type === "agent_start") {
+          if (evt.type === "doc_search_start") {
+            setDocSearches(prev => [...prev.filter(d => d.agentId !== evt.agentId), { agentId: evt.agentId, query: evt.query, done: false, snippet: "" }]);
+            setBuildLog(prev => prev + `🔍 Searching live docs: "${evt.query}"\n`);
+            scrollToBottom();
+          } else if (evt.type === "doc_search_done") {
+            setDocSearches(prev => prev.map(d => d.agentId === evt.agentId ? { ...d, done: true, snippet: evt.snippet || "" } : d));
+          } else if (evt.type === "checkpoint") {
+            setCheckpoints(prev => [...prev, {
+              id: evt.id, index: evt.index, agentId: evt.agentId, agentName: evt.agentName,
+              agentEmoji: evt.agentEmoji, timestamp: evt.timestamp, fileCount: evt.fileCount,
+              newFiles: evt.newFiles || [], files: evt.files || {},
+            }]);
+            setBuildLog(prev => prev + `\n✅ Checkpoint ${evt.index} saved — ${evt.fileCount} files\n`);
+          } else if (evt.type === "agent_start") {
             setAgents(prev => prev.map(a => a.id === evt.agentId ? { ...a, status: "running" } : a));
             setBuildLog(prev => prev + `\n[${evt.emoji} ${evt.name}] Starting...\n`);
             scrollToBottom();
@@ -4095,6 +4124,13 @@ function AppBuilderPanel({ pin }: { pin: string }) {
     setBrowserRunning(false);
   };
 
+  // ── Checkpoint rollback ────────────────────────────────────────────────────
+  const handleRollback = (cp: { id: string; files: Record<string, string>; agentName: string }) => {
+    setAllFiles({ ...cp.files });
+    setActiveCheckpoint(cp.id);
+    setActiveFile(null);
+  };
+
   // ── Step 9: Deploy Pipeline ────────────────────────────────────────────────
   const handleDeployPipeline = async () => {
     if (!reqs || deployRunning) return;
@@ -4302,8 +4338,14 @@ function AppBuilderPanel({ pin }: { pin: string }) {
       <div className="flex-shrink-0 px-6 pt-5 pb-4" style={{ borderBottom: "1px solid rgba(15,23,42,0.08)" }}>
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-xl font-bold" style={{ color: "rgba(15,23,42,0.85)" }}>App Builder</h2>
-            <p className="text-sm mt-0.5" style={{ color: "rgba(15,23,42,0.5)" }}>Autonomous 6-phase AI build system — describe it, approve the plan, watch agents build it</p>
+            <div className="flex items-center gap-3 mb-0.5">
+              <h2 className="text-xl font-bold" style={{ color: "rgba(15,23,42,0.85)" }}>App Builder</h2>
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider" style={{ background: "hsla(260,80%,60%,0.1)", color: "hsl(260,80%,50%)", border: "1px solid hsla(260,80%,60%,0.2)" }}>
+                <span className="w-1.5 h-1.5 rounded-full animate-pulse inline-block" style={{ background: "hsl(260,80%,60%)" }} />
+                Code Intelligence
+              </div>
+            </div>
+            <p className="text-sm" style={{ color: "rgba(15,23,42,0.5)" }}>Autonomous 9-phase AI build system · live web search · checkpoints · virtual browser testing</p>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={() => setArchitectOpen(o => !o)}
@@ -4767,6 +4809,19 @@ function AppBuilderPanel({ pin }: { pin: string }) {
                       {agent.status === "running" && <Loader2 className="w-2.5 h-2.5 animate-spin ml-auto" style={{ color: agent.color }} />}
                       {agent.status === "done" && <Check className="w-2.5 h-2.5 ml-auto" style={{ color: "hsl(155,70%,45%)" }} />}
                     </div>
+                    {/* Doc search activity for this agent */}
+                    {(() => {
+                      const ds = docSearches.find(d => d.agentId === agent.id);
+                      if (!ds) return null;
+                      return (
+                        <div className="mt-1.5 flex items-center gap-1.5 px-2 py-1 rounded-lg" style={{ background: ds.done ? "hsla(155,70%,45%,0.08)" : "hsla(45,90%,50%,0.1)" }}>
+                          {ds.done ? <span className="text-[9px]">✅</span> : <Loader2 className="w-2 h-2 animate-spin flex-shrink-0" style={{ color: "hsl(45,80%,45%)" }} />}
+                          <span className="text-[9px] truncate" style={{ color: ds.done ? "hsl(155,70%,35%)" : "hsl(45,70%,35%)" }}>
+                            {ds.done ? "Docs fetched" : `🔍 ${ds.query.slice(0, 28)}…`}
+                          </span>
+                        </div>
+                      );
+                    })()}
                     {agent.files.length > 0 && (
                       <div className="mt-2 space-y-0.5">
                         {agent.files.map(f => <div key={f} className="text-[9px] font-mono truncate" style={{ color: "rgba(15,23,42,0.4)" }}>📄 {f}</div>)}
@@ -4984,21 +5039,79 @@ function AppBuilderPanel({ pin }: { pin: string }) {
         {/* ── Phase 7: Deploy ── */}
         {phase === 7 && (
           <div className="flex flex-1 min-h-0 h-full">
-            {/* File tree */}
-            <div className="w-56 flex-shrink-0 flex flex-col" style={{ borderRight: "1px solid rgba(15,23,42,0.08)" }}>
-              <div className="px-4 py-3" style={{ borderBottom: "1px solid rgba(15,23,42,0.08)" }}>
-                <p className="text-xs font-semibold" style={{ color: "rgba(15,23,42,0.6)" }}>Generated Files</p>
-                <p className="text-[10px]" style={{ color: "rgba(15,23,42,0.35)" }}>{Object.keys(allFiles).length} files</p>
-              </div>
-              <div className="flex-1 overflow-auto p-2">
-                {Object.keys(allFiles).map(fname => (
-                  <button key={fname} onClick={() => setActiveFile(fname)}
-                    className="w-full text-left px-3 py-2 rounded-lg text-[10px] font-mono truncate transition-all"
-                    style={{ background: activeFile === fname ? "hsla(193,100%,40%,0.1)" : "transparent", color: activeFile === fname ? "hsl(193,100%,35%)" : "rgba(15,23,42,0.55)" }}>
-                    📄 {fname}
+            {/* File tree + Checkpoints sidebar */}
+            <div className="w-60 flex-shrink-0 flex flex-col" style={{ borderRight: "1px solid rgba(15,23,42,0.08)" }}>
+              {/* Tab bar */}
+              <div className="flex" style={{ borderBottom: "1px solid rgba(15,23,42,0.08)" }}>
+                {[
+                  { key: false, label: `Files (${Object.keys(allFiles).length})` },
+                  { key: true, label: `Checkpoints (${checkpoints.length})` },
+                ].map(tab => (
+                  <button key={String(tab.key)} onClick={() => setShowCheckpoints(tab.key as boolean)}
+                    className="flex-1 py-2.5 text-[10px] font-semibold transition-all"
+                    style={{
+                      color: showCheckpoints === tab.key ? "hsl(155,70%,40%)" : "rgba(15,23,42,0.45)",
+                      borderBottom: showCheckpoints === tab.key ? "2px solid hsl(155,70%,45%)" : "2px solid transparent",
+                    }}>
+                    {tab.label}
                   </button>
                 ))}
               </div>
+
+              {!showCheckpoints ? (
+                <div className="flex-1 overflow-auto p-2">
+                  {activeCheckpoint && (
+                    <div className="px-2 pb-2">
+                      <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[9px]" style={{ background: "hsla(45,90%,50%,0.12)", color: "hsl(45,70%,35%)" }}>
+                        <span>⚡</span>
+                        <span className="truncate">Viewing checkpoint — <button onClick={() => { setActiveCheckpoint(null); }} style={{ textDecoration: "underline" }}>clear</button></span>
+                      </div>
+                    </div>
+                  )}
+                  {Object.keys(allFiles).map(fname => (
+                    <button key={fname} onClick={() => setActiveFile(fname)}
+                      className="w-full text-left px-3 py-2 rounded-lg text-[10px] font-mono truncate transition-all"
+                      style={{ background: activeFile === fname ? "hsla(193,100%,40%,0.1)" : "transparent", color: activeFile === fname ? "hsl(193,100%,35%)" : "rgba(15,23,42,0.55)" }}>
+                      📄 {fname}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex-1 overflow-auto p-2 space-y-1">
+                  {checkpoints.length === 0 ? (
+                    <div className="text-center py-8 text-[10px]" style={{ color: "rgba(15,23,42,0.3)" }}>No checkpoints yet — run a build to generate them</div>
+                  ) : checkpoints.map((cp, i) => (
+                    <div key={cp.id} className="rounded-xl p-3 relative" style={{ background: activeCheckpoint === cp.id ? "hsla(155,70%,45%,0.08)" : "rgba(15,23,42,0.03)", border: `1px solid ${activeCheckpoint === cp.id ? "hsla(155,70%,45%,0.25)" : "rgba(15,23,42,0.07)"}` }}>
+                      {/* Timeline line */}
+                      {i < checkpoints.length - 1 && (
+                        <div className="absolute left-[18px] top-[44px] bottom-[-8px] w-px" style={{ background: "rgba(15,23,42,0.08)" }} />
+                      )}
+                      <div className="flex items-start gap-2">
+                        <span className="text-sm flex-shrink-0">{cp.agentEmoji}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="text-[10px] font-semibold truncate" style={{ color: "rgba(15,23,42,0.7)" }}>{cp.agentName}</span>
+                            <span className="text-[9px]" style={{ color: "rgba(15,23,42,0.3)" }}>#{cp.index}</span>
+                          </div>
+                          <div className="text-[9px] mb-1.5" style={{ color: "rgba(15,23,42,0.35)" }}>
+                            {cp.fileCount} files · {new Date(cp.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                          </div>
+                          {cp.newFiles.slice(0, 3).map(f => (
+                            <div key={f} className="text-[8px] font-mono truncate" style={{ color: "rgba(15,23,42,0.35)" }}>+ {f}</div>
+                          ))}
+                          {cp.newFiles.length > 3 && <div className="text-[8px]" style={{ color: "rgba(15,23,42,0.25)" }}>+{cp.newFiles.length - 3} more</div>}
+                          <button onClick={() => handleRollback(cp)}
+                            className="mt-2 flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-semibold transition-all"
+                            style={{ background: activeCheckpoint === cp.id ? "hsla(155,70%,45%,0.15)" : "rgba(15,23,42,0.06)", color: activeCheckpoint === cp.id ? "hsl(155,70%,35%)" : "rgba(15,23,42,0.45)" }}>
+                            {activeCheckpoint === cp.id ? "✓ Active" : "⏪ Restore"}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <div className="p-3 space-y-2" style={{ borderTop: "1px solid rgba(15,23,42,0.08)" }}>
                 <button onClick={handleDownload}
                   className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-semibold text-xs transition-all"
