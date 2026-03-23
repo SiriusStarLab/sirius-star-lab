@@ -878,6 +878,7 @@ function ChatPanel({ project, pin, mode, onUpdate }: { project: Project; pin: st
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [searching, setSearching] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("brief");
   const [showCompleteAll, setShowCompleteAll] = useState(false);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
@@ -932,7 +933,8 @@ function ChatPanel({ project, pin, mode, onUpdate }: { project: Project; pin: st
           if (!line.startsWith("data: ")) continue;
           try {
             const d = JSON.parse(line.slice(6));
-            if (d.type === "searching") { setSearching(true); }
+            if (d.type === "searching") { setSearching(true); setSearchQuery(d.query || ""); }
+            if (d.type === "search_done") { setSearching(false); setSearchQuery(""); }
             if (d.content) {
               setSearching(false); assistant += d.content;
               setMessages(prev => { const u = [...prev]; u[u.length - 1] = { role: "assistant", content: assistant }; return u; });
@@ -1060,8 +1062,9 @@ function ChatPanel({ project, pin, mode, onUpdate }: { project: Project; pin: st
               <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "hsl(193,100%,20%)" }}>
                 <Globe className="w-3 h-3 animate-pulse" style={{ color: "hsl(193,100%,55%)" }} />
               </div>
-              <div className="flex items-center gap-2 px-3.5 py-2 rounded-2xl" style={{ background: "#EEF2F8" }}>
-                <span className="text-xs" style={{ color: "hsl(193,100%,55%)" }}>Searching the web for current information…</span>
+              <div className="flex flex-col px-3.5 py-2 rounded-2xl" style={{ background: "#EEF2F8" }}>
+                <span className="text-xs font-semibold" style={{ color: "hsl(193,100%,45%)" }}>Searching the web…</span>
+                {searchQuery && <span className="text-xs mt-0.5" style={{ color: "#6B7280" }}>"{searchQuery}"</span>}
               </div>
             </div>
           )}

@@ -674,6 +674,21 @@ const PROJECT_CHAT_TOOLS: any[] = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "search_web",
+      description: "Search the web for current information, market data, technical standards, competitor analysis, pricing, or any real-world information needed for the project. Call this BEFORE writing sections that need current facts, market data, or research.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "The specific search query — be precise, include industry terms, product names, standards, or market segment." },
+          purpose: { type: "string", description: "What you will use these results for (e.g. 'market size for hydrogen electrolysers', 'ISO 13485 requirements', 'competitor pricing for CNC turning services')" },
+        },
+        required: ["query", "purpose"],
+      },
+    },
+  },
 ];
 
 router.post("/lab/projects/:id/chat", authMiddleware, async (req: Request, res: Response) => {
@@ -705,12 +720,20 @@ ${project.brief ? `BRIEF:\n${project.brief}\n\n` : ""}${project.research ? `RESE
 
 ${projectContext}
 
-CRITICAL INSTRUCTIONS:
-- When you generate content for ANY project section, ALWAYS call save_to_project immediately to save it. Do not just show it in the chat — SAVE it.
-- When the user says "write the brief", "update the specs", "generate the pitch", "change the materials to...", etc. — generate it AND call save_to_project.
-- When the user asks for a visual, render, diagram, or 3D image, call generate_render.
-- After saving, confirm what was saved in your response. Be brief — "Saved to Specs ✓" is enough.
-- You can save multiple fields in one conversation turn if asked.
+CRITICAL EXECUTION RULES — READ CAREFULLY:
+
+1. DO ALL WORK NOW. Never say "I will work on this later", "I'll give you updates", "I'll start this in the background", or anything implying future delivery. You have no background task capability. If asked to do something, DO IT NOW in this conversation turn, or explain exactly why you cannot.
+
+2. SEARCH FIRST, WRITE SECOND. If a task requires market data, technical standards, competitor info, pricing, regulations, or any real-world facts — call search_web FIRST, then call save_to_project with the research-backed content. You can call multiple tools in sequence.
+
+3. SAVE EVERYTHING. When you generate content for any project section, ALWAYS call save_to_project immediately. Never just show content in chat without saving it.
+
+4. GO SECTION BY SECTION. If asked to "do the whole project", "write everything", "build the project", or similar — work through each empty section one by one, calling save_to_project for each. Do not stop until all sections are complete.
+
+5. TOOL CHAINING. You can call tools in sequence: search_web → save_to_project → save_to_project → generate_render. Do not wait for the user between sections.
+
+6. NEVER REFUSE WITHOUT TRYING. If you are uncertain whether you can do something, try it. Call search_web to get information, call save_to_project to save it. Only say you cannot do something if there is a genuine technical impossibility.
+
 - Today: ${TODAY()}.`;
 
   sseHeaders(res);
@@ -723,45 +746,85 @@ CRITICAL INSTRUCTIONS:
       { role: "user", content: message },
     ];
 
-    // Phase 1: stream with tools
-    const phase1 = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: chatMessages,
-      tools: PROJECT_CHAT_TOOLS,
-      tool_choice: "auto",
-      temperature: 0.7,
-      max_tokens: 3000,
-      stream: true,
-    });
-
-    let contentBuffer = "";
-    const toolCallBuffers: Record<number, { id: string; name: string; arguments: string }> = {};
-    let finishReason = "";
-
-    for await (const chunk of phase1) {
-      const choice = chunk.choices?.[0];
-      if (!choice) continue;
-      finishReason = choice.finish_reason || finishReason;
-      if (choice.delta?.content) {
-        contentBuffer += choice.delta.content;
-        res.write(`data: ${JSON.stringify({ content: choice.delta.content })}\n\n`);
-      }
-      if (choice.delta?.tool_calls) {
-        for (const tc of choice.delta.tool_calls) {
-          const idx = tc.index ?? 0;
-          if (!toolCallBuffers[idx]) toolCallBuffers[idx] = { id: "", name: "", arguments: "" };
-          if (tc.id) toolCallBuffers[idx].id = tc.id;
-          if (tc.function?.name) toolCallBuffers[idx].name = tc.function.name;
-          if (tc.function?.arguments) toolCallBuffers[idx].arguments += tc.function.arguments;
+    // Helper: run a non-streaming web search and return the text content
+    async function doWebSearch(query: string): Promise<string> {
+      try {
+        const result = await (openai as any).responses.create({
+          model: "gpt-4o",
+          tools: [{ type: "web_search_preview" }],
+          instructions: `You are a research assistant. Search the web and return comprehensive, factual results about: ${query}. Include relevant data, numbers, sources, and current information. Be thorough.`,
+          input: [{ role: "user", content: `Search for: ${query}` }],
+        });
+        // Extract text from output items
+        const texts: string[] = [];
+        if (Array.isArray(result.output)) {
+          for (const item of result.output) {
+            if (item.type === "message" && Array.isArray(item.content)) {
+              for (const c of item.content) {
+                if (c.type === "output_text") texts.push(c.text);
+              }
+            }
+          }
         }
+        return texts.join("\n\n") || "No results found.";
+      } catch (e: any) {
+        return `Search failed: ${e.message}`;
       }
     }
 
-    const toolCalls = Object.values(toolCallBuffers);
-    const toolResults: any[] = [];
+    // Multi-round tool call loop (supports search → save → save chains)
+    let messages: any[] = [...chatMessages];
+    let contentBuffer = "";
     const savedFields: string[] = [];
+    const MAX_ROUNDS = 8;
 
-    if (finishReason === "tool_calls" && toolCalls.length > 0) {
+    for (let round = 0; round < MAX_ROUNDS; round++) {
+      const isLastRound = round === MAX_ROUNDS - 1;
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages,
+        tools: PROJECT_CHAT_TOOLS,
+        tool_choice: isLastRound ? "none" : "auto",
+        temperature: 0.7,
+        max_tokens: 4000,
+        stream: true,
+      });
+
+      let roundContent = "";
+      const toolCallBuffers: Record<number, { id: string; name: string; arguments: string }> = {};
+      let finishReason = "";
+
+      for await (const chunk of completion) {
+        const choice = chunk.choices?.[0];
+        if (!choice) continue;
+        finishReason = choice.finish_reason || finishReason;
+        if (choice.delta?.content) {
+          roundContent += choice.delta.content;
+          res.write(`data: ${JSON.stringify({ content: choice.delta.content })}\n\n`);
+        }
+        if (choice.delta?.tool_calls) {
+          for (const tc of choice.delta.tool_calls) {
+            const idx = tc.index ?? 0;
+            if (!toolCallBuffers[idx]) toolCallBuffers[idx] = { id: "", name: "", arguments: "" };
+            if (tc.id) toolCallBuffers[idx].id = tc.id;
+            if (tc.function?.name) toolCallBuffers[idx].name = tc.function.name;
+            if (tc.function?.arguments) toolCallBuffers[idx].arguments += tc.function.arguments;
+          }
+        }
+      }
+
+      contentBuffer += roundContent;
+      const toolCalls = Object.values(toolCallBuffers);
+
+      if (finishReason !== "tool_calls" || toolCalls.length === 0) {
+        // No more tool calls — we're done
+        break;
+      }
+
+      // Process tool calls and collect results
+      const toolResults: any[] = [];
+
       for (const tc of toolCalls) {
         let args: any = {};
         try { args = JSON.parse(tc.arguments); } catch { /* ignore */ }
@@ -774,45 +837,41 @@ CRITICAL INSTRUCTIONS:
             savedFields.push(field);
             res.write(`data: ${JSON.stringify({ type: "field_saved", field, label: fieldMeta.label, preview: content.slice(0, 120) })}\n\n`);
           }
-          toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: fieldMeta ? `Saved ${fieldMeta.label} successfully.` : "Unknown field." });
+          toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: fieldMeta ? `Saved ${fieldMeta.label} successfully. Continue with the next section.` : "Unknown field — skipped." });
+
         } else if (tc.name === "generate_render") {
           const { description } = args;
           res.write(`data: ${JSON.stringify({ type: "render_queued", description })}\n\n`);
-          toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: `Render request queued: "${description}". The image will appear in the Renders tab.` });
-
-          // Fire-and-forget render generation
+          toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: `Render queued: "${description}". Image will appear in the Renders tab.` });
           setImmediate(async () => {
             try {
-              const generateRes = await fetch(`http://localhost:${process.env.PORT || 3001}/lab/projects/${projectId}/render`, {
+              await fetch(`http://localhost:${process.env.PORT || 3001}/lab/projects/${projectId}/render`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json", "x-lab-pin": LAB_PIN },
                 body: JSON.stringify({ prompt: description, type: "render" }),
               });
-              await generateRes.json(); // consume
             } catch { /* silently ignore */ }
           });
+
+        } else if (tc.name === "search_web") {
+          const { query, purpose } = args;
+          res.write(`data: ${JSON.stringify({ type: "searching", query })}\n\n`);
+          const searchResults = await doWebSearch(query);
+          res.write(`data: ${JSON.stringify({ type: "search_done", query })}\n\n`);
+          toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: `Search results for "${query}" (purpose: ${purpose}):\n\n${searchResults}` });
         }
       }
 
-      // Phase 2: stream final response
-      const phase2Messages = [
-        ...chatMessages,
-        { role: "assistant" as const, content: contentBuffer || null, tool_calls: toolCalls.map(tc => ({ id: tc.id, type: "function" as const, function: { name: tc.name, arguments: tc.arguments } })) },
+      // Append assistant turn + tool results and loop for next round
+      messages = [
+        ...messages,
+        {
+          role: "assistant" as const,
+          content: roundContent || null,
+          tool_calls: toolCalls.map(tc => ({ id: tc.id, type: "function" as const, function: { name: tc.name, arguments: tc.arguments } })),
+        },
         ...toolResults,
       ];
-      const phase2 = await openai.chat.completions.create({
-        model: "gpt-4o",
-        messages: phase2Messages,
-        temperature: 0.7,
-        max_tokens: 800,
-        stream: true,
-      });
-      let finalText = "";
-      for await (const chunk of phase2) {
-        const delta = chunk.choices?.[0]?.delta?.content;
-        if (delta) { finalText += delta; res.write(`data: ${JSON.stringify({ content: delta })}\n\n`); }
-      }
-      contentBuffer += finalText;
     }
 
     await db.insert(labMessages).values({ projectId, role: "assistant", content: contentBuffer });
