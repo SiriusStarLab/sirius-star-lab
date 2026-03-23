@@ -72,44 +72,57 @@ const MAX_ATTEMPTS = 5;
 const LOCKOUT_SECONDS = 60;
 
 /* ─── Voice utilities ──────────────────────────────────────────────────── */
-function speakText(text: string, onDone?: () => void, rate = 0.85) {
+function speakText(text: string, onDone?: () => void, rate = 0.78) {
   if (typeof window === "undefined" || !window.speechSynthesis) { onDone?.(); return; }
   window.speechSynthesis.cancel();
-  const utter = new SpeechSynthesisUtterance(text);
-  utter.rate = rate;
-  utter.pitch = 1.18;
-  utter.volume = 0.95;
-  const trySpeak = () => {
-    const voices = window.speechSynthesis.getVoices();
-    // Prefer soft female voices — covers macOS, Windows, Android, Chrome, iOS
-    const KNOWN_MALE = ["Daniel", "Arthur", "Malcolm", "Google UK English Male", "Microsoft David", "Microsoft Mark", "Microsoft George", "Microsoft James", "Alex", "Fred", "Ralph", "Bruce", "Junior"];
-    const femalePreference = [
-      // Chrome / Android
-      "Google UK English Female",
-      "Google US English",
-      // macOS
-      "Samantha", "Karen", "Moira", "Fiona", "Victoria", "Serena", "Tessa",
-      // Windows — most common female voices
-      "Microsoft Hazel", "Microsoft Susan", "Microsoft Zira", "Microsoft Libby",
-      "Microsoft Mia", "Microsoft Nora", "Microsoft Aria", "Microsoft Jenny",
-      "Microsoft Sonia", "Microsoft Clara", "Microsoft Leah",
-    ];
-    const preferred =
-      voices.find(v => femalePreference.includes(v.name)) ||
-      voices.find(v => v.lang.startsWith("en-GB") && !KNOWN_MALE.includes(v.name) && !v.name.toLowerCase().includes("male")) ||
-      voices.find(v => v.lang.startsWith("en-US") && !KNOWN_MALE.includes(v.name) && !v.name.toLowerCase().includes("male")) ||
-      voices.find(v => v.lang.startsWith("en") && !KNOWN_MALE.includes(v.name) && !v.name.toLowerCase().includes("male")) ||
-      voices.find(v => v.lang.startsWith("en"));
-    if (preferred) utter.voice = preferred;
-    utter.onend = () => onDone?.();
-    utter.onerror = () => onDone?.();
-    window.speechSynthesis.speak(utter);
-  };
-  if (window.speechSynthesis.getVoices().length === 0) {
-    window.speechSynthesis.onvoiceschanged = () => { trySpeak(); };
-  } else {
-    trySpeak();
-  }
+
+  // Small pause after cancel so the engine resets cleanly — avoids the clipped robotic start
+  setTimeout(() => {
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.rate   = rate;   // 0.78 — measured and conversational, not hurried
+    utter.pitch  = 1.0;    // Natural baseline; 1.18 was the sharp/mechanical edge
+    utter.volume = 0.88;   // Softer overall level
+
+    const trySpeak = () => {
+      const voices = window.speechSynthesis.getVoices();
+      const KNOWN_MALE = [
+        "Daniel", "Arthur", "Malcolm", "Google UK English Male",
+        "Microsoft David", "Microsoft Mark", "Microsoft George",
+        "Microsoft James", "Alex", "Fred", "Ralph", "Bruce", "Junior",
+      ];
+      // Neural voices first (Aria, Jenny, Sonia, Libby) — these are noticeably
+      // more human than the older synthesis voices. macOS Samantha / Karen next.
+      // Google UK Female as a fallback only — it's functional but synthetic.
+      const softFemaleOrder = [
+        // Windows neural (best quality on modern Edge / Chrome)
+        "Microsoft Aria", "Microsoft Jenny", "Microsoft Sonia",
+        "Microsoft Libby", "Microsoft Leah", "Microsoft Nora",
+        "Microsoft Clara", "Microsoft Mia",
+        // Windows classic
+        "Microsoft Hazel", "Microsoft Zira", "Microsoft Susan",
+        // macOS
+        "Samantha", "Karen", "Moira", "Serena", "Victoria", "Fiona", "Tessa",
+        // Chrome / Android (last resort — robotic but recognisable)
+        "Google UK English Female", "Google US English",
+      ];
+      const preferred =
+        voices.find(v => softFemaleOrder.includes(v.name)) ||
+        voices.find(v => v.lang.startsWith("en-GB") && !KNOWN_MALE.includes(v.name) && !v.name.toLowerCase().includes("male")) ||
+        voices.find(v => v.lang.startsWith("en-US") && !KNOWN_MALE.includes(v.name) && !v.name.toLowerCase().includes("male")) ||
+        voices.find(v => v.lang.startsWith("en")    && !KNOWN_MALE.includes(v.name) && !v.name.toLowerCase().includes("male")) ||
+        voices.find(v => v.lang.startsWith("en"));
+      if (preferred) utter.voice = preferred;
+      utter.onend  = () => onDone?.();
+      utter.onerror = () => onDone?.();
+      window.speechSynthesis.speak(utter);
+    };
+
+    if (window.speechSynthesis.getVoices().length === 0) {
+      window.speechSynthesis.onvoiceschanged = () => trySpeak();
+    } else {
+      trySpeak();
+    }
+  }, 80);
 }
 
 function parseSpokenPin(transcript: string): string {
