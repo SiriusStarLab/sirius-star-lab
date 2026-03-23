@@ -14,7 +14,7 @@
 
 import crypto from "crypto";
 import { eq, desc } from "drizzle-orm";
-import { db, labProjects, labScanHistory } from "@workspace/db";
+import { db, labProjects, labScanHistory, appBuilderSessions } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
 
 const TODAY = () => new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
@@ -285,6 +285,209 @@ Return JSON: { "opportunities": [{ "projectId": ${project.id}, "projectName": "$
   }
 }
 
+// ── Auto-Build Engine — fires for every software project the scanner creates ──
+
+const SOFTWARE_KEYWORDS = [
+  "bot", "saas", "platform", "app", "software", "dashboard", "tool", "api",
+  "automation", "ai", "agent", "portal", "system", "suite", "engine", "service",
+  "crm", "erp", "marketplace", "plugin", "extension", "chatbot", "workflow",
+];
+
+function isSoftwareBuildable(name: string, brief: string): boolean {
+  const text = `${name} ${brief}`.toLowerCase();
+  return SOFTWARE_KEYWORDS.some(kw => text.includes(kw));
+}
+
+function parseAgentFiles(output: string): Record<string, string> {
+  const files: Record<string, string> = {};
+  const fileRegex = /###\s*FILE:\s*(.+?)\s*###\n([\s\S]*?)###\s*END FILE\s*###/g;
+  let match: RegExpExecArray | null;
+  while ((match = fileRegex.exec(output)) !== null) {
+    const path = match[1].trim();
+    const content = match[2].trim();
+    if (path && content) files[path] = content;
+  }
+  return files;
+}
+
+function buildAutoAgentPrompt(
+  agentId: string,
+  appName: string,
+  description: string,
+  appType: string,
+  techStack: string,
+  features: string[],
+  existingFiles: Record<string, string>,
+): string {
+  const fileList = Object.keys(existingFiles).join(", ") || "none yet";
+  const featureList = features.join(", ") || "standard features";
+  const base = `You are building "${appName}" — a ${appType} application.
+Description: ${description}
+Tech stack: ${techStack}
+Features required: ${featureList}
+Files already created: ${fileList}
+
+CRITICAL RULES:
+- Output ONLY code files, no explanation text outside files
+- Wrap every file exactly like this:
+  ### FILE: path/filename.ext ###
+  [full file content here]
+  ### END FILE ###
+- Write complete, production-quality code — no placeholders, no TODOs
+- Every file must be fully functional and immediately usable`;
+
+  const rolePrompts: Record<string, string> = {
+    architect: `${base}\n\nYour role: System Architect\nCreate: package.json, README.md, .env.example, ARCHITECTURE.md`,
+    frontend:  `${base}\n\nYour role: Frontend Agent\nBuild all UI files: App.tsx, index.tsx, all pages, all components, styling`,
+    backend:   `${base}\n\nYour role: Backend Agent\nBuild: server entry, all route files, middleware, services, utilities`,
+    database:  `${base}\n\nYour role: Database Agent\nBuild: schema/migrations, models, seed data, DB connection utility`,
+    integration: `${base}\n\nYour role: Integration Agent\nBuild: docker-compose.yml, Dockerfile, CI/CD workflow, setup.sh, DEPLOYMENT.md`,
+    monitoring: `${base}\n\nYour role: Monitoring Agent\nBuild: logger middleware, error handler, health check endpoint, metrics collection`,
+  };
+  return rolePrompts[agentId] || base;
+}
+
+async function triggerAutoBuildForProject(
+  projectId: number,
+  name: string,
+  brief: string,
+  industry: string,
+): Promise<void> {
+  if (!isSoftwareBuildable(name, brief)) {
+    console.log(`[Auto-Build] Skipping "${name}" — not a software product`);
+    return;
+  }
+
+  console.log(`[Auto-Build] ▶ Starting autonomous build for "${name}" (project #${projectId})`);
+
+  try {
+    // Step 1 — Interpret: extract structured requirements from the brief
+    const interpretRes = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{
+        role: "user",
+        content: `You are an expert software architect. Extract structured requirements from this product description.
+
+Product: "${name}"
+Industry: ${industry}
+Description: "${brief}"
+
+Respond ONLY with valid JSON (no markdown):
+{
+  "appName": "short name",
+  "summary": "one sentence description",
+  "appType": "one of: Web App, SaaS Platform, REST API, AI-Powered Bot, Dashboard",
+  "techStack": "e.g. React + Node.js + PostgreSQL",
+  "coreFeatures": ["feature 1", "feature 2", "feature 3", "feature 4"],
+  "targetUsers": "who uses this",
+  "estimatedComplexity": "Simple | Medium | Complex"
+}`,
+      }],
+      max_tokens: 600,
+    });
+
+    const interpretRaw = interpretRes.choices[0]?.message?.content || "{}";
+    let reqs: Record<string, any> = {};
+    try {
+      reqs = JSON.parse(interpretRaw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim());
+    } catch {
+      reqs = { appName: name, summary: brief, appType: "SaaS Platform", techStack: "React + Node.js + PostgreSQL", coreFeatures: [], estimatedComplexity: "Medium" };
+    }
+
+    console.log(`[Auto-Build] ✓ Requirements interpreted for "${name}"`);
+
+    // Step 2 — Plan: generate task list
+    const planRes = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{
+        role: "user",
+        content: `Create a build plan for: ${reqs.appName} (${reqs.appType}, ${reqs.techStack}).
+Features: ${(reqs.coreFeatures || []).join(", ")}.
+Respond ONLY with valid JSON: { "tasks": [{ "id": "T001", "agent": "Architect Agent", "title": "...", "outputs": ["file.ts"] }] }`,
+      }],
+      max_tokens: 600,
+    });
+
+    const planRaw = planRes.choices[0]?.message?.content || "{}";
+    let plan: Record<string, any> = { tasks: [] };
+    try {
+      plan = JSON.parse(planRaw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim());
+    } catch { /* use default */ }
+
+    console.log(`[Auto-Build] ✓ Plan generated — ${plan.tasks?.length || 0} tasks`);
+
+    // Create the session record now so we can update it as agents finish
+    const [session] = await db.insert(appBuilderSessions).values({
+      pin: "auto",
+      appName: reqs.appName || name,
+      status: "building",
+      phase: 4,
+      requirements: JSON.stringify(reqs),
+      plan: JSON.stringify(plan.tasks || []),
+      files: "{}",
+      buildLog: `[Auto-Build] Autonomous build started by Lab Auto-Scan for project #${projectId}\n`,
+    }).returning();
+
+    // Step 3 — Run 6 build agents sequentially
+    const AGENTS = ["architect", "frontend", "backend", "database", "integration", "monitoring"];
+    const allFiles: Record<string, string> = {};
+    let buildLog = session.buildLog || "";
+
+    for (const agentId of AGENTS) {
+      console.log(`[Auto-Build] → Running ${agentId} agent for "${name}"...`);
+      try {
+        const prompt = buildAutoAgentPrompt(
+          agentId,
+          reqs.appName || name,
+          reqs.summary || brief,
+          reqs.appType || "SaaS Platform",
+          reqs.techStack || "React + Node.js",
+          reqs.coreFeatures || [],
+          allFiles,
+        );
+
+        const agentRes = await openai.chat.completions.create({
+          model: "gpt-4o",
+          messages: [{ role: "user", content: prompt }],
+          max_tokens: 3000,
+        });
+
+        const agentOutput = agentRes.choices[0]?.message?.content || "";
+        const agentFiles = parseAgentFiles(agentOutput);
+        Object.assign(allFiles, agentFiles);
+        buildLog += `[${agentId}] ✓ Generated ${Object.keys(agentFiles).length} files\n`;
+
+        // Persist progress after each agent
+        await db.update(appBuilderSessions).set({
+          files: JSON.stringify(allFiles),
+          buildLog,
+          updatedAt: new Date(),
+        }).where(eq(appBuilderSessions.id, session.id));
+
+        console.log(`[Auto-Build] ✓ ${agentId} agent done — ${Object.keys(agentFiles).length} files`);
+      } catch (agentErr: any) {
+        console.error(`[Auto-Build] ${agentId} agent failed:`, agentErr?.message);
+        buildLog += `[${agentId}] ✗ Error: ${agentErr?.message}\n`;
+      }
+    }
+
+    // Mark session complete
+    await db.update(appBuilderSessions).set({
+      status: "complete",
+      phase: 7,
+      files: JSON.stringify(allFiles),
+      buildLog,
+      updatedAt: new Date(),
+    }).where(eq(appBuilderSessions.id, session.id));
+
+    const totalFiles = Object.keys(allFiles).length;
+    console.log(`[Auto-Build] ✅ "${name}" build complete — ${totalFiles} files · session #${session.id}`);
+
+  } catch (err: any) {
+    console.error(`[Auto-Build] ✗ Failed for "${name}":`, err?.message);
+  }
+}
+
 // ── Save opportunities to DB ──────────────────────────────────────────────────
 
 async function saveOpportunities(
@@ -333,6 +536,7 @@ async function saveOpportunities(
       console.log(`[Lab Auto-Scan] [${passLabel}] Created: "${project.name}" [${opp.industry}] → PENDING`);
 
       triggerFundingForProject(project.id).catch(() => {});
+      triggerAutoBuildForProject(project.id, project.name, opp.brief || "", opp.industry || "General").catch(() => {});
     } catch (err) {
       console.error(`[Lab Auto-Scan] [${passLabel}] Failed to create "${opp.name}":`, err);
     }

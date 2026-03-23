@@ -156,7 +156,7 @@ function StarLabGreeting({ userName, onComplete }: { userName?: string; onComple
   const [captionIdx, setCaptionIdx] = useState(-1);
   const hasSpoken = useRef(false);
 
-  const greetingText = `Hi ${userName || "there"}, welcome to Sirius Star Lab. You are entering a restricted area. Please key in your PIN number.`;
+  const greetingText = `Hi ${userName || "Garry"}, welcome back to Star Lab. Please enter your PIN to continue.`;
 
   const captions = [
     `Hi ${userName || "there"},`,
@@ -441,7 +441,7 @@ function PinGate({ onUnlock, userName }: { onUnlock: (pin: string, role: AccessR
         const role: AccessRole = body.role === "guest" ? "guest" : "owner";
         sessionStorage.setItem("lab_pin", pin);
         sessionStorage.setItem("lab_role", role);
-        const welcome = `Welcome back${userName ? ", " + userName : ""}. Access granted. Good to have you in the Lab.`;
+        const welcome = `Hi ${userName || "Garry"}, great to have you back. You're in. What can I help you with today?`;
         setVoiceStatus("speaking");
         setVoiceHint(welcome);
         speakText(welcome, () => onUnlock(pin, role));
@@ -9934,7 +9934,7 @@ function LabAvatarGreeting({ userName, onNavigate, onDismiss }: {
   useEffect(() => {
     setTimeout(() => setVisible(true), 60);
 
-    const greeting = `${timeGreet} ${name}! I'm fully online. Where would you like to go? Just say it — Projects, Research, Revenue, Agency Hub, or anything else. Or tap a card below.`;
+    const greeting = `Hi ${name}, welcome back to Star Lab! I'm online and ready. Where would you like to go today? Just say it — Projects, Research, Revenue, App Builder, or anything else. Or tap a card below.`;
     setSiriusText(greeting);
 
     const speakTimer = setTimeout(() => {
