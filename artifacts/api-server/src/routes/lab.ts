@@ -1347,6 +1347,84 @@ Structure:
 [Clear, direct recommendation: Build / Build with partner / License / Pass. Exact next steps with timeline]`,
     },
 
+    drawings: {
+      system: `You are a principal mechanical design engineer with 20 years of experience producing engineering drawings for precision industries. You are fluent in international drawing standards: BS 8888, ISO 128, ISO 2768, ASME Y14.5 (GD&T), and industry-specific standards including API 6A/17D (oil & gas), AS9100/NADCAP (aerospace), ISO 13485/FDA 21 CFR Part 820 (medical), ISO 80079/ATEX (hydrogen & hazardous areas). You produce complete, unambiguous drawing packages that a CAD engineer can act on immediately without further clarification. You always specify the applicable standard alongside every tolerance, finish, and callout.`,
+      user: `Produce a complete, professional engineering drawing specification package for the following project:
+
+${ctx}
+
+This will be used directly in a CAD environment to produce engineering drawings. Be specific, thorough, and industry-appropriate. Apply the correct standards for the industry stated above.
+
+---
+
+## Engineering Drawing Package — [Project Name]
+
+### 1. Drawing Standards & Compliance
+- **Primary Standard:** [e.g. BS 8888:2020 / ASME Y14.5-2018 — match to industry]
+- **Dimensioning System:** [First or Third Angle Projection — state which and show symbol]
+- **Units:** [mm / inches — state clearly]
+- **Tolerance Standard:** [ISO 2768-m/ISO 2768-c or ASME equivalent — state class]
+- **Industry-Specific Standard:** [API, AS9100, ISO 13485, ATEX, etc. — whichever applies]
+- **Title Block Requirements:** [Part number format, revision system, material callout, surface finish default, drawn by / approved by fields]
+
+### 2. Drawing Views Required
+For each view, state: view type, what it shows, any section cuts, scale recommendation
+- **Primary View (Front):** [what this face shows, key features visible]
+- **Secondary View (Side/End):** [what this reveals]
+- **Top View (Plan):** [what this shows]
+- **Section Views:** [where to cut, what internal features to reveal, section designation e.g. A-A]
+- **Detail Views:** [any areas requiring magnified detail, scale, what to show]
+- **Isometric/3D View:** [for assembly clarity — specify orientation]
+- **Exploded View (if assembly):** [parts to show separated, call-off balloon numbers]
+
+### 3. Critical Dimensions & Tolerances
+For every key dimension, specify: nominal value | tolerance | surface | standard reference
+| Feature | Nominal | Tolerance | Fit Type | Standard |
+|---|---|---|---|---|
+[Complete table — every functional dimension of the product]
+
+### 4. Geometric Dimensioning & Tolerancing (GD&T)
+List all GD&T callouts required:
+| Symbol | Feature | Tolerance Zone | Datum Reference | Standard Ref |
+|---|---|---|---|---|
+[e.g. Flatness, Perpendicularity, True Position, Cylindricity, Runout — as applicable]
+
+### 5. Surface Finish Specification
+- **General Surface Finish:** [Ra value, standard e.g. ISO 1302]
+- **Critical Surfaces:** [specific Ra/Rz requirements per surface with location reference]
+- **Coating / Treatment:** [if any — specify type, thickness, standard, masking areas]
+
+### 6. Materials Callout (on drawing)
+- **Material:** [Full designation e.g. EN 10025 S275JR steel / 6061-T6 aluminium]
+- **Heat Treatment:** [if required — process, hardness range, depth]
+- **Traceability Requirement:** [material cert required? Certificate of Conformance? AS9100 traceability?]
+
+### 7. Weld Symbols & Joint Details (if applicable)
+- **Weld Standard:** [ISO 2553 / AWS A2.4]
+- **Joint Details:** [list all weld joints: type, size, fillet/butt, inspection requirement]
+- **NDT Requirements:** [UT, RT, PT, MT — which joints, acceptance criteria]
+
+### 8. Assembly Notes
+- **Fastener Callouts:** [spec, grade, torque values, locking requirement]
+- **Assembly Sequence Notes:** [if critical order — numbered sequence on drawing]
+- **Interference / Press Fits:** [feature, shaft/hole designation, fit class e.g. H7/p6]
+- **Adhesive / Sealant:** [product, cure time, application area]
+
+### 9. Inspection & Quality Requirements
+- **Key Inspection Points:** [which dimensions are critical — mark on drawing as CTQ]
+- **First Article Inspection:** [required? To what standard?]
+- **Pressure Test / Leak Test:** [if applicable — pressure, medium, duration, standard]
+- **Industry Certification Required:** [ATEX, CE, UKCA, FDA, FAA, DNV — state exact certification]
+
+### 10. Revision History Template
+| Rev | Description | Date | By | Approved |
+|---|---|---|---|---|
+| A | First issue | [date] | | |
+
+### 11. CAD File Instructions for newdimensionscad.com
+[Direct instructions to the CAD operator in plain language: what to model first, what to check against spec, which view to prioritise, any known complexities to plan for, file format to deliver (STEP, DWG, DXF, PDF) and any layer/naming convention required]`,
+    },
+
     goToMarket: {
       system: `You are a world-class go-to-market strategist with experience launching frontier technology products. Today is ${TODAY()}. You combine product marketing expertise with deep knowledge of sales strategy, channel economics, and AI-driven growth. You write GTM plans that are specific, sequenced, and executable — not frameworks. Every recommendation references real platforms, real channels, and real customer acquisition tactics available today.`,
       user: `Write a complete, execution-ready go-to-market strategy for launching this product:
@@ -1445,6 +1523,7 @@ Structure:
     materials: "materials", workflows: "workflows",
     brochure: "brochure", pitch: "pitch",
     businessCase: "businessCase", goToMarket: "goToMarket",
+    drawings: "drawingNotes",
   };
   const dbField = dbFieldMap[resolvedSection] || resolvedSection;
 
@@ -4646,6 +4725,87 @@ Analyse this codebase. Output improvement suggestions as JSON lines.`;
     console.error("[AppBuilder/Learn] Error:", err?.message);
     send({ type: "error", error: err?.message });
   } finally {
+    res.end();
+  }
+});
+
+// ── Star Lab — Continuous Voice Conversation ────────────────────────────────
+router.post("/lab/voice", authMiddleware, async (req: Request, res: Response) => {
+  const { messages = [], context = {} } = req.body as {
+    messages: Array<{ role: "user" | "assistant"; content: string }>;
+    context: { mode?: string; projectName?: string; activeTab?: string; projectList?: string[] };
+  };
+
+  sseHeaders(res);
+
+  const sections = [
+    "Dashboard", "Projects", "Chat with Sirius", "App Builder", "Bot Lab",
+    "Autonomous Lab", "Scout", "AI Intelligence", "Funding Radar", "Commerce Lab",
+    "Revenue Hub", "Agency Hub", "Growth Engine", "Sirius Brain", "Deep Research",
+    "Document Intel", "Mission", "Outreach Hub",
+  ].join(", ");
+
+  const projectContext = context.projectName
+    ? `The user is currently viewing a project called "${context.projectName}"${context.activeTab ? `, on the ${context.activeTab} tab` : ""}.`
+    : "No specific project is open right now.";
+
+  const projectListContext = context.projectList?.length
+    ? `Projects in Star Lab: ${context.projectList.join(", ")}.`
+    : "";
+
+  const systemPrompt = `You are Sirius, the AI intelligence partner inside Star Lab — the private R&D command centre for Strategic Innovation Dundee Ltd. You are having a continuous voice conversation with Garry, the founder. Your responses will be spoken aloud, so write naturally for speech — no markdown, no bullet points, no asterisks, no headers. Write in short, clear, conversational sentences.
+
+Current Star Lab context:
+- Active section: ${context.mode || "Dashboard"}
+- ${projectContext}
+- ${projectListContext}
+
+Star Lab sections you can navigate to: ${sections}
+
+You can do the following things during conversation:
+1. Answer questions about Star Lab, projects, engineering, business, and any general topic
+2. Navigate to a section — when the user says "go to projects", "open revenue", "take me to scout", etc., include this at the END of your response: <<NAVIGATE:projects>> (use the section id: dashboard, projects, labchat, appbuilder, botlab, autolab, scout, feed, grants, commerce, revenue, agency, growth, brain, research, docs, mission, outreach)
+3. Tell the user what actions are available in the current section
+
+Rules:
+- Keep responses SHORT — 1 to 3 sentences when possible. This is a voice conversation, not a document.
+- Be direct and natural. You can say "Got it", "Sure", "On it" — like a real person.
+- Never say "As an AI" or refer to yourself as a model. You are Sirius.
+- When generating or doing something technical, briefly confirm what you're doing.
+- If the user wants to navigate, always confirm with a natural phrase like "Taking you to Projects now." and include the <<NAVIGATE:X>> tag.
+- Strip all markdown formatting from your response.`;
+
+  try {
+    const stream = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        { role: "system", content: systemPrompt },
+        ...messages.slice(-12),
+      ],
+      stream: true,
+      max_tokens: 300,
+      temperature: 0.7,
+    });
+
+    let fullText = "";
+    for await (const chunk of stream) {
+      const delta = chunk.choices[0]?.delta?.content || "";
+      if (delta) {
+        fullText += delta;
+        res.write(`data: ${JSON.stringify({ delta })}\n\n`);
+      }
+    }
+
+    // Parse action tag — strip from spoken text
+    const navMatch = fullText.match(/<<NAVIGATE:(\w+)>>/);
+    const action = navMatch ? { type: "navigate", mode: navMatch[1] } : null;
+    const spokenText = fullText.replace(/<<[^>]+>>/g, "").trim();
+
+    res.write(`data: ${JSON.stringify({ done: true, action, spokenText })}\n\n`);
+    res.end();
+  } catch (err: any) {
+    console.error("[Voice] Error:", err?.message);
+    res.write(`data: ${JSON.stringify({ error: "Voice unavailable" })}\n\n`);
     res.end();
   }
 });

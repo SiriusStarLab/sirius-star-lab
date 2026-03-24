@@ -723,7 +723,7 @@ const ALL_TABS = [
   { id: "specs", label: "Specs", icon: Ruler, field: "specs", phase: "design", placeholder: "Technical specifications: dimensions, tolerances, performance requirements, standards...", generated: false },
   { id: "materials", label: "Materials", icon: Package, field: "materials", phase: "design", placeholder: "Materials list with specifications, suppliers, part numbers, costs...", generated: true },
   { id: "code", label: "Code", icon: Code, field: "code", phase: "design", placeholder: "Production-ready code...", generated: false },
-  { id: "drawings", label: "Drawings", icon: Layers, field: "drawingNotes", phase: "design", placeholder: "CAD drawing instructions: views, dimensions, callouts, assembly details...", generated: false },
+  { id: "drawings", label: "Drawings", icon: Layers, field: "drawingNotes", phase: "design", placeholder: "CAD drawing instructions: views, dimensions, callouts, assembly details...", generated: true },
   { id: "workflows", label: "Workflows", icon: Zap, field: "workflows", phase: "production", placeholder: "Manufacturing and deployment workflow steps...", generated: true },
   { id: "market", label: "Market & Uses", icon: Globe, field: "industryProblem", phase: "production", placeholder: "Industry analysis, problem solved, use cases across sectors...", generated: true },
   { id: "businessCase", label: "Business Case", icon: BadgeCheck, field: "businessCase", phase: "production", placeholder: "Why build this, competitive displacement strategy, AI advantage, investment justification...", generated: true },
@@ -1882,6 +1882,7 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack }: { project: Project
                 <p className="text-slate-400 text-xs mb-2 uppercase tracking-wider">Quick Generate</p>
                 <div className="grid grid-cols-2 gap-2">
                   {[
+                    { label: "Drawing Package", section: "drawings", tab: "drawings" },
                     { label: "Materials Spec", section: "materials", tab: "materials" },
                     { label: "Workflows", section: "workflows", tab: "workflows" },
                     { label: "Market Analysis", section: "market", tab: "market" },
@@ -1922,7 +1923,7 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack }: { project: Project
                 <div className="px-4 py-2 border-b flex items-center justify-between flex-shrink-0"
                   style={{ borderColor: "rgba(15,23,42,0.07)" }}>
                   <span className="text-slate-400 text-xs">
-                    {activeTab === "market" ? "Market analysis + use cases" : activeTab === "economics" ? "Cost to build + profit margins" : tab.label}
+                    {activeTab === "market" ? "Market analysis + use cases" : activeTab === "economics" ? "Cost to build + profit margins" : activeTab === "drawings" ? "Engineering drawing package · standards-aware" : tab.label}
                   </span>
                   <button onClick={() => generateSection(activeTab)} disabled={generating}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all"
@@ -9863,6 +9864,260 @@ const NAV_DESTINATIONS: { mode: NavMode; label: string; icon: string; color: str
   { mode: "appbuilder", label: "App Builder", icon: "🚀", color: "hsl(155,70%,42%)", desc: "Build apps with AI agents", keywords: ["build","app","builder","create app","generate app","code","develop","software","agent build","autonomous build"] },
 ];
 
+// ── Continuous Voice Conversation Widget ──────────────────────────────────────
+type VoiceMsg = { role: "user" | "assistant"; content: string };
+
+function StarLabVoiceWidget({
+  navMode, onNavigate, activeProject, projects, pin,
+}: {
+  navMode: string;
+  onNavigate: (mode: string) => void;
+  activeProject: Project | null;
+  projects: Project[];
+  pin: string;
+}) {
+  const base = getApiBase();
+  const [active, setActive]             = useState(false);
+  const [phase, setPhase]               = useState<"idle" | "listening" | "thinking" | "speaking">("idle");
+  const [messages, setMessages]         = useState<VoiceMsg[]>([]);
+  const [liveText, setLiveText]         = useState("");
+  const [siriusText, setSiriusText]     = useState("");
+  const [waveTick, setWaveTick]         = useState(0);
+  const recRef                          = useRef<any>(null);
+  const tickRef                         = useRef<ReturnType<typeof setInterval> | null>(null);
+  const busyRef                         = useRef(false);
+
+  useEffect(() => {
+    if (active) {
+      tickRef.current = setInterval(() => setWaveTick(t => t + 1), 80);
+    } else {
+      if (tickRef.current) clearInterval(tickRef.current);
+    }
+    return () => { if (tickRef.current) clearInterval(tickRef.current); };
+  }, [active]);
+
+  const stopListening = () => {
+    try { recRef.current?.stop(); } catch {}
+    recRef.current = null;
+  };
+
+  const startListening = () => {
+    if (busyRef.current) return;
+    const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRec) return;
+    const rec = new SpeechRec();
+    recRef.current = rec;
+    rec.continuous = false;
+    rec.interimResults = true;
+    rec.lang = "en-GB";
+    rec.onstart = () => setPhase("listening");
+    rec.onresult = (e: any) => {
+      const text = Array.from(e.results as any[]).map((r: any) => r[0].transcript).join(" ");
+      setLiveText(text);
+      if (e.results[e.results.length - 1].isFinal && text.trim().length > 1) {
+        stopListening();
+        sendMessage(text.trim());
+      }
+    };
+    rec.onerror = () => { setPhase("idle"); busyRef.current = false; };
+    rec.onend   = () => { if (phase === "listening") setPhase("idle"); };
+    rec.start();
+    setLiveText("");
+  };
+
+  const sendMessage = async (text: string) => {
+    busyRef.current = true;
+    setPhase("thinking");
+    setLiveText("");
+    const userMsg: VoiceMsg = { role: "user", content: text };
+    const updatedMsgs = [...messages, userMsg];
+    setMessages(updatedMsgs);
+
+    try {
+      const res = await fetch(`${base}lab/voice`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+        body: JSON.stringify({
+          messages: updatedMsgs,
+          context: {
+            mode: navMode,
+            projectName: activeProject?.name,
+            activeTab: undefined,
+            projectList: projects.map(p => p.name).slice(0, 10),
+          },
+        }),
+      });
+
+      if (!res.ok || !res.body) throw new Error("Voice request failed");
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let fullResponse = "";
+      let action: { type: string; mode?: string } | null = null;
+      let spokenText = "";
+
+      setPhase("speaking");
+      setSiriusText("");
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const parsed = JSON.parse(line.slice(6));
+            if (parsed.delta) {
+              const clean = parsed.delta.replace(/<<[^>]+>>/g, "");
+              fullResponse += parsed.delta;
+              setSiriusText(prev => prev + clean);
+            }
+            if (parsed.done) {
+              action = parsed.action;
+              spokenText = parsed.spokenText || fullResponse.replace(/<<[^>]+>>/g, "").trim();
+            }
+          } catch {}
+        }
+      }
+
+      const assistantMsg: VoiceMsg = { role: "assistant", content: spokenText || fullResponse };
+      setMessages(prev => [...prev, assistantMsg]);
+
+      if (action?.type === "navigate" && action.mode) {
+        onNavigate(action.mode);
+      }
+
+      speakText(spokenText || fullResponse.replace(/<<[^>]+>>/g, "").trim(), () => {
+        busyRef.current = false;
+        setPhase("idle");
+        setSiriusText("");
+        if (active) setTimeout(() => startListening(), 400);
+      });
+
+    } catch (err) {
+      console.error("[Voice]", err);
+      busyRef.current = false;
+      setPhase("idle");
+      if (active) setTimeout(() => startListening(), 1000);
+    }
+  };
+
+  const toggleActive = () => {
+    if (active) {
+      stopListening();
+      window.speechSynthesis?.cancel();
+      busyRef.current = false;
+      setActive(false);
+      setPhase("idle");
+      setLiveText("");
+      setSiriusText("");
+    } else {
+      setActive(true);
+      setMessages([]);
+      setTimeout(() => {
+        const greeting = "I'm listening. What would you like to do?";
+        setSiriusText(greeting);
+        speakText(greeting, () => {
+          setSiriusText("");
+          busyRef.current = false;
+          startListening();
+        });
+      }, 200);
+    }
+  };
+
+  const isListening = phase === "listening";
+  const isThinking  = phase === "thinking";
+  const isSpeaking  = phase === "speaking";
+
+  return (
+    <>
+      {/* Floating bubble when active */}
+      <AnimatePresence>
+        {active && (
+          <motion.div
+            initial={{ opacity: 0, y: 8, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 8, scale: 0.95 }}
+            transition={{ duration: 0.18 }}
+            className="fixed bottom-20 left-4 z-50 rounded-2xl shadow-2xl overflow-hidden"
+            style={{ width: 220, background: "rgba(5,9,18,0.96)", border: "1px solid rgba(0,212,255,0.2)", backdropFilter: "blur(16px)" }}>
+
+            {/* Status bar */}
+            <div className="flex items-center gap-2 px-3 pt-3 pb-2">
+              <span className="w-2 h-2 rounded-full flex-shrink-0"
+                style={{ background: isListening ? "hsl(193,100%,55%)" : isSpeaking ? "hsl(155,70%,55%)" : isThinking ? "hsl(45,100%,55%)" : "rgba(255,255,255,0.2)", animation: isListening || isSpeaking ? "pulse 1.2s infinite" : "none" }} />
+              <span className="text-xs font-semibold tracking-wide" style={{ color: isListening ? "hsl(193,100%,65%)" : isSpeaking ? "hsl(155,70%,65%)" : isThinking ? "hsl(45,100%,65%)" : "rgba(255,255,255,0.35)" }}>
+                {isListening ? "LISTENING" : isSpeaking ? "SPEAKING" : isThinking ? "THINKING" : "SIRIUS VOICE"}
+              </span>
+            </div>
+
+            {/* Waveform */}
+            {(isListening || isSpeaking) && (
+              <div className="flex items-center gap-0.5 px-3 pb-2" style={{ height: 24 }}>
+                {Array.from({ length: 18 }).map((_, i) => {
+                  const h = isListening
+                    ? 3 + Math.abs(Math.sin(waveTick * 0.4 + i * 0.7)) * 16
+                    : 2 + Math.abs(Math.sin(waveTick * 0.22 + i * 0.9)) * 10;
+                  return (
+                    <motion.div key={i} animate={{ height: h }} transition={{ duration: 0.08 }}
+                      style={{ width: 2.5, borderRadius: 2, background: isListening ? "hsl(193,100%,55%)" : "hsl(155,70%,55%)", opacity: 0.85 }} />
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Transcript / response */}
+            {(liveText || siriusText) && (
+              <div className="px-3 pb-2">
+                <p className="text-xs leading-relaxed" style={{ color: liveText ? "rgba(255,255,255,0.55)" : "rgba(255,255,255,0.8)" }}>
+                  {liveText ? `"${liveText}"` : siriusText}
+                </p>
+              </div>
+            )}
+
+            {/* History count */}
+            {messages.length > 0 && (
+              <div className="px-3 pb-3">
+                <p className="text-[10px]" style={{ color: "rgba(255,255,255,0.2)" }}>{Math.floor(messages.length / 2)} exchange{messages.length > 2 ? "s" : ""} this session</p>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Mic button — sits in sidebar bottom */}
+      <button onClick={toggleActive}
+        className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-all"
+        style={{
+          background: active ? "rgba(0,212,255,0.12)" : "rgba(15,23,42,0.04)",
+          border: active ? "1px solid rgba(0,212,255,0.3)" : "1px solid transparent",
+        }}>
+        <div className="relative flex-shrink-0">
+          {active && isListening && (
+            <span className="absolute -inset-1 rounded-full animate-ping" style={{ background: "rgba(0,212,255,0.3)", animationDuration: "1.2s" }} />
+          )}
+          <div className="w-7 h-7 rounded-xl flex items-center justify-center relative"
+            style={{ background: active ? "rgba(0,212,255,0.2)" : "rgba(15,23,42,0.06)" }}>
+            {active
+              ? <Mic className="w-3.5 h-3.5" style={{ color: "hsl(193,100%,60%)" }} />
+              : <Mic className="w-3.5 h-3.5" style={{ color: "rgba(15,23,42,0.4)" }} />}
+          </div>
+        </div>
+        <div className="text-left min-w-0">
+          <p className="text-xs font-semibold truncate" style={{ color: active ? "hsl(193,100%,55%)" : "rgba(15,23,42,0.5)" }}>
+            {active ? (isListening ? "Listening…" : isSpeaking ? "Speaking…" : isThinking ? "Thinking…" : "Voice On") : "Talk to Sirius"}
+          </p>
+          {!active && <p className="text-[10px]" style={{ color: "rgba(15,23,42,0.3)" }}>Continuous conversation</p>}
+        </div>
+      </button>
+    </>
+  );
+}
+
 function matchDestination(transcript: string): typeof NAV_DESTINATIONS[0] | null {
   const lower = transcript.toLowerCase().trim();
   // Exact or strong keyword match
@@ -10800,6 +11055,19 @@ export function StarLabPage() {
               )}
             </div>
           </>
+        )}
+
+        {/* Voice widget — bottom of sidebar, owner only */}
+        {!isGuest && (
+          <div className="mt-auto p-2 border-t flex-shrink-0" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
+            <StarLabVoiceWidget
+              navMode={navMode}
+              onNavigate={(mode) => setNavMode(mode as NavMode)}
+              activeProject={activeProject}
+              projects={projects}
+              pin={pin}
+            />
+          </div>
         )}
       </div>
 
