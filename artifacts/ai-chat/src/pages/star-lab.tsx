@@ -49,6 +49,7 @@ type Project = {
   fundingAnalysis: string; fundingStatus: string; fundingAnalysedAt: string | null;
   fundingApplications: string;
   socialPosts: string; launchPlatforms: string; launchStatus: string;
+  aiArchLinked: string; aiArchInsights: string; aiArchSweepAt: string | null;
   messages?: Message[];
 };
 type Message = { id: number; projectId: number; role: string; content: string; createdAt: string };
@@ -734,6 +735,7 @@ const ALL_TABS = [
   { id: "economics", label: "Economics", icon: Package, field: "costToBuild", phase: "complete", placeholder: "Cost to build, pricing, profit margin analysis...", generated: true },
   { id: "goToMarket", label: "Go-to-Market", icon: Globe, field: "goToMarket", phase: "complete", placeholder: "Launch strategy, channels, pricing, 90-day plan, KPIs...", generated: true },
   { id: "funding", label: "Funding", icon: BadgeCheck, field: "fundingAnalysis", phase: "all", placeholder: "", generated: false },
+  { id: "ai-arch", label: "AI Architecture", icon: Layers, field: null, phase: "all", placeholder: "", generated: false },
   { id: "launch", label: "Launch", icon: Send, field: null, phase: "all", placeholder: "", generated: false },
 ];
 
@@ -1914,11 +1916,15 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack }: { project: Project
             <FundingProjectTab project={project} pin={pin} onUpdate={onUpdate} />
           )}
 
+          {activeTab === "ai-arch" && (
+            <AiArchProjectTab project={project} pin={pin} onUpdate={onUpdate} />
+          )}
+
           {activeTab === "launch" && (
             <LaunchPanel project={project} pin={pin} onUpdate={onUpdate} />
           )}
 
-          {activeTab !== "overview" && activeTab !== "renders" && activeTab !== "funding" && activeTab !== "launch" && tab && (
+          {activeTab !== "overview" && activeTab !== "renders" && activeTab !== "funding" && activeTab !== "ai-arch" && activeTab !== "launch" && tab && (
             <div className="flex flex-col h-full">
               {tab.generated && (
                 <div className="px-4 py-2 border-b flex items-center justify-between flex-shrink-0"
@@ -1991,6 +1997,184 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack }: { project: Project
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+type AiArchInsights = {
+  needsAppDev: boolean;
+  techStack: string[];
+  buildRoadmap: { step: number; title: string; detail: string }[];
+  marketReadinessScore: number;
+  missingElements: string[];
+  nextAction: string;
+  estimatedBuildWeeks: number | null;
+  architectureNotes: string;
+  sweptAt: string;
+};
+
+function AiArchProjectTab({ project, pin, onUpdate }: { project: Project; pin: string; onUpdate: (p: Project) => void }) {
+  const [triggering, setTriggering] = useState(false);
+  const base = getApiBase();
+  const hdrs = () => ({ "Content-Type": "application/json", "x-lab-pin": pin });
+
+  const insights: AiArchInsights | null = (() => {
+    try { return project.aiArchInsights ? JSON.parse(project.aiArchInsights) : null; } catch { return null; }
+  })();
+
+  const isPending = project.aiArchLinked === "pending";
+  const isLinked = project.aiArchLinked === "linked";
+  const isNotApplicable = project.aiArchLinked === "not-applicable";
+  const isUnanalysed = !project.aiArchLinked || project.aiArchLinked === "";
+
+  const triggerAnalysis = async () => {
+    setTriggering(true);
+    await fetch(`${base}lab/projects/${project.id}/ai-arch/analyze`, { method: "POST", headers: hdrs() });
+    onUpdate({ ...project, aiArchLinked: "pending" });
+    setTriggering(false);
+  };
+
+  const sweptAtFormatted = insights?.sweptAt
+    ? new Date(insights.sweptAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
+    : null;
+
+  const SCORE_COLOR = (s: number) =>
+    s >= 8 ? "hsl(155,70%,45%)" : s >= 5 ? "hsl(45,100%,50%)" : "hsl(0,70%,55%)";
+
+  return (
+    <div className="flex-1 overflow-y-auto p-5 space-y-4">
+
+      {/* Header */}
+      <div className="rounded-xl p-4 flex items-start justify-between gap-4" style={{ background: "linear-gradient(135deg, hsl(210,80%,55%,0.08), hsl(155,70%,45%,0.05))", border: "1px solid hsla(210,80%,55%,0.15)" }}>
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <Layers className="w-4 h-4" style={{ color: "hsl(210,80%,55%)" }} />
+            <span className="text-sm font-bold text-slate-800">AI Architecture Analysis</span>
+            {isLinked && <span className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ background: "hsla(210,80%,55%,0.1)", color: "hsl(210,80%,55%)", border: "1px solid hsla(210,80%,55%,0.2)" }}>LINKED</span>}
+            {isNotApplicable && <span className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ background: "hsla(0,0%,50%,0.08)", color: "rgba(15,23,42,0.45)", border: "1px solid rgba(15,23,42,0.1)" }}>PHYSICAL PRODUCT</span>}
+          </div>
+          <p className="text-xs" style={{ color: "rgba(15,23,42,0.55)" }}>
+            {isUnanalysed && "Not yet analysed — run the AI Architecture sweep to assess this project's digital requirements."}
+            {isPending && "Sirius is analysing this project…"}
+            {isLinked && `This project needs app development to reach market. ${sweptAtFormatted ? `Last analysed ${sweptAtFormatted}.` : ""}`}
+            {isNotApplicable && `This is a physical product — no app development required. ${sweptAtFormatted ? `Last analysed ${sweptAtFormatted}.` : ""}`}
+          </p>
+        </div>
+        <button
+          onClick={triggerAnalysis}
+          disabled={triggering || isPending}
+          className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+          style={{ background: "hsl(210,80%,55%)", color: "white", opacity: triggering || isPending ? 0.5 : 1 }}>
+          {triggering || isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+          {isPending ? "Analysing…" : isUnanalysed ? "Analyse Now" : "Re-analyse"}
+        </button>
+      </div>
+
+      {isPending && (
+        <div className="flex items-center gap-3 p-4 rounded-xl" style={{ background: "hsla(210,80%,55%,0.05)", border: "1px solid hsla(210,80%,55%,0.1)" }}>
+          <Loader2 className="w-5 h-5 animate-spin flex-shrink-0" style={{ color: "hsl(210,80%,55%)" }} />
+          <div>
+            <p className="text-sm font-medium text-slate-800">AI Architecture sweep in progress</p>
+            <p className="text-xs mt-0.5" style={{ color: "rgba(15,23,42,0.5)" }}>Sirius is evaluating this project's digital requirements, tech stack, and market readiness. This takes about 30 seconds.</p>
+          </div>
+        </div>
+      )}
+
+      {isNotApplicable && !isPending && (
+        <div className="p-4 rounded-xl text-center" style={{ background: "rgba(15,23,42,0.03)", border: "1px solid rgba(15,23,42,0.07)" }}>
+          <Wrench className="w-8 h-8 mx-auto mb-2" style={{ color: "rgba(15,23,42,0.3)" }} />
+          <p className="text-sm font-medium text-slate-700 mb-1">Physical / Engineering Product</p>
+          <p className="text-xs" style={{ color: "rgba(15,23,42,0.5)" }}>Sirius determined this project does not require custom software or an app to reach market. If this seems wrong, click Re-analyse above.</p>
+        </div>
+      )}
+
+      {isLinked && insights && (
+        <>
+          {/* Market Readiness Score */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="col-span-1 rounded-xl p-4 text-center" style={{ background: "#fff", border: "1px solid rgba(15,23,42,0.07)" }}>
+              <div className="text-3xl font-black mb-1" style={{ color: SCORE_COLOR(insights.marketReadinessScore) }}>
+                {insights.marketReadinessScore}<span className="text-lg font-medium opacity-50">/10</span>
+              </div>
+              <p className="text-[11px] text-slate-500 font-medium">Market Readiness</p>
+            </div>
+            {insights.estimatedBuildWeeks !== null && (
+              <div className="col-span-1 rounded-xl p-4 text-center" style={{ background: "#fff", border: "1px solid rgba(15,23,42,0.07)" }}>
+                <div className="text-3xl font-black mb-1" style={{ color: "hsl(210,80%,55%)" }}>
+                  {insights.estimatedBuildWeeks}<span className="text-lg font-medium opacity-50">w</span>
+                </div>
+                <p className="text-[11px] text-slate-500 font-medium">Est. Build Time</p>
+              </div>
+            )}
+            <div className="col-span-1 rounded-xl p-4 text-center" style={{ background: "#fff", border: "1px solid rgba(15,23,42,0.07)" }}>
+              <div className="text-3xl font-black mb-1" style={{ color: "hsl(280,70%,55%)" }}>
+                {insights.techStack.length}
+              </div>
+              <p className="text-[11px] text-slate-500 font-medium">Tech Stack Items</p>
+            </div>
+          </div>
+
+          {/* Next Action */}
+          <div className="rounded-xl p-4" style={{ background: "linear-gradient(135deg, hsl(155,70%,45%,0.08), hsl(155,70%,45%,0.04))", border: "1px solid hsla(155,70%,45%,0.2)" }}>
+            <div className="flex items-center gap-2 mb-2">
+              <Zap className="w-4 h-4" style={{ color: "hsl(155,70%,45%)" }} />
+              <span className="text-xs font-bold" style={{ color: "hsl(155,70%,35%)" }}>HIGHEST IMPACT NEXT ACTION</span>
+            </div>
+            <p className="text-sm text-slate-800 font-medium">{insights.nextAction}</p>
+          </div>
+
+          {/* Tech Stack */}
+          <div className="rounded-xl p-4" style={{ background: "#fff", border: "1px solid rgba(15,23,42,0.07)" }}>
+            <p className="text-xs font-bold text-slate-700 mb-3">Recommended Tech Stack</p>
+            <div className="flex flex-wrap gap-1.5">
+              {insights.techStack.map(t => (
+                <span key={t} className="text-xs px-2.5 py-1 rounded-full font-medium" style={{ background: "hsla(210,80%,55%,0.08)", color: "hsl(210,80%,50%)", border: "1px solid hsla(210,80%,55%,0.15)" }}>{t}</span>
+              ))}
+            </div>
+          </div>
+
+          {/* Build Roadmap */}
+          {insights.buildRoadmap.length > 0 && (
+            <div className="rounded-xl p-4" style={{ background: "#fff", border: "1px solid rgba(15,23,42,0.07)" }}>
+              <p className="text-xs font-bold text-slate-700 mb-3">Build Roadmap to Market</p>
+              <div className="space-y-2">
+                {insights.buildRoadmap.map((s) => (
+                  <div key={s.step} className="flex items-start gap-3">
+                    <div className="w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-[11px] font-black text-white" style={{ background: "hsl(210,80%,55%)" }}>{s.step}</div>
+                    <div>
+                      <p className="text-xs font-bold text-slate-800">{s.title}</p>
+                      <p className="text-[11px] mt-0.5" style={{ color: "rgba(15,23,42,0.55)" }}>{s.detail}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Missing Elements */}
+          {insights.missingElements.length > 0 && (
+            <div className="rounded-xl p-4" style={{ background: "#fff", border: "1px solid rgba(15,23,42,0.07)" }}>
+              <p className="text-xs font-bold text-slate-700 mb-3">Missing to Reach Market</p>
+              <div className="space-y-1.5">
+                {insights.missingElements.map((m, i) => (
+                  <div key={i} className="flex items-start gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ background: "hsl(25,90%,55%)" }} />
+                    <p className="text-xs" style={{ color: "rgba(15,23,42,0.65)" }}>{m}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Architecture Notes */}
+          {insights.architectureNotes && (
+            <div className="rounded-xl p-4" style={{ background: "rgba(15,23,42,0.02)", border: "1px solid rgba(15,23,42,0.07)" }}>
+              <p className="text-xs font-bold text-slate-700 mb-2">Architecture Notes</p>
+              <p className="text-xs leading-relaxed" style={{ color: "rgba(15,23,42,0.65)" }}>{insights.architectureNotes}</p>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -6000,6 +6184,11 @@ function DashboardPanel({ projects, pin, onNavigate, onOpenProject }: {
                       <p className="text-slate-800 text-sm font-medium truncate">{p.name}</p>
                       <p className="text-xs truncate" style={{ color: "rgba(15,23,42,0.6)" }}>{p.industry} · {updatedAgo}</p>
                     </div>
+                    {p.aiArchLinked === "linked" && (
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: "hsla(210,80%,55%,0.1)", color: "hsl(210,80%,55%)", border: "1px solid hsla(210,80%,55%,0.2)" }}>
+                        AI ARCH
+                      </span>
+                    )}
                     {fundingCount > 0 && (
                       <span className="text-xs px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: "hsla(155,70%,45%,0.1)", color: "hsl(155,70%,45%)" }}>
                         {fundingCount} funding
@@ -10990,6 +11179,162 @@ function SiriusLabChatPanel({ pin, accessLevel }: { pin: string; accessLevel: Ac
   );
 }
 
+// ── AI Architecture Lab Panel ─────────────────────────────────────────────────
+
+type AiArchSweepStatus = {
+  isRunning: boolean; lastSweepAt: string | null;
+  analysed: number; linked: number; skipped: number;
+  total: number; unswept: number; notApplicable: number; pending: number;
+};
+
+function AiArchLabPanel({ pin, projects, onNavigate, onOpenProject }: {
+  pin: string;
+  projects: Project[];
+  onNavigate: (mode: NavMode) => void;
+  onOpenProject: (p: Project) => void;
+}) {
+  const [sweepStatus, setSweepStatus] = useState<AiArchSweepStatus | null>(null);
+  const [triggering, setTriggering] = useState(false);
+  const base = getApiBase();
+  const hdrs = () => ({ "Content-Type": "application/json", "x-lab-pin": pin });
+
+  const loadStatus = useCallback(async () => {
+    try {
+      const res = await fetch(`${base}lab/ai-arch-sweep/status`, { headers: hdrs() });
+      if (res.ok) setSweepStatus(await res.json());
+    } catch {}
+  }, [base, pin]);
+
+  useEffect(() => { loadStatus(); const t = setInterval(loadStatus, 10000); return () => clearInterval(t); }, [loadStatus]);
+
+  const triggerSweep = async () => {
+    setTriggering(true);
+    await fetch(`${base}lab/ai-arch-sweep/trigger`, { method: "POST", headers: hdrs() });
+    setTimeout(loadStatus, 2000);
+    setTriggering(false);
+  };
+
+  const linkedProjects = projects.filter(p => p.aiArchLinked === "linked");
+  const pendingProjects = projects.filter(p => p.aiArchLinked === "pending");
+
+  const lastSweepFormatted = sweepStatus?.lastSweepAt
+    ? new Date(sweepStatus.lastSweepAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
+    : "Never";
+
+  return (
+    <div className="flex-1 overflow-y-auto p-6 space-y-6">
+
+      {/* Sweep Control Header */}
+      <div className="rounded-2xl overflow-hidden" style={{ background: "#fff", border: "1px solid rgba(15,23,42,0.08)" }}>
+        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid rgba(15,23,42,0.06)" }}>
+          <div className="flex items-center gap-2">
+            <Layers className="w-4 h-4" style={{ color: "hsl(210,80%,55%)" }} />
+            <span className="text-slate-800 font-bold text-sm">Autonomous AI Architecture Sweep</span>
+            {sweepStatus?.isRunning && (
+              <span className="flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ background: "hsla(155,70%,45%,0.1)", color: "hsl(155,70%,45%)" }}>
+                <Loader2 className="w-2.5 h-2.5 animate-spin" /> RUNNING
+              </span>
+            )}
+          </div>
+          <button
+            onClick={triggerSweep}
+            disabled={triggering || sweepStatus?.isRunning}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+            style={{ background: "hsl(210,80%,55%)", color: "white", opacity: triggering || sweepStatus?.isRunning ? 0.5 : 1 }}>
+            {triggering ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+            Run Sweep Now
+          </button>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-0">
+          {[
+            { label: "Total Projects", value: sweepStatus?.total ?? projects.length, color: "hsl(210,80%,55%)" },
+            { label: "AI Arch Linked", value: sweepStatus?.linked ?? linkedProjects.length, color: "hsl(155,70%,45%)" },
+            { label: "Unswept", value: sweepStatus?.unswept ?? 0, color: "hsl(45,100%,50%)" },
+            { label: "Last Sweep", value: lastSweepFormatted, color: "rgba(15,23,42,0.5)", small: true },
+          ].map((stat, i) => (
+            <div key={stat.label} className="px-5 py-4" style={{ borderRight: i < 3 ? "1px solid rgba(15,23,42,0.06)" : undefined }}>
+              <p className="text-xs font-medium mb-1" style={{ color: "rgba(15,23,42,0.45)" }}>{stat.label}</p>
+              <p className={(stat as any).small ? "text-sm font-bold" : "text-2xl font-black"} style={{ color: stat.color }}>{stat.value}</p>
+            </div>
+          ))}
+        </div>
+        <div className="px-5 py-3" style={{ borderTop: "1px solid rgba(15,23,42,0.06)", background: "rgba(15,23,42,0.02)" }}>
+          <p className="text-[11px]" style={{ color: "rgba(15,23,42,0.45)" }}>
+            Sirius runs this sweep every 24 hours — analysing every project to determine if it needs app development and what's needed to reach market. Results appear in each project's AI Architecture tab.
+          </p>
+        </div>
+      </div>
+
+      {/* Pending Sweep */}
+      {pendingProjects.length > 0 && (
+        <div className="rounded-xl p-4 flex items-center gap-3" style={{ background: "hsla(210,80%,55%,0.05)", border: "1px solid hsla(210,80%,55%,0.15)" }}>
+          <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" style={{ color: "hsl(210,80%,55%)" }} />
+          <p className="text-sm text-slate-700">Analysing <strong>{pendingProjects.length}</strong> project{pendingProjects.length !== 1 ? "s" : ""} right now…</p>
+        </div>
+      )}
+
+      {/* Linked Projects */}
+      {linkedProjects.length > 0 && (
+        <div className="rounded-2xl overflow-hidden" style={{ background: "#fff", border: "1px solid rgba(15,23,42,0.08)" }}>
+          <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid rgba(15,23,42,0.06)" }}>
+            <div className="flex items-center gap-2">
+              <Rocket className="w-4 h-4" style={{ color: "hsl(155,70%,45%)" }} />
+              <span className="text-slate-800 font-bold text-sm">Projects Linked to AI Architecture</span>
+              <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: "hsla(155,70%,45%,0.1)", color: "hsl(155,70%,45%)" }}>{linkedProjects.length}</span>
+            </div>
+            <button onClick={() => onNavigate("projects")} className="text-xs font-medium" style={{ color: "hsl(193,100%,40%)" }}>View all projects →</button>
+          </div>
+          <div className="divide-y" style={{ borderColor: "rgba(15,23,42,0.05)" }}>
+            {linkedProjects.slice(0, 8).map(p => {
+              const ins: AiArchInsights | null = (() => { try { return p.aiArchInsights ? JSON.parse(p.aiArchInsights) : null; } catch { return null; } })();
+              return (
+                <div key={p.id}
+                  onClick={() => onOpenProject(p)}
+                  className="flex items-center gap-3 px-5 py-3 cursor-pointer transition-all hover:bg-slate-50">
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "hsla(210,80%,55%,0.08)" }}>
+                    <Layers className="w-4 h-4" style={{ color: "hsl(210,80%,55%)" }} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-800 truncate">{p.name}</p>
+                    <p className="text-[11px] truncate" style={{ color: "rgba(15,23,42,0.5)" }}>
+                      {p.industry}
+                      {ins?.techStack?.length ? ` · ${ins.techStack.slice(0, 3).join(", ")}` : ""}
+                    </p>
+                  </div>
+                  {ins?.marketReadinessScore && (
+                    <div className="flex-shrink-0 text-center">
+                      <span className="text-xs font-black" style={{ color: ins.marketReadinessScore >= 7 ? "hsl(155,70%,45%)" : ins.marketReadinessScore >= 5 ? "hsl(45,100%,45%)" : "hsl(0,70%,55%)" }}>
+                        {ins.marketReadinessScore}/10
+                      </span>
+                      <p className="text-[9px]" style={{ color: "rgba(15,23,42,0.4)" }}>readiness</p>
+                    </div>
+                  )}
+                  <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: "rgba(15,23,42,0.3)" }} />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* AI Architecture Reference Docs */}
+      <div className="rounded-2xl overflow-hidden" style={{ background: "#fff", border: "1px solid rgba(15,23,42,0.08)" }}>
+        <div className="px-5 py-4" style={{ borderBottom: "1px solid rgba(15,23,42,0.06)" }}>
+          <div className="flex items-center gap-2">
+            <BookOpen className="w-4 h-4" style={{ color: "hsl(45,100%,50%)" }} />
+            <span className="text-slate-800 font-bold text-sm">AI Architecture Reference</span>
+          </div>
+          <p className="text-xs mt-1" style={{ color: "rgba(15,23,42,0.5)" }}>Technical reference for how AI builds software — used by Sirius when assessing your projects.</p>
+        </div>
+        <div className="p-5">
+          <AiArchContent />
+        </div>
+      </div>
+
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 type FundingAlert = { id: string; projectName: string; count: number; timestamp: number };
@@ -11042,6 +11387,13 @@ export function StarLabPage() {
         setTimeout(() => setFundingAlerts(prev => prev.filter(a => a.id !== alert.id)), 8000);
       }
       prevFundingStatus.current[p.id] = p.fundingStatus;
+
+      // Check for newly completed AI Architecture analyses
+      const prevArch = (prevFundingStatus.current as any)[`arch-${p.id}`];
+      if (prevArch === "pending" && (p.aiArchLinked === "linked" || p.aiArchLinked === "not-applicable")) {
+        setActiveProject(cur => cur?.id === p.id ? { ...cur, aiArchLinked: p.aiArchLinked, aiArchInsights: p.aiArchInsights, aiArchSweepAt: p.aiArchSweepAt } : cur);
+      }
+      (prevFundingStatus.current as any)[`arch-${p.id}`] = p.aiArchLinked;
     }
   }, [base, headers]);
 
@@ -11388,9 +11740,7 @@ export function StarLabPage() {
         )}
         {navMode === "appbuilder" && <AppBuilderPanel pin={pin} />}
         {navMode === "ai-arch" && (
-          <div className="flex-1 overflow-y-auto p-6">
-            <AiArchContent />
-          </div>
+          <AiArchLabPanel pin={pin} projects={projects} onNavigate={setNavMode} onOpenProject={(p) => { setActiveProject(p); setNavMode("projects"); }} />
         )}
         {navMode === "projects" && (
           activeProject

@@ -5,6 +5,7 @@ import { openai } from "@workspace/integrations-openai-ai-server";
 import { generateImageBuffer } from "@workspace/integrations-openai-ai-server/image";
 import { ObjectStorageService } from "../lib/objectStorage";
 import { runLabAutoScan, isLabScanRunning } from "../lib/lab-auto-scan.js";
+import { runAiArchSweep, getAiArchSweepStatus } from "../lib/ai-arch-sweep.js";
 import { recordPinFailure, clearPinRecord, securityLog } from "../middlewares/security.js";
 
 const router: IRouter = Router();
@@ -4946,6 +4947,86 @@ router.get("/lab/voice/journal", authMiddleware, async (req: Request, res: Respo
     console.error("[VoiceJournal] Load error:", err?.message);
     return res.json({ entries: [] });
   }
+});
+
+// ── AI Architecture Sweep ─────────────────────────────────────────────────────
+
+router.get("/lab/ai-arch-sweep/status", authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const status = getAiArchSweepStatus();
+    // Count linked projects
+    const all = await db.select({ id: labProjects.id, aiArchLinked: labProjects.aiArchLinked }).from(labProjects);
+    const linked = all.filter(p => p.aiArchLinked === "linked").length;
+    const notApplicable = all.filter(p => p.aiArchLinked === "not-applicable").length;
+    const pending = all.filter(p => p.aiArchLinked === "pending").length;
+    const unswept = all.filter(p => !p.aiArchLinked || p.aiArchLinked === "").length;
+    return res.json({ ...status, linked, notApplicable, pending, unswept, total: all.length });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/lab/ai-arch-sweep/trigger", authMiddleware, async (req: Request, res: Response) => {
+  const status = getAiArchSweepStatus();
+  if (status.isRunning) return res.json({ ok: false, message: "Sweep already in progress" });
+  res.json({ ok: true, message: "AI Architecture sweep started" });
+  runAiArchSweep().catch(err => console.error("[AI-Arch Sweep] Triggered sweep error:", err));
+});
+
+router.post("/lab/projects/:id/ai-arch/analyze", authMiddleware, async (req: Request, res: Response) => {
+  const projectId = parseInt(req.params["id"] ?? "0");
+  if (!projectId) return res.status(400).json({ error: "Invalid project ID" });
+
+  const [project] = await db.select().from(labProjects).where(eq(labProjects.id, projectId)).limit(1);
+  if (!project) return res.status(404).json({ error: "Project not found" });
+
+  await db.update(labProjects).set({ aiArchLinked: "pending", aiArchSweepAt: new Date() }).where(eq(labProjects.id, projectId));
+  res.json({ ok: true, message: "Analysis started" });
+
+  // Run in background
+  (async () => {
+    try {
+      const { openai: oai } = await import("@workspace/integrations-openai-ai-server");
+      const SYSTEM = `You are Sirius, an elite AI product architect. Respond ONLY with valid JSON — no markdown, no extra text.`;
+      const USER = `Analyse this R&D project and determine if it needs app/software development to reach market.
+
+PROJECT: ${project.name}
+INDUSTRY: ${project.industry}
+BRIEF: ${(project.brief ?? "").slice(0, 1500)}
+SPECS: ${(project.specs ?? "").slice(0, 500)}
+
+Return ONLY this JSON:
+{
+  "needsAppDev": true | false,
+  "techStack": ["..."] or [],
+  "buildRoadmap": [{"step":1,"title":"...","detail":"..."},...up to 5],
+  "marketReadinessScore": 1-10,
+  "missingElements": ["..."],
+  "nextAction": "single most important next step (1 sentence)",
+  "estimatedBuildWeeks": number or null,
+  "architectureNotes": "2-3 sentences on architecture, integrations, and key technical risks"
+}`;
+
+      const completion = await oai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [{ role: "system", content: SYSTEM }, { role: "user", content: USER }],
+        temperature: 0.3,
+        max_tokens: 900,
+      });
+
+      const raw = completion.choices[0]?.message?.content?.trim() ?? "";
+      const insights = { ...JSON.parse(raw), sweptAt: new Date().toISOString() };
+      await db.update(labProjects).set({
+        aiArchLinked: insights.needsAppDev ? "linked" : "not-applicable",
+        aiArchInsights: JSON.stringify(insights),
+        aiArchSweepAt: new Date(),
+        updatedAt: new Date(),
+      }).where(eq(labProjects.id, projectId));
+    } catch (err: any) {
+      console.error(`[AI-Arch] Single project analysis failed #${projectId}:`, err.message);
+      await db.update(labProjects).set({ aiArchLinked: "error" }).where(eq(labProjects.id, projectId));
+    }
+  })();
 });
 
 export default router;

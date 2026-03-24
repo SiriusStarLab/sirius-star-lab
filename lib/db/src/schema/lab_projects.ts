@@ -58,6 +58,11 @@ export const labProjects = pgTable("lab_projects", {
   // Funding applications — JSON: { [schemeKey]: { application: string, generatedAt: string } }
   fundingApplications: text("funding_applications").default("{}"),
 
+  // AI Architecture sweep — daily autonomous analysis linking projects to app dev tools
+  aiArchLinked: text("ai_arch_linked").default(""),   // "" | "pending" | "linked" | "not-applicable"
+  aiArchInsights: text("ai_arch_insights").default(""),  // JSON: AiArchInsights
+  aiArchSweepAt: timestamp("ai_arch_sweep_at", { withTimezone: true }),
+
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
