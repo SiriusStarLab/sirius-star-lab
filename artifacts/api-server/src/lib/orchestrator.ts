@@ -8,7 +8,8 @@
  *   4. Analyse  — AI Architecture classification + tech stack
  *   5. Build    — Autonomous 6-agent App Builder (software projects)
  *   6. Fund     — Funding Radar analysis
- *   7. Complete — Summary + project link
+ *   7. Market   — Full Sales & Marketing Plan with unit economics
+ *   8. Complete — Summary + project link
  *
  * Uses SSE to stream live progress to the frontend.
  */
@@ -20,7 +21,7 @@ import { analyseProject } from "./ai-arch-sweep.js";
 import { triggerAutoBuildForProject, triggerFundingForProject } from "./lab-auto-scan.js";
 
 export type OrchStage =
-  | "parse" | "create" | "research" | "analyse" | "build" | "fund" | "complete";
+  | "parse" | "create" | "research" | "analyse" | "build" | "fund" | "market" | "complete";
 
 export type OrchEvent =
   | { type: "stage_start";  stage: OrchStage; label: string; detail: string }
@@ -40,6 +41,68 @@ type ParsedPlan = {
   isSoftware: boolean;
 };
 
+export type SalesPlan = {
+  targetSectors: Array<{
+    name: string;
+    description: string;
+    potentialCustomers: string;
+    urgency: "high" | "medium" | "low";
+  }>;
+  buyerPersonas: Array<{
+    title: string;
+    painPoints: string[];
+    budgetAuthority: string;
+    decisionTimeline: string;
+  }>;
+  unitEconomics: {
+    costToBuild: string;
+    costToDeliver: string;
+    totalCostPerUnit: string;
+    sellingPricePerUnit: string;
+    grossProfitPerUnit: string;
+    grossMarginPercent: string;
+    breakEvenUnits: number;
+    breakEvenRevenue: string;
+    notes: string;
+  };
+  revenueProjections: {
+    year1: { units: number; revenue: string; grossProfit: string; marketingSpend: string };
+    year2: { units: number; revenue: string; grossProfit: string; marketingSpend: string };
+    year3: { units: number; revenue: string; grossProfit: string; marketingSpend: string };
+  };
+  pricingStrategy: {
+    model: string;
+    rationale: string;
+    competitors: Array<{ name: string; price: string }>;
+    upsells: string[];
+  };
+  marketingPlan: {
+    monthlyBudget: string;
+    channels: Array<{
+      name: string;
+      monthlySpend: string;
+      expectedLeadsPerMonth: number;
+      tactics: string[];
+    }>;
+    contentStrategy: string;
+    keyMessages: string[];
+  };
+  salesStrategy: {
+    approach: string;
+    channels: string[];
+    salesCycleLength: string;
+    targetMonthlyLeads: number;
+    leadConversionRate: string;
+    closingTactics: string[];
+  };
+  launchPlan: {
+    phase1: string;
+    phase2: string;
+    phase3: string;
+    quickWins: string[];
+  };
+};
+
 const STAGE_LABELS: Record<OrchStage, string> = {
   parse:    "Understanding your command",
   create:   "Creating the project",
@@ -47,6 +110,7 @@ const STAGE_LABELS: Record<OrchStage, string> = {
   analyse:  "AI Architecture analysis",
   build:    "Building the app",
   fund:     "Finding funding",
+  market:   "Sales & marketing plan",
   complete: "Complete",
 };
 
@@ -232,8 +296,109 @@ Be specific. Name real companies, real figures, real regulations.`,
     emit({ type: "stage_error", stage: "fund", label: STAGE_LABELS.fund, error: err.message });
   }
 
-  // ── Stage 7: Complete ──────────────────────────────────────────────────────
+  // ── Stage 7: Sales & Marketing Plan ───────────────────────────────────────
 
-  const summary = `"${plan.projectName}" is ready in your Star Lab. Brief, research, AI Architecture analysis, ${plan.isSoftware || isLinked ? "full app build files, " : ""}and funding radar are all complete. Open the project to review and continue building.`;
+  emit({ type: "stage_start", stage: "market", label: STAGE_LABELS.market, detail: "Building full sales & marketing plan: unit economics, target sectors, pricing, revenue projections…" });
+  try {
+    const marketRes = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        {
+          role: "system",
+          content: `You are Sirius, an elite commercial strategist specialising in precision engineering, oil & gas, aerospace, medical devices, and hydrogen sectors. You produce highly specific, actionable sales and marketing plans with real numbers. No generic advice. No placeholders. Think like a CFO + CMO combined. Respond ONLY with valid JSON.`,
+        },
+        {
+          role: "user",
+          content: `Build a complete sales & marketing plan for this product.
+
+PRODUCT: ${plan.projectName}
+INDUSTRY: ${plan.industry}
+TYPE: ${plan.type}
+BRIEF: ${plan.brief}
+
+Return ONLY this JSON (no markdown, no code fences):
+{
+  "targetSectors": [
+    { "name": "sector name", "description": "why this sector needs this product", "potentialCustomers": "estimated number of addressable buyers in UK", "urgency": "high|medium|low" }
+  ],
+  "buyerPersonas": [
+    { "title": "job title of buyer", "painPoints": ["specific pain 1", "specific pain 2"], "budgetAuthority": "description of their budget control", "decisionTimeline": "how long they take to buy" }
+  ],
+  "unitEconomics": {
+    "costToBuild": "£X one-off or £X/month for SaaS (dev + infrastructure cost to create the product)",
+    "costToDeliver": "£X per customer (hosting, support, onboarding, licence fees etc.)",
+    "totalCostPerUnit": "£X per customer per year",
+    "sellingPricePerUnit": "£X per customer per year (or per unit for physical products)",
+    "grossProfitPerUnit": "£X per customer per year",
+    "grossMarginPercent": "XX%",
+    "breakEvenUnits": 42,
+    "breakEvenRevenue": "£Xk total revenue to break even",
+    "notes": "key assumptions: what drives these numbers"
+  },
+  "revenueProjections": {
+    "year1": { "units": 20, "revenue": "£Xk", "grossProfit": "£Xk", "marketingSpend": "£Xk" },
+    "year2": { "units": 60, "revenue": "£Xk", "grossProfit": "£Xk", "marketingSpend": "£Xk" },
+    "year3": { "units": 150, "revenue": "£Xk", "grossProfit": "£Xk", "marketingSpend": "£Xk" }
+  },
+  "pricingStrategy": {
+    "model": "SaaS monthly|annual licence|per unit|per project|freemium|enterprise",
+    "rationale": "why this pricing model fits this market",
+    "competitors": [{ "name": "competitor name", "price": "their pricing" }],
+    "upsells": ["upsell 1", "upsell 2"]
+  },
+  "marketingPlan": {
+    "monthlyBudget": "£X/month",
+    "channels": [
+      { "name": "channel name", "monthlySpend": "£X/month", "expectedLeadsPerMonth": 5, "tactics": ["tactic 1", "tactic 2"] }
+    ],
+    "contentStrategy": "what content to produce and where to publish it",
+    "keyMessages": ["message 1", "message 2", "message 3"]
+  },
+  "salesStrategy": {
+    "approach": "inbound|outbound|channel|enterprise|self-serve",
+    "channels": ["LinkedIn outreach", "industry events", "etc."],
+    "salesCycleLength": "X weeks average",
+    "targetMonthlyLeads": 15,
+    "leadConversionRate": "X%",
+    "closingTactics": ["tactic 1", "tactic 2"]
+  },
+  "launchPlan": {
+    "phase1": "Month 1-2: what to do first",
+    "phase2": "Month 3-4: what comes next",
+    "phase3": "Month 5-6: scale",
+    "quickWins": ["quick win 1 to get first customer fast", "quick win 2"]
+  }
+}`,
+        },
+      ],
+      temperature: 0.3,
+      max_tokens: 2500,
+    });
+
+    const raw = marketRes.choices[0]?.message?.content?.trim() ?? "{}";
+    const salesPlan: SalesPlan = JSON.parse(raw);
+
+    await db.update(labProjects).set({
+      salesPlan: JSON.stringify(salesPlan),
+      salesPlanGeneratedAt: new Date(),
+      costToBuild: salesPlan.unitEconomics.costToBuild,
+      profitMargin: salesPlan.unitEconomics.grossMarginPercent,
+      goToMarket: salesPlan.salesStrategy.approach,
+      businessCase: `Sell at ${salesPlan.unitEconomics.sellingPricePerUnit} · Gross profit ${salesPlan.unitEconomics.grossProfitPerUnit} · Break even at ${salesPlan.unitEconomics.breakEvenUnits} customers`,
+      updatedAt: new Date(),
+    }).where(eq(labProjects.id, projectId));
+
+    const sectors = salesPlan.targetSectors.slice(0, 3).map(s => s.name).join(", ");
+    emit({ type: "message", stage: "market", text: `Target sectors: ${sectors}` });
+    emit({ type: "message", stage: "market", text: `Unit economics: costs ${salesPlan.unitEconomics.totalCostPerUnit} · sells at ${salesPlan.unitEconomics.sellingPricePerUnit} · ${salesPlan.unitEconomics.grossMarginPercent} margin` });
+    emit({ type: "message", stage: "market", text: `Year 3 projection: ${salesPlan.revenueProjections.year3.revenue} revenue · ${salesPlan.revenueProjections.year3.grossProfit} gross profit` });
+    emit({ type: "stage_done", stage: "market", label: STAGE_LABELS.market });
+  } catch (err: any) {
+    emit({ type: "stage_error", stage: "market", label: STAGE_LABELS.market, error: err.message });
+  }
+
+  // ── Stage 8: Complete ──────────────────────────────────────────────────────
+
+  const summary = `"${plan.projectName}" is ready in your Star Lab. Brief, research, AI Architecture analysis, ${plan.isSoftware || isLinked ? "full app build files, " : ""}funding radar, and a complete sales & marketing plan with unit economics are all done. Open the project to review everything.`;
   emit({ type: "complete", projectId, projectName: plan.projectName, summary, isLinked });
 }

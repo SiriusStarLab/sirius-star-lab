@@ -50,6 +50,7 @@ type Project = {
   fundingApplications: string;
   socialPosts: string; launchPlatforms: string; launchStatus: string;
   aiArchLinked: string; aiArchInsights: string; aiArchSweepAt: string | null;
+  salesPlan: string; salesPlanGeneratedAt: string | null;
   messages?: Message[];
 };
 type Message = { id: number; projectId: number; role: string; content: string; createdAt: string };
@@ -735,6 +736,7 @@ const ALL_TABS = [
   { id: "economics", label: "Economics", icon: Package, field: "costToBuild", phase: "complete", placeholder: "Cost to build, pricing, profit margin analysis...", generated: true },
   { id: "goToMarket", label: "Go-to-Market", icon: Globe, field: "goToMarket", phase: "complete", placeholder: "Launch strategy, channels, pricing, 90-day plan, KPIs...", generated: true },
   { id: "funding", label: "Funding", icon: BadgeCheck, field: "fundingAnalysis", phase: "all", placeholder: "", generated: false },
+  { id: "sales-plan", label: "Sales Plan", icon: TrendingUp, field: null, phase: "all", placeholder: "", generated: false },
   { id: "ai-arch", label: "AI Architecture", icon: Layers, field: null, phase: "all", placeholder: "", generated: false },
   { id: "launch", label: "Launch", icon: Send, field: null, phase: "all", placeholder: "", generated: false },
 ];
@@ -1916,6 +1918,10 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack }: { project: Project
             <FundingProjectTab project={project} pin={pin} onUpdate={onUpdate} />
           )}
 
+          {activeTab === "sales-plan" && (
+            <SalesPlanProjectTab project={project} />
+          )}
+
           {activeTab === "ai-arch" && (
             <AiArchProjectTab project={project} pin={pin} onUpdate={onUpdate} />
           )}
@@ -1924,7 +1930,7 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack }: { project: Project
             <LaunchPanel project={project} pin={pin} onUpdate={onUpdate} />
           )}
 
-          {activeTab !== "overview" && activeTab !== "renders" && activeTab !== "funding" && activeTab !== "ai-arch" && activeTab !== "launch" && tab && (
+          {activeTab !== "overview" && activeTab !== "renders" && activeTab !== "funding" && activeTab !== "sales-plan" && activeTab !== "ai-arch" && activeTab !== "launch" && tab && (
             <div className="flex flex-col h-full">
               {tab.generated && (
                 <div className="px-4 py-2 border-b flex items-center justify-between flex-shrink-0"
@@ -2175,6 +2181,280 @@ function AiArchProjectTab({ project, pin, onUpdate }: { project: Project; pin: s
           )}
         </>
       )}
+    </div>
+  );
+}
+
+// ── Sales Plan Project Tab ─────────────────────────────────────────────────
+
+function SalesPlanProjectTab({ project }: { project: Project }) {
+  const plan = React.useMemo(() => {
+    if (!project.salesPlan) return null;
+    try { return JSON.parse(project.salesPlan); } catch { return null; }
+  }, [project.salesPlan]);
+
+  if (!plan) {
+    return (
+      <div className="flex-1 flex items-center justify-center p-8">
+        <div className="text-center max-w-sm">
+          <TrendingUp className="w-10 h-10 mx-auto mb-4" style={{ color: "rgba(15,23,42,0.12)" }} />
+          <h3 className="text-slate-400 font-semibold text-sm mb-2">No Sales Plan Yet</h3>
+          <p className="text-xs leading-relaxed" style={{ color: "rgba(15,23,42,0.35)" }}>
+            Use <strong>Command Centre</strong> to run the full orchestration pipeline — it will generate a complete sales and marketing plan with unit economics, target sectors, and revenue projections.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const urgencyColor = (u: string) =>
+    u === "high" ? "hsl(155,65%,42%)" : u === "medium" ? "hsl(40,90%,50%)" : "hsl(215,20%,60%)";
+
+  return (
+    <div className="flex-1 overflow-y-auto p-5" style={{ background: "#F8FAFC" }}>
+      <div className="max-w-3xl mx-auto space-y-5">
+
+        {/* Unit Economics — primary hero section */}
+        {plan.unitEconomics && (
+          <div className="rounded-xl p-5" style={{ background: "#fff", border: "1px solid rgba(15,23,42,0.09)", boxShadow: "0 1px 6px rgba(15,23,42,0.05)" }}>
+            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">Unit Economics</h3>
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              {[
+                { label: "Cost to build", value: plan.unitEconomics.costToBuild, sub: "product creation cost" },
+                { label: "Cost to deliver", value: plan.unitEconomics.costToDeliver, sub: "per customer" },
+                { label: "Selling price", value: plan.unitEconomics.sellingPricePerUnit, sub: "per customer", highlight: true },
+                { label: "Gross profit", value: plan.unitEconomics.grossProfitPerUnit, sub: "per customer", highlight: true },
+              ].map(item => (
+                <div key={item.label} className="rounded-lg p-3.5" style={{
+                  background: item.highlight ? "hsla(155,65%,42%,0.06)" : "rgba(15,23,42,0.03)",
+                  border: item.highlight ? "1px solid hsla(155,65%,42%,0.15)" : "1px solid transparent",
+                }}>
+                  <p className="text-xs text-slate-400 mb-1">{item.label}</p>
+                  <p className="text-lg font-bold" style={{ color: item.highlight ? "hsl(155,65%,38%)" : "rgba(15,23,42,0.8)" }}>{item.value}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">{item.sub}</p>
+                </div>
+              ))}
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="rounded-lg p-3" style={{ background: "rgba(15,23,42,0.03)" }}>
+                <p className="text-xs text-slate-400 mb-1">Gross margin</p>
+                <p className="text-base font-bold text-slate-800">{plan.unitEconomics.grossMarginPercent}</p>
+              </div>
+              <div className="rounded-lg p-3" style={{ background: "rgba(15,23,42,0.03)" }}>
+                <p className="text-xs text-slate-400 mb-1">Break-even customers</p>
+                <p className="text-base font-bold text-slate-800">{plan.unitEconomics.breakEvenUnits}</p>
+              </div>
+              <div className="rounded-lg p-3" style={{ background: "rgba(15,23,42,0.03)" }}>
+                <p className="text-xs text-slate-400 mb-1">Break-even revenue</p>
+                <p className="text-base font-bold text-slate-800">{plan.unitEconomics.breakEvenRevenue}</p>
+              </div>
+            </div>
+            {plan.unitEconomics.notes && (
+              <p className="text-xs text-slate-400 mt-3 pt-3 leading-relaxed" style={{ borderTop: "1px solid rgba(15,23,42,0.07)" }}>
+                <span className="font-medium text-slate-500">Assumptions: </span>{plan.unitEconomics.notes}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Revenue Projections */}
+        {plan.revenueProjections && (
+          <div className="rounded-xl p-5" style={{ background: "#fff", border: "1px solid rgba(15,23,42,0.09)" }}>
+            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">Revenue Projections</h3>
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { label: "Year 1", data: plan.revenueProjections.year1 },
+                { label: "Year 2", data: plan.revenueProjections.year2 },
+                { label: "Year 3", data: plan.revenueProjections.year3, highlight: true },
+              ].map(yr => (
+                <div key={yr.label} className="rounded-lg p-4" style={{
+                  background: yr.highlight ? "linear-gradient(135deg, hsl(193,100%,95%), hsl(193,100%,92%))" : "rgba(15,23,42,0.03)",
+                  border: yr.highlight ? "1px solid hsl(193,100%,80%)" : "1px solid transparent",
+                }}>
+                  <p className="text-xs font-semibold mb-3" style={{ color: yr.highlight ? "hsl(193,100%,35%)" : "rgba(15,23,42,0.5)" }}>{yr.label}</p>
+                  <p className="text-lg font-bold text-slate-800 mb-1">{yr.data?.revenue}</p>
+                  <p className="text-xs text-slate-500 mb-2">{yr.data?.units} customers</p>
+                  <div style={{ borderTop: "1px solid rgba(15,23,42,0.08)", paddingTop: 8, marginTop: 4 }}>
+                    <p className="text-xs text-slate-400">Gross profit</p>
+                    <p className="text-sm font-semibold" style={{ color: "hsl(155,65%,42%)" }}>{yr.data?.grossProfit}</p>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1">Marketing: {yr.data?.marketingSpend}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Target Sectors */}
+        {plan.targetSectors?.length > 0 && (
+          <div className="rounded-xl p-5" style={{ background: "#fff", border: "1px solid rgba(15,23,42,0.09)" }}>
+            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">Target Sectors</h3>
+            <div className="space-y-3">
+              {plan.targetSectors.map((s: any, i: number) => (
+                <div key={i} className="flex items-start gap-3 p-3.5 rounded-lg" style={{ background: "rgba(15,23,42,0.025)", border: "1px solid rgba(15,23,42,0.06)" }}>
+                  <div className="flex-shrink-0 mt-0.5">
+                    <div className="w-2 h-2 rounded-full" style={{ background: urgencyColor(s.urgency), marginTop: 4 }} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="text-sm font-semibold text-slate-800">{s.name}</p>
+                      <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{
+                        background: urgencyColor(s.urgency) + "15",
+                        color: urgencyColor(s.urgency),
+                      }}>{s.urgency} priority</span>
+                    </div>
+                    <p className="text-xs text-slate-500 leading-relaxed mb-1">{s.description}</p>
+                    <p className="text-xs" style={{ color: "rgba(15,23,42,0.4)" }}>Addressable buyers: {s.potentialCustomers}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Pricing Strategy */}
+        {plan.pricingStrategy && (
+          <div className="rounded-xl p-5" style={{ background: "#fff", border: "1px solid rgba(15,23,42,0.09)" }}>
+            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">Pricing Strategy</h3>
+            <div className="flex items-center gap-3 mb-3">
+              <span className="text-sm font-bold px-3 py-1.5 rounded-lg" style={{ background: "hsl(193,100%,92%)", color: "hsl(193,100%,30%)" }}>{plan.pricingStrategy.model}</span>
+            </div>
+            <p className="text-xs text-slate-500 leading-relaxed mb-3">{plan.pricingStrategy.rationale}</p>
+            {plan.pricingStrategy.competitors?.length > 0 && (
+              <div className="mb-3">
+                <p className="text-xs font-medium text-slate-400 mb-2">Competitor pricing</p>
+                <div className="flex flex-wrap gap-2">
+                  {plan.pricingStrategy.competitors.map((c: any, i: number) => (
+                    <span key={i} className="text-xs px-2.5 py-1 rounded-lg" style={{ background: "rgba(15,23,42,0.04)", border: "1px solid rgba(15,23,42,0.08)", color: "rgba(15,23,42,0.6)" }}>
+                      {c.name}: {c.price}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {plan.pricingStrategy.upsells?.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-slate-400 mb-2">Upsell opportunities</p>
+                <div className="flex flex-wrap gap-2">
+                  {plan.pricingStrategy.upsells.map((u: string, i: number) => (
+                    <span key={i} className="text-xs px-2.5 py-1 rounded-lg" style={{ background: "hsla(155,65%,42%,0.08)", color: "hsl(155,65%,35%)", border: "1px solid hsla(155,65%,42%,0.15)" }}>{u}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Marketing Plan */}
+        {plan.marketingPlan && (
+          <div className="rounded-xl p-5" style={{ background: "#fff", border: "1px solid rgba(15,23,42,0.09)" }}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Marketing Plan</h3>
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-lg" style={{ background: "hsla(40,90%,50%,0.1)", color: "hsl(40,80%,40%)" }}>Budget: {plan.marketingPlan.monthlyBudget}/month</span>
+            </div>
+            {plan.marketingPlan.keyMessages?.length > 0 && (
+              <div className="mb-4">
+                <p className="text-xs font-medium text-slate-400 mb-2">Key messages</p>
+                <div className="space-y-1.5">
+                  {plan.marketingPlan.keyMessages.map((m: string, i: number) => (
+                    <div key={i} className="flex items-start gap-2">
+                      <span className="text-xs font-bold mt-0.5" style={{ color: "hsl(193,100%,40%)" }}>#{i + 1}</span>
+                      <p className="text-xs text-slate-600">{m}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {plan.marketingPlan.channels?.length > 0 && (
+              <div className="space-y-2.5">
+                {plan.marketingPlan.channels.map((ch: any, i: number) => (
+                  <div key={i} className="p-3 rounded-lg" style={{ background: "rgba(15,23,42,0.03)", border: "1px solid rgba(15,23,42,0.06)" }}>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <p className="text-xs font-semibold text-slate-700">{ch.name}</p>
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-slate-400">{ch.monthlySpend}/mo</span>
+                        <span className="text-xs font-medium" style={{ color: "hsl(155,65%,42%)" }}>{ch.expectedLeadsPerMonth} leads/mo</span>
+                      </div>
+                    </div>
+                    {ch.tactics?.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-1">
+                        {ch.tactics.map((t: string, j: number) => (
+                          <span key={j} className="text-xs px-2 py-0.5 rounded" style={{ background: "rgba(15,23,42,0.05)", color: "rgba(15,23,42,0.55)" }}>{t}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Sales Strategy */}
+        {plan.salesStrategy && (
+          <div className="rounded-xl p-5" style={{ background: "#fff", border: "1px solid rgba(15,23,42,0.09)" }}>
+            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">Sales Strategy</h3>
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              <div className="rounded-lg p-3" style={{ background: "rgba(15,23,42,0.03)" }}>
+                <p className="text-xs text-slate-400 mb-1">Approach</p>
+                <p className="text-sm font-semibold text-slate-800 capitalize">{plan.salesStrategy.approach}</p>
+              </div>
+              <div className="rounded-lg p-3" style={{ background: "rgba(15,23,42,0.03)" }}>
+                <p className="text-xs text-slate-400 mb-1">Sales cycle</p>
+                <p className="text-sm font-semibold text-slate-800">{plan.salesStrategy.salesCycleLength}</p>
+              </div>
+              <div className="rounded-lg p-3" style={{ background: "rgba(15,23,42,0.03)" }}>
+                <p className="text-xs text-slate-400 mb-1">Conversion rate</p>
+                <p className="text-sm font-semibold text-slate-800">{plan.salesStrategy.leadConversionRate}</p>
+              </div>
+            </div>
+            {plan.salesStrategy.closingTactics?.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-slate-400 mb-2">Closing tactics</p>
+                <div className="space-y-1">
+                  {plan.salesStrategy.closingTactics.map((t: string, i: number) => (
+                    <div key={i} className="flex items-start gap-2">
+                      <CheckCircle2 className="w-3 h-3 mt-0.5 flex-shrink-0" style={{ color: "hsl(155,65%,42%)" }} />
+                      <p className="text-xs text-slate-600">{t}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Launch Plan */}
+        {plan.launchPlan && (
+          <div className="rounded-xl p-5 mb-4" style={{ background: "#fff", border: "1px solid rgba(15,23,42,0.09)" }}>
+            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">Launch Roadmap</h3>
+            <div className="space-y-3 mb-4">
+              {[
+                { label: plan.launchPlan.phase1, phase: "Phase 1" },
+                { label: plan.launchPlan.phase2, phase: "Phase 2" },
+                { label: plan.launchPlan.phase3, phase: "Phase 3" },
+              ].filter(p => p.label).map((p, i) => (
+                <div key={i} className="flex items-start gap-3">
+                  <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 text-xs font-bold text-white" style={{ background: "hsl(193,100%,40%)", fontSize: 10 }}>{i + 1}</div>
+                  <p className="text-xs text-slate-600 leading-relaxed">{p.label}</p>
+                </div>
+              ))}
+            </div>
+            {plan.launchPlan.quickWins?.length > 0 && (
+              <div className="p-3 rounded-lg" style={{ background: "hsla(40,90%,50%,0.06)", border: "1px solid hsla(40,90%,50%,0.15)" }}>
+                <p className="text-xs font-semibold mb-2" style={{ color: "hsl(40,80%,40%)" }}>Quick wins — get first customer fast</p>
+                {plan.launchPlan.quickWins.map((w: string, i: number) => (
+                  <div key={i} className="flex items-start gap-2 mt-1.5">
+                    <Zap className="w-3 h-3 flex-shrink-0 mt-0.5" style={{ color: "hsl(40,80%,45%)" }} />
+                    <p className="text-xs" style={{ color: "rgba(15,23,42,0.65)" }}>{w}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+      </div>
     </div>
   );
 }
@@ -11189,7 +11469,7 @@ type AiArchSweepStatus = {
 
 // ── Command Centre Orchestrator Panel ─────────────────────────────────────────
 
-type OrchStage = "parse" | "create" | "research" | "analyse" | "build" | "fund" | "complete";
+type OrchStage = "parse" | "create" | "research" | "analyse" | "build" | "fund" | "market" | "complete";
 type OrchStageStatus = "idle" | "running" | "done" | "skipped" | "error";
 type OrchStageState = { status: OrchStageStatus; messages: string[]; reason?: string };
 type OrchEvent =
@@ -11202,13 +11482,14 @@ type OrchEvent =
   | { type: "fatal";        error: string };
 
 const ORCH_STAGES: { id: OrchStage; label: string; icon: React.ReactNode; detail: string }[] = [
-  { id: "parse",    label: "Understanding command",  icon: <Sparkles className="w-3.5 h-3.5" />, detail: "Analysing intent" },
-  { id: "create",   label: "Creating project",       icon: <FolderOpen className="w-3.5 h-3.5" />, detail: "Star Lab Projects" },
-  { id: "research", label: "Writing brief & research", icon: <BookOpen className="w-3.5 h-3.5" />, detail: "Deep Research" },
-  { id: "analyse",  label: "AI Architecture",        icon: <Layers className="w-3.5 h-3.5" />, detail: "Tech stack & roadmap" },
-  { id: "build",    label: "App Builder",            icon: <Rocket className="w-3.5 h-3.5" />, detail: "6-agent pipeline" },
-  { id: "fund",     label: "Funding Radar",          icon: <BadgeCheck className="w-3.5 h-3.5" />, detail: "UK & global schemes" },
-  { id: "complete", label: "Complete",               icon: <CheckCircle2 className="w-3.5 h-3.5" />, detail: "Project ready" },
+  { id: "parse",    label: "Understanding command",    icon: <Sparkles className="w-3.5 h-3.5" />,    detail: "Analysing intent" },
+  { id: "create",   label: "Creating project",         icon: <FolderOpen className="w-3.5 h-3.5" />,  detail: "Star Lab Projects" },
+  { id: "research", label: "Brief & research",         icon: <BookOpen className="w-3.5 h-3.5" />,    detail: "Deep Research" },
+  { id: "analyse",  label: "AI Architecture",          icon: <Layers className="w-3.5 h-3.5" />,      detail: "Tech stack & roadmap" },
+  { id: "build",    label: "App Builder",              icon: <Rocket className="w-3.5 h-3.5" />,      detail: "6-agent pipeline" },
+  { id: "fund",     label: "Funding Radar",            icon: <BadgeCheck className="w-3.5 h-3.5" />,  detail: "UK & global schemes" },
+  { id: "market",   label: "Sales & Marketing Plan",   icon: <TrendingUp className="w-3.5 h-3.5" />,  detail: "Unit economics & GTM" },
+  { id: "complete", label: "Complete",                 icon: <CheckCircle2 className="w-3.5 h-3.5" />, detail: "Project ready" },
 ];
 
 const EXAMPLE_COMMANDS = [
