@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { PlusCircle, MessageSquare, Trash2, X, Settings, Zap, Loader2, Sparkles, FlaskConical, BookOpen, GraduationCap } from "lucide-react";
+import { PlusCircle, MessageSquare, Trash2, X, Settings, Zap, Loader2, Sparkles, FlaskConical, BookOpen, GraduationCap, Cpu } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -191,6 +191,38 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing }: SidebarProps) {
           <span className="text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded"
             style={{ background: "hsla(193,100%,35%,0.1)", color: "hsl(193,100%,40%)", border: "1px solid hsla(193,100%,35%,0.15)", letterSpacing: "0.15em" }}>
             NEW
+          </span>
+        </button>
+
+        {/* AI Architecture entry */}
+        <button
+          onClick={() => { setLocation("/ai-architecture"); onClose(); }}
+          className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 relative overflow-hidden group"
+          style={{
+            background: location === "/ai-architecture"
+              ? "hsl(193 100% 52% / 0.1)"
+              : "hsl(193 100% 52% / 0.04)",
+            border: location === "/ai-architecture"
+              ? "1px solid hsl(193 100% 52% / 0.35)"
+              : "1px solid hsl(193 100% 52% / 0.1)",
+            color: location === "/ai-architecture" ? "hsl(193 100% 35%)" : "hsl(220 14% 55%)",
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.borderColor = "hsl(193 100% 52% / 0.3)";
+            e.currentTarget.style.color = "hsl(193 100% 35%)";
+          }}
+          onMouseLeave={e => {
+            if (location !== "/ai-architecture") {
+              e.currentTarget.style.borderColor = "hsl(193 100% 52% / 0.1)";
+              e.currentTarget.style.color = "hsl(220 14% 55%)";
+            }
+          }}
+        >
+          <Cpu size={15} style={{ flexShrink: 0 }} />
+          <span className="flex-1 text-left">AI Architecture</span>
+          <span className="text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded"
+            style={{ background: "hsla(193,100%,35%,0.1)", color: "hsl(193,100%,40%)", border: "1px solid hsla(193,100%,35%,0.15)", letterSpacing: "0.15em" }}>
+            R&amp;D
           </span>
         </button>
 
