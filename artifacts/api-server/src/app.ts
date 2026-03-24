@@ -22,14 +22,20 @@ const isDev = process.env.NODE_ENV !== "production";
 app.use(helmetMiddleware);
 
 // ── 2. CORS — locked to known origins in production ──────────────────────────
+// Always include the custom production domain in addition to Replit's domains
+const CUSTOM_DOMAINS = ["https://sirius-ai.live", "https://www.sirius-ai.live"];
+
 const allowedOrigins = isDev
   ? true
-  : (process.env.REPLIT_DOMAINS || "")
-      .split(",")
-      .flatMap(d => {
-        const domain = d.trim();
-        return domain ? [`https://${domain}`, `https://www.${domain}`] : [];
-      });
+  : [
+      ...CUSTOM_DOMAINS,
+      ...(process.env.REPLIT_DOMAINS || "")
+        .split(",")
+        .flatMap(d => {
+          const domain = d.trim();
+          return domain ? [`https://${domain}`, `https://www.${domain}`] : [];
+        }),
+    ];
 
 app.use(cors({
   origin: allowedOrigins,
@@ -84,5 +90,17 @@ app.get("/api/download/sirius-mobile", (req, res) => {
 
 // ── 11. All other routes ──────────────────────────────────────────────────────
 app.use("/api", router);
+
+// ── 12. Serve the built React frontend in production ─────────────────────────
+// In development the Vite dev server handles the frontend separately.
+// In production the single `node` process must serve both the API and the SPA.
+if (!isDev) {
+  const frontendDist = path.join(process.cwd(), "artifacts/ai-chat/dist/public");
+  app.use(express.static(frontendDist, { maxAge: "1h" }));
+  // SPA fallback — any path that isn't an API route returns index.html
+  app.get("*", (_req, res) => {
+    res.sendFile(path.join(frontendDist, "index.html"));
+  });
+}
 
 export default app;
