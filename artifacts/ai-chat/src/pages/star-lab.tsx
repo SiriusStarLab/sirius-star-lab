@@ -16,6 +16,7 @@ import {
   LayoutDashboard, ArrowLeft, Clock, Award, Layers3, Share
 } from "lucide-react";
 import { getApiBase } from "@/lib/api-base";
+import { AiArchContent } from "@/pages/ai-architecture";
 
 const INDUSTRIES = [
   "Aerospace", "Agriculture", "AI & ML", "Automotive", "Construction",
@@ -65,7 +66,7 @@ type RankResult = {
   keyStrengths: string[]; estimatedMonthlyRevenue: string;
   buildEffort: string;
 };
-type NavMode = "dashboard" | "projects" | "botlab" | "scout" | "feed" | "grants" | "commerce" | "outreach" | "autolab" | "revenue" | "agency" | "mission" | "growth" | "brain" | "research" | "docs" | "labchat" | "appbuilder";
+type NavMode = "dashboard" | "projects" | "botlab" | "scout" | "feed" | "grants" | "commerce" | "outreach" | "autolab" | "revenue" | "agency" | "mission" | "growth" | "brain" | "research" | "docs" | "labchat" | "appbuilder" | "ai-arch";
 
 const MAX_PIN_DIGITS = 8;
 const MAX_ATTEMPTS = 5;
@@ -11115,6 +11116,7 @@ export function StarLabPage() {
     { id: "projects"   as NavMode, label: "Projects",         icon: FolderOpen,      color: "hsl(155,60%,38%)",  category: "build",        guestAllowed: true  },
     { id: "botlab"     as NavMode, label: "Bot Lab",          icon: Bot,             color: "hsl(280,70%,55%)",  category: "build",        guestAllowed: false },
     { id: "autolab"    as NavMode, label: "Autonomous Lab",   icon: Cpu,             color: "hsl(155,50%,40%)",  category: "build",        guestAllowed: false },
+    { id: "ai-arch"  as NavMode,   label: "AI Architecture",  icon: Layers,          color: "hsl(155,60%,38%)",  category: "build",        guestAllowed: false },
     // INTELLIGENCE
     { id: "scout"    as NavMode,   label: "Scout",            icon: Telescope,       color: "hsl(45,100%,45%)",  category: "intelligence", guestAllowed: true  },
     { id: "feed"     as NavMode,   label: "AI Intelligence",  icon: Atom,            color: "hsl(210,80%,55%)",  category: "intelligence", guestAllowed: true,  badge: true },
@@ -11385,6 +11387,11 @@ export function StarLabPage() {
           />
         )}
         {navMode === "appbuilder" && <AppBuilderPanel pin={pin} />}
+        {navMode === "ai-arch" && (
+          <div className="flex-1 overflow-y-auto p-6">
+            <AiArchContent />
+          </div>
+        )}
         {navMode === "projects" && (
           activeProject
             ? <ProjectWorkspace project={activeProject} pin={pin} onUpdate={p => setActiveProject(p)} onBack={() => setActiveProject(null)} />
