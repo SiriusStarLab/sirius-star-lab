@@ -431,12 +431,24 @@ function PinGate({ onUnlock, userName }: { onUnlock: (pin: string, role: AccessR
     if (ds.length === 0 || status === "loading" || status === "locked") return;
     const pin = ds.join("");
     setStatus("loading");
+
+    // Safety net: if status stays "loading" for >8 s (e.g. network timeout or
+    // speech synthesis doesn't fire onend), reset so the pad isn't frozen.
+    const loadingGuard = setTimeout(() => {
+      setStatus("idle");
+      setVoiceStatus("idle");
+      setDigits([]);
+    }, 8000);
+
+    const clearGuard = () => clearTimeout(loadingGuard);
+
     try {
       const res = await fetch(`${base}lab/auth`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pin }),
       });
       if (res.ok) {
+        clearGuard();
         const body = await res.json().catch(() => ({}));
         const role: AccessRole = body.role === "guest" ? "guest" : "owner";
         sessionStorage.setItem("lab_pin", pin);
@@ -444,8 +456,11 @@ function PinGate({ onUnlock, userName }: { onUnlock: (pin: string, role: AccessR
         const welcome = `Hi ${userName || "Garry"}, great to have you back. You're in. What can I help you with today?`;
         setVoiceStatus("speaking");
         setVoiceHint(welcome);
-        speakText(welcome, () => onUnlock(pin, role));
+        // Unlock immediately — speech plays in parallel, doesn't block entry
+        speakText(welcome);
+        onUnlock(pin, role);
       } else {
+        clearGuard();
         const body = await res.json().catch(() => ({}));
         if (res.status === 403 && body.unlocksAt) {
           setStatus("locked");
@@ -460,24 +475,28 @@ function PinGate({ onUnlock, userName }: { onUnlock: (pin: string, role: AccessR
             setLockoutEnd(Date.now() + LOCKOUT_SECONDS * 1000);
             speakText("Terminal locked. Too many incorrect attempts.");
           } else {
-            setStatus("error");
+            // Reset status immediately — don't wait for speech to finish
+            setStatus("idle");
+            setVoiceStatus("idle");
             triggerShake();
             setDigits([]);
             const attemptsLeft = MAX_ATTEMPTS - newAttempts;
-            const msg = `Access denied. ${attemptsLeft} attempt${attemptsLeft !== 1 ? "s" : ""} remaining. Please say your PIN again.`;
-            setVoiceStatus("speaking");
+            const msg = `Access denied. ${attemptsLeft} attempt${attemptsLeft !== 1 ? "s" : ""} remaining.`;
             setVoiceHint(msg);
-            speakText(msg, () => { setStatus("idle"); setVoiceStatus("idle"); startListening(); });
+            speakText(msg, () => { startListening(); });
           }
         }
       }
     } catch {
-      setStatus("error");
+      clearGuard();
+      // Reset immediately so the pad is never frozen after a network error
+      setStatus("idle");
+      setVoiceStatus("idle");
       triggerShake();
       setDigits([]);
       const msg = "Connection error. Please try again.";
       setVoiceHint(msg);
-      speakText(msg, () => { setStatus("idle"); setVoiceStatus("idle"); startListening(); });
+      speakText(msg);
     }
   };
 

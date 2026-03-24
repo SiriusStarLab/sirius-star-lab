@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useRoute, useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, Home } from "lucide-react";
+import { Menu, Home, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sidebar } from "@/components/sidebar";
 import { ChatMessage } from "@/components/chat-message";
@@ -39,6 +39,8 @@ export function ChatPage() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [upgradeParam, setUpgradeParam] = useState<"plus" | "pro" | null>(null);
   const [expandedSection, setExpandedSection] = useState<ExpandedSection>(null);
+  const [savedFlash, setSavedFlash] = useState(false);
+  const prevConvId = useRef<number | undefined>(undefined);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { profile } = useProfile();
   const aiName = profile.aiName || "Sirius";
@@ -81,6 +83,16 @@ export function ChatPage() {
     if (isError) setLocation("/");
   }, [isError, setLocation]);
 
+  // Flash a "saved to history" indicator the first time a conversation gets an ID
+  useEffect(() => {
+    if (conversationId && prevConvId.current === undefined) {
+      setSavedFlash(true);
+      const t = setTimeout(() => setSavedFlash(false), 3000);
+      return () => clearTimeout(t);
+    }
+    prevConvId.current = conversationId;
+  }, [conversationId]);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
@@ -113,26 +125,49 @@ export function ChatPage() {
 
         {/* Mobile header */}
         <header className="lg:hidden flex items-center justify-between p-3 border-b border-border/40 bg-background/80 backdrop-blur-md sticky top-0 z-20">
-          {conversationId ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setLocation("/")}
-              title="New session"
-              className="text-muted-foreground hover:text-foreground"
-            >
-              <Home size={18} />
-            </Button>
-          ) : (
-            <div className="w-10" />
-          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setLocation("/")}
+            title="New session"
+            className="text-muted-foreground hover:text-foreground"
+            style={{ opacity: conversationId ? 1 : 0.35 }}
+          >
+            <Home size={18} />
+          </Button>
           <span className="font-mono text-[11px] tracking-widest text-muted-foreground uppercase truncate max-w-[160px]">
             {conversationId ? (dbConversation?.title || "Session") : aiName}
           </span>
-          <Button variant="ghost" size="icon" onClick={() => setIsSidebarOpen(true)}>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsSidebarOpen(true)}
+            title="Chat history"
+            className="relative text-muted-foreground hover:text-foreground"
+          >
             <Menu size={20} />
+            {conversationId && (
+              <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+            )}
           </Button>
         </header>
+
+        {/* "Saved to history" flash — mobile only, fades in/out */}
+        <AnimatePresence>
+          {savedFlash && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.25 }}
+              className="lg:hidden absolute top-14 right-3 z-30 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-mono"
+              style={{ background: "hsl(193 100% 52% / 0.1)", border: "1px solid hsl(193 100% 52% / 0.25)", color: "hsl(193 100% 52%)" }}
+            >
+              <CheckCircle2 size={11} />
+              Saved to history
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Chat area */}
         <div className="flex-1 overflow-y-auto scroll-smooth pb-36">
