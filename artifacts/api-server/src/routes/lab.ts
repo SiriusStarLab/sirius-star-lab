@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { eq, desc } from "drizzle-orm";
-import { db, labProjects, labMessages, scoutReports, cadFiles, labScanHistory, userProfilesTable, mediaOutlets, appBuilderSessions } from "@workspace/db";
+import { db, labProjects, labMessages, scoutReports, cadFiles, labScanHistory, userProfilesTable, mediaOutlets, appBuilderSessions, voiceJournalTable } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { generateImageBuffer } from "@workspace/integrations-openai-ai-server/image";
 import { ObjectStorageService } from "../lib/objectStorage";
@@ -4744,6 +4744,36 @@ router.post("/lab/voice", authMiddleware, async (req: Request, res: Response) =>
 
   sseHeaders(res);
 
+  // Load recent voice session memory for this user
+  let emotionalHistory = "";
+  try {
+    const pin = (req as any).labPin as string;
+    const recentSessions = await db
+      .select()
+      .from(voiceJournalTable)
+      .where(eq(voiceJournalTable.pin, pin))
+      .orderBy(desc(voiceJournalTable.createdAt))
+      .limit(10);
+
+    if (recentSessions.length > 0) {
+      const sessionLines = recentSessions.map(s => {
+        const date = new Date(s.createdAt).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+        const topics = (() => { try { return (JSON.parse(s.keyTopics) as string[]).join(", "); } catch { return "general"; } })();
+        const projects = (() => { try { return (JSON.parse(s.projectsMentioned) as string[]).join(", "); } catch { return ""; } })();
+        return `• ${date}: mood ${s.dominantMood}${projects ? `, projects touched: ${projects}` : ""}${topics ? `, topics: ${topics}` : ""}. ${s.summary}`.trim();
+      }).join("\n");
+
+      const moodCounts = recentSessions.reduce((acc, s) => {
+        acc[s.dominantMood] = (acc[s.dominantMood] || 0) + 1; return acc;
+      }, {} as Record<string, number>);
+      const topMood = Object.entries(moodCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || "neutral";
+
+      emotionalHistory = `\nGarry's voice session memory (last ${recentSessions.length} sessions):\n${sessionLines}\n\nEmotional pattern: Garry most commonly enters sessions feeling "${topMood}". If today's detected mood differs from this baseline, pay extra attention and adapt accordingly.`;
+    }
+  } catch {
+    // Memory unavailable — continue without it
+  }
+
   const sections = [
     "Dashboard", "Projects", "Chat with Sirius", "App Builder", "Bot Lab",
     "Autonomous Lab", "Scout", "AI Intelligence", "Funding Radar", "Commerce Lab",
@@ -4779,6 +4809,7 @@ Current Star Lab context:
 - ${projectContext}
 - ${projectListContext}
 ${emotionContext ? `- ${emotionContext}` : ""}
+${emotionalHistory}
 
 Star Lab sections you can navigate to: ${sections}
 
@@ -4794,6 +4825,7 @@ Rules:
 - When generating or doing something technical, briefly confirm what you're doing.
 - If the user wants to navigate, always confirm with a natural phrase like "Taking you to Projects now." and include the <<NAVIGATE:X>> tag.
 - Strip all markdown formatting from your response.
+- MEMORY: You have access to Garry's voice session history above. Reference it naturally when relevant — e.g. "Last time you seemed stressed about the manufacturing workflow — how's that going?" but only when it genuinely adds value, not as a performance.
 - EMOTIONAL INTELLIGENCE: ${emotionGuidance || "Read the conversation naturally and respond in kind."} You can occasionally acknowledge the emotional tone naturally — e.g. if Garry sounds stressed, you might say "Let's slow down for a second" — but only when it feels natural, not forced.`;
 
   try {
@@ -4828,6 +4860,91 @@ Rules:
     console.error("[Voice] Error:", err?.message);
     res.write(`data: ${JSON.stringify({ error: "Voice unavailable" })}\n\n`);
     res.end();
+  }
+});
+
+// ── Voice Session Journal ─────────────────────────────────────────────────────
+
+router.post("/lab/voice/journal", authMiddleware, async (req: Request, res: Response) => {
+  const pin = (req as any).labPin as string;
+  const { sessionKey, dominantMood, moodProgression, navModesVisited, projectsMentioned, messageCount, rawTranscript } = req.body;
+
+  if (!sessionKey || !rawTranscript) return res.json({ ok: false });
+
+  let summary = "";
+  let keyTopics = "[]";
+
+  try {
+    const msgs = JSON.parse(rawTranscript) as Array<{ role: string; content: string }>;
+    if (msgs.length >= 2) {
+      const transcriptText = msgs
+        .map(m => `${m.role === "user" ? "Garry" : "Sirius"}: ${m.content}`)
+        .join("\n");
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: "You are a concise summarizer. Return ONLY valid JSON with no markdown or code blocks." },
+          { role: "user", content: `Summarise this voice session between Garry and Sirius in Star Lab:\n\n${transcriptText}\n\nReturn JSON exactly: { "summary": "2–3 sentence summary of what was discussed and any decisions or actions", "keyTopics": ["topic1", "topic2", "topic3"] }` },
+        ],
+        max_tokens: 250,
+        temperature: 0.3,
+      });
+
+      const raw = completion.choices[0]?.message?.content?.trim() || "{}";
+      const cleaned = raw.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "").trim();
+      const parsed = JSON.parse(cleaned);
+      summary = parsed.summary || "";
+      keyTopics = JSON.stringify(Array.isArray(parsed.keyTopics) ? parsed.keyTopics : []);
+    }
+  } catch {
+    summary = "Voice session completed.";
+  }
+
+  try {
+    await db.insert(voiceJournalTable).values({
+      pin,
+      sessionKey,
+      dominantMood: dominantMood || "neutral",
+      moodProgression: moodProgression || "[]",
+      avgEnergy: "normal",
+      navModesVisited: navModesVisited || "[]",
+      projectsMentioned: projectsMentioned || "[]",
+      messageCount: messageCount || 0,
+      rawTranscript,
+      summary,
+      keyTopics,
+    });
+    console.log(`[VoiceJournal] Saved session ${sessionKey} — mood: ${dominantMood}, messages: ${messageCount}`);
+    return res.json({ ok: true, summary });
+  } catch (err: any) {
+    console.error("[VoiceJournal] Save error:", err?.message);
+    return res.json({ ok: false });
+  }
+});
+
+router.get("/lab/voice/journal", authMiddleware, async (req: Request, res: Response) => {
+  const pin = (req as any).labPin as string;
+  try {
+    const entries = await db
+      .select({
+        id: voiceJournalTable.id,
+        createdAt: voiceJournalTable.createdAt,
+        dominantMood: voiceJournalTable.dominantMood,
+        summary: voiceJournalTable.summary,
+        keyTopics: voiceJournalTable.keyTopics,
+        projectsMentioned: voiceJournalTable.projectsMentioned,
+        navModesVisited: voiceJournalTable.navModesVisited,
+        messageCount: voiceJournalTable.messageCount,
+      })
+      .from(voiceJournalTable)
+      .where(eq(voiceJournalTable.pin, pin))
+      .orderBy(desc(voiceJournalTable.createdAt))
+      .limit(30);
+    return res.json({ entries });
+  } catch (err: any) {
+    console.error("[VoiceJournal] Load error:", err?.message);
+    return res.json({ entries: [] });
   }
 });
 

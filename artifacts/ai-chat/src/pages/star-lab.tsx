@@ -9894,6 +9894,13 @@ function StarLabVoiceWidget({
   const wordTimesRef  = useRef<number[]>([]);
   const [emotion, setEmotion] = useState<{ energy: string; pitch: string; mood: string }>({ energy: "normal", pitch: "normal", mood: "neutral" });
 
+  // Memory / journal tracking
+  const sessionKeyRef     = useRef<string | null>(null);
+  const moodHistoryRef    = useRef<{ mood: string; time: number }[]>([]);
+  const prevMoodRef       = useRef<string>("neutral");
+  const navVisitedRef     = useRef<Set<string>>(new Set());
+  const [journalSaved, setJournalSaved] = useState<"idle" | "saving" | "saved">("idle");
+
   useEffect(() => {
     if (active) {
       tickRef.current = setInterval(() => setWaveTick(t => t + 1), 80);
@@ -9902,6 +9909,44 @@ function StarLabVoiceWidget({
     }
     return () => { if (tickRef.current) clearInterval(tickRef.current); };
   }, [active]);
+
+  // Track which Star Lab sections are visited during a voice session
+  useEffect(() => {
+    if (active && navMode) navVisitedRef.current.add(navMode);
+  }, [navMode, active]);
+
+  const saveJournal = async (msgs: VoiceMsg[]) => {
+    if (!sessionKeyRef.current || msgs.length < 2) return;
+    setJournalSaved("saving");
+    try {
+      const history = moodHistoryRef.current;
+      const moodCounts = history.reduce((acc, { mood }) => {
+        acc[mood] = (acc[mood] || 0) + 1; return acc;
+      }, {} as Record<string, number>);
+      const dominantMood = Object.entries(moodCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || "neutral";
+
+      const allText = msgs.map(m => m.content).join(" ").toLowerCase();
+      const mentioned = projects.filter(p => allText.includes(p.name.toLowerCase())).map(p => p.name);
+
+      await fetch(`${base}lab/voice/journal`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+        body: JSON.stringify({
+          sessionKey: sessionKeyRef.current,
+          dominantMood,
+          moodProgression: JSON.stringify(history),
+          navModesVisited: JSON.stringify([...navVisitedRef.current]),
+          projectsMentioned: JSON.stringify(mentioned),
+          messageCount: msgs.length,
+          rawTranscript: JSON.stringify(msgs),
+        }),
+      });
+      setJournalSaved("saved");
+      setTimeout(() => setJournalSaved("idle"), 3500);
+    } catch {
+      setJournalSaved("idle");
+    }
+  };
 
   const stopAudioAnalysis = () => {
     if (sampleRef.current) { clearInterval(sampleRef.current); sampleRef.current = null; }
@@ -9965,6 +10010,12 @@ function StarLabVoiceWidget({
 
         emotionRef.current = { energy, pitch, pace, mood };
         setEmotion({ energy, pitch, mood });
+
+        // Journal: log mood changes (not every sample — only on change)
+        if (mood !== prevMoodRef.current) {
+          prevMoodRef.current = mood;
+          moodHistoryRef.current.push({ mood, time: Date.now() });
+        }
       }, 120);
     } catch {
       // Mic permission denied — emotional detection silently disabled
@@ -10095,11 +10146,18 @@ function StarLabVoiceWidget({
       stopListening();
       window.speechSynthesis?.cancel();
       busyRef.current = false;
+      // Capture messages before clearing for journal save
+      setMessages(prev => { saveJournal(prev); return prev; });
       setActive(false);
       setPhase("idle");
       setLiveText("");
       setSiriusText("");
     } else {
+      // Reset session tracking
+      sessionKeyRef.current = `vs_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      moodHistoryRef.current = [];
+      prevMoodRef.current = "neutral";
+      navVisitedRef.current = new Set([navMode]);
       setActive(true);
       setMessages([]);
       setTimeout(() => {
@@ -10180,12 +10238,28 @@ function StarLabVoiceWidget({
               </div>
             )}
 
-            {/* History count */}
-            {messages.length > 0 && (
-              <div className="px-3 pb-3">
-                <p className="text-[10px]" style={{ color: "rgba(255,255,255,0.2)" }}>{Math.floor(messages.length / 2)} exchange{messages.length > 2 ? "s" : ""} this session</p>
-              </div>
-            )}
+            {/* History count + saving indicator */}
+            <div className="px-3 pb-3 flex items-center justify-between">
+              {messages.length > 0 && (
+                <p className="text-[10px]" style={{ color: "rgba(255,255,255,0.2)" }}>{Math.floor(messages.length / 2)} exchange{messages.length > 2 ? "s" : ""}</p>
+              )}
+              {journalSaved === "saving" && (
+                <p className="text-[9px] font-semibold tracking-widest" style={{ color: "rgba(0,212,255,0.5)" }}>SAVING…</p>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Memory saved flash — shows after session ends */}
+      <AnimatePresence>
+        {journalSaved === "saved" && (
+          <motion.div
+            initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
+            className="mx-3 mb-1.5 px-2.5 py-1.5 rounded-lg flex items-center gap-1.5"
+            style={{ background: "hsla(155,70%,42%,0.1)", border: "1px solid hsla(155,70%,42%,0.25)" }}>
+            <Brain className="w-3 h-3 flex-shrink-0" style={{ color: "hsl(155,70%,45%)" }} />
+            <span className="text-[10px] font-semibold" style={{ color: "hsl(155,70%,45%)" }}>Session saved to memory</span>
           </motion.div>
         )}
       </AnimatePresence>

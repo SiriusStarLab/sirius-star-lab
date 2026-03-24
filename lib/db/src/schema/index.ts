@@ -32,3 +32,4 @@ export * from "./lab_revenue";
 export * from "./outreach_engine";
 export * from "./media_outlets";
 export * from "./app_builder_sessions";
+export * from "./voice_journal";
