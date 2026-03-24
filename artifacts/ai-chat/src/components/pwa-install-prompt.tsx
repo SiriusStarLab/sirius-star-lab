@@ -100,7 +100,7 @@ export function PWAInstallPrompt() {
                 <img src="/pwa-192.png" alt="Sirius" style={{ width: 44, height: 44, borderRadius: 10 }} />
                 <div>
                   <div style={{ color: "#ffffff", fontFamily: "Outfit, sans-serif", fontWeight: 600, fontSize: 15 }}>
-                    Install Sirius AI
+                    Install Sirius Star Lab
                   </div>
                   <div style={{ color: "rgba(255,255,255,0.5)", fontFamily: "Outfit, sans-serif", fontSize: 12, marginTop: 2 }}>
                     Add to your home screen
@@ -151,7 +151,7 @@ export function PWAInstallPrompt() {
             <img src="/pwa-192.png" alt="Sirius" style={{ width: 52, height: 52, borderRadius: 12, flexShrink: 0 }} />
             <div style={{ flex: 1 }}>
               <div style={{ color: "#ffffff", fontFamily: "Outfit, sans-serif", fontWeight: 600, fontSize: 15, marginBottom: 2 }}>
-                Install Sirius AI
+                Install Sirius Star Lab
               </div>
               <div style={{ color: "rgba(255,255,255,0.5)", fontFamily: "Outfit, sans-serif", fontSize: 12 }}>
                 Add to your home screen — works offline

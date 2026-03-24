@@ -176,7 +176,7 @@ Format with clear headers, be specific and actionable. Name real types of compan
       model: "gpt-4o",
       messages: [
         { role: "system", content: systemPrompt },
-        { role: "user", content: `Identify the best prospect categories for Sirius AI business intelligence services in the ${searchRegion} ${searchSector} space, specifically for: ${searchFocus}. I want real, actionable prospect categories I can go after this week.` }
+        { role: "user", content: `Identify the best prospect categories for Sirius Star Lab business intelligence services in the ${searchRegion} ${searchSector} space, specifically for: ${searchFocus}. I want real, actionable prospect categories I can go after this week.` }
       ],
       stream: true,
       max_tokens: 3000,
@@ -225,7 +225,7 @@ router.post("/lab/agency/proposal", authMiddleware, async (req: Request, res: Re
 
 You are generating a bespoke, professional business proposal for ${companyName} to adopt the "${selectedPkg.name}" service at £${selectedPkg.price}/month.
 
-About us: Strategic Innovation Dundee Ltd is run by Garry Hutton. We have built Sirius AI — an elite AI intelligence partnership platform that we now offer as a managed service to businesses who want AI to run their digital operations without building it themselves.
+About us: Strategic Innovation Dundee Ltd is run by Garry Hutton. We have built Sirius Star Lab — an elite AI intelligence partnership platform that we now offer as a managed service to businesses who want AI to run their digital operations without building it themselves.
 
 Your proposal must be specific to ${companyName}, feel personally researched, and be compelling enough that the CEO/MD reads it and picks up the phone.
 
@@ -294,7 +294,7 @@ router.post("/lab/agency/pitch", authMiddleware, async (req: Request, res: Respo
   try {
     const prompt = `You are writing a ${format || "LinkedIn DM"} from Garry Hutton at Strategic Innovation Dundee Ltd to ${contactName || "the decision maker"} ${contactRole ? `(${contactRole})` : ""} at ${companyName}${sector ? ` in the ${sector} sector` : ""}.
 
-Garry has built Sirius AI — an elite AI intelligence platform that can run a business's entire social media, sales sequences, content, and customer communications.
+Garry has built Sirius Star Lab — an elite AI intelligence platform that can run a business's entire social media, sales sequences, content, and customer communications.
 
 ${observation ? `Specific observation about this company: ${observation}` : ""}
 

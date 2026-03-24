@@ -64,9 +64,9 @@ router.post("/outreach/contacts/scan-sector", authMiddleware, async (req: Reques
 
   const prompt = `Today is ${TODAY()}.
 
-You are the Sirius Prospect Scanner. Your job: find ${count} real companies in the "${sector}" sector that are likely buyers of an AI intelligence platform called Sirius AI.
+You are the Sirius Prospect Scanner. Your job: find ${count} real companies in the "${sector}" sector that are likely buyers of an AI intelligence platform called Sirius Star Lab.
 
-Sirius AI offers:
+Sirius Star Lab offers:
 - Autonomous business intelligence (market scanning, opportunity finding)
 - AI-generated sales content and outreach
 - Automated social media and content operations
@@ -86,7 +86,7 @@ For each company, return:
 - Website URL
 - Location
 - Company size estimate
-- One specific reason why Sirius AI would help them
+- One specific reason why Sirius Star Lab would help them
 
 Return ONLY valid JSON array: [{"name":"...","company":"...","email":"...","role":"...","website":"...","location":"...","companySize":"...","notes":"..."}]
 No markdown, no explanation — pure JSON array only.`;
@@ -189,7 +189,7 @@ router.post("/outreach/campaigns", authMiddleware, async (req: Request, res: Res
   }
 
   const [campaign] = await db.insert(outreachCampaigns).values({
-    name: name.trim(), product: product?.trim() || "Sirius AI",
+    name: name.trim(), product: product?.trim() || "Sirius Star Lab",
     targetSectors: sectors, messageType: messageType || "Cold Email",
     tone: tone || "Professional", subjectTemplate: subjectTemplate?.trim() || "",
     senderName: senderName?.trim() || "Garry Hutton",
@@ -274,8 +274,8 @@ Sector: ${contact.sector}
 ${contact.location ? `Location: ${contact.location}` : ""}
 ${contact.companySize ? `Company size: ${contact.companySize}` : ""}
 
-About Sirius AI (for context):
-Sirius AI is an intelligence partnership platform — it provides autonomous business intelligence, AI-powered sales and outreach automation, content operations, and custom AI agent development. Plans from £5/month consumer to £2,499/month managed agency service.
+About Sirius Star Lab (for context):
+Sirius Star Lab is an intelligence partnership platform — it provides autonomous business intelligence, AI-powered sales and outreach automation, content operations, and custom AI agent development. Plans from £5/month consumer to £2,499/month managed agency service.
 
 Write this as if Garry personally wrote it — sharp, direct, no waffle. Reference something specific about their sector or company. Keep under 180 words body. One clear call to action (book a 15-min call or visit siriusai.app).
 

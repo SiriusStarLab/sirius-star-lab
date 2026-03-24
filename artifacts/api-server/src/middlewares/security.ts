@@ -1,5 +1,5 @@
 /**
- * Sirius AI — Security Middleware
+ * Sirius Star Lab — Security Middleware
  *
  * Protections applied:
  *   1. Helmet       — HTTP security headers (XSS, clickjacking, MIME sniffing, HSTS, etc.)

@@ -18,7 +18,7 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 
 ## Artifacts
 
-### `artifacts/ai-chat` — Sirius AI Partnership App
+### `artifacts/ai-chat` — Sirius Star Lab Partnership App
 React + Vite frontend served at `/`. A full AI partnership platform — not a tool, not an assistant, a genuine partner:
 
 **Sirius Star Lab** (private R&D, at `/star-lab`)
@@ -39,7 +39,7 @@ React + Vite frontend served at `/`. A full AI partnership platform — not a to
 - **Document Intelligence**: Upload PDFs, TXT, CSV, Markdown, JSON files and ask questions. Uses `pdf-parse` for PDF extraction, GPT-4o for analysis. Returns summary, key points, full answer. Route: POST `/api/lab/docs`. Panel in Star Lab sidebar.
 
 **Public pages**
-- `/compare` — Competitive comparison table: Sirius AI vs ChatGPT, Grok, Gemini, Claude, Copilot, Perplexity. 21 features compared, 12 exclusive to Sirius. Shows checkmarks/X per platform per feature. Collapsible categories.
+- `/compare` — Competitive comparison table: Sirius Star Lab vs ChatGPT, Grok, Gemini, Claude, Copilot, Perplexity. 21 features compared, 12 exclusive to Sirius. Shows checkmarks/X per platform per feature. Collapsible categories.
 
 **Main site features**
 - **Sirius Guide**: Tutorials panel accessible from sidebar ("Sirius Guide" button). Slide-in right drawer with categorised accordion sections: Getting Started, Intelligence Modes, Topic Hub, Voice Input, Image Analysis, Memory Portrait, Daily Wisdom, Plans, Star Lab. Fully self-contained in `src/components/tutorials-modal.tsx`.

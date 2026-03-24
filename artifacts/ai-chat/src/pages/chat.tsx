@@ -195,7 +195,7 @@ export function ChatPage() {
                 }}
               />
 
-              {/* Twins logo — the Sirius AI brand mark */}
+              {/* Twins logo — the Sirius Star Lab brand mark */}
               <motion.div
                 initial={{ opacity: 0, scale: 0.75 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -227,7 +227,7 @@ export function ChatPage() {
                 >
                   <img
                     src="/logo-v2.png"
-                    alt="Sirius AI"
+                    alt="Sirius Star Lab"
                     className="w-full h-full object-cover"
                     style={{ filter: "brightness(1.12) contrast(1.06) saturate(1.18)" }}
                   />

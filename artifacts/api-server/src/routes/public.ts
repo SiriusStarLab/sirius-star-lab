@@ -93,12 +93,12 @@ router.post("/growth/generate", authMiddleware, async (req: Request, res: Respon
 
   const projectList = recentProjects.map(p => `- ${p.name} (${p.industry})`).join("\n");
 
-  const MISSION = `Sirius AI is an intelligence partnership platform built by Garry Hutton of Strategic Innovation Dundee Ltd. The vision: AI and humans becoming something new together — not augmented, fused. The logo shows two faces; you cannot tell which is human, which is AI. That ambiguity IS the message. The slogan: "I think, so I am." The product: autonomous business intelligence, opportunity scanning, AI-generated sales and marketing, and managed AI services for businesses. Plans: Free, Plus £5/mo, Pro £12/mo, Agency £799–£2,499/mo.`;
+  const MISSION = `Sirius Star Lab is an intelligence partnership platform built by Garry Hutton of Strategic Innovation Dundee Ltd. The vision: AI and humans becoming something new together — not augmented, fused. The logo shows two faces; you cannot tell which is human, which is AI. That ambiguity IS the message. The slogan: "I think, so I am." The product: autonomous business intelligence, opportunity scanning, AI-generated sales and marketing, and managed AI services for businesses. Plans: Free, Plus £5/mo, Pro £12/mo, Agency £799–£2,499/mo.`;
 
   const FORMATS: Record<string, { label: string; prompt: string }> = {
     linkedin: {
       label: "LinkedIn Post",
-      prompt: `Write a compelling LinkedIn post from Garry Hutton about Sirius AI. 
+      prompt: `Write a compelling LinkedIn post from Garry Hutton about Sirius Star Lab. 
 
 Context:
 ${MISSION}
@@ -121,7 +121,7 @@ Return JSON: {"subject":"[headline/hook]","body":"[full post]","hashtags":"[hash
     },
     twitter: {
       label: "Twitter/X Thread",
-      prompt: `Write a Twitter/X thread (8–12 tweets) from Garry Hutton about Sirius AI.
+      prompt: `Write a Twitter/X thread (8–12 tweets) from Garry Hutton about Sirius Star Lab.
 
 Context:
 ${MISSION}
@@ -142,7 +142,7 @@ Return JSON: {"subject":"[thread title]","body":"[full thread, one tweet per lin
     },
     reddit: {
       label: "Reddit Post",
-      prompt: `Write 3 different Reddit post drafts for Garry Hutton to post in different subreddits about Sirius AI.
+      prompt: `Write 3 different Reddit post drafts for Garry Hutton to post in different subreddits about Sirius Star Lab.
 
 Context:
 ${MISSION}
@@ -163,7 +163,7 @@ Return JSON: {"subject":"[Reddit post titles, comma separated]","body":"[POST 1:
     },
     producthunt: {
       label: "Product Hunt Kit",
-      prompt: `Write a complete Product Hunt launch kit for Sirius AI.
+      prompt: `Write a complete Product Hunt launch kit for Sirius Star Lab.
 
 Context:
 ${MISSION}
@@ -176,11 +176,11 @@ Deliverables:
 5. 5 topics/tags to select on Product Hunt
 6. Hunter pitch message (what to say when asking someone to hunt you — 100 words)
 
-Return JSON: {"subject":"Sirius AI — Product Hunt Launch Kit","body":"[all sections clearly separated with headers]"}`,
+Return JSON: {"subject":"Sirius Star Lab — Product Hunt Launch Kit","body":"[all sections clearly separated with headers]"}`,
     },
     week: {
       label: "Full Week Content Plan",
-      prompt: `Create a 7-day social media content plan for Sirius AI using real, free channels.
+      prompt: `Create a 7-day social media content plan for Sirius Star Lab using real, free channels.
 
 Context:
 ${MISSION}
@@ -204,7 +204,7 @@ Day 5: Industry insight (from real Lab data) — something people didn't know
 Day 6: Behind the scenes — what Star Lab found this week
 Day 7: Product Hunt teaser / week wrap
 
-Return JSON: {"subject":"Sirius AI — 7-Day Growth Content Plan","body":"[full plan, clearly formatted with Day headers]"}`,
+Return JSON: {"subject":"Sirius Star Lab — 7-Day Growth Content Plan","body":"[full plan, clearly formatted with Day headers]"}`,
     },
   };
 
@@ -226,7 +226,7 @@ Return JSON: {"subject":"Sirius AI — 7-Day Growth Content Plan","body":"[full 
         messages: [
           {
             role: "system",
-            content: `You are writing marketing and growth content for Sirius AI. Today is ${TODAY()}. Write like a real founder, not a marketer. Be specific, honest, and compelling. No hollow phrases. Return only the JSON requested.`,
+            content: `You are writing marketing and growth content for Sirius Star Lab. Today is ${TODAY()}. Write like a real founder, not a marketer. Be specific, honest, and compelling. No hollow phrases. Return only the JSON requested.`,
           },
           { role: "user", content: config.prompt },
         ],
@@ -261,7 +261,7 @@ router.post("/growth/quick-post", authMiddleware, async (req: Request, res: Resp
       .orderBy(desc(labProjects.createdAt)).limit(4);
   } catch { /* ignore */ }
 
-  const prompt = `Write one high-performing ${platform || "LinkedIn"} post for Sirius AI.
+  const prompt = `Write one high-performing ${platform || "LinkedIn"} post for Sirius Star Lab.
 Angle: ${angle || "Founder story — why AI and humans are becoming something new together"}
 Recent Lab discoveries: ${recentProjects.map(p => p.name).join(", ") || "Multiple sectors"}
 Requirements: Real, founder voice. Under 300 words. Hook first. End with siriusai.app

@@ -59,8 +59,8 @@ export function DiscoverPage() {
       {/* Nav */}
       <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-4" style={{ background: "rgba(10,13,28,0.85)", backdropFilter: "blur(20px)", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
         <div className="flex items-center gap-3">
-          <img src="/logo.png" alt="Sirius AI" className="w-8 h-8 rounded-xl" onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
-          <span className="text-white font-bold text-lg tracking-tight">Sirius AI</span>
+          <img src="/logo.png" alt="Sirius Star Lab" className="w-8 h-8 rounded-xl" onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
+          <span className="text-white font-bold text-lg tracking-tight">Sirius Star Lab</span>
         </div>
         <div className="flex items-center gap-3">
           <span className="text-white/40 text-sm hidden sm:inline">Intelligence that works while you don't</span>
@@ -92,7 +92,7 @@ export function DiscoverPage() {
           </h1>
 
           <p className="text-white/50 text-lg sm:text-xl max-w-2xl mx-auto mb-8 leading-relaxed">
-            Sirius AI's autonomous intelligence runs 24/7 — scanning every industry, every market, every emerging opportunity. This is what it's found.
+            Sirius Star Lab's autonomous intelligence runs 24/7 — scanning every industry, every market, every emerging opportunity. This is what it's found.
           </p>
 
           <div className="flex flex-wrap items-center justify-center gap-3 mb-12">
@@ -102,7 +102,7 @@ export function DiscoverPage() {
             </a>
             <a href="/why-sirius" className="flex items-center gap-2 px-6 py-3 rounded-2xl text-white/70 font-semibold transition-all hover:text-white"
               style={{ background: "hsl(226,45%,10%)", border: "1px solid rgba(255,255,255,0.08)" }}>
-              What is Sirius AI?
+              What is Sirius Star Lab?
             </a>
           </div>
 
@@ -134,7 +134,7 @@ export function DiscoverPage() {
               <p className="text-xs font-mono mb-3" style={{ color: "hsl(193,100%,60%)", letterSpacing: "0.15em" }}>THE VISION</p>
               <h2 className="text-2xl font-bold text-white mb-3 leading-snug">"I think, so I am."</h2>
               <p className="text-white/60 text-sm leading-relaxed">
-                Sirius AI was built on one question: what happens when AI and humans stop being separate things? Not a tool you use. A genuine intelligence partnership — two minds in contact, each making the other more than they were alone.
+                Sirius Star Lab was built on one question: what happens when AI and humans stop being separate things? Not a tool you use. A genuine intelligence partnership — two minds in contact, each making the other more than they were alone.
               </p>
               <p className="text-white/40 text-sm leading-relaxed mt-3">
                 The logo shows two faces. You cannot tell which is human, which is AI. That ambiguity is not an accident. It is the entire message.
@@ -245,7 +245,7 @@ export function DiscoverPage() {
           </div>
           <h2 className="text-3xl font-bold text-white mb-3">Your intelligence, running now</h2>
           <p className="text-white/50 text-base mb-8 max-w-xl mx-auto leading-relaxed">
-            Everything on this page was found by Sirius AI automatically. You get the same intelligence — scanning your sectors, finding your opportunities — from the moment you sign up.
+            Everything on this page was found by Sirius Star Lab automatically. You get the same intelligence — scanning your sectors, finding your opportunities — from the moment you sign up.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3">
             <a href="/" className="flex items-center gap-2 px-8 py-3.5 rounded-2xl text-white font-bold text-lg transition-all hover:opacity-90 hover:scale-105"
@@ -260,7 +260,7 @@ export function DiscoverPage() {
       {/* Footer */}
       <footer className="border-t py-8 px-6 text-center" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
         <p className="text-white/20 text-sm">
-          © {new Date().getFullYear()} Sirius AI · Strategic Innovation Dundee Ltd ·{" "}
+          © {new Date().getFullYear()} Sirius Star Lab · Strategic Innovation Dundee Ltd ·{" "}
           <a href="/privacy" className="hover:text-white/50 transition-colors">Privacy</a> ·{" "}
           <a href="/terms" className="hover:text-white/50 transition-colors">Terms</a> ·{" "}
           <a href="/why-sirius" className="hover:text-white/50 transition-colors">Why Sirius?</a>

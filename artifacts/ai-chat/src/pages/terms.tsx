@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import { ArrowLeft, Shield } from "lucide-react";
 
 const EFFECTIVE_DATE = "17 March 2026";
-const PRODUCT_NAME = "Sirius AI";
+const PRODUCT_NAME = "Sirius Star Lab";
 const CONTACT_EMAIL = "legal@siriusai.app";
 
 export function TermsPage() {

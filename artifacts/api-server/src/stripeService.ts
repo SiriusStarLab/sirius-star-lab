@@ -12,7 +12,7 @@ export class StripeService {
     const stripe = getUncachableStripeClient();
     const customer = await stripe.customers.create({
       metadata: { userId },
-      description: `Sirius AI user: ${userId}`,
+      description: `Sirius Star Lab user: ${userId}`,
     });
 
     await stripeStorage.upsertStripeCustomerId(userId, customer.id);

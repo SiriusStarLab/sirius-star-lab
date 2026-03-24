@@ -23,38 +23,38 @@ const PLATFORMS: Platform[] = [
   { name: "Claude", color: "#D97706", bg: "rgba(217,119,6,0.08)" },
   { name: "Copilot", color: "#0078D4", bg: "rgba(0,120,212,0.08)" },
   { name: "Perplexity", color: "#A855F7", bg: "rgba(168,85,247,0.08)" },
-  { name: "Sirius AI", color: "#00D4FF", bg: "rgba(0,212,255,0.10)", isSirius: true },
+  { name: "Sirius Star Lab", color: "#00D4FF", bg: "rgba(0,212,255,0.10)", isSirius: true },
 ];
 
 const FEATURES: Feature[] = [
   // Core AI
-  { category: "Core AI", name: "Conversational AI", desc: "Natural language chat and Q&A", platforms: { ChatGPT: true, Grok: true, Gemini: true, Claude: true, Copilot: true, Perplexity: true, "Sirius AI": true } },
-  { category: "Core AI", name: "Image Generation", desc: "Create images from text prompts", platforms: { ChatGPT: true, Grok: true, Gemini: true, Claude: false, Copilot: true, Perplexity: false, "Sirius AI": true } },
-  { category: "Core AI", name: "Voice / Audio", desc: "Voice input and spoken responses", platforms: { ChatGPT: true, Grok: true, Gemini: true, Claude: false, Copilot: true, Perplexity: false, "Sirius AI": true } },
-  { category: "Core AI", name: "Code Generation", desc: "Write, review and debug code", platforms: { ChatGPT: true, Grok: true, Gemini: true, Claude: true, Copilot: true, Perplexity: false, "Sirius AI": true } },
-  { category: "Core AI", name: "Web Search (Real-time)", desc: "Access live web data in answers", platforms: { ChatGPT: true, Grok: true, Gemini: true, Claude: false, Copilot: true, Perplexity: true, "Sirius AI": true } },
+  { category: "Core AI", name: "Conversational AI", desc: "Natural language chat and Q&A", platforms: { ChatGPT: true, Grok: true, Gemini: true, Claude: true, Copilot: true, Perplexity: true, "Sirius Star Lab": true } },
+  { category: "Core AI", name: "Image Generation", desc: "Create images from text prompts", platforms: { ChatGPT: true, Grok: true, Gemini: true, Claude: false, Copilot: true, Perplexity: false, "Sirius Star Lab": true } },
+  { category: "Core AI", name: "Voice / Audio", desc: "Voice input and spoken responses", platforms: { ChatGPT: true, Grok: true, Gemini: true, Claude: false, Copilot: true, Perplexity: false, "Sirius Star Lab": true } },
+  { category: "Core AI", name: "Code Generation", desc: "Write, review and debug code", platforms: { ChatGPT: true, Grok: true, Gemini: true, Claude: true, Copilot: true, Perplexity: false, "Sirius Star Lab": true } },
+  { category: "Core AI", name: "Web Search (Real-time)", desc: "Access live web data in answers", platforms: { ChatGPT: true, Grok: true, Gemini: true, Claude: false, Copilot: true, Perplexity: true, "Sirius Star Lab": true } },
 
   // Research & Analysis
-  { category: "Research & Analysis", name: "Deep Research Mode", desc: "Multi-step web research with cited reports", platforms: { ChatGPT: true, Grok: true, Gemini: true, Claude: false, Copilot: false, Perplexity: true, "Sirius AI": true } },
-  { category: "Research & Analysis", name: "Document Intelligence", desc: "Upload & interrogate PDFs, docs, spreadsheets", platforms: { ChatGPT: true, Grok: false, Gemini: true, Claude: true, Copilot: true, Perplexity: false, "Sirius AI": true } },
-  { category: "Research & Analysis", name: "Data Analysis (CSV/Excel)", desc: "Upload data files and get chart insights", platforms: { ChatGPT: true, Grok: false, Gemini: true, Claude: false, Copilot: false, Perplexity: false, "Sirius AI": true } },
-  { category: "Research & Analysis", name: "Memory / Context", desc: "Remembers facts across conversations", platforms: { ChatGPT: "Limited", Grok: false, Gemini: "Limited", Claude: "Projects only", Copilot: false, Perplexity: false, "Sirius AI": true } },
+  { category: "Research & Analysis", name: "Deep Research Mode", desc: "Multi-step web research with cited reports", platforms: { ChatGPT: true, Grok: true, Gemini: true, Claude: false, Copilot: false, Perplexity: true, "Sirius Star Lab": true } },
+  { category: "Research & Analysis", name: "Document Intelligence", desc: "Upload & interrogate PDFs, docs, spreadsheets", platforms: { ChatGPT: true, Grok: false, Gemini: true, Claude: true, Copilot: true, Perplexity: false, "Sirius Star Lab": true } },
+  { category: "Research & Analysis", name: "Data Analysis (CSV/Excel)", desc: "Upload data files and get chart insights", platforms: { ChatGPT: true, Grok: false, Gemini: true, Claude: false, Copilot: false, Perplexity: false, "Sirius Star Lab": true } },
+  { category: "Research & Analysis", name: "Memory / Context", desc: "Remembers facts across conversations", platforms: { ChatGPT: "Limited", Grok: false, Gemini: "Limited", Claude: "Projects only", Copilot: false, Perplexity: false, "Sirius Star Lab": true } },
 
   // Business Intelligence — Sirius Exclusive Zone
-  { category: "Business Intelligence", name: "Business Profile Brain", desc: "AI learns your company, goals, clients permanently", exclusive: true, platforms: { ChatGPT: false, Grok: false, Gemini: false, Claude: false, Copilot: false, Perplexity: false, "Sirius AI": true } },
-  { category: "Business Intelligence", name: "Autonomous Market Scanning", desc: "24/7 AI scans for opportunities while you sleep", exclusive: true, platforms: { ChatGPT: false, Grok: false, Gemini: false, Claude: false, Copilot: false, Perplexity: false, "Sirius AI": true } },
-  { category: "Business Intelligence", name: "Revenue Intelligence", desc: "AI-generated revenue reports and commission tracking", exclusive: true, platforms: { ChatGPT: false, Grok: false, Gemini: false, Claude: false, Copilot: false, Perplexity: false, "Sirius AI": true } },
-  { category: "Business Intelligence", name: "Outreach Automation", desc: "AI-written sales campaigns sent to real contacts", exclusive: true, platforms: { ChatGPT: false, Grok: false, Gemini: false, Claude: false, Copilot: false, Perplexity: false, "Sirius AI": true } },
-  { category: "Business Intelligence", name: "Funding Radar", desc: "Scans grants and investment opportunities for your business", exclusive: true, platforms: { ChatGPT: false, Grok: false, Gemini: false, Claude: false, Copilot: false, Perplexity: false, "Sirius AI": true } },
-  { category: "Business Intelligence", name: "Growth Engine", desc: "AI creates complete growth content: blogs, SEO, social", exclusive: true, platforms: { ChatGPT: false, Grok: false, Gemini: false, Claude: false, Copilot: false, Perplexity: false, "Sirius AI": true } },
-  { category: "Business Intelligence", name: "Commerce Lab", desc: "Full product launch engine: concept to sales", exclusive: true, platforms: { ChatGPT: false, Grok: false, Gemini: false, Claude: false, Copilot: false, Perplexity: false, "Sirius AI": true } },
+  { category: "Business Intelligence", name: "Business Profile Brain", desc: "AI learns your company, goals, clients permanently", exclusive: true, platforms: { ChatGPT: false, Grok: false, Gemini: false, Claude: false, Copilot: false, Perplexity: false, "Sirius Star Lab": true } },
+  { category: "Business Intelligence", name: "Autonomous Market Scanning", desc: "24/7 AI scans for opportunities while you sleep", exclusive: true, platforms: { ChatGPT: false, Grok: false, Gemini: false, Claude: false, Copilot: false, Perplexity: false, "Sirius Star Lab": true } },
+  { category: "Business Intelligence", name: "Revenue Intelligence", desc: "AI-generated revenue reports and commission tracking", exclusive: true, platforms: { ChatGPT: false, Grok: false, Gemini: false, Claude: false, Copilot: false, Perplexity: false, "Sirius Star Lab": true } },
+  { category: "Business Intelligence", name: "Outreach Automation", desc: "AI-written sales campaigns sent to real contacts", exclusive: true, platforms: { ChatGPT: false, Grok: false, Gemini: false, Claude: false, Copilot: false, Perplexity: false, "Sirius Star Lab": true } },
+  { category: "Business Intelligence", name: "Funding Radar", desc: "Scans grants and investment opportunities for your business", exclusive: true, platforms: { ChatGPT: false, Grok: false, Gemini: false, Claude: false, Copilot: false, Perplexity: false, "Sirius Star Lab": true } },
+  { category: "Business Intelligence", name: "Growth Engine", desc: "AI creates complete growth content: blogs, SEO, social", exclusive: true, platforms: { ChatGPT: false, Grok: false, Gemini: false, Claude: false, Copilot: false, Perplexity: false, "Sirius Star Lab": true } },
+  { category: "Business Intelligence", name: "Commerce Lab", desc: "Full product launch engine: concept to sales", exclusive: true, platforms: { ChatGPT: false, Grok: false, Gemini: false, Claude: false, Copilot: false, Perplexity: false, "Sirius Star Lab": true } },
 
   // Platform
-  { category: "Platform", name: "Private Command Centre", desc: "Secure personal lab for your eyes only", exclusive: true, platforms: { ChatGPT: false, Grok: false, Gemini: false, Claude: false, Copilot: false, Perplexity: false, "Sirius AI": true } },
-  { category: "Platform", name: "AI-Created Projects", desc: "AI discovers opportunity → creates full project automatically", exclusive: true, platforms: { ChatGPT: false, Grok: false, Gemini: false, Claude: false, Copilot: false, Perplexity: false, "Sirius AI": true } },
-  { category: "Platform", name: "Agency Management", desc: "Run client packages, pitches, and proposals from one place", exclusive: true, platforms: { ChatGPT: false, Grok: false, Gemini: false, Claude: false, Copilot: false, Perplexity: false, "Sirius AI": true } },
-  { category: "Platform", name: "Custom Domain", desc: "Your AI partner on your own branded domain", exclusive: true, platforms: { ChatGPT: false, Grok: false, Gemini: false, Claude: false, Copilot: false, Perplexity: false, "Sirius AI": true } },
-  { category: "Platform", name: "Bot Creation Studio", desc: "Build and deploy custom AI bots for any business", exclusive: true, platforms: { ChatGPT: "GPTs (limited)", Grok: false, Gemini: false, Claude: false, Copilot: false, Perplexity: false, "Sirius AI": true } },
+  { category: "Platform", name: "Private Command Centre", desc: "Secure personal lab for your eyes only", exclusive: true, platforms: { ChatGPT: false, Grok: false, Gemini: false, Claude: false, Copilot: false, Perplexity: false, "Sirius Star Lab": true } },
+  { category: "Platform", name: "AI-Created Projects", desc: "AI discovers opportunity → creates full project automatically", exclusive: true, platforms: { ChatGPT: false, Grok: false, Gemini: false, Claude: false, Copilot: false, Perplexity: false, "Sirius Star Lab": true } },
+  { category: "Platform", name: "Agency Management", desc: "Run client packages, pitches, and proposals from one place", exclusive: true, platforms: { ChatGPT: false, Grok: false, Gemini: false, Claude: false, Copilot: false, Perplexity: false, "Sirius Star Lab": true } },
+  { category: "Platform", name: "Custom Domain", desc: "Your AI partner on your own branded domain", exclusive: true, platforms: { ChatGPT: false, Grok: false, Gemini: false, Claude: false, Copilot: false, Perplexity: false, "Sirius Star Lab": true } },
+  { category: "Platform", name: "Bot Creation Studio", desc: "Build and deploy custom AI bots for any business", exclusive: true, platforms: { ChatGPT: "GPTs (limited)", Grok: false, Gemini: false, Claude: false, Copilot: false, Perplexity: false, "Sirius Star Lab": true } },
 ];
 
 const categories = Array.from(new Set(FEATURES.map(f => f.category)));
@@ -90,7 +90,7 @@ export function ComparePage() {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const toggle = (cat: string) => setCollapsed(p => ({ ...p, [cat]: !p[cat] }));
 
-  const siriusFeatureCount = FEATURES.filter(f => f.platforms["Sirius AI"] === true).length;
+  const siriusFeatureCount = FEATURES.filter(f => f.platforms["Sirius Star Lab"] === true).length;
   const exclusiveCount = FEATURES.filter(f => f.exclusive).length;
 
   return (
@@ -100,7 +100,7 @@ export function ComparePage() {
       <div className="border-b" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
         <div className="max-w-screen-xl mx-auto px-6 py-5 flex items-center justify-between">
           <a href="/" className="flex items-center gap-2.5 group">
-            <img src="/sirius-logo.png" alt="Sirius AI" className="w-8 h-8 rounded-xl" onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
+            <img src="/sirius-logo.png" alt="Sirius Star Lab" className="w-8 h-8 rounded-xl" onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
             <span className="font-bold text-base tracking-tight" style={{ color: "#00D4FF" }}>SIRIUS AI</span>
           </a>
           <div className="flex items-center gap-3">
@@ -118,7 +118,7 @@ export function ComparePage() {
         <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold mb-6"
           style={{ background: "rgba(0,212,255,0.10)", border: "1px solid rgba(0,212,255,0.25)", color: "#00D4FF" }}>
           <Zap className="w-3 h-3" />
-          Sirius AI vs Every Major Platform
+          Sirius Star Lab vs Every Major Platform
         </div>
         <h1 className="text-4xl md:text-5xl font-bold mb-4 tracking-tight leading-tight">
           Why settle for a chatbot<br />
@@ -126,7 +126,7 @@ export function ComparePage() {
         </h1>
         <p className="text-slate-500 text-lg max-w-2xl mx-auto mb-10">
           ChatGPT, Grok, Gemini, Claude — they all answer questions.<br />
-          Sirius AI scans markets, writes campaigns, tracks revenue, and builds your business while you sleep.
+          Sirius Star Lab scans markets, writes campaigns, tracks revenue, and builds your business while you sleep.
         </p>
 
         {/* Stats row */}
@@ -235,7 +235,7 @@ export function ComparePage() {
               <Star className="w-5 h-5" style={{ color: "#FFD700" }} />
             </div>
             <p className="text-slate-400 text-sm mb-7 max-w-md mx-auto">
-              Every other platform answers questions. Sirius AI scans markets, creates projects, runs outreach, tracks revenue — all without being asked.
+              Every other platform answers questions. Sirius Star Lab scans markets, creates projects, runs outreach, tracks revenue — all without being asked.
             </p>
             <div className="flex items-center justify-center gap-3">
               <a href="/"

@@ -374,7 +374,7 @@ export default function SettingsScreen() {
         />
       </View>
 
-      <Text style={styles.versionText}>Sirius AI · v1.0</Text>
+      <Text style={styles.versionText}>Sirius Star Lab · v1.0</Text>
     </ScrollView>
   );
 }

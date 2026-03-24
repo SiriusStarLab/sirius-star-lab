@@ -39,7 +39,7 @@ export default defineConfig({
       scope: basePath,
       includeAssets: ["favicon.svg", "sirius-star.png", "apple-touch-icon.png"],
       manifest: {
-        name: "Sirius AI",
+        name: "Sirius Star Lab",
         short_name: "Sirius",
         description: "I think, so I am. A genuine partnership between human and artificial intelligence — mutual, equal, and built to elevate both.",
         theme_color: "#080c1a",

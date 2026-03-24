@@ -29,7 +29,7 @@ export type InsertOutreachContact = z.infer<typeof insertOutreachContactSchema>;
 export const outreachCampaigns = pgTable("outreach_campaigns", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
-  product: text("product").notNull().default("Sirius AI"),
+  product: text("product").notNull().default("Sirius Star Lab"),
   targetSectors: text("target_sectors").notNull().default("[]"), // JSON array
   messageType: text("message_type").notNull().default("Cold Email"), // Cold Email | Follow-Up | Product Launch | Partnership
   tone: text("tone").notNull().default("Professional"),

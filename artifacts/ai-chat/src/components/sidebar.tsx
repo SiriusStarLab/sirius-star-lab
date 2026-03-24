@@ -425,7 +425,7 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing }: SidebarProps) {
           <Link href="/terms" className="text-[10px] font-mono text-muted-foreground/30 hover:text-primary/60 transition-colors">Terms</Link>
           <span className="text-muted-foreground/20 text-[10px]">·</span>
           <Link href="/privacy" className="text-[10px] font-mono text-muted-foreground/30 hover:text-primary/60 transition-colors">Privacy</Link>
-          <span className="text-muted-foreground/20 text-[10px] ml-auto">© {new Date().getFullYear()} Sirius AI</span>
+          <span className="text-muted-foreground/20 text-[10px] ml-auto">© {new Date().getFullYear()} Sirius Star Lab</span>
         </div>
       </div>
     </div>

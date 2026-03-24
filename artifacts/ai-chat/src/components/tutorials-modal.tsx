@@ -333,7 +333,7 @@ export function TutorialsModal({ open, onClose }: Props) {
             {/* Footer */}
             <div className="px-5 py-3 border-t text-center" style={{ borderColor: "hsl(210,20%,90%)" }}>
               <p className="text-xs" style={{ color: "hsl(210,15%,60%)" }}>
-                Sirius AI · <span style={{ color: "hsl(193,100%,35%)" }}>I think, so I am.</span>
+                Sirius Star Lab · <span style={{ color: "hsl(193,100%,35%)" }}>I think, so I am.</span>
               </p>
             </div>
           </motion.div>

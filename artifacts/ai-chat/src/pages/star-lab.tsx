@@ -239,7 +239,7 @@ function StarLabGreeting({ userName, onComplete }: { userName?: string; onComple
             style={{ background: "radial-gradient(circle, hsla(193,100%,52%,0.22) 0%, transparent 68%)", filter: "blur(12px)" }} />
           <div className="relative z-10 rounded-full overflow-hidden"
             style={{ width: 118, height: 118, border: "2px solid hsla(193,100%,52%,0.5)", boxShadow: "0 0 36px hsla(193,100%,52%,0.45), 0 0 90px hsla(193,100%,52%,0.18)" }}>
-            <img src="/logo-v2.png" alt="Sirius AI" className="w-full h-full object-cover"
+            <img src="/logo-v2.png" alt="Sirius Star Lab" className="w-full h-full object-cover"
               style={{ filter: "brightness(1.15) contrast(1.08) saturate(1.2)" }} />
           </div>
         </motion.div>
@@ -6932,7 +6932,7 @@ function OutreachHubPanel({ pin }: { pin: string }) {
   // --- Campaigns state ---
   const [campaigns, setCampaigns] = useState<OCampaign[]>([]);
   const [campaignsLoading, setCampaignsLoading] = useState(false);
-  const [newCamp, setNewCamp] = useState({ name: "", product: "Sirius AI", targetSectors: [] as string[], messageType: "Cold Email", tone: "Professional", subjectTemplate: "", senderName: "Garry Hutton", senderCompany: "Strategic Innovation Dundee Ltd", fromEmail: "" });
+  const [newCamp, setNewCamp] = useState({ name: "", product: "Sirius Star Lab", targetSectors: [] as string[], messageType: "Cold Email", tone: "Professional", subjectTemplate: "", senderName: "Garry Hutton", senderCompany: "Strategic Innovation Dundee Ltd", fromEmail: "" });
   const [creating, setCreating] = useState(false);
   const [showCreateCamp, setShowCreateCamp] = useState(false);
 
@@ -7353,7 +7353,7 @@ function OutreachHubPanel({ pin }: { pin: string }) {
                     setCreating(true);
                     await fetch(`${base}outreach/campaigns`, { method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin }, body: JSON.stringify(newCamp) });
                     await loadCampaigns(); setShowCreateCamp(false);
-                    setNewCamp({ name: "", product: "Sirius AI", targetSectors: [], messageType: "Cold Email", tone: "Professional", subjectTemplate: "", senderName: "Garry Hutton", senderCompany: "Strategic Innovation Dundee Ltd", fromEmail: "" });
+                    setNewCamp({ name: "", product: "Sirius Star Lab", targetSectors: [], messageType: "Cold Email", tone: "Professional", subjectTemplate: "", senderName: "Garry Hutton", senderCompany: "Strategic Innovation Dundee Ltd", fromEmail: "" });
                     setCreating(false);
                   }} disabled={creating || !newCamp.name.trim()} className="flex-1 py-2 rounded-xl text-xs font-semibold text-slate-800 flex items-center justify-center gap-2 disabled:opacity-50" style={{ background: "hsl(340,80%,42%)" }}>
                     {creating ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Creating…</> : "Create Campaign"}
@@ -7748,7 +7748,7 @@ function BrainPanel({ pin }: { pin: string }) {
                 <div>
                   <label className="text-slate-400 text-xs mb-1 block">Business Goals</label>
                   <textarea value={bizForm.businessGoals} onChange={e => setBizForm(p => ({ ...p, businessGoals: e.target.value }))} rows={4}
-                    placeholder="e.g. Grow precision machining revenue to £2M, win 5 new oil & gas clients in 2026, launch Sirius AI as a SaaS product…"
+                    placeholder="e.g. Grow precision machining revenue to £2M, win 5 new oil & gas clients in 2026, launch Sirius Star Lab as a SaaS product…"
                     className={inp + " resize-none"} />
                 </div>
                 <div>
@@ -10481,7 +10481,7 @@ function LabAvatarGreeting({ userName, onNavigate, onDismiss, projects }: {
         </div>
 
         {/* Label */}
-        <p className="text-xs font-bold tracking-widest mb-4" style={{ color: "rgba(0,212,255,0.4)", letterSpacing: "0.25em" }}>SIRIUS AI</p>
+        <p className="text-xs font-bold tracking-widest mb-4" style={{ color: "rgba(0,212,255,0.4)", letterSpacing: "0.25em" }}>SIRIUS STAR LAB</p>
 
         {/* Sirius speech bubble */}
         <div className="rounded-2xl p-4 mb-4 min-h-[80px] flex items-center justify-center text-center"

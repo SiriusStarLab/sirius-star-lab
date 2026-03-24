@@ -1,6 +1,6 @@
 kind = "mobile"
 previewPath = "/sirius-mobile/"
-title = "Sirius AI — Mobile"
+title = "Sirius Star Lab — Mobile"
 version = "1.0.0"
 id = "artifacts/sirius-mobile"
 router = "expo-domain"
