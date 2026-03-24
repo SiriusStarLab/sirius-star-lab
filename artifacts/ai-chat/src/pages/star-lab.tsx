@@ -8085,10 +8085,10 @@ function DocIntelPanel({ pin }: { pin: string }) {
             </div>
             <div>
               <p className="text-slate-600 font-semibold mb-1">Drop a file or click to upload</p>
-              <p className="text-slate-400 text-sm">PDF, TXT, CSV, Markdown, JSON — up to 10MB</p>
+              <p className="text-slate-400 text-sm">PDF, Word, CSV, TXT, Markdown, JSON — up to 10MB</p>
             </div>
             <div className="flex gap-2 flex-wrap justify-center">
-              {["PDF", "CSV", "TXT", "Markdown", "JSON"].map(t => (
+              {["PDF", "Word", "CSV", "TXT", "Markdown", "JSON"].map(t => (
                 <span key={t} className="text-xs px-2.5 py-1 rounded-lg" style={{ background: "rgba(15,23,42,0.06)", color: "rgba(15,23,42,0.6)", border: "1px solid rgba(15,23,42,0.09)" }}>{t}</span>
               ))}
             </div>

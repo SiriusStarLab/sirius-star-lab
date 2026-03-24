@@ -153,7 +153,24 @@ export function ChatInput({ onSend, isTyping, onStop }: ChatInputProps) {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    if (file.type === "application/pdf" || file.name.endsWith(".pdf")) {
+    const lowerName = file.name.toLowerCase();
+    const isDocument =
+      file.type === "application/pdf" ||
+      file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+      file.type === "application/msword" ||
+      file.type === "text/plain" ||
+      file.type === "text/csv" ||
+      file.type === "text/markdown" ||
+      file.type === "application/json" ||
+      lowerName.endsWith(".pdf") ||
+      lowerName.endsWith(".docx") ||
+      lowerName.endsWith(".doc") ||
+      lowerName.endsWith(".txt") ||
+      lowerName.endsWith(".csv") ||
+      lowerName.endsWith(".md") ||
+      lowerName.endsWith(".json");
+
+    if (isDocument) {
       reader.onload = (ev) => {
         const result = ev.target?.result as string;
         const base64 = result.split(",")[1];
@@ -425,7 +442,7 @@ export function ChatInput({ onSend, isTyping, onStop }: ChatInputProps) {
               <X size={8} className="text-primary" />
             </button>
           </div>
-          <span className="text-xs text-muted-foreground/50">Document ready · Sirius will read and analyse it</span>
+          <span className="text-xs text-muted-foreground/50">Document ready · Sirius will read and analyse it — then ask your question below</span>
         </div>
       )}
 
@@ -458,11 +475,11 @@ export function ChatInput({ onSend, isTyping, onStop }: ChatInputProps) {
             background: (imageBase64 || documentBase64) ? "hsl(193 100% 52% / 0.15)" : "transparent",
             color: (imageBase64 || documentBase64) ? "hsl(193 100% 52%)" : "hsl(220 14% 38%)",
           }}
-          title="Attach image or PDF document"
+          title="Attach image or document (PDF, Word, CSV, TXT)"
         >
           <Paperclip size={16} />
         </button>
-        <input ref={fileInputRef} type="file" accept="image/*,.pdf,application/pdf" className="hidden" onChange={handleFileSelect} />
+        <input ref={fileInputRef} type="file" accept="image/*,.pdf,.docx,.doc,.txt,.csv,.md,.json,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,text/plain,text/csv,text/markdown,application/json" className="hidden" onChange={handleFileSelect} />
 
         <Textarea
           ref={textareaRef}

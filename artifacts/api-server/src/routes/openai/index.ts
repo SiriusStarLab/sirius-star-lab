@@ -895,16 +895,29 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
   const documentName = body.data.documentName as string | undefined;
   const systemPrompt = buildSystemPrompt(profile, mode);
 
-  // Extract text from PDF document if provided
+  // Extract text from uploaded document (PDF, Word, plain text, CSV, Markdown)
   let extractedDocumentText: string | null = null;
   if (documentBase64) {
     try {
-      const pdfParse = (await import("pdf-parse")).default;
       const buffer = Buffer.from(documentBase64, "base64");
-      const parsed = await pdfParse(buffer);
-      extractedDocumentText = parsed.text?.trim() || null;
+      const lowerName = (documentName || "").toLowerCase();
+      const isDocx = lowerName.endsWith(".docx") || lowerName.endsWith(".doc");
+      const isPdf  = lowerName.endsWith(".pdf");
+
+      if (isPdf) {
+        const pdfParse = (await import("pdf-parse")).default;
+        const parsed = await pdfParse(buffer);
+        extractedDocumentText = parsed.text?.trim() || null;
+      } else if (isDocx) {
+        const mammoth = (await import("mammoth")).default;
+        const result = await mammoth.extractRawText({ buffer });
+        extractedDocumentText = result.value?.trim() || null;
+      } else {
+        // TXT, CSV, Markdown, JSON — read as plain text
+        extractedDocumentText = buffer.toString("utf-8").trim() || null;
+      }
     } catch (err: any) {
-      console.error("PDF parse error:", err?.message);
+      console.error("Document extract error:", err?.message);
     }
   }
 

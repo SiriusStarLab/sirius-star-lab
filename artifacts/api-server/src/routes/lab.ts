@@ -3252,7 +3252,11 @@ router.post("/lab/docs", async (req, res): Promise<void> => {
     let extractedText = "";
     const buffer = Buffer.from(fileBase64, "base64");
 
-    if (fileType === "application/pdf" || fileName?.toLowerCase().endsWith(".pdf")) {
+    const lowerName = (fileName || "").toLowerCase();
+    const isDocx = fileType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || lowerName.endsWith(".docx") || lowerName.endsWith(".doc");
+    const isPdf  = fileType === "application/pdf" || lowerName.endsWith(".pdf");
+
+    if (isPdf) {
       try {
         const pdfParse = (await import("pdf-parse")).default;
         const parsed = await pdfParse(buffer);
@@ -3260,7 +3264,16 @@ router.post("/lab/docs", async (req, res): Promise<void> => {
       } catch {
         extractedText = buffer.toString("utf-8").replace(/[^\x20-\x7E\n\r\t]/g, " ").trim();
       }
+    } else if (isDocx) {
+      try {
+        const mammoth = (await import("mammoth")).default;
+        const result = await mammoth.extractRawText({ buffer });
+        extractedText = result.value;
+      } catch {
+        extractedText = buffer.toString("utf-8").replace(/[^\x20-\x7E\n\r\t]/g, " ").trim();
+      }
     } else {
+      // Plain text, CSV, Markdown, JSON, TXT — read as UTF-8 directly
       extractedText = buffer.toString("utf-8");
     }
 
