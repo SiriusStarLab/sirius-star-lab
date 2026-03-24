@@ -98,7 +98,8 @@ if (!isDev) {
   const frontendDist = path.join(process.cwd(), "artifacts/ai-chat/dist/public");
   app.use(express.static(frontendDist, { maxAge: "1h" }));
   // SPA fallback — any path that isn't an API route returns index.html
-  app.get("*", (_req, res) => {
+  // Use app.use() not app.get("*") — Express 5 removed bare wildcard route syntax
+  app.use((_req, res) => {
     res.sendFile(path.join(frontendDist, "index.html"));
   });
 }
