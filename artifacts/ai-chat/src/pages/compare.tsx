@@ -101,7 +101,7 @@ export function ComparePage() {
         <div className="max-w-screen-xl mx-auto px-6 py-5 flex items-center justify-between">
           <a href="/" className="flex items-center gap-2.5 group">
             <img src="/sirius-logo.png" alt="Sirius Star Lab" className="w-8 h-8 rounded-xl" onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
-            <span className="font-bold text-base tracking-tight" style={{ color: "#00D4FF" }}>SIRIUS AI</span>
+            <span className="font-bold text-base tracking-tight" style={{ color: "#00D4FF" }}>SIRIUS STAR LAB</span>
           </a>
           <div className="flex items-center gap-3">
             <a href="/discover" className="text-sm text-slate-400 hover:text-slate-700 transition-colors">Discover</a>
