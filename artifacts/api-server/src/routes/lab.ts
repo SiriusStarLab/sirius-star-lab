@@ -2109,21 +2109,12 @@ async function runProjectFundingAnalysis(projectId: number) {
     const [project] = await db.select().from(labProjects).where(eq(labProjects.id, projectId));
     if (!project) return;
 
-    const hasContent = (project.brief && project.brief.length > 30) ||
-      (project.specs && project.specs.length > 30) ||
-      (project.research && project.research.length > 30);
-
-    if (!hasContent) {
-      await db.update(labProjects).set({ fundingStatus: "" }).where(eq(labProjects.id, projectId));
-      return;
-    }
-
     const projectSummary = {
       id: project.id,
       name: project.name,
       industry: project.industry,
       phase: project.phase,
-      brief: (project.brief || "").slice(0, 1200),
+      brief: (project.brief || "").slice(0, 1200) || "(no brief yet — analyse based on product name and industry)",
       specs: (project.specs || "").slice(0, 800),
       research: (project.research || "").slice(0, 600),
       materials: (project.materials || "").slice(0, 400),
