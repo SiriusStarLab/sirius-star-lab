@@ -6,6 +6,7 @@ import { generateImageBuffer } from "@workspace/integrations-openai-ai-server/im
 import { ObjectStorageService } from "../lib/objectStorage";
 import { runLabAutoScan, isLabScanRunning } from "../lib/lab-auto-scan.js";
 import { runAiArchSweep, getAiArchSweepStatus } from "../lib/ai-arch-sweep.js";
+import { runOrchestration, type OrchEvent } from "../lib/orchestrator.js";
 import { recordPinFailure, clearPinRecord, securityLog } from "../middlewares/security.js";
 
 const router: IRouter = Router();
@@ -4946,6 +4947,31 @@ router.get("/lab/voice/journal", authMiddleware, async (req: Request, res: Respo
   } catch (err: any) {
     console.error("[VoiceJournal] Load error:", err?.message);
     return res.json({ entries: [] });
+  }
+});
+
+// ── Command Centre Orchestrator ────────────────────────────────────────────────
+
+router.post("/lab/orchestrate", authMiddleware, async (req: Request, res: Response) => {
+  const { command } = req.body as { command?: string };
+  if (!command?.trim()) return res.status(400).json({ error: "command is required" });
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders();
+
+  const send = (event: OrchEvent) => {
+    res.write(`data: ${JSON.stringify(event)}\n\n`);
+    if ("flush" in res && typeof (res as any).flush === "function") (res as any).flush();
+  };
+
+  try {
+    await runOrchestration(command.trim(), send);
+  } catch (err: any) {
+    send({ type: "fatal", error: err.message ?? "Orchestration failed" });
+  } finally {
+    res.end();
   }
 });
 

@@ -247,7 +247,7 @@ async function runScanWithWebSearch(systemPrompt: string, userPrompt: string, ma
 
 // ── Funding analysis ──────────────────────────────────────────────────────────
 
-async function triggerFundingForProject(projectId: number) {
+export async function triggerFundingForProject(projectId: number) {
   try {
     const [project] = await db.select().from(labProjects).where(eq(labProjects.id, projectId));
     if (!project) return;
@@ -347,7 +347,7 @@ CRITICAL RULES:
   return rolePrompts[agentId] || base;
 }
 
-async function triggerAutoBuildForProject(
+export async function triggerAutoBuildForProject(
   projectId: number,
   name: string,
   brief: string,

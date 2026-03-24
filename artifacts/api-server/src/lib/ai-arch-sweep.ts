@@ -68,7 +68,7 @@ Rules:
 - Be precise and specific to this exact project — no generic advice
 - marketReadinessScore: 1 = concept only, 10 = ready to ship`;
 
-async function analyseProject(p: {
+export async function analyseProject(p: {
   id: number; name: string; industry: string; brief: string;
   specs: string; phase: string;
 }): Promise<AiArchInsights | null> {
