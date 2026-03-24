@@ -307,7 +307,7 @@ async function streamChatResponse(
 
   const stream = await (openai as any).responses.create({
     model: "gpt-4o",
-    tools: [{ type: "web_search_preview" }],
+    tools: [{ type: "web_search_preview", search_context_size: "high" }],
     instructions: systemPrompt,
     input: inputMessages,
     stream: true,
@@ -338,7 +338,7 @@ async function streamWithSearch(
 ): Promise<string> {
   const stream = await (openai as any).responses.create({
     model: "gpt-4o",
-    tools: [{ type: "web_search_preview" }],
+    tools: [{ type: "web_search_preview", search_context_size: "high" }],
     instructions: systemPrompt,
     input: [{ role: "user", content: userMessage }],
     stream: true,
@@ -751,7 +751,7 @@ CRITICAL EXECUTION RULES — READ CAREFULLY:
       try {
         const result = await (openai as any).responses.create({
           model: "gpt-4o",
-          tools: [{ type: "web_search_preview" }],
+          tools: [{ type: "web_search_preview", search_context_size: "high" }],
           instructions: `You are a research assistant. Search the web and return comprehensive, factual results about: ${query}. Include relevant data, numbers, sources, and current information. Be thorough.`,
           input: [{ role: "user", content: `Search for: ${query}` }],
         });
@@ -1535,7 +1535,7 @@ Be brutally specific. Reference real things. No generic advice.`;
   try {
     const response = await (openai as any).responses.create({
       model: "gpt-4o",
-      tools: [{ type: "web_search_preview" }],
+      tools: [{ type: "web_search_preview", search_context_size: "high" }],
       instructions: systemPrompt,
       input: [{ role: "user", content: userPrompt }],
     });
@@ -2509,7 +2509,7 @@ router.post("/lab/projects/:id/complete-all", authMiddleware, async (req: Reques
     try {
       const stream = await (openai as any).responses.create({
         model: "gpt-4o",
-        tools: [{ type: "web_search_preview" }],
+        tools: [{ type: "web_search_preview", search_context_size: "high" }],
         instructions: LAB_SYSTEM_PROMPT() + `\n\n## PROJECT: ${project.name} (${project.industry})\n${project.brief ? `Brief: ${project.brief.slice(0, 500)}` : ""}`,
         input: [{ role: "user", content: section.prompt }],
         stream: true,
@@ -2872,6 +2872,31 @@ const TOOL_META: Record<string, { label: string; color: string; icon: string }> 
   run_market_scan: { label: "Market scan complete", color: "hsl(25,100%,55%)", icon: "🔭" },
 };
 
+// Detect whether a message is primarily an information/research query
+// that needs live web search rather than tool-calling
+function isResearchQuery(text: string): boolean {
+  const t = text.toLowerCase();
+  // Action keywords → Chat Completions with tools
+  const actionWords = ["create", "save", "remember", "add project", "update", "delete", "make a", "set up", "show me my", "list my", "run a scan"];
+  if (actionWords.some(w => t.includes(w))) return false;
+  // Research keywords → Responses API with web search
+  const searchWords = [
+    "recent", "latest", "news", "report", "today", "this week", "this month",
+    "current", "now", "just happened", "update", "trend", "search",
+    "what is", "who is", "how does", "explain", "tell me about", "find",
+    "information", "data", "statistics", "facts", "evidence", "study",
+    "research", "discovered", "announced", "released", "new",
+    "2024", "2025", "2026",
+  ];
+  if (searchWords.some(w => t.includes(w))) return true;
+  // Default: if message is a question without clear tool intent, use search
+  const isQuestion = t.includes("?") || t.startsWith("what") || t.startsWith("who") ||
+    t.startsWith("how") || t.startsWith("when") || t.startsWith("where") ||
+    t.startsWith("why") || t.startsWith("tell") || t.startsWith("search") ||
+    t.startsWith("find") || t.startsWith("show");
+  return isQuestion;
+}
+
 router.post("/lab/chat", async (req, res): Promise<void> => {
   const pinHeader = req.headers["x-lab-pin"] as string;
   const role = getPinRole(pinHeader);
@@ -2936,6 +2961,74 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
     const GUEST_TOOLS = LAB_TOOLS.filter(t => ["list_projects", "run_market_scan"].includes(t.function.name));
     const activeSystemPrompt = role === "owner" ? ownerSystemPrompt : guestSystemPrompt;
     const activeTools = role === "owner" ? LAB_TOOLS : GUEST_TOOLS;
+
+    const lastUserMsg = messages[messages.length - 1]?.content || "";
+
+    // ── Research branch: use Responses API with live web search ────────────────
+    // When the query is informational/research (not a tool action like "create project"),
+    // skip Chat Completions entirely and stream straight from web-search-enabled model.
+    if (isResearchQuery(lastUserMsg)) {
+      sendEvent({ type: "thinking", text: "Searching the web for current information…" });
+      sendEvent({ type: "searching" });
+
+      const inputMsgs: any[] = [
+        ...messages.slice(0, -1).map((m: { role: string; content: string }) => ({
+          role: m.role as "user" | "assistant", content: m.content,
+        })),
+        {
+          role: "user" as const,
+          content: lastUserMsg,
+        },
+      ];
+
+      try {
+        const searchStream = await (openai as any).responses.create({
+          model: "gpt-4o",
+          tools: [{ type: "web_search_preview", search_context_size: "high" }],
+          instructions: activeSystemPrompt + "\n\nIMPORTANT: The user is asking for information. Search the web thoroughly and give a comprehensive, well-structured answer with specific details, dates, sources, and evidence. Do not be brief — give full depth.",
+          input: inputMsgs,
+          stream: true,
+        });
+
+        let searchResponse = "";
+        const sources: Array<{ url: string; title: string }> = [];
+
+        for await (const event of searchStream) {
+          const evType = (event as any).type as string;
+          if (evType === "response.web_search_call.searching" || evType === "response.web_search_call.in_progress") {
+            sendEvent({ type: "searching" });
+          } else if (evType === "response.output_text.delta") {
+            const delta = (event as any).delta as string;
+            if (delta) {
+              searchResponse += delta;
+              sendEvent({ type: "text", delta });
+            }
+          } else if (evType === "response.completed" || evType === "response.done") {
+            const outputItems: any[] = (event as any).response?.output ?? [];
+            for (const item of outputItems) {
+              if (item.type === "message") {
+                for (const part of item.content ?? []) {
+                  for (const ann of part.annotations ?? []) {
+                    if (ann.type === "url_citation" && ann.url && !sources.find(s => s.url === ann.url)) {
+                      sources.push({ url: ann.url, title: ann.title || ann.url });
+                    }
+                  }
+                }
+              }
+            }
+            if (sources.length > 0) sendEvent({ type: "sources", sources });
+          }
+        }
+
+        sendEvent({ type: "done" });
+        res.end();
+        return;
+      } catch (searchErr: any) {
+        console.error("[Lab/chat] Web search failed, falling through to Chat Completions:", searchErr?.message);
+        sendEvent({ type: "thinking", text: "Web search unavailable — using knowledge base…" });
+      }
+    }
+    // ── Tool-calling branch: Chat Completions with function tools ───────────────
 
     const chatMessages: any[] = [
       { role: "system", content: activeSystemPrompt },
@@ -3108,7 +3201,7 @@ router.post("/lab/deep-research", async (req, res): Promise<void> => {
 
     const stream = await (openai as any).responses.create({
       model: "gpt-4o",
-      tools: [{ type: "web_search_preview" }],
+      tools: [{ type: "web_search_preview", search_context_size: "high" }],
       input: `You are a professional research analyst. Conduct thorough multi-source web research on the following topic and produce a comprehensive, well-structured report with clear sections, key findings, and actionable insights.
 
 RESEARCH TOPIC: ${query}
@@ -4333,7 +4426,7 @@ async function searchDocsForAgent(agentId: string, techStack: string, appName: s
   try {
     const result = await (openai as any).responses.create({
       model: "gpt-4o",
-      tools: [{ type: "web_search_preview" }],
+      tools: [{ type: "web_search_preview", search_context_size: "high" }],
       input: `Search for: "${query}". Return a concise summary (3-5 bullet points) of the most current best practices and API patterns relevant to: ${agentId} development for a ${techStack} application.`,
       max_output_tokens: 400,
     });

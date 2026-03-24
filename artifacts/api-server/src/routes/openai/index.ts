@@ -1012,7 +1012,7 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
     try {
       const stream = await (openai as any).responses.create({
         model: "gpt-4o",
-        tools: [{ type: "web_search_preview" }],
+        tools: [{ type: "web_search_preview", search_context_size: "high" }],
         instructions: systemPrompt,
         input: chatMessages,
         stream: true,
