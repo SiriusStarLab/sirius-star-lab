@@ -4733,7 +4733,13 @@ Analyse this codebase. Output improvement suggestions as JSON lines.`;
 router.post("/lab/voice", authMiddleware, async (req: Request, res: Response) => {
   const { messages = [], context = {} } = req.body as {
     messages: Array<{ role: "user" | "assistant"; content: string }>;
-    context: { mode?: string; projectName?: string; activeTab?: string; projectList?: string[] };
+    context: {
+      mode?: string;
+      projectName?: string;
+      activeTab?: string;
+      projectList?: string[];
+      emotion?: { energy?: string; pitch?: string; pace?: string; mood?: string };
+    };
   };
 
   sseHeaders(res);
@@ -4753,12 +4759,26 @@ router.post("/lab/voice", authMiddleware, async (req: Request, res: Response) =>
     ? `Projects in Star Lab: ${context.projectList.join(", ")}.`
     : "";
 
+  const em = context.emotion || {};
+  const emotionContext = em.mood && em.mood !== "neutral"
+    ? `Emotional state detected from voice analysis — energy: ${em.energy || "normal"}, pitch: ${em.pitch || "normal"}, pace: ${em.pace || "normal"}, inferred mood: ${em.mood}.`
+    : "";
+
+  const emotionGuidance = em.mood === "excited"    ? "Garry sounds excited and energised — match that energy, be enthusiastic, move quickly."
+    : em.mood === "stressed"   ? "Garry sounds stressed or under pressure — be calm, reassuring, and clear. Reduce cognitive load. Offer to help prioritise."
+    : em.mood === "urgent"     ? "Garry sounds urgent — be direct, fast, no small talk. Get straight to the point."
+    : em.mood === "calm"       ? "Garry sounds calm and measured — you can be thoughtful and slightly more expansive in your response."
+    : em.mood === "reflective" ? "Garry sounds reflective — match that pace, be considered, give space for thinking."
+    : em.mood === "focused"    ? "Garry sounds focused and in flow — be precise, efficient, no fluff."
+    : "";
+
   const systemPrompt = `You are Sirius, the AI intelligence partner inside Star Lab — the private R&D command centre for Strategic Innovation Dundee Ltd. You are having a continuous voice conversation with Garry, the founder. Your responses will be spoken aloud, so write naturally for speech — no markdown, no bullet points, no asterisks, no headers. Write in short, clear, conversational sentences.
 
 Current Star Lab context:
 - Active section: ${context.mode || "Dashboard"}
 - ${projectContext}
 - ${projectListContext}
+${emotionContext ? `- ${emotionContext}` : ""}
 
 Star Lab sections you can navigate to: ${sections}
 
@@ -4773,7 +4793,8 @@ Rules:
 - Never say "As an AI" or refer to yourself as a model. You are Sirius.
 - When generating or doing something technical, briefly confirm what you're doing.
 - If the user wants to navigate, always confirm with a natural phrase like "Taking you to Projects now." and include the <<NAVIGATE:X>> tag.
-- Strip all markdown formatting from your response.`;
+- Strip all markdown formatting from your response.
+- EMOTIONAL INTELLIGENCE: ${emotionGuidance || "Read the conversation naturally and respond in kind."} You can occasionally acknowledge the emotional tone naturally — e.g. if Garry sounds stressed, you might say "Let's slow down for a second" — but only when it feels natural, not forced.`;
 
   try {
     const stream = await openai.chat.completions.create({

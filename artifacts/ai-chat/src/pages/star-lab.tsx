@@ -9883,9 +9883,16 @@ function StarLabVoiceWidget({
   const [liveText, setLiveText]         = useState("");
   const [siriusText, setSiriusText]     = useState("");
   const [waveTick, setWaveTick]         = useState(0);
-  const recRef                          = useRef<any>(null);
-  const tickRef                         = useRef<ReturnType<typeof setInterval> | null>(null);
-  const busyRef                         = useRef(false);
+  const recRef        = useRef<any>(null);
+  const tickRef       = useRef<ReturnType<typeof setInterval> | null>(null);
+  const busyRef       = useRef(false);
+  const audioCtxRef   = useRef<AudioContext | null>(null);
+  const analyserRef   = useRef<AnalyserNode | null>(null);
+  const audioStreamRef= useRef<MediaStream | null>(null);
+  const sampleRef     = useRef<ReturnType<typeof setInterval> | null>(null);
+  const emotionRef    = useRef<{ energy: string; pitch: string; pace: string; mood: string }>({ energy: "normal", pitch: "normal", pace: "normal", mood: "neutral" });
+  const wordTimesRef  = useRef<number[]>([]);
+  const [emotion, setEmotion] = useState<{ energy: string; pitch: string; mood: string }>({ energy: "normal", pitch: "normal", mood: "neutral" });
 
   useEffect(() => {
     if (active) {
@@ -9896,9 +9903,78 @@ function StarLabVoiceWidget({
     return () => { if (tickRef.current) clearInterval(tickRef.current); };
   }, [active]);
 
+  const stopAudioAnalysis = () => {
+    if (sampleRef.current) { clearInterval(sampleRef.current); sampleRef.current = null; }
+    try { analyserRef.current?.disconnect(); } catch {}
+    try { audioCtxRef.current?.close(); } catch {}
+    try { audioStreamRef.current?.getTracks().forEach(t => t.stop()); } catch {}
+    analyserRef.current = null;
+    audioCtxRef.current = null;
+    audioStreamRef.current = null;
+  };
+
+  const startAudioAnalysis = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      audioStreamRef.current = stream;
+      const ctx = new AudioContext();
+      audioCtxRef.current = ctx;
+      const source = ctx.createMediaStreamSource(stream);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 512;
+      analyser.smoothingTimeConstant = 0.6;
+      source.connect(analyser);
+      analyserRef.current = analyser;
+
+      const freqData  = new Uint8Array(analyser.frequencyBinCount);
+      const timeData  = new Uint8Array(analyser.fftSize);
+      const sampleRate = ctx.sampleRate;
+      const binHz = sampleRate / analyser.fftSize;
+
+      sampleRef.current = setInterval(() => {
+        analyser.getByteFrequencyData(freqData);
+        analyser.getByteTimeDomainData(timeData);
+
+        // RMS energy from time domain
+        const rms = Math.sqrt(timeData.reduce((s, v) => s + Math.pow((v - 128) / 128, 2), 0) / timeData.length);
+        const energy = rms > 0.12 ? "high" : rms > 0.04 ? "normal" : "low";
+
+        // Dominant pitch from fundamental frequency range (80–400 Hz — human voice)
+        const loIdx = Math.floor(80 / binHz);
+        const hiIdx = Math.floor(400 / binHz);
+        let maxAmp = 0; let maxIdx = loIdx;
+        for (let i = loIdx; i <= hiIdx && i < freqData.length; i++) {
+          if (freqData[i] > maxAmp) { maxAmp = freqData[i]; maxIdx = i; }
+        }
+        const fundamentalHz = maxIdx * binHz;
+        const pitch = fundamentalHz > 260 ? "high" : fundamentalHz > 160 ? "normal" : "low";
+
+        // Pace from word arrival rate
+        const now = Date.now();
+        wordTimesRef.current = wordTimesRef.current.filter(t => now - t < 5000);
+        const wordsPerSec = wordTimesRef.current.length / 5;
+        const pace = wordsPerSec > 2.5 ? "fast" : wordsPerSec > 1 ? "normal" : "slow";
+
+        // Composite mood
+        const mood = energy === "high" && pitch === "high" ? "excited"
+          : energy === "high" && pitch === "low"  ? "stressed"
+          : energy === "low"  && pitch === "low"  ? "calm"
+          : energy === "low"  && pace === "slow"  ? "reflective"
+          : pitch === "high"  && pace === "fast"  ? "urgent"
+          : "focused";
+
+        emotionRef.current = { energy, pitch, pace, mood };
+        setEmotion({ energy, pitch, mood });
+      }, 120);
+    } catch {
+      // Mic permission denied — emotional detection silently disabled
+    }
+  };
+
   const stopListening = () => {
     try { recRef.current?.stop(); } catch {}
     recRef.current = null;
+    stopAudioAnalysis();
   };
 
   const startListening = () => {
@@ -9910,16 +9986,24 @@ function StarLabVoiceWidget({
     rec.continuous = false;
     rec.interimResults = true;
     rec.lang = "en-GB";
-    rec.onstart = () => setPhase("listening");
+    rec.onstart = () => { setPhase("listening"); wordTimesRef.current = []; startAudioAnalysis(); };
     rec.onresult = (e: any) => {
       const text = Array.from(e.results as any[]).map((r: any) => r[0].transcript).join(" ");
       setLiveText(text);
+      // Track word arrivals for pace
+      const wordCount = text.trim().split(/\s+/).length;
+      if (wordCount > wordTimesRef.current.length) {
+        for (let i = wordTimesRef.current.length; i < wordCount; i++) {
+          wordTimesRef.current.push(Date.now());
+        }
+      }
       if (e.results[e.results.length - 1].isFinal && text.trim().length > 1) {
+        stopAudioAnalysis();
         stopListening();
         sendMessage(text.trim());
       }
     };
-    rec.onerror = () => { setPhase("idle"); busyRef.current = false; };
+    rec.onerror = () => { setPhase("idle"); busyRef.current = false; stopAudioAnalysis(); };
     rec.onend   = () => { if (phase === "listening") setPhase("idle"); };
     rec.start();
     setLiveText("");
@@ -9944,6 +10028,7 @@ function StarLabVoiceWidget({
             projectName: activeProject?.name,
             activeTab: undefined,
             projectList: projects.map(p => p.name).slice(0, 10),
+            emotion: emotionRef.current,
           },
         }),
       });
@@ -10079,6 +10164,22 @@ function StarLabVoiceWidget({
               </div>
             )}
 
+            {/* Emotion indicator */}
+            {isListening && emotion.mood && emotion.mood !== "neutral" && (
+              <div className="px-3 pb-1 flex items-center gap-1.5">
+                <span className="text-[9px] font-bold tracking-widest uppercase" style={{
+                  color: emotion.mood === "excited" ? "hsl(45,100%,60%)"
+                    : emotion.mood === "stressed" ? "hsl(0,70%,60%)"
+                    : emotion.mood === "urgent"   ? "hsl(25,90%,60%)"
+                    : emotion.mood === "calm"     ? "hsl(155,70%,60%)"
+                    : "rgba(255,255,255,0.3)"
+                }}>
+                  {emotion.mood}
+                </span>
+                <span className="text-[9px]" style={{ color: "rgba(255,255,255,0.2)" }}>· {emotion.pitch} pitch · {emotion.energy} energy</span>
+              </div>
+            )}
+
             {/* History count */}
             {messages.length > 0 && (
               <div className="px-3 pb-3">
@@ -10129,10 +10230,43 @@ function matchDestination(transcript: string): typeof NAV_DESTINATIONS[0] | null
   return null;
 }
 
-function LabAvatarGreeting({ userName, onNavigate, onDismiss }: {
+function buildContextGreeting(name: string, timeGreet: string, projects: Project[]): string {
+  const parts: string[] = [`${timeGreet}, ${name}.`];
+
+  if (projects.length > 0) {
+    const sorted = [...projects].sort((a, b) =>
+      new Date((b as any).updatedAt || 0).getTime() - new Date((a as any).updatedAt || 0).getTime()
+    );
+    const last = sorted[0];
+    const hoursAgo = (Date.now() - new Date((last as any).updatedAt || 0).getTime()) / 3_600_000;
+    const timeRef = hoursAgo < 2 ? "just a moment ago" : hoursAgo < 24 ? "earlier today" : hoursAgo < 48 ? "yesterday" : "recently";
+    parts.push(`You were last working on ${last.name} ${timeRef}.`);
+
+    const incomplete: string[] = [];
+    if (!last.specs?.trim())        incomplete.push("specifications");
+    if (!last.materials?.trim())    incomplete.push("materials");
+    if (!last.drawingNotes?.trim()) incomplete.push("drawings");
+    if (!last.workflows?.trim())    incomplete.push("workflows");
+    if (incomplete.length > 0) parts.push(`The ${incomplete[0]} section still needs attention.`);
+  }
+
+  const multiIncomplete = projects.filter(p =>
+    !p.brief?.trim() || !p.specs?.trim() || !p.materials?.trim()
+  ).length;
+  if (multiIncomplete > 1) parts.push(`You have ${multiIncomplete} projects with open sections.`);
+
+  const pendingFunding = projects.filter(p => (p as any).fundingStatus === "pending").length;
+  if (pendingFunding > 0) parts.push(`${pendingFunding} funding analysis is still running.`);
+
+  parts.push("Where would you like to go?");
+  return parts.join(" ");
+}
+
+function LabAvatarGreeting({ userName, onNavigate, onDismiss, projects }: {
   userName?: string;
   onNavigate: (mode: NavMode) => void;
   onDismiss: () => void;
+  projects: Project[];
 }) {
   const [visible, setVisible]           = useState(false);
   const [leaving, setLeaving]           = useState(false);
@@ -10208,7 +10342,7 @@ function LabAvatarGreeting({ userName, onNavigate, onDismiss }: {
   useEffect(() => {
     setTimeout(() => setVisible(true), 60);
 
-    const greeting = `Hi ${name}, welcome back to Star Lab! I'm online and ready. Where would you like to go today? Just say it — Projects, Research, Revenue, App Builder, or anything else. Or tap a card below.`;
+    const greeting = buildContextGreeting(name, timeGreet, projects);
     setSiriusText(greeting);
 
     const speakTimer = setTimeout(() => {
@@ -10921,6 +11055,7 @@ export function StarLabPage() {
           userName={userName}
           onNavigate={(mode) => setNavMode(mode)}
           onDismiss={() => setShowGreeting(false)}
+          projects={projects}
         />
       )}
 
