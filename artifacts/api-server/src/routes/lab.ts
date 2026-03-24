@@ -2423,8 +2423,8 @@ router.get("/lab/projects/:id/cad-files/:fileId/download-url", authMiddleware, a
 
 // ── Approval workflow ─────────────────────────────────────────────────────────
 
-// Public — no PIN required (returns count only, no project details)
-router.get("/lab/notification-count", async (_req: Request, res: Response) => {
+// PIN-protected — only Star Lab authenticated sessions get the count
+router.get("/lab/notification-count", authMiddleware, async (_req: Request, res: Response) => {
   try {
     const pending = await db.select({ id: labProjects.id })
       .from(labProjects)

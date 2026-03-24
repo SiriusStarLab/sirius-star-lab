@@ -1,10 +1,18 @@
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import Stripe from "stripe";
 import { db, labReports, labCommissions, labBlueprints, labBlueprintPurchases, labProjects } from "@workspace/db";
 import { eq, desc, sum, count, and } from "drizzle-orm";
 import { openai } from "@workspace/integrations-openai-ai-server";
 
 const router = Router();
+
+const LAB_PIN = process.env.STAR_LAB_PIN || "2025";
+
+function authMiddleware(req: Request, res: Response, next: NextFunction) {
+  const pin = req.headers["x-lab-pin"] as string;
+  if (pin !== LAB_PIN) { res.status(401).json({ error: "Unauthorised" }); return; }
+  next();
+}
 
 function getStripe(): Stripe {
   const key = (process.env.STRIPE_SECRET_KEY ?? "").trim();
@@ -182,7 +190,7 @@ Write with authority and precision. Include specific numbers, market sizes in £
 });
 
 // GET /api/lab/revenue/report/list — list all report sales (Lab-only)
-router.get("/lab/revenue/report/list", async (_req: Request, res: Response) => {
+router.get("/lab/revenue/report/list", authMiddleware, async (_req: Request, res: Response) => {
   try {
     const reports = await db.select().from(labReports).orderBy(desc(labReports.createdAt)).limit(100);
     return res.json(reports);
@@ -357,7 +365,7 @@ router.get("/lab/revenue/commission/confirm", async (req: Request, res: Response
 });
 
 // GET /api/lab/revenue/commissions — list all commissions (Lab-only)
-router.get("/lab/revenue/commissions", async (_req: Request, res: Response) => {
+router.get("/lab/revenue/commissions", authMiddleware, async (_req: Request, res: Response) => {
   try {
     const commissions = await db.select().from(labCommissions).orderBy(desc(labCommissions.createdAt)).limit(100);
     return res.json(commissions);
@@ -367,7 +375,7 @@ router.get("/lab/revenue/commissions", async (_req: Request, res: Response) => {
 });
 
 // PATCH /api/lab/revenue/commissions/:id — update commission status/notes
-router.patch("/lab/revenue/commissions/:id", async (req: Request, res: Response) => {
+router.patch("/lab/revenue/commissions/:id", authMiddleware, async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id);
     const { status, notes } = req.body as { status?: string; notes?: string };
@@ -397,7 +405,7 @@ router.get("/lab/revenue/blueprints", async (_req: Request, res: Response) => {
 });
 
 // POST /api/lab/revenue/blueprints — list a Lab project as a blueprint for sale
-router.post("/lab/revenue/blueprints", async (req: Request, res: Response) => {
+router.post("/lab/revenue/blueprints", authMiddleware, async (req: Request, res: Response) => {
   try {
     const { labProjectId, title, description, category, priceAmount } = req.body as {
       labProjectId?: number;
@@ -476,7 +484,7 @@ router.post("/lab/revenue/blueprints/:id/checkout", async (req: Request, res: Re
 // ─── Revenue Dashboard Stats ────────────────────────────────────────
 
 // GET /api/lab/revenue/stats — total revenue breakdown
-router.get("/lab/revenue/stats", async (_req: Request, res: Response) => {
+router.get("/lab/revenue/stats", authMiddleware, async (_req: Request, res: Response) => {
   try {
     const [reportStats] = await db.select({
       total: sum(labReports.amountPaid),

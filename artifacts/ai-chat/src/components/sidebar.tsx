@@ -23,10 +23,17 @@ import {
 function useLabPendingCount() {
   const [count, setCount] = useState(0);
   useEffect(() => {
+    // Only poll if the user has an active Star Lab session — never expose
+    // internal project counts to unauthenticated public visitors
+    const pin = sessionStorage.getItem("lab_pin");
+    if (!pin) return;
+
     const base = getApiBase();
     const check = async () => {
       try {
-        const res = await fetch(`${base}lab/notification-count`);
+        const res = await fetch(`${base}lab/notification-count`, {
+          headers: { "x-lab-pin": pin },
+        });
         if (res.ok) { const d = await res.json(); setCount(d.pendingApproval || 0); }
       } catch {}
     };
