@@ -11024,25 +11024,36 @@ export function StarLabPage() {
   const anyPendingFunding = projects.some(p => p.fundingStatus === "pending");
   const isGuest = accessLevel === "guest";
 
+  const NAV_CATEGORIES = [
+    { id: "command",      label: "COMMAND",      accent: "hsl(193,100%,42%)",  bg: "hsla(193,100%,42%,0.07)"  },
+    { id: "build",        label: "BUILD",        accent: "hsl(155,70%,42%)",   bg: "hsla(155,70%,42%,0.07)"   },
+    { id: "intelligence", label: "INTELLIGENCE",  accent: "hsl(210,80%,55%)",   bg: "hsla(210,80%,55%,0.07)"   },
+    { id: "revenue",      label: "REVENUE",      accent: "hsl(25,90%,55%)",    bg: "hsla(25,90%,55%,0.07)"    },
+  ] as const;
+
   const ALL_NAV_ITEMS = [
-    { id: "dashboard" as NavMode, label: "Dashboard", icon: LayoutDashboard, color: "hsl(193,100%,45%)", guestAllowed: true },
-    { id: "labchat" as NavMode, label: "Chat with Sirius", icon: MessageSquare, color: "hsl(193,100%,50%)", guestAllowed: true },
-    { id: "appbuilder" as NavMode, label: "App Builder", icon: Rocket, color: "hsl(155,70%,42%)", guestAllowed: false },
-    { id: "projects" as NavMode, label: "Projects", icon: FolderOpen, color: "hsl(193,100%,35%)", guestAllowed: true },
-    { id: "botlab" as NavMode, label: "Bot Lab", icon: Bot, color: "hsl(280,70%,55%)", guestAllowed: false },
-    { id: "autolab" as NavMode, label: "Autonomous Lab", icon: Cpu, color: "hsl(193,100%,40%)", guestAllowed: false },
-    { id: "scout" as NavMode, label: "Scout", icon: Telescope, color: "hsl(45,100%,45%)", guestAllowed: true },
-    { id: "feed" as NavMode, label: "AI Intelligence", icon: Atom, color: "hsl(210,80%,55%)", badge: true, guestAllowed: true },
-    { id: "grants" as NavMode, label: "Funding Radar", icon: BadgeCheck, color: "hsl(155,70%,45%)", pending: anyPendingFunding, guestAllowed: false },
-    { id: "commerce" as NavMode, label: "Commerce Lab", icon: TrendingUp, color: "hsl(25,90%,55%)", guestAllowed: false },
-    { id: "revenue" as NavMode, label: "Revenue Hub", icon: Banknote, color: "hsl(155,70%,45%)", guestAllowed: false },
-    { id: "agency" as NavMode, label: "Agency Hub", icon: Briefcase, color: "hsl(220,80%,55%)", guestAllowed: false },
-    { id: "growth" as NavMode, label: "Growth Engine", icon: Globe, color: "hsl(155,70%,50%)", guestAllowed: false },
-    { id: "brain" as NavMode, label: "Sirius Brain", icon: Brain, color: "hsl(280,70%,65%)", guestAllowed: false },
-    { id: "research" as NavMode, label: "Deep Research", icon: BookOpen, color: "hsl(45,100%,50%)", guestAllowed: true },
-    { id: "docs" as NavMode, label: "Document Intel", icon: FileSearch, color: "hsl(210,90%,55%)", guestAllowed: true },
-    { id: "mission" as NavMode, label: "Mission", icon: Star, color: "hsl(193,100%,50%)", guestAllowed: true },
-    { id: "outreach" as NavMode, label: "Outreach Hub", icon: Mail, color: "hsl(340,80%,60%)", guestAllowed: false },
+    // COMMAND
+    { id: "dashboard" as NavMode,  label: "Dashboard",        icon: LayoutDashboard, color: "hsl(193,100%,45%)", category: "command",      guestAllowed: true  },
+    { id: "labchat"   as NavMode,  label: "Chat with Sirius", icon: MessageSquare,   color: "hsl(193,100%,50%)", category: "command",      guestAllowed: true  },
+    { id: "mission"   as NavMode,  label: "Mission",          icon: Star,            color: "hsl(193,100%,50%)", category: "command",      guestAllowed: true  },
+    // BUILD
+    { id: "appbuilder" as NavMode, label: "App Builder",      icon: Rocket,          color: "hsl(155,70%,42%)",  category: "build",        guestAllowed: false },
+    { id: "projects"   as NavMode, label: "Projects",         icon: FolderOpen,      color: "hsl(155,60%,38%)",  category: "build",        guestAllowed: true  },
+    { id: "botlab"     as NavMode, label: "Bot Lab",          icon: Bot,             color: "hsl(280,70%,55%)",  category: "build",        guestAllowed: false },
+    { id: "autolab"    as NavMode, label: "Autonomous Lab",   icon: Cpu,             color: "hsl(155,50%,40%)",  category: "build",        guestAllowed: false },
+    // INTELLIGENCE
+    { id: "scout"    as NavMode,   label: "Scout",            icon: Telescope,       color: "hsl(45,100%,45%)",  category: "intelligence", guestAllowed: true  },
+    { id: "feed"     as NavMode,   label: "AI Intelligence",  icon: Atom,            color: "hsl(210,80%,55%)",  category: "intelligence", guestAllowed: true,  badge: true },
+    { id: "research" as NavMode,   label: "Deep Research",    icon: BookOpen,        color: "hsl(45,100%,50%)",  category: "intelligence", guestAllowed: true  },
+    { id: "docs"     as NavMode,   label: "Document Intel",   icon: FileSearch,      color: "hsl(210,90%,55%)",  category: "intelligence", guestAllowed: true  },
+    { id: "brain"    as NavMode,   label: "Sirius Brain",     icon: Brain,           color: "hsl(280,70%,65%)",  category: "intelligence", guestAllowed: false },
+    // REVENUE
+    { id: "revenue"  as NavMode,   label: "Revenue Hub",      icon: Banknote,        color: "hsl(155,70%,45%)",  category: "revenue",      guestAllowed: false },
+    { id: "commerce" as NavMode,   label: "Commerce Lab",     icon: TrendingUp,      color: "hsl(25,90%,55%)",   category: "revenue",      guestAllowed: false },
+    { id: "grants"   as NavMode,   label: "Funding Radar",    icon: BadgeCheck,      color: "hsl(155,70%,45%)",  category: "revenue",      guestAllowed: false, pending: anyPendingFunding },
+    { id: "agency"   as NavMode,   label: "Agency Hub",       icon: Briefcase,       color: "hsl(220,80%,55%)",  category: "revenue",      guestAllowed: false },
+    { id: "growth"   as NavMode,   label: "Growth Engine",    icon: Globe,           color: "hsl(155,70%,50%)",  category: "revenue",      guestAllowed: false },
+    { id: "outreach" as NavMode,   label: "Outreach Hub",     icon: Mail,            color: "hsl(340,80%,60%)",  category: "revenue",      guestAllowed: false },
   ];
   const NAV_ITEMS = isGuest ? ALL_NAV_ITEMS.filter(n => n.guestAllowed) : ALL_NAV_ITEMS;
 
@@ -11114,25 +11125,45 @@ export function StarLabPage() {
         </div>
 
         {/* Nav */}
-        <div className="p-2 border-b" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
-          {NAV_ITEMS.map(item => {
-            const Icon = item.icon;
+        <div className="overflow-y-auto" style={{ borderBottom: "1px solid rgba(15,23,42,0.07)", maxHeight: "calc(100vh - 140px)" }}>
+          {NAV_CATEGORIES.map(cat => {
+            const items = NAV_ITEMS.filter(n => n.category === cat.id);
+            if (items.length === 0) return null;
+            const catActive = items.some(n => n.id === navMode);
             return (
-              <button key={item.id} onClick={() => setNavMode(item.id)}
-                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl mb-0.5 transition-all text-left"
-                style={{
-                  background: navMode === item.id ? "#F1F5F9" : "transparent",
-                  border: navMode === item.id ? `1px solid ${item.color}30` : "1px solid transparent"
-                }}>
-                <Icon className="w-4 h-4 flex-shrink-0" style={{ color: navMode === item.id ? item.color : "rgba(15,23,42,0.6)" }} />
-                <span className="text-sm flex-1" style={{ color: navMode === item.id ? item.color : "rgba(15,23,42,0.45)" }}>{item.label}</span>
-                {(item as any).badge && (
-                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: item.color }} />
-                )}
-                {(item as any).pending && (
-                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 animate-pulse" style={{ background: "hsl(45,100%,55%)" }} />
-                )}
-              </button>
+              <div key={cat.id} className="mb-0.5">
+                {/* Category header */}
+                <div className="flex items-center gap-2 px-3 pt-2.5 pb-1">
+                  <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: cat.accent }} />
+                  <span className="text-[9px] font-bold tracking-widest" style={{ color: catActive ? cat.accent : "rgba(15,23,42,0.3)" }}>{cat.label}</span>
+                  <div className="flex-1 h-px" style={{ background: catActive ? `${cat.accent}40` : "rgba(15,23,42,0.06)" }} />
+                </div>
+                {/* Items */}
+                <div className="px-2 pb-1" style={{ borderLeft: `2px solid ${cat.bg}`, marginLeft: "10px" }}>
+                  {items.map(item => {
+                    const Icon = item.icon;
+                    const active = navMode === item.id;
+                    return (
+                      <button key={item.id} onClick={() => setNavMode(item.id)}
+                        className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg mb-0.5 transition-all text-left"
+                        style={{
+                          background: active ? cat.bg : "transparent",
+                          borderLeft: active ? `2px solid ${item.color}` : "2px solid transparent",
+                          marginLeft: "-2px",
+                        }}>
+                        <Icon className="w-3.5 h-3.5 flex-shrink-0" style={{ color: active ? item.color : "rgba(15,23,42,0.45)" }} />
+                        <span className="text-xs flex-1 font-medium" style={{ color: active ? item.color : "rgba(15,23,42,0.5)" }}>{item.label}</span>
+                        {item.badge && (
+                          <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: item.color }} />
+                        )}
+                        {item.pending && (
+                          <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 animate-pulse" style={{ background: "hsl(45,100%,55%)" }} />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             );
           })}
         </div>
