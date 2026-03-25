@@ -153,14 +153,8 @@ function parseSpokenPin(transcript: string): string {
 
 /* ─── Cinematic greeting shown before the PIN pad ─────────────────────── */
 function StarLabGreeting({ userName, onComplete }: { userName?: string; onComplete: () => void }) {
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  const [speechDone, setSpeechDone] = useState(false);
-  const [waveTick, setWaveTick] = useState(0);
   const [captionIdx, setCaptionIdx] = useState(-1);
-  const hasSpoken = useRef(false);
   const completedRef = useRef(false);
-
-  const greetingText = `Hi ${userName || "Garry"}, welcome back to Star Lab. Please enter your PIN to continue.`;
 
   const captions = [
     `Hi ${userName || "there"},`,
@@ -172,43 +166,17 @@ function StarLabGreeting({ userName, onComplete }: { userName?: string; onComple
   const finish = () => {
     if (completedRef.current) return;
     completedRef.current = true;
-    window.speechSynthesis?.cancel();
-    setIsSpeaking(false);
-    setSpeechDone(true);
-    setCaptionIdx(captions.length - 1);
     setTimeout(onComplete, 400);
   };
 
-  // Waveform ticker
+  // Auto-advance captions then proceed to PIN
   useEffect(() => {
-    const id = setInterval(() => setWaveTick(t => t + 1), 120);
-    return () => clearInterval(id);
+    const delays = [200, 900, 1800, 2800];
+    const timers = delays.map((d, i) => setTimeout(() => setCaptionIdx(i), d));
+    // Auto-advance to PIN after captions complete
+    const done = setTimeout(finish, 4000);
+    return () => { timers.forEach(clearTimeout); clearTimeout(done); };
   }, []);
-
-  // Auto-speak on mount (brief delay so audio context unlocks)
-  useEffect(() => {
-    if (hasSpoken.current) return;
-    hasSpoken.current = true;
-    const startSpeak = () => {
-      setIsSpeaking(true);
-      // Advance captions in sync with speech timing
-      const delays = [0, 900, 2000, 3200];
-      delays.forEach((d, i) => setTimeout(() => setCaptionIdx(i), d));
-      speakText(greetingText, () => {
-        setIsSpeaking(false);
-        setSpeechDone(true);
-        setTimeout(finish, 600);
-      });
-    };
-    // 400ms allows the browser to settle
-    const t = setTimeout(startSpeak, 400);
-    // Safari safety net — speechSynthesis.onend often never fires on Safari/iOS.
-    // Force-advance after 8 seconds regardless so the PIN pad always appears.
-    const safetyTimer = setTimeout(finish, 8000);
-    return () => { clearTimeout(t); clearTimeout(safetyTimer); window.speechSynthesis?.cancel(); };
-  }, []);
-
-  const bars = 12;
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center relative overflow-hidden" style={{ background: "#F8FAFC" }}>
@@ -231,7 +199,7 @@ function StarLabGreeting({ userName, onComplete }: { userName?: string; onComple
       </div>
 
       <div className="flex flex-col items-center gap-8 relative z-10 px-8 text-center">
-        {/* Twin avatar with speaking rings */}
+        {/* Twin avatar */}
         <motion.div
           initial={{ opacity: 0, scale: 0.7 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -239,15 +207,6 @@ function StarLabGreeting({ userName, onComplete }: { userName?: string; onComple
           className="relative flex items-center justify-center"
           style={{ width: 160, height: 160 }}
         >
-          {/* Speaking pulse rings */}
-          {isSpeaking && [1, 2, 3].map(n => (
-            <motion.div key={n}
-              className="absolute inset-0 rounded-full"
-              style={{ border: `1px solid hsl(193,100%,52%)` }}
-              animate={{ scale: [1, 1.15 + n * 0.12], opacity: [0.6, 0] }}
-              transition={{ duration: 1.2, repeat: Infinity, delay: n * 0.3, ease: "easeOut" }}
-            />
-          ))}
           <div className="ai-ring-outer absolute inset-0 rounded-full"
             style={{ border: "1px dashed hsla(193,100%,52%,0.35)" }} />
           <div className="absolute inset-3 rounded-full"
@@ -260,22 +219,6 @@ function StarLabGreeting({ userName, onComplete }: { userName?: string; onComple
               style={{ filter: "brightness(1.15) contrast(1.08) saturate(1.2)" }} />
           </div>
         </motion.div>
-
-        {/* Live waveform when speaking */}
-        {isSpeaking && (
-          <div className="flex items-center gap-1" style={{ height: 32 }}>
-            {Array.from({ length: bars }).map((_, i) => {
-              const h = 6 + Math.abs(Math.sin((waveTick * 0.4 + i * 0.9))) * 22;
-              return (
-                <motion.div key={i}
-                  animate={{ height: h }}
-                  transition={{ duration: 0.12 }}
-                  style={{ width: 3, borderRadius: 3, background: "hsl(193,100%,45%)", opacity: 0.7 + (h / 28) * 0.3 }}
-                />
-              );
-            })}
-          </div>
-        )}
 
         {/* Captions */}
         <div className="space-y-1.5 min-h-[100px] flex flex-col items-center justify-center">
@@ -301,12 +244,7 @@ function StarLabGreeting({ userName, onComplete }: { userName?: string; onComple
           ))}
         </div>
 
-        {/* Subtle status */}
-        <p className="font-mono text-xs" style={{ color: "rgba(15,23,42,0.5)", letterSpacing: "0.2em" }}>
-          {speechDone ? "TRANSITIONING…" : isSpeaking ? "SIRIUS SPEAKING…" : "INITIALISING…"}
-        </p>
-
-        {/* Skip button — always visible so users can bypass speech if it stalls */}
+        {/* Tap to skip */}
         <button
           onClick={finish}
           className="font-mono text-xs px-4 py-2 rounded-lg transition-all hover:opacity-100"
@@ -329,17 +267,11 @@ function PinGate({ onUnlock, userName }: { onUnlock: (pin: string, role: AccessR
   const [countdown, setCountdown] = useState(0);
   const [shake, setShake] = useState(false);
   const [scanLine, setScanLine] = useState(0);
-  // Voice state
-  const [voiceStatus, setVoiceStatus] = useState<"idle" | "listening" | "heard" | "speaking">("idle");
-  const [voiceHint, setVoiceHint] = useState("");
-  const [waveTick, setWaveTick] = useState(0);
-  const recognitionRef = useRef<any>(null);
-  const voiceActiveRef = useRef(false);
   const base = getApiBase();
 
-  // Scan line + waveform animation
+  // Scan line animation
   useEffect(() => {
-    const id = setInterval(() => { setScanLine(p => (p + 1) % 100); setWaveTick(t => t + 1); }, 30);
+    const id = setInterval(() => setScanLine(p => (p + 1) % 100), 30);
     return () => clearInterval(id);
   }, []);
 
@@ -356,7 +288,7 @@ function PinGate({ onUnlock, userName }: { onUnlock: (pin: string, role: AccessR
     return () => clearInterval(id);
   }, [lockoutEnd]);
 
-  // Keyboard support (fallback)
+  // Keyboard support
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (status === "locked" || status === "loading" || phase !== "pin") return;
@@ -368,77 +300,10 @@ function PinGate({ onUnlock, userName }: { onUnlock: (pin: string, role: AccessR
     return () => window.removeEventListener("keydown", onKey);
   }, [digits, status, phase]);
 
-  // Start voice recognition for PIN when phase becomes "pin"
-  useEffect(() => {
-    if (phase !== "pin" || status === "locked") return;
-    const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRec) {
-      setVoiceHint("Tap your PIN below");
-      return;
-    }
-    // Brief delay so any previous speech finishes
-    const t = setTimeout(() => startListening(), 600);
-    return () => { clearTimeout(t); stopListening(); };
-  }, [phase, status]);
-
-  const startListening = () => {
-    const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRec || voiceActiveRef.current || status === "loading") return;
-    try {
-      const rec = new SpeechRec();
-      recognitionRef.current = rec;
-      rec.lang = "en-GB";
-      rec.continuous = false;
-      rec.interimResults = false;
-      rec.maxAlternatives = 3;
-      rec.onstart = () => { voiceActiveRef.current = true; setVoiceStatus("listening"); setVoiceHint("Listening…"); };
-      rec.onresult = (e: any) => {
-        const transcripts = Array.from(e.results[0]).map((r: any) => r.transcript);
-        let pin = "";
-        for (const t of transcripts) { pin = parseSpokenPin(t); if (pin.length >= 4) break; }
-        if (pin.length >= 4) {
-          setVoiceStatus("heard");
-          setVoiceHint(`Heard: ${pin.split("").join(" ")} — verifying…`);
-          const d = pin.split("").slice(0, MAX_PIN_DIGITS);
-          setDigits(d);
-          setTimeout(() => submitPin(d), 500);
-        } else {
-          setVoiceStatus("speaking");
-          const msg = "I didn't quite catch that. Please say your PIN digits clearly.";
-          setVoiceHint(msg);
-          speakText(msg, () => { setVoiceStatus("idle"); startListening(); });
-        }
-      };
-      rec.onerror = (e: any) => {
-        voiceActiveRef.current = false;
-        setVoiceStatus("speaking");
-        if (e.error === "no-speech") {
-          const msg = "I didn't hear anything. Please say your PIN.";
-          setVoiceHint(msg);
-          speakText(msg, () => { setVoiceStatus("idle"); startListening(); });
-        } else if (e.error === "not-allowed") {
-          setVoiceHint("Microphone blocked — please use the keypad below");
-        } else {
-          setVoiceHint("Voice unavailable — use the keypad");
-        }
-      };
-      rec.onend = () => { voiceActiveRef.current = false; };
-      rec.start();
-    } catch { setVoiceHint("Tap your PIN below"); }
-  };
-
-  const stopListening = () => {
-    try { recognitionRef.current?.stop(); } catch {}
-    voiceActiveRef.current = false;
-  };
-
   const press = (d: string) => {
     if (digits.length >= MAX_PIN_DIGITS || status === "loading" || status === "locked") return;
-    stopListening();
     setDigits(prev => [...prev, d]);
     setStatus("idle");
-    setVoiceStatus("idle");
-    setVoiceHint("");
   };
 
   const deleteLast = () => {
@@ -457,14 +322,7 @@ function PinGate({ onUnlock, userName }: { onUnlock: (pin: string, role: AccessR
     const pin = ds.join("");
     setStatus("loading");
 
-    // Safety net: if status stays "loading" for >8 s (e.g. network timeout or
-    // speech synthesis doesn't fire onend), reset so the pad isn't frozen.
-    const loadingGuard = setTimeout(() => {
-      setStatus("idle");
-      setVoiceStatus("idle");
-      setDigits([]);
-    }, 8000);
-
+    const loadingGuard = setTimeout(() => { setStatus("idle"); setDigits([]); }, 8000);
     const clearGuard = () => clearTimeout(loadingGuard);
 
     try {
@@ -478,11 +336,6 @@ function PinGate({ onUnlock, userName }: { onUnlock: (pin: string, role: AccessR
         const role: AccessRole = body.role === "guest" ? "guest" : "owner";
         sessionStorage.setItem("lab_pin", pin);
         sessionStorage.setItem("lab_role", role);
-        const welcome = `Hi ${userName || "Garry"}, great to have you back. You're in. What can I help you with today?`;
-        setVoiceStatus("speaking");
-        setVoiceHint(welcome);
-        // Unlock immediately — speech plays in parallel, doesn't block entry
-        speakText(welcome);
         onUnlock(pin, role);
       } else {
         clearGuard();
@@ -491,37 +344,24 @@ function PinGate({ onUnlock, userName }: { onUnlock: (pin: string, role: AccessR
           setStatus("locked");
           setLockoutEnd(new Date(body.unlocksAt).getTime());
           setAttempts(MAX_ATTEMPTS);
-          speakText("Terminal locked after too many failed attempts. Please wait before trying again.");
         } else {
           const newAttempts = body.attemptsLeft !== undefined ? MAX_ATTEMPTS - body.attemptsLeft : attempts + 1;
           setAttempts(newAttempts);
           if (newAttempts >= MAX_ATTEMPTS) {
             setStatus("locked");
             setLockoutEnd(Date.now() + LOCKOUT_SECONDS * 1000);
-            speakText("Terminal locked. Too many incorrect attempts.");
           } else {
-            // Reset status immediately — don't wait for speech to finish
             setStatus("idle");
-            setVoiceStatus("idle");
             triggerShake();
             setDigits([]);
-            const attemptsLeft = MAX_ATTEMPTS - newAttempts;
-            const msg = `Access denied. ${attemptsLeft} attempt${attemptsLeft !== 1 ? "s" : ""} remaining.`;
-            setVoiceHint(msg);
-            speakText(msg, () => { startListening(); });
           }
         }
       }
     } catch {
       clearGuard();
-      // Reset immediately so the pad is never frozen after a network error
       setStatus("idle");
-      setVoiceStatus("idle");
       triggerShake();
       setDigits([]);
-      const msg = "Connection error. Please try again.";
-      setVoiceHint(msg);
-      speakText(msg);
     }
   };
 
@@ -597,43 +437,10 @@ function PinGate({ onUnlock, userName }: { onUnlock: (pin: string, role: AccessR
           </div>
         </div>
 
-        {/* Voice indicator */}
-        <div className="flex flex-col items-center gap-2 w-full">
-          {voiceStatus === "listening" && (
-            <div className="flex flex-col items-center gap-2">
-              <div className="flex items-center gap-1" style={{ height: 28 }}>
-                {Array.from({ length: 10 }).map((_, i) => {
-                  const h = 5 + Math.abs(Math.sin(waveTick * 0.35 + i * 0.85)) * 18;
-                  return (
-                    <motion.div key={i} animate={{ height: h }} transition={{ duration: 0.12 }}
-                      style={{ width: 3, borderRadius: 3, background: "hsl(193,100%,45%)", opacity: 0.75 + (h / 22) * 0.25 }}
-                    />
-                  );
-                })}
-              </div>
-              <p className="font-mono text-xs animate-pulse" style={{ color: "hsl(193,100%,40%)", letterSpacing: "0.15em" }}>
-                LISTENING FOR PIN…
-              </p>
-            </div>
-          )}
-          {voiceStatus === "speaking" && (
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: "hsl(193,100%,50%)" }} />
-              <p className="font-mono text-xs" style={{ color: "hsl(193,100%,38%)", letterSpacing: "0.12em" }}>SIRIUS SPEAKING…</p>
-            </div>
-          )}
-          {voiceStatus === "heard" && (
-            <p className="font-mono text-xs" style={{ color: "hsl(155,70%,40%)", letterSpacing: "0.12em" }}>✓ PIN RECEIVED</p>
-          )}
-          {voiceHint && voiceStatus === "idle" && (
-            <p className="font-mono text-xs text-center" style={{ color: "rgba(15,23,42,0.4)", letterSpacing: "0.1em" }}>{voiceHint}</p>
-          )}
-        </div>
-
         {/* PIN dots */}
         <div className="w-full px-4">
           <div className="flex items-center justify-center gap-3 py-5 px-6 rounded-2xl"
-            style={{ background: "#F5F7FF", border: `1px solid ${status === "error" ? "hsla(0,70%,50%,0.4)" : status === "locked" ? "hsla(0,70%,50%,0.3)" : voiceStatus === "listening" ? "hsla(193,100%,45%,0.35)" : "rgba(0,200,180,0.1)"}`, boxShadow: voiceStatus === "listening" ? "0 0 20px hsla(193,100%,45%,0.12)" : status === "error" ? "0 0 20px hsla(0,70%,50%,0.1)" : "inset 0 1px 0 rgba(15,23,42,0.04)" }}>
+            style={{ background: "#F5F7FF", border: `1px solid ${status === "error" ? "hsla(0,70%,50%,0.4)" : status === "locked" ? "hsla(0,70%,50%,0.3)" : "rgba(0,200,180,0.1)"}`, boxShadow: status === "error" ? "0 0 20px hsla(0,70%,50%,0.1)" : "inset 0 1px 0 rgba(15,23,42,0.04)" }}>
             {status === "locked" ? (
               <div className="flex items-center gap-2.5">
                 <Lock className="w-4 h-4" style={{ color: "hsl(0,70%,55%)" }} />
@@ -715,16 +522,6 @@ function PinGate({ onUnlock, userName }: { onUnlock: (pin: string, role: AccessR
             );
           })}
         </div>
-
-        {/* Speak again button (shown when voice is idle and mic was available) */}
-        {voiceStatus === "idle" && status !== "locked" && status !== "loading" && (
-          <button onClick={() => startListening()}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl font-mono text-xs transition-all active:scale-95"
-            style={{ background: "hsla(193,100%,45%,0.08)", border: "1px solid hsla(193,100%,45%,0.2)", color: "hsl(193,100%,38%)", letterSpacing: "0.12em" }}>
-            <Mic className="w-3.5 h-3.5" />
-            SPEAK YOUR PIN
-          </button>
-        )}
 
         <p className="font-mono text-xs" style={{ color: "rgba(15,23,42,0.45)", letterSpacing: "0.15em" }}>
           AUTHORISED PERSONNEL ONLY
@@ -11147,11 +10944,15 @@ function LabFloatingChat({ pin, navMode, activeProject }: {
         for (const line of lines) {
           if (!line.startsWith("data: ")) continue;
           const raw = line.slice(6).trim();
-          if (raw === "[DONE]") break;
+          if (raw === "[DONE]") { break; }
           try {
             const evt = JSON.parse(raw);
-            const delta = evt.choices?.[0]?.delta?.content ?? evt.content ?? "";
-            if (delta) { full += delta; setStreamText(full); }
+            // Endpoint sends { type:"text", delta } — not OpenAI streaming format
+            if (evt.type === "done") { break; }
+            if (evt.type === "text" && evt.delta) {
+              full += evt.delta;
+              setStreamText(full);
+            }
           } catch { /* ignore */ }
         }
       }
@@ -11169,10 +10970,22 @@ function LabFloatingChat({ pin, navMode, activeProject }: {
 
   return (
     <>
-      {/* Chat panel */}
+      {/* Chat panel — full-screen on mobile, compact panel on desktop */}
       {open && (
-        <div className="fixed bottom-20 right-5 z-50 flex flex-col rounded-2xl overflow-hidden"
-          style={{ width: 360, height: 480, background: "#fff", boxShadow: "0 20px 60px rgba(15,23,42,0.18), 0 0 0 1px rgba(15,23,42,0.08)", transform: "translateY(0)", animation: "slideUp 0.2s ease-out" }}>
+        <div className="fixed z-50 flex flex-col overflow-hidden"
+          style={{
+            background: "#fff",
+            boxShadow: "0 20px 60px rgba(15,23,42,0.18), 0 0 0 1px rgba(15,23,42,0.08)",
+            animation: "slideUp 0.2s ease-out",
+            // Mobile: full screen. Desktop (≥640px): compact panel bottom-right
+            bottom: window.innerWidth < 640 ? 0 : 76,
+            right: window.innerWidth < 640 ? 0 : 16,
+            left: window.innerWidth < 640 ? 0 : "auto",
+            top: window.innerWidth < 640 ? 0 : "auto",
+            width: window.innerWidth < 640 ? "100%" : 360,
+            height: window.innerWidth < 640 ? "100%" : 480,
+            borderRadius: window.innerWidth < 640 ? 0 : 16,
+          }}>
           <style>{`@keyframes slideUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }`}</style>
 
           {/* Header */}
@@ -11186,8 +10999,8 @@ function LabFloatingChat({ pin, navMode, activeProject }: {
                 {NAV_LABELS[navMode] ?? navMode}{activeProject ? ` · ${activeProject.name}` : ""}
               </p>
             </div>
-            <button onClick={() => setOpen(false)} className="w-6 h-6 rounded-lg flex items-center justify-center transition-all hover:bg-white/10">
-              <X className="w-3.5 h-3.5 text-white/60" />
+            <button onClick={() => setOpen(false)} className="w-10 h-10 rounded-xl flex items-center justify-center transition-all hover:bg-white/10 active:bg-white/20">
+              <X className="w-5 h-5 text-white/80" />
             </button>
           </div>
 
