@@ -4938,7 +4938,7 @@ function AppBuilderPanel({ pin }: { pin: string }) {
   })();
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+    <div className="flex-1 flex flex-col min-h-0 overflow-hidden" style={{ position: "relative", minHeight: 0 }}>
       {/* Header */}
       <div className="flex-shrink-0 px-6 pt-5 pb-4" style={{ borderBottom: "1px solid rgba(15,23,42,0.08)" }}>
         <div className="flex items-center justify-between mb-4">
@@ -5008,7 +5008,7 @@ function AppBuilderPanel({ pin }: { pin: string }) {
       </div>
 
       {/* Body */}
-      <div className="flex-1 overflow-auto min-h-0">
+      <div className="flex-1 overflow-auto min-h-0" style={{ minHeight: "400px" }}>
 
         {/* ── Phase 1: Describe ── */}
         {phase === 1 && (
@@ -12735,7 +12735,7 @@ export function StarLabPage() {
       </div>
 
       {/* MAIN */}
-      <div className="flex-1 flex flex-col min-w-0 min-h-0">
+      <div className="flex-1 flex flex-col min-w-0" style={{ minHeight: 0, overflow: "hidden" }}>
 
         {/* Global breadcrumb / back bar — shown on every panel except dashboard */}
         {navMode !== "dashboard" && (
