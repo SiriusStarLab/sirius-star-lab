@@ -11017,24 +11017,59 @@ function LabFloatingChat({ pin, navMode, activeProject, onNavigate }: {
 }) {
   const [open, setOpen] = React.useState(false);
   const [messages, setMessages] = React.useState<{ role: "user" | "assistant"; content: string; actions?: { label: string; color: string }[] }[]>([]);
-  const [input, setInput] = React.useState("");
   const [streaming, setStreaming] = React.useState(false);
   const [streamText, setStreamText] = React.useState("");
   const [unread, setUnread] = React.useState(false);
+  const [voicePhase, setVoicePhase] = React.useState<"idle" | "listening" | "speaking">("idle");
+  const [waveTick, setWaveTick] = React.useState(0);
   const bottomRef = React.useRef<HTMLDivElement>(null);
-  const inputRef = React.useRef<HTMLInputElement>(null);
+  const recognitionRef = React.useRef<any>(null);
+  const stoppedRef = React.useRef(false);
   const base = getApiBase();
 
-  // Greet on first open — speak it aloud
+  React.useEffect(() => {
+    const id = setInterval(() => setWaveTick(t => t + 1), 90);
+    return () => clearInterval(id);
+  }, []);
+
+  const stopListeningNow = () => {
+    try { recognitionRef.current?.stop(); } catch {}
+    recognitionRef.current = null;
+    setVoicePhase("idle");
+  };
+
+  const startVoiceListening = React.useCallback((onResult: (text: string) => void) => {
+    const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRec || stoppedRef.current) return;
+    const rec = new SpeechRec();
+    recognitionRef.current = rec;
+    rec.lang = "en-GB"; rec.continuous = false; rec.interimResults = false;
+    let got = false;
+    rec.onstart = () => setVoicePhase("listening");
+    rec.onresult = (e: any) => {
+      const text = e.results[0]?.[0]?.transcript?.trim() || "";
+      if (text.length > 1) { got = true; stopListeningNow(); onResult(text); }
+    };
+    rec.onerror = () => { setVoicePhase("idle"); };
+    rec.onend = () => { if (!got) setVoicePhase("idle"); };
+    rec.start();
+  }, []);
+
+  // Greet on first open — speak aloud then listen
   React.useEffect(() => {
     if (open && messages.length === 0) {
+      stoppedRef.current = false;
       const page = NAV_LABELS[navMode] ?? navMode;
       const proj = activeProject ? ` You have "${activeProject.name}" open.` : "";
       const greeting = `I'm here. You're on ${page}.${proj} What do you need?`;
       setMessages([{ role: "assistant", content: greeting }]);
-      speakText(greeting);
+      setVoicePhase("speaking");
+      speakText(greeting, () => {
+        setVoicePhase("idle");
+        if (!stoppedRef.current) startVoiceListening(text => sendVoice(text));
+      });
     }
-    if (open) { setUnread(false); setTimeout(() => inputRef.current?.focus(), 150); }
+    if (!open) { stoppedRef.current = true; stopListeningNow(); window.speechSynthesis?.cancel(); }
   }, [open]);
 
   React.useEffect(() => {
@@ -11075,21 +11110,19 @@ function LabFloatingChat({ pin, navMode, activeProject, onNavigate }: {
     return null;
   };
 
-  const send = async () => {
-    const text = input.trim();
+  const sendVoice = async (text: string) => {
     if (!text || streaming) return;
-    setInput("");
-
     const newMsg = { role: "user" as const, content: text };
     setMessages(prev => [...prev, newMsg]);
 
-    // Check for navigation intents first (no API call needed)
+    // Navigation intent shortcut
     const navTarget = detectNavIntent(text);
     if (navTarget) {
       const navName = NAV_LABELS[navTarget] ?? navTarget;
       const reply = `Taking you to ${navName} now.`;
       setMessages(prev => [...prev, { role: "assistant", content: reply }]);
-      speakText(reply, () => onNavigate(navTarget));
+      setVoicePhase("speaking");
+      speakText(reply, () => { setVoicePhase("idle"); onNavigate(navTarget); });
       return;
     }
 
@@ -11104,19 +11137,17 @@ The user is currently on the "${page}" section.${projCtx}
 
 Star Lab sections available: ${sections}
 
-Write responses for voice — short, natural, conversational sentences. No bullet points, no markdown.
+Write responses for voice — short, natural, conversational sentences. No bullet points, no markdown. Keep responses under 3 sentences. Always end with a question to keep the conversation going.
 
-If the user asks you to navigate somewhere, end your response with <<NAVIGATE:sectionId>> where sectionId is one of: dashboard, projects, botlab, scout, feed, grants, commerce, outreach, autolab, revenue, agency, mission, growth, brain, research, docs, labchat, appbuilder, ai-arch, orchestrate.
-
-If the user asks you to work on a task, build something, run a scan, or execute a pipeline, tell them what you're doing and include <<NAVIGATE:orchestrate>> to take them to Command Centre where they can initiate it.`,
+If the user asks you to navigate somewhere, end your response with <<NAVIGATE:sectionId>>.
+If the user asks to build or execute a pipeline, include <<NAVIGATE:orchestrate>>.`,
     };
 
-    const history = [newMsg];
     setStreaming(true);
     setStreamText("");
 
     try {
-      const apiMessages = [contextMessage, ...messages.filter(m => m.role !== "system").map(m => ({ role: m.role, content: m.content })), { role: "user" as const, content: text }];
+      const apiMessages = [contextMessage, ...messages.map(m => ({ role: m.role, content: m.content })), { role: "user" as const, content: text }];
       const res = await fetch(`${base}lab/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-lab-pin": pin },
@@ -11138,41 +11169,34 @@ If the user asks you to work on a task, build something, run a scan, or execute 
         for (const line of lines) {
           if (!line.startsWith("data: ")) continue;
           const raw = line.slice(6).trim();
-          if (raw === "[DONE]") { break; }
+          if (raw === "[DONE]") break;
           try {
             const evt = JSON.parse(raw);
-            if (evt.type === "done") { break; }
-            if (evt.type === "text" && evt.delta) {
-              full += evt.delta;
-              setStreamText(full);
-            }
-            if (evt.type === "action" && evt.label) {
-              pendingActions.push({ label: evt.label, color: evt.color || "hsl(193,100%,35%)" });
-            }
-          } catch { /* ignore */ }
+            if (evt.type === "done") break;
+            if (evt.type === "text" && evt.delta) { full += evt.delta; setStreamText(full); }
+            if (evt.type === "action" && evt.label) pendingActions.push({ label: evt.label, color: evt.color || "hsl(193,100%,35%)" });
+          } catch {}
         }
       }
 
       if (full) {
-        // Parse navigate tag from response
         const navMatch = full.match(/<<NAVIGATE:([^>]+)>>/);
-        const cleanText = full.replace(/<<[^>]+>>/g, "").trim();
-
+        const cleanText = full.replace(/<<[^>]+>>/g, "").replace(/[*#>`_~]/g, "").trim();
         setMessages(prev => [...prev, { role: "assistant", content: cleanText, actions: pendingActions.length ? pendingActions : undefined }]);
-
-        // Speak response aloud (truncate very long responses for voice)
-        const spokenText = cleanText.length > 300 ? cleanText.slice(0, 300) + "." : cleanText;
-        if (navMatch) {
-          const dest = navMatch[1].trim() as NavMode;
-          speakText(spokenText, () => onNavigate(dest));
-        } else {
-          speakText(spokenText);
-        }
+        const spokenText = cleanText.length > 350 ? cleanText.slice(0, 350) + "." : cleanText;
+        setVoicePhase("speaking");
+        speakText(spokenText, () => {
+          setVoicePhase("idle");
+          if (navMatch) { onNavigate(navMatch[1].trim() as NavMode); return; }
+          // Auto-listen for next turn
+          if (!stoppedRef.current) setTimeout(() => startVoiceListening(t => sendVoice(t)), 400);
+        });
       }
     } catch {
       const errMsg = "Something went wrong — please try again.";
       setMessages(prev => [...prev, { role: "assistant", content: errMsg }]);
-      speakText(errMsg);
+      setVoicePhase("speaking");
+      speakText(errMsg, () => { setVoicePhase("idle"); if (!stoppedRef.current) setTimeout(() => startVoiceListening(t => sendVoice(t)), 400); });
     } finally {
       setStreaming(false);
       setStreamText("");
@@ -11275,25 +11299,29 @@ If the user asks you to work on a task, build something, run a scan, or execute 
             <div ref={bottomRef} />
           </div>
 
-          {/* Input */}
-          <div className="flex-shrink-0 flex items-center gap-2 px-3 py-3" style={{ background: "#fff", borderTop: "1px solid rgba(15,23,42,0.07)" }}>
-            <input
-              ref={inputRef}
-              type="text"
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-              placeholder="Ask Sirius anything…"
-              className="flex-1 text-xs outline-none px-3 py-2 rounded-lg"
-              style={{ background: "#F1F5F9", color: "rgba(15,23,42,0.8)", border: "1px solid rgba(15,23,42,0.08)" }}
-            />
+          {/* Voice status bar */}
+          <div className="flex-shrink-0 flex items-center gap-2 px-3 py-2.5" style={{ background: "#fff", borderTop: "1px solid rgba(15,23,42,0.07)" }}>
+            {/* Mini waveform */}
+            <div className="flex items-center gap-0.5 h-6">
+              {Array.from({ length: 8 }, (_, i) => {
+                const active = voicePhase === "listening" || voicePhase === "speaking";
+                const h = active ? 3 + Math.abs(Math.sin(waveTick * 0.28 + i * 0.7)) * 14 : 2;
+                const bg = voicePhase === "listening" ? "hsl(0,75%,55%)" : voicePhase === "speaking" ? "hsl(193,100%,45%)" : "rgba(15,23,42,0.15)";
+                return <div key={i} style={{ width: 2, height: `${h}px`, background: bg, borderRadius: 2, transition: "height 0.09s ease" }} />;
+              })}
+            </div>
+            <p className="flex-1 text-xs" style={{ color: voicePhase === "listening" ? "hsl(0,75%,50%)" : voicePhase === "speaking" ? "hsl(193,100%,35%)" : streaming ? "hsl(45,90%,50%)" : "rgba(15,23,42,0.35)" }}>
+              {voicePhase === "listening" ? "Listening…" : voicePhase === "speaking" ? "Sirius speaking…" : streaming ? "Thinking…" : "Voice only · Just speak"}
+            </p>
             <button
-              onClick={send}
-              disabled={!input.trim() || streaming}
-              className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-all"
-              style={{ background: input.trim() && !streaming ? "hsl(193,100%,40%)" : "rgba(15,23,42,0.07)" }}
-            >
-              {streaming ? <Loader2 className="w-3.5 h-3.5 text-white animate-spin" /> : <Send className="w-3.5 h-3.5 text-white" />}
+              onClick={() => {
+                if (voicePhase === "listening") { stopListeningNow(); }
+                else if (voicePhase === "speaking") { window.speechSynthesis?.cancel(); setVoicePhase("idle"); setTimeout(() => startVoiceListening(t => sendVoice(t)), 300); }
+                else if (!streaming) { startVoiceListening(t => sendVoice(t)); }
+              }}
+              className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-all active:scale-95"
+              style={{ background: voicePhase === "listening" ? "hsl(0,75%,45%)" : "hsl(193,100%,40%)", boxShadow: voicePhase === "listening" ? "0 0 8px hsl(0,75%,40%)" : "none", opacity: streaming && voicePhase !== "speaking" ? 0.4 : 1 }}>
+              {voicePhase === "listening" ? <MicOff className="w-3.5 h-3.5 text-white" /> : <Mic className="w-3.5 h-3.5 text-white" />}
             </button>
           </div>
         </div>
@@ -11334,87 +11362,95 @@ function SiriusLabChatPanel({ pin, accessLevel }: { pin: string; accessLevel: Ac
       return saved ? JSON.parse(saved) : [];
     } catch { return []; }
   });
-  const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [streamingText, setStreamingText] = useState("");
   const [streamingActions, setStreamingActions] = useState<ActionCard[]>([]);
   const [thinkingText, setThinkingText] = useState("");
-  const [isRecording, setIsRecording] = useState(false);
-  const [voiceSupported, setVoiceSupported] = useState(false);
+  const [voicePhase, setVoicePhase] = useState<"idle" | "listening" | "speaking">("idle");
   const [voiceHint, setVoiceHint] = useState("");
+  const [waveTick, setWaveTick] = useState(0);
   const recognitionRef = useRef<any>(null);
   const messagesRef = useRef<LabChatMsg[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const stoppedRef = useRef(false);
+  const hasGreetedRef = useRef(false);
 
-  // Keep ref in sync for stale-closure-safe reads (e.g. inside voice callbacks)
+  // Keep ref in sync for stale-closure-safe reads
   useEffect(() => {
     messagesRef.current = messages;
-    try { sessionStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages)); } catch { /* ignore */ }
+    try { sessionStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages)); } catch {}
   }, [messages, CHAT_STORAGE_KEY]);
 
-  // Check for Web Speech API support
+  // Waveform animation tick
   useEffect(() => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    setVoiceSupported(!!SpeechRecognition);
+    const id = setInterval(() => setWaveTick(t => t + 1), 90);
+    return () => clearInterval(id);
   }, []);
 
-  const startVoice = () => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) return;
-    if (streaming) {
-      setVoiceHint("Sirius is thinking — wait until she finishes before speaking.");
-      setTimeout(() => setVoiceHint(""), 3000);
-      return;
-    }
-    let gotResult = false;
-    const recognition = new SpeechRecognition();
-    recognition.lang = "en-GB";
-    recognition.continuous = false;
-    recognition.interimResults = false;
-    recognition.onstart = () => { setIsRecording(true); setVoiceHint("Listening…"); };
-    recognition.onend = () => {
-      setIsRecording(false);
-      if (!gotResult) {
-        setVoiceHint("Nothing captured — tap the mic and speak clearly.");
-        setTimeout(() => setVoiceHint(""), 3500);
-      } else {
-        setVoiceHint("");
-      }
-    };
-    recognition.onerror = (e: any) => {
-      setIsRecording(false);
-      const msg = e.error === "no-speech" ? "No speech detected — try again." : e.error === "not-allowed" ? "Microphone access denied." : "Voice error — try again.";
-      setVoiceHint(msg);
-      setTimeout(() => setVoiceHint(""), 3500);
-    };
-    recognition.onresult = (event: any) => {
-      gotResult = true;
-      const transcript = event.results[0]?.[0]?.transcript || "";
-      if (transcript.trim()) {
-        setInput(transcript.trim());
-        setVoiceHint(`Heard: "${transcript.trim().slice(0, 60)}${transcript.length > 60 ? "…" : ""}"`);
-        setTimeout(() => {
-          setInput("");
-          setVoiceHint("");
-          const userMsg: LabChatMsg = { role: "user", content: transcript.trim() };
-          const currentMsgs = messagesRef.current;
-          const apiMessages = [...currentMsgs, userMsg].map(m => ({ role: m.role, content: m.content }));
-          setMessages(prev => [...prev, userMsg]);
-          sendWithMessages(apiMessages);
-        }, 500);
-      } else {
-        gotResult = false;
-      }
-    };
-    recognitionRef.current = recognition;
-    recognition.start();
+  const stopListeningNow = () => {
+    try { recognitionRef.current?.stop(); } catch {}
+    recognitionRef.current = null;
+    setVoicePhase("idle");
+    setVoiceHint("");
   };
 
-  const stopVoice = () => {
-    recognitionRef.current?.stop();
-    setIsRecording(false);
+  const startListeningLoop = () => {
+    if (stoppedRef.current || streaming) return;
+    const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRec) { setVoiceHint("Voice not supported in this browser."); return; }
+    const rec = new SpeechRec();
+    recognitionRef.current = rec;
+    rec.lang = "en-GB";
+    rec.continuous = false;
+    rec.interimResults = true;
+    let gotResult = false;
+    rec.onstart = () => { setVoicePhase("listening"); setVoiceHint(""); };
+    rec.onresult = (e: any) => {
+      const text = Array.from(e.results as any[]).map((r: any) => r[0].transcript).join(" ").trim();
+      if (e.results[e.results.length - 1].isFinal && text.length > 1) {
+        gotResult = true;
+        stopListeningNow();
+        setVoiceHint(`Heard: "${text.slice(0, 60)}${text.length > 60 ? "…" : ""}"`);
+        const userMsg: LabChatMsg = { role: "user", content: text };
+        const apiMessages = [...messagesRef.current, userMsg].map(m => ({ role: m.role, content: m.content }));
+        setMessages(prev => [...prev, userMsg]);
+        sendWithMessages(apiMessages);
+      }
+    };
+    rec.onerror = (e: any) => {
+      const msg = e.error === "not-allowed" ? "Microphone access denied — check browser settings." : e.error === "no-speech" ? "Nothing heard — speak when the waveform pulses." : "Voice error — tap the mic to try again.";
+      setVoiceHint(msg);
+      setVoicePhase("idle");
+    };
+    rec.onend = () => {
+      if (!gotResult && !stoppedRef.current) {
+        setVoicePhase("idle");
+      }
+    };
+    rec.start();
   };
+
+  // Auto-start voice conversation on mount
+  useEffect(() => {
+    stoppedRef.current = false;
+    if (hasGreetedRef.current) {
+      // Returning to the section — just start listening
+      setTimeout(() => startListeningLoop(), 600);
+      return;
+    }
+    hasGreetedRef.current = true;
+    const greeting = accessLevel === "guest"
+      ? "Hello. I'm Sirius. Ask me anything about this company, its projects, or the market."
+      : "I'm here, Garry. What would you like to work on?";
+    setTimeout(() => {
+      setVoicePhase("speaking");
+      speakText(greeting, () => {
+        setVoicePhase("idle");
+        if (!stoppedRef.current) startListeningLoop();
+      });
+    }, 500);
+    return () => { stoppedRef.current = true; stopListeningNow(); window.speechSynthesis?.cancel(); };
+  }, []);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -11425,13 +11461,14 @@ function SiriusLabChatPanel({ pin, accessLevel }: { pin: string; accessLevel: Ac
     setStreamingText("");
     setStreamingActions([]);
     setThinkingText("");
+    setVoiceHint("");
 
     let fullText = "";
     const actions: ActionCard[] = [];
 
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 120_000); // 2-min safety net
+      const timeout = setTimeout(() => controller.abort(), 120_000);
 
       const res = await fetch(`${base}lab/chat`, {
         method: "POST",
@@ -11475,138 +11512,103 @@ function SiriusLabChatPanel({ pin, accessLevel }: { pin: string; accessLevel: Ac
               fullText = evt.message || "Something went wrong.";
               streamDone = true;
             }
-          } catch { /* skip malformed */ }
+          } catch {}
         }
       }
 
       reader.cancel().catch(() => {});
-      setMessages(prev => [...prev, { role: "assistant", content: fullText || "No response — please try again.", actions: actions.length > 0 ? [...actions] : undefined }]);
+      const finalText = fullText || "No response — please try again.";
+      setMessages(prev => [...prev, { role: "assistant", content: finalText, actions: actions.length > 0 ? [...actions] : undefined }]);
+
+      // Speak the response, then auto-listen for the next turn
+      setVoicePhase("speaking");
+      const voiceText = finalText.replace(/[*#>`_~]/g, "").replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").slice(0, 500);
+      speakText(voiceText, () => {
+        setVoicePhase("idle");
+        if (!stoppedRef.current) setTimeout(() => startListeningLoop(), 400);
+      });
+
     } catch (err: any) {
       const msg = err?.name === "AbortError" ? "Request timed out — Sirius took too long. Try again." : "Something went wrong — try again.";
       setMessages(prev => [...prev, { role: "assistant", content: msg }]);
+      speakText(msg, () => { if (!stoppedRef.current) setTimeout(() => startListeningLoop(), 400); });
     } finally {
       setStreaming(false);
       setStreamingText("");
       setStreamingActions([]);
       setThinkingText("");
-      setTimeout(() => inputRef.current?.focus(), 50);
     }
   };
-
-  const send = async (text?: string) => {
-    const content = (text ?? input).trim();
-    if (!content || streaming) return;
-    setInput("");
-    const userMsg: LabChatMsg = { role: "user", content };
-    const apiMessages = [...messages, userMsg].map(m => ({ role: m.role, content: m.content }));
-    setMessages(prev => [...prev, userMsg]);
-    await sendWithMessages(apiMessages);
-  };
-
-  const OWNER_CHIPS = [
-    "What should I focus on this week?",
-    "Create a project for oil & gas CNC components",
-    "Save to memory: targeting Baker Hughes as priority client",
-    "Scan medical device market for opportunities",
-    "What's my biggest revenue lever right now?",
-    "Show me all my current projects",
-  ];
-
-  const GUEST_CHIPS = [
-    "What does this company do?",
-    "Show me the current projects",
-    "Scan the hydrogen energy sector",
-    "What engineering capabilities does this company have?",
-  ];
-
-  const CHIPS = accessLevel === "owner" ? OWNER_CHIPS : GUEST_CHIPS;
 
   return (
     <div className="flex-1 flex flex-col min-h-0" style={{ background: "#F5F7FF" }}>
 
       {/* Header */}
-      <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: "rgba(15,23,42,0.07)", background: "#FFFFFF" }}>
+      <div className="flex items-center justify-between px-5 py-3 border-b flex-shrink-0" style={{ borderColor: "rgba(15,23,42,0.07)", background: "#FFFFFF" }}>
         <div className="flex items-center gap-3">
           <div className="relative flex-shrink-0">
-            <div className="w-11 h-11 rounded-2xl overflow-hidden"
-              style={{ border: `1.5px solid ${accessLevel === "guest" ? "rgba(255,180,0,0.3)" : "rgba(0,212,255,0.3)"}`, boxShadow: `0 0 18px ${accessLevel === "guest" ? "rgba(255,180,0,0.1)" : "rgba(0,212,255,0.15)"}` }}>
+            <div className="w-10 h-10 rounded-2xl overflow-hidden"
+              style={{ border: "1.5px solid rgba(0,212,255,0.3)", boxShadow: voicePhase === "speaking" ? "0 0 18px rgba(0,212,255,0.35)" : "0 0 8px rgba(0,212,255,0.1)" }}>
               <img src="/logo-v2.png" alt="Sirius" className="w-full h-full object-cover" />
             </div>
             <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 animate-pulse"
-              style={{ background: accessLevel === "guest" ? "hsl(45,90%,55%)" : "hsl(155,70%,50%)", borderColor: "#FFFFFF" }} />
+              style={{ background: voicePhase === "listening" ? "hsl(0,75%,50%)" : voicePhase === "speaking" ? "hsl(193,100%,50%)" : "hsl(155,70%,50%)", borderColor: "#FFFFFF" }} />
           </div>
           <div>
             <p className="text-slate-800 font-bold text-sm leading-none">Sirius {accessLevel === "guest" ? "— Guest Mode" : "— Intelligence Partner"}</p>
-            {accessLevel === "owner"
-              ? <p className="text-xs mt-1" style={{ color: "hsl(155,70%,50%)" }}>● Online · Can create projects, save memory, scan markets</p>
-              : <p className="text-xs mt-1" style={{ color: "hsl(45,90%,55%)" }}>● Guest access · Chat & market scan only · No private data</p>
-            }
+            <p className="text-xs mt-0.5 font-mono" style={{ color: voicePhase === "listening" ? "hsl(0,75%,50%)" : voicePhase === "speaking" ? "hsl(193,100%,35%)" : streaming ? "hsl(45,90%,50%)" : "hsl(155,70%,45%)", letterSpacing: "0.08em" }}>
+              {voicePhase === "listening" ? "● LISTENING" : voicePhase === "speaking" ? "● SPEAKING" : streaming ? "● THINKING" : "● READY"}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {voiceSupported && (
-            <button onClick={isRecording ? stopVoice : startVoice}
-              className="w-8 h-8 rounded-xl flex items-center justify-center transition-all"
-              title={isRecording ? "Stop recording" : streaming ? "Sirius is thinking…" : "Speak to Sirius"}
-              style={{
-                background: isRecording ? "hsl(0,75%,45%)" : streaming ? "rgba(15,23,42,0.05)" : "#F1F5F9",
-                border: isRecording ? "1px solid hsl(0,75%,55%)" : "1px solid rgba(15,23,42,0.1)",
-                boxShadow: isRecording ? "0 0 12px hsl(0,75%,40%)" : "none",
-                opacity: streaming ? 0.5 : 1,
-              }}>
-              {isRecording ? <MicOff className="w-3.5 h-3.5 text-slate-800" /> : <Mic className="w-3.5 h-3.5" style={{ color: "rgba(15,23,42,0.45)" }} />}
-            </button>
-          )}
           {messages.length > 0 && (
-            <button onClick={() => { setMessages([]); try { sessionStorage.removeItem(CHAT_STORAGE_KEY); } catch {} }}
-              className="text-xs hover:text-slate-500 transition-colors px-2 py-1 rounded-lg hover:bg-slate-900/5"
-              style={{ color: "rgba(15,23,42,0.55)" }}>
+            <button onClick={() => { setMessages([]); stoppedRef.current = true; stopListeningNow(); window.speechSynthesis?.cancel(); try { sessionStorage.removeItem(CHAT_STORAGE_KEY); } catch {} setTimeout(() => { stoppedRef.current = false; hasGreetedRef.current = false; }, 100); }}
+              className="text-xs px-2 py-1 rounded-lg transition-all hover:bg-slate-900/5"
+              style={{ color: "rgba(15,23,42,0.4)" }}>
               Clear
             </button>
           )}
         </div>
       </div>
 
-      {/* Voice status bar */}
-      {(isRecording || voiceHint) && (
-        <div className="flex items-center justify-center gap-2 py-2 text-xs font-medium"
-          style={{
-            background: isRecording ? "hsl(0,75%,20%)" : "rgba(15,23,42,0.06)",
-            color: isRecording ? "hsl(0,75%,75%)" : "rgba(15,23,42,0.55)",
-            borderBottom: `1px solid ${isRecording ? "hsl(0,75%,35%)" : "rgba(15,23,42,0.08)"}`,
-          }}>
-          {isRecording
-            ? <><div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" /> Listening… speak now</>
-            : <><span>ⓘ</span> {voiceHint}</>
-          }
-        </div>
-      )}
-
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
 
-        {/* Empty state */}
+        {/* Empty state — voice only */}
         {messages.length === 0 && !streaming && (
-          <div className="flex flex-col items-center justify-center flex-1 py-8 gap-5">
-            <div className="w-20 h-20 rounded-3xl overflow-hidden"
-              style={{ border: "1.5px solid rgba(0,212,255,0.25)", boxShadow: "0 0 40px rgba(0,212,255,0.12)" }}>
-              <img src="/logo-v2.png" alt="Sirius" className="w-full h-full object-cover" />
+          <div className="flex flex-col items-center justify-center flex-1 gap-6 py-8">
+            {/* Waveform */}
+            <div className="flex items-center gap-1 h-14">
+              {Array.from({ length: 18 }, (_, i) => {
+                const active = voicePhase === "listening" || voicePhase === "speaking";
+                const height = active
+                  ? 12 + Math.abs(Math.sin((waveTick * 0.25 + i * 0.6))) * 36
+                  : 6 + Math.abs(Math.sin(i * 0.5)) * 10;
+                const color = voicePhase === "listening"
+                  ? `hsla(0,75%,55%,${0.5 + 0.5 * Math.abs(Math.sin(waveTick * 0.3 + i))})`
+                  : voicePhase === "speaking"
+                  ? `hsla(193,100%,45%,${0.5 + 0.5 * Math.abs(Math.sin(waveTick * 0.35 + i))})`
+                  : "rgba(15,23,42,0.12)";
+                return <div key={i} style={{ width: 4, height: `${height}px`, background: color, borderRadius: 4, transition: "height 0.1s ease, background 0.3s ease" }} />;
+              })}
             </div>
             <div className="text-center">
-              <p className="text-slate-800 font-bold text-base mb-1">I'm here. What do you need?</p>
-              <p className="text-slate-400 text-sm max-w-sm leading-relaxed">
-                Talk to me like a partner. Ask me to do things — I can create projects, save facts to memory, scan markets, update your profile, and carry real conversations. I grow with every exchange.
+              <p className="text-slate-800 font-bold text-base">
+                {voicePhase === "listening" ? "I'm listening — speak now" : voicePhase === "speaking" ? "Sirius is speaking…" : "Ready. Just start talking."}
+              </p>
+              <p className="text-slate-400 text-sm mt-1 max-w-xs mx-auto leading-relaxed">
+                {voicePhase === "idle" ? "Tap the mic to start, or wait — Sirius will speak first." : ""}
               </p>
             </div>
-            <div className="grid grid-cols-2 gap-2 max-w-md w-full">
-              {CHIPS.map(chip => (
-                <button key={chip} onClick={() => send(chip)}
-                  className="text-xs px-3 py-2.5 rounded-xl transition-all hover:border-white/15 text-left leading-snug"
-                  style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.09)", color: "rgba(15,23,42,0.45)" }}>
-                  {chip}
-                </button>
-              ))}
-            </div>
+            {/* Manual tap-to-speak button when idle */}
+            {voicePhase === "idle" && !streaming && (
+              <button onClick={() => startListeningLoop()}
+                className="flex items-center gap-2 px-6 py-3 rounded-2xl font-semibold text-sm transition-all hover:opacity-90 active:scale-95"
+                style={{ background: "linear-gradient(135deg, hsl(193,100%,35%), hsl(226,70%,45%))", color: "#fff", boxShadow: "0 4px 20px rgba(0,212,255,0.25)" }}>
+                <Mic className="w-4 h-4" /> Tap to Speak
+              </button>
+            )}
           </div>
         )}
 
@@ -11690,49 +11692,45 @@ function SiriusLabChatPanel({ pin, accessLevel }: { pin: string; accessLevel: Ac
         <div ref={bottomRef} />
       </div>
 
-      {/* Input */}
-      <div className="p-4 border-t" style={{ borderColor: "rgba(15,23,42,0.07)", background: "#FFFFFF" }}>
-        <div className="flex items-center gap-3 px-4 py-3 rounded-2xl"
-          style={{
-            background: "#FFFFFF",
-            border: `1px solid ${isRecording ? "rgba(220,50,50,0.4)" : streaming ? "rgba(0,212,255,0.2)" : "rgba(15,23,42,0.1)"}`,
-            transition: "border-color 0.3s"
-          }}>
-          {voiceSupported && (
-            <button onClick={isRecording ? stopVoice : startVoice}
-              className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center transition-all"
-              style={{
-                background: isRecording ? "hsl(0,75%,45%)" : "transparent",
-                boxShadow: isRecording ? "0 0 8px hsl(0,75%,40%)" : "none",
-                opacity: streaming ? 0.4 : 1,
-              }}>
-              {isRecording
-                ? <MicOff className="w-3.5 h-3.5 text-slate-800" />
-                : <Mic className="w-3.5 h-3.5" style={{ color: "rgba(15,23,42,0.5)" }} />}
-            </button>
-          )}
-          <input
-            ref={inputRef}
-            className="flex-1 bg-transparent text-sm placeholder-slate-400 outline-none"
-            style={{ color: "#0F172A" }}
-            value={isRecording ? "🎤 Listening…" : input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-            placeholder={accessLevel === "guest" ? "Ask Sirius anything…" : "Talk to me — strategy, decisions, tasks, anything…"}
-            disabled={streaming || isRecording}
-            autoFocus
-          />
-          <button onClick={() => send()} disabled={streaming || !input.trim() || isRecording}
-            className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 transition-all disabled:opacity-30 hover:opacity-85"
-            style={{ background: "linear-gradient(135deg, hsl(193,100%,35%), hsl(226,70%,45%))" }}>
-            {streaming ? <Loader2 className="w-4 h-4 text-slate-800 animate-spin" /> : <Send className="w-4 h-4 text-slate-800" />}
+      {/* Voice status bar — replaces text input entirely */}
+      <div className="flex-shrink-0 border-t" style={{ borderColor: "rgba(15,23,42,0.07)", background: "#FFFFFF" }}>
+        <div className="flex items-center justify-between px-5 py-3">
+          {/* Live waveform */}
+          <div className="flex items-center gap-1 h-8">
+            {Array.from({ length: 12 }, (_, i) => {
+              const active = voicePhase === "listening" || voicePhase === "speaking";
+              const h = active ? 4 + Math.abs(Math.sin(waveTick * 0.28 + i * 0.7)) * 22 : 3;
+              const bg = voicePhase === "listening" ? "hsl(0,75%,55%)" : voicePhase === "speaking" ? "hsl(193,100%,45%)" : "rgba(15,23,42,0.1)";
+              return <div key={i} style={{ width: 3, height: `${h}px`, background: bg, borderRadius: 3, transition: "height 0.09s ease" }} />;
+            })}
+          </div>
+
+          {/* Status label */}
+          <div className="flex-1 px-4 text-center">
+            {voiceHint
+              ? <p className="text-xs" style={{ color: "rgba(15,23,42,0.5)" }}>{voiceHint}</p>
+              : <p className="text-xs font-medium" style={{ color: voicePhase === "listening" ? "hsl(0,75%,50%)" : voicePhase === "speaking" ? "hsl(193,100%,35%)" : streaming ? "hsl(45,90%,50%)" : "rgba(15,23,42,0.35)" }}>
+                  {voicePhase === "listening" ? "Listening…" : voicePhase === "speaking" ? "Sirius is speaking…" : streaming ? "Thinking…" : "Voice conversation · No typing needed"}
+                </p>
+            }
+          </div>
+
+          {/* Mic / stop button */}
+          <button
+            onClick={() => {
+              if (voicePhase === "listening") { stopListeningNow(); }
+              else if (!streaming && voicePhase === "idle") { startListeningLoop(); }
+              else if (voicePhase === "speaking") { window.speechSynthesis?.cancel(); setVoicePhase("idle"); if (!stoppedRef.current) setTimeout(() => startListeningLoop(), 300); }
+            }}
+            className="w-10 h-10 rounded-2xl flex items-center justify-center transition-all active:scale-95"
+            style={{
+              background: voicePhase === "listening" ? "hsl(0,75%,45%)" : "linear-gradient(135deg, hsl(193,100%,35%), hsl(226,70%,45%))",
+              boxShadow: voicePhase === "listening" ? "0 0 16px hsl(0,75%,40%)" : "0 4px 16px rgba(0,212,255,0.3)",
+              opacity: streaming && voicePhase !== "speaking" ? 0.4 : 1,
+            }}>
+            {voicePhase === "listening" ? <MicOff className="w-4 h-4" style={{ color: "#fff" }} /> : <Mic className="w-4 h-4" style={{ color: "#fff" }} />}
           </button>
         </div>
-        <p className="text-slate-800/15 text-xs mt-2 text-center">
-          {accessLevel === "owner"
-            ? "Sirius can create projects, save memories, scan markets · She learns from every message"
-            : "Guest mode · Chat and market scanning only · Voice available"}
-        </p>
       </div>
     </div>
   );
@@ -12377,26 +12375,26 @@ export function StarLabPage() {
     if (!unlocked || navMode === prevNavRef.current) return;
     prevNavRef.current = navMode;
     const narrate: Partial<Record<NavMode, string>> = {
-      dashboard:   "Dashboard. Here's your command overview.",
-      projects:    "Projects. Your full portfolio of innovations.",
-      botlab:      "Bot Lab. Build and manage your AI automation bots.",
-      scout:       "Scout. Sirius is scanning for market opportunities on your behalf.",
-      feed:        "Intelligence Feed. Live market signals and emerging trends.",
-      grants:      "Funding Radar. Your active grant matches and funding opportunities.",
-      commerce:    "Commerce Lab. E-commerce and retail strategy tools.",
-      outreach:    "Outreach Hub. Sales and partner contact tools.",
-      autolab:     "Auto Lab. Projects pending your review and approval.",
-      revenue:     "Revenue Centre. Sales plans, unit economics, and commission tracking.",
-      agency:      "Agency Hub. Client delivery and project management.",
-      mission:     "Mission Control. Strategic objectives and KPI tracking.",
-      growth:      "Growth Engine. Marketing and growth strategy tools.",
-      brain:       "Sirius Brain. Strategic intelligence and deep business analysis.",
-      research:    "Deep Research. AI-powered market and technology research.",
-      docs:        "Document Intelligence. Upload and analyse documents with AI.",
-      labchat:     "Lab Chat. A full conversation workspace with Sirius.",
-      appbuilder:  "App Builder. Autonomous application development.",
-      "ai-arch":   "AI Architecture. Technical AI design for your projects.",
-      orchestrate: "Command Centre. Run the full orchestration pipeline.",
+      dashboard:   "Dashboard. You're at command centre. What do you want to focus on today?",
+      projects:    "Projects. Your innovation portfolio is here. Which project do you want to work on?",
+      botlab:      "Bot Lab. Your AI automation suite. Do you want to build a new bot, or review what's running?",
+      scout:       "Scout. I'm scanning for market opportunities. Want me to brief you on what I've found?",
+      feed:        "Intelligence Feed. I'm tracking market signals for you. Shall I highlight the most important ones?",
+      grants:      "Funding Radar. I have grant matches ready. Want me to walk you through the best opportunities?",
+      commerce:    "Commerce Lab. E-commerce and retail strategy tools. What product or market are we targeting?",
+      outreach:    "Outreach Hub. Your sales and partner tools. Who are we reaching out to today?",
+      autolab:     "Auto Lab. You have projects awaiting your decision. Want me to summarise what needs your approval?",
+      revenue:     "Revenue Centre. Sales plans and financial projections. Do you want to review the numbers?",
+      agency:      "Agency Hub. Client delivery tracking. Which client or project should we look at?",
+      mission:     "Mission Control. Your strategic objectives and KPIs. How are we tracking against the targets?",
+      growth:      "Growth Engine. Marketing and growth strategy. Where do you want to focus growth right now?",
+      brain:       "Sirius Brain. Deep strategic intelligence. What question do you want me to analyse?",
+      research:    "Deep Research. AI-powered market research. What sector or technology should I research?",
+      docs:        "Document Intelligence. Upload and analyse documents. What document are we working with?",
+      labchat:     "Full conversation workspace. I'm listening. What would you like to discuss?",
+      appbuilder:  "App Builder. Autonomous development pipeline. What application do you want me to build?",
+      "ai-arch":   "AI Architecture. Technical design for your projects. Which project needs an AI stack?",
+      orchestrate: "Command Centre. Full pipeline orchestration. Give me your command and I'll execute it.",
     };
     const text = narrate[navMode as NavMode];
     if (text) speakText(text);
