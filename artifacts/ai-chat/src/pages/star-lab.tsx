@@ -11009,11 +11009,12 @@ const NAV_LABELS: Record<string, string> = {
   appbuilder: "App Builder", "ai-arch": "AI Architecture", orchestrate: "Command Centre",
 };
 
-function LabFloatingChat({ pin, navMode, activeProject, onNavigate }: {
+function LabFloatingChat({ pin, navMode, activeProject, onNavigate, onOpenProject }: {
   pin: string;
   navMode: NavMode;
   activeProject: Project | null;
   onNavigate: (mode: NavMode) => void;
+  onOpenProject?: (id: number) => void;
 }) {
   const [open, setOpen] = React.useState(false);
   const [messages, setMessages] = React.useState<{ role: "user" | "assistant"; content: string; actions?: { label: string; color: string }[] }[]>([]);
@@ -11175,19 +11176,34 @@ If the user asks to build or execute a pipeline, include <<NAVIGATE:orchestrate>
             if (evt.type === "done") break;
             if (evt.type === "text" && evt.delta) { full += evt.delta; setStreamText(full); }
             if (evt.type === "action" && evt.label) pendingActions.push({ label: evt.label, color: evt.color || "hsl(193,100%,35%)" });
+            if (evt.type === "navigate") {
+              if (evt.section) onNavigate(evt.section as NavMode);
+              if (evt.projectId && onOpenProject) setTimeout(() => onOpenProject!(evt.projectId), 300);
+            }
           } catch {}
         }
       }
 
       if (full) {
         const navMatch = full.match(/<<NAVIGATE:([^>]+)>>/);
+        const openProjectMatches = [...full.matchAll(/<<OPEN_PROJECT:(\d+)>>/g)];
         const cleanText = full.replace(/<<[^>]+>>/g, "").replace(/[*#>`_~]/g, "").trim();
         setMessages(prev => [...prev, { role: "assistant", content: cleanText, actions: pendingActions.length ? pendingActions : undefined }]);
+
+        // Execute text-based navigation tags
+        if (navMatch) setTimeout(() => onNavigate(navMatch[1].trim() as NavMode), 200);
+        if (openProjectMatches.length > 0) {
+          if (!navMatch) setTimeout(() => onNavigate("projects"), 200);
+          if (onOpenProject) {
+            const firstId = parseInt(openProjectMatches[0][1], 10);
+            if (!isNaN(firstId)) setTimeout(() => onOpenProject!(firstId), 500);
+          }
+        }
+
         const spokenText = cleanText.length > 350 ? cleanText.slice(0, 350) + "." : cleanText;
         setVoicePhase("speaking");
         speakText(spokenText, () => {
           setVoicePhase("idle");
-          if (navMatch) { onNavigate(navMatch[1].trim() as NavMode); return; }
           // Auto-listen for next turn
           if (!stoppedRef.current) setTimeout(() => startVoiceListening(t => sendVoice(t)), 400);
         });
@@ -11353,7 +11369,7 @@ If the user asks to build or execute a pipeline, include <<NAVIGATE:orchestrate>
   );
 }
 
-function SiriusLabChatPanel({ pin, accessLevel }: { pin: string; accessLevel: AccessRole }) {
+function SiriusLabChatPanel({ pin, accessLevel, onNavigate, onOpenProject }: { pin: string; accessLevel: AccessRole; onNavigate?: (section: NavMode) => void; onOpenProject?: (id: number) => void }) {
   const base = getApiBase();
   const CHAT_STORAGE_KEY = `lab_chat_${accessLevel}`;
   const [messages, setMessages] = useState<LabChatMsg[]>(() => {
@@ -11508,6 +11524,12 @@ function SiriusLabChatPanel({ pin, accessLevel }: { pin: string; accessLevel: Ac
               setStreamingActions([...actions]);
             } else if (evt.type === "thinking") {
               setThinkingText(evt.text || "");
+            } else if (evt.type === "navigate") {
+              // Server-side navigate_to tool fired — navigate the UI immediately
+              if (evt.section && onNavigate) onNavigate(evt.section as NavMode);
+              if (evt.projectId && onOpenProject) {
+                setTimeout(() => onOpenProject!(evt.projectId), 300);
+              }
             } else if (evt.type === "error") {
               fullText = evt.message || "Something went wrong.";
               streamDone = true;
@@ -11517,7 +11539,27 @@ function SiriusLabChatPanel({ pin, accessLevel }: { pin: string; accessLevel: Ac
       }
 
       reader.cancel().catch(() => {});
-      const finalText = fullText || "No response — please try again.";
+
+      // Parse navigation tags from Sirius's text response
+      const navTagMatch = fullText.match(/<<NAVIGATE:([^>]+)>>/);
+      const openProjectMatches = [...fullText.matchAll(/<<OPEN_PROJECT:(\d+)>>/g)];
+
+      // Execute text-based navigation tags
+      if (navTagMatch && onNavigate) {
+        setTimeout(() => onNavigate!(navTagMatch[1].trim() as NavMode), 200);
+      }
+      if (openProjectMatches.length > 0) {
+        // Navigate to projects + open first mentioned project
+        if (!navTagMatch && onNavigate) setTimeout(() => onNavigate!("projects"), 200);
+        if (onOpenProject) {
+          const firstId = parseInt(openProjectMatches[0][1], 10);
+          if (!isNaN(firstId)) setTimeout(() => onOpenProject!(firstId), 500);
+        }
+      }
+
+      // Strip all action tags from displayed and spoken text
+      const cleanedText = fullText.replace(/<<[^>]+>>/g, "").trim();
+      const finalText = cleanedText || "No response — please try again.";
       setMessages(prev => [...prev, { role: "assistant", content: finalText, actions: actions.length > 0 ? [...actions] : undefined }]);
 
       // Speak the response, then auto-listen for the next turn
@@ -12706,7 +12748,17 @@ export function StarLabPage() {
         {navMode === "commerce" && <CommerceLabPanel pin={pin} />}
         {navMode === "agency" && <AgencyHubPanel pin={pin} />}
         {navMode === "growth" && <GrowthEnginePanel pin={pin} />}
-        {navMode === "labchat" && <SiriusLabChatPanel pin={pin} accessLevel={accessLevel} />}
+        {navMode === "labchat" && (
+          <SiriusLabChatPanel
+            pin={pin}
+            accessLevel={accessLevel}
+            onNavigate={m => setNavMode(m as NavMode)}
+            onOpenProject={id => {
+              loadProject(id);
+              setNavMode("projects");
+            }}
+          />
+        )}
         {navMode === "brain" && <BrainPanel pin={pin} />}
         {navMode === "research" && <DeepResearchPanel pin={pin} />}
         {navMode === "docs" && <DocIntelPanel pin={pin} />}
@@ -12771,7 +12823,16 @@ export function StarLabPage() {
       </div>
 
       {/* Persistent floating twin chat — always visible on every page */}
-      <LabFloatingChat pin={pin} navMode={navMode} activeProject={activeProject} onNavigate={m => setNavMode(m as NavMode)} />
+      <LabFloatingChat
+        pin={pin}
+        navMode={navMode}
+        activeProject={activeProject}
+        onNavigate={m => setNavMode(m as NavMode)}
+        onOpenProject={id => {
+          loadProject(id);
+          setNavMode("projects");
+        }}
+      />
     </div>
   );
 }

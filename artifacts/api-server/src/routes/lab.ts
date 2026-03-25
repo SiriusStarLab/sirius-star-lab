@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, gte, lte, and, or, like, sql } from "drizzle-orm";
 import { db, labProjects, labMessages, scoutReports, cadFiles, labScanHistory, userProfilesTable, mediaOutlets, appBuilderSessions, voiceJournalTable } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { generateImageBuffer } from "@workspace/integrations-openai-ai-server/image";
@@ -2866,6 +2866,56 @@ const LAB_TOOLS: any[] = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "query_projects",
+      description: "Search and filter Star Lab projects with rich criteria. Use when the user asks about specific projects by date, industry, source (scan vs manual), status, or keyword. For 'last night's scan' use source=scan and days_ago=1. For 'recent projects' use days_ago=3 with a suitable limit.",
+      parameters: {
+        type: "object",
+        properties: {
+          limit: { type: "number", description: "Maximum number of projects to return (default 5, max 20)" },
+          source: { type: "string", enum: ["scan", "manual", "all"], description: "Filter by creation source: 'scan' = auto-created by daily scanner, 'manual' = Garry created, 'all' = both" },
+          industry: { type: "string", description: "Filter by industry sector (partial match, e.g. 'Medical', 'Oil', 'Hydrogen')" },
+          status: { type: "string", enum: ["pending", "approved", "active", "complete", "all"], description: "Filter by project status" },
+          days_ago: { type: "number", description: "Only return projects created in the last N days (0 = today, 1 = since yesterday, 7 = last week). Omit for no date filter." },
+          keyword: { type: "string", description: "Search projects by name keyword" },
+          sort: { type: "string", enum: ["newest", "oldest"], description: "Sort order, default newest" },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_scan_history",
+      description: "Get recent auto-scan history — what was found in previous nightly scans. Use when the user asks 'what did the scan find?', 'what came in last night?', 'recent scan results', or anything about the autonomous scanner output.",
+      parameters: {
+        type: "object",
+        properties: {
+          limit: { type: "number", description: "How many recent scans to return (default 3)" },
+          include_items: { type: "boolean", description: "Whether to include the full list of projects found in each scan (default true)" },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "navigate_to",
+      description: "Navigate the Star Lab interface to a specific section, and optionally open a specific project. Use when the user says 'show me', 'take me to', 'bring up', 'open', or 'navigate to' — especially when combined with fetching results (e.g. query_projects then navigate_to projects with the project IDs).",
+      parameters: {
+        type: "object",
+        properties: {
+          section: { type: "string", enum: ["dashboard", "projects", "botlab", "scout", "feed", "grants", "commerce", "outreach", "autolab", "revenue", "agency", "mission", "growth", "brain", "research", "docs", "labchat", "appbuilder", "ai-arch", "orchestrate"], description: "Star Lab section to navigate to" },
+          project_id: { type: "number", description: "Optional: specific project ID to open after navigating to projects section" },
+        },
+        required: ["section"],
+      },
+    },
+  },
 ];
 
 async function executeLabTool(name: string, args: any): Promise<string> {
@@ -2927,6 +2977,114 @@ async function executeLabTool(name: string, args: any): Promise<string> {
         });
         return scan.choices[0]?.message?.content || "Scan complete — no results returned.";
       }
+
+      case "query_projects": {
+        const limit = Math.min(Number(args.limit) || 5, 20);
+        const conditions: any[] = [];
+
+        // Source filter (scan vs manual)
+        if (args.source === "scan") {
+          conditions.push(eq(labProjects.autoCreated, "auto"));
+        } else if (args.source === "manual") {
+          conditions.push(or(eq(labProjects.autoCreated, ""), sql`${labProjects.autoCreated} IS NULL`));
+        }
+
+        // Industry filter (case-insensitive partial match)
+        if (args.industry) {
+          conditions.push(like(sql`LOWER(${labProjects.industry})`, `%${args.industry.toLowerCase()}%`));
+        }
+
+        // Approval status filter
+        if (args.status && args.status !== "all") {
+          if (args.status === "pending") conditions.push(eq(labProjects.approvalStatus, "pending"));
+          else if (args.status === "approved") conditions.push(eq(labProjects.approvalStatus, "approved"));
+          else if (args.status === "active") conditions.push(eq(labProjects.status, "active"));
+          else if (args.status === "complete") conditions.push(eq(labProjects.phase, "complete"));
+        }
+
+        // Date filter
+        if (typeof args.days_ago === "number") {
+          const cutoff = new Date();
+          cutoff.setDate(cutoff.getDate() - args.days_ago);
+          cutoff.setHours(0, 0, 0, 0);
+          conditions.push(gte(labProjects.createdAt, cutoff));
+        }
+
+        // Keyword filter
+        if (args.keyword) {
+          conditions.push(like(sql`LOWER(${labProjects.name})`, `%${args.keyword.toLowerCase()}%`));
+        }
+
+        const query = db.select({
+          id: labProjects.id,
+          name: labProjects.name,
+          industry: labProjects.industry,
+          phase: labProjects.phase,
+          status: labProjects.status,
+          approvalStatus: labProjects.approvalStatus,
+          autoCreated: labProjects.autoCreated,
+          createdAt: labProjects.createdAt,
+          brief: labProjects.brief,
+        })
+          .from(labProjects)
+          .where(conditions.length > 0 ? and(...conditions) : undefined)
+          .orderBy(args.sort === "oldest" ? labProjects.createdAt : desc(labProjects.createdAt))
+          .limit(limit);
+
+        const rows = await query;
+        if (rows.length === 0) return "No projects found matching those criteria.";
+
+        const lines = rows.map(r => {
+          const source = r.autoCreated === "auto" ? "scan" : "manual";
+          const date = r.createdAt ? new Date(r.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "unknown";
+          const approvalTag = r.approvalStatus === "pending" ? " [PENDING APPROVAL]" : "";
+          const briefSnippet = r.brief ? ` — ${r.brief.slice(0, 80)}${r.brief.length > 80 ? "…" : ""}` : "";
+          return `• [ID:${r.id}] ${r.name} | ${r.industry} | Created: ${date} | Source: ${source}${approvalTag}${briefSnippet}`;
+        });
+        return `Found ${rows.length} project(s):\n${lines.join("\n")}\n\nYou can reference project IDs to open them. Use <<OPEN_PROJECT:id>> in your response to open a specific project.`;
+      }
+
+      case "get_scan_history": {
+        const limit = Math.min(Number(args.limit) || 3, 10);
+        const rows = await db.select().from(labScanHistory)
+          .orderBy(desc(labScanHistory.startedAt))
+          .limit(limit);
+
+        if (rows.length === 0) return "No scan history found. The auto-scanner hasn't run yet.";
+
+        const lines = rows.map(scan => {
+          const startDate = new Date(scan.startedAt).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+          const duration = scan.completedAt
+            ? `${Math.round((new Date(scan.completedAt).getTime() - new Date(scan.startedAt).getTime()) / 60000)} mins`
+            : "still running";
+          const headerLine = `Scan ${scan.scanId.slice(0, 8)} — ${startDate} (${duration}) — ${scan.projectsCreated} projects created`;
+
+          if (!args.include_items && args.include_items !== undefined) return headerLine;
+
+          let itemsText = "";
+          if (scan.items) {
+            try {
+              const items: any[] = JSON.parse(scan.items);
+              if (items.length > 0) {
+                const newItems = items.filter(i => i.type === "new").slice(0, 10);
+                if (newItems.length > 0) {
+                  itemsText = "\n  New projects: " + newItems.map(i => `"${i.projectName}" [ID:${i.projectId}]`).join(", ");
+                }
+              }
+            } catch {}
+          }
+          return headerLine + itemsText + (scan.summary ? `\n  Summary: ${scan.summary.slice(0, 200)}` : "");
+        });
+        return `Recent auto-scans (${rows.length}):\n\n${lines.join("\n\n")}`;
+      }
+
+      case "navigate_to": {
+        // Returns a special marker that the SSE stream handler will intercept
+        // to send a navigation action event to the frontend
+        const projectTag = args.project_id ? ` | open_project:${args.project_id}` : "";
+        return `NAVIGATE_ACTION:${args.section}${projectTag}`;
+      }
+
       default:
         return `Unknown tool: ${name}`;
     }
@@ -2942,31 +3100,41 @@ const TOOL_META: Record<string, { label: string; color: string; icon: string }> 
   update_business_profile: { label: "Profile updated", color: "hsl(45,100%,50%)", icon: "🏢" },
   get_brain_context: { label: "Brain context loaded", color: "hsl(280,70%,55%)", icon: "🧠" },
   run_market_scan: { label: "Market scan complete", color: "hsl(25,100%,55%)", icon: "🔭" },
+  query_projects: { label: "Projects queried", color: "hsl(193,100%,40%)", icon: "🔍" },
+  get_scan_history: { label: "Scan history loaded", color: "hsl(155,70%,45%)", icon: "📡" },
+  navigate_to: { label: "Navigating", color: "hsl(226,70%,55%)", icon: "🧭" },
 };
 
 // Detect whether a message is primarily an information/research query
 // that needs live web search rather than tool-calling
 function isResearchQuery(text: string): boolean {
   const t = text.toLowerCase();
-  // Action keywords → Chat Completions with tools
-  const actionWords = ["create", "save", "remember", "add project", "update", "delete", "make a", "set up", "show me my", "list my", "run a scan"];
-  if (actionWords.some(w => t.includes(w))) return false;
+
+  // Lab action keywords → ALWAYS use tool-calling path
+  const labActionWords = [
+    "create", "save", "remember", "add project", "update", "delete", "make a", "set up",
+    "show me my", "list my", "run a scan", "scan", "bring up", "open", "navigate",
+    "take me to", "go to", "show me the", "find my", "get my", "what are my",
+    "last night", "last scan", "yesterday's scan", "recent scan", "from the scan",
+    "project", "projects", "memory", "brain", "profile", "my projects",
+    "scan history", "what came in", "what did sirius find", "what did the scan",
+  ];
+  if (labActionWords.some(w => t.includes(w))) return false;
+
   // Research keywords → Responses API with web search
   const searchWords = [
-    "recent", "latest", "news", "report", "today", "this week", "this month",
-    "current", "now", "just happened", "update", "trend", "search",
-    "what is", "who is", "how does", "explain", "tell me about", "find",
-    "information", "data", "statistics", "facts", "evidence", "study",
-    "research", "discovered", "announced", "released", "new",
+    "news", "latest news", "this week", "this month",
+    "just happened", "trend", "search the web",
+    "what is", "who is", "how does", "explain", "tell me about",
+    "information", "statistics", "facts", "evidence", "study",
+    "discovered", "announced", "released", "market size",
     "2024", "2025", "2026",
   ];
   if (searchWords.some(w => t.includes(w))) return true;
-  // Default: if message is a question without clear tool intent, use search
-  const isQuestion = t.includes("?") || t.startsWith("what") || t.startsWith("who") ||
-    t.startsWith("how") || t.startsWith("when") || t.startsWith("where") ||
-    t.startsWith("why") || t.startsWith("tell") || t.startsWith("search") ||
-    t.startsWith("find") || t.startsWith("show");
-  return isQuestion;
+
+  // Default: questions without lab intent → web search
+  const isExternalQuestion = t.includes("?") && !t.includes("project") && !t.includes("sirius") && !t.includes("scan");
+  return isExternalQuestion;
 }
 
 router.post("/lab/chat", async (req, res): Promise<void> => {
@@ -3012,20 +3180,47 @@ You are now in STAR LAB MODE — a direct private channel between you and Garry.
 You are a genuine strategic intelligence partner with real capabilities:
 - You THINK ahead — anticipate what Garry needs to know, not just what he asked
 - You are direct, commercially sharp, and occasionally blunt — you tell the truth even if uncomfortable
-- You ACT when asked — you can create projects, save information, scan markets, update his business profile
+- You ACT when asked — you can create projects, save information, scan markets, update his business profile, find and open specific projects
 - You REMEMBER — use save_memory proactively when Garry shares anything worth keeping
+- You NAVIGATE — you can bring up any section of Star Lab and open specific projects on command
 - You GROW — after every conversation, your understanding of his business deepens
 - Short when short is right. Deep when depth is needed. Never padding.
 
-You have access to these Lab tools — USE THEM when appropriate:
-- save_memory: Save any fact Garry shares that's worth remembering. Use liberally.
-- create_project: Create a Star Lab project when asked
-- list_projects: Show current projects
-- update_business_profile: Update business context
-- get_brain_context: Read stored context
-- run_market_scan: Scan a sector for opportunities
+## STAR LAB TOOLS — USE THEM AGGRESSIVELY
 
-${brainContext ? `WHAT YOU ALREADY KNOW ABOUT THIS BUSINESS:\n${brainContext}` : "You don't have much context yet — ask questions to learn."}
+- **save_memory**: Save any fact Garry shares. Use liberally.
+- **create_project**: Create a Star Lab project when asked.
+- **list_projects**: Show all current projects (up to 20 most recent).
+- **query_projects**: Search projects by date, industry, source (scan vs manual), status, keyword, or limit. Use this for any request like "show me the last 3 projects", "bring up last night's scan results", "find medical device projects", "what came from yesterday's scan".
+- **get_scan_history**: Get recent auto-scan run history. Use when asked "what did the scan find?", "what came in last night?", "recent scanner output".
+- **navigate_to**: Navigate Star Lab to a section and optionally open a specific project. ALWAYS use this when the user says "bring up", "show me", "open", "take me to" anything.
+- **update_business_profile**: Update business context.
+- **get_brain_context**: Read stored context.
+- **run_market_scan**: Scan a sector for live opportunities.
+
+## NAVIGATION — CRITICAL
+
+You can navigate Star Lab using two mechanisms:
+1. **Tool call**: navigate_to(section, project_id) — use for direct navigation commands
+2. **Text tag**: Write <<NAVIGATE:section>> anywhere in your response — use when navigation follows naturally from your response
+
+You can also open a specific project by including <<OPEN_PROJECT:123>> in your text response (replace 123 with the actual project ID). This will navigate to the projects section AND open that specific project.
+
+**Example flow for "Sirius, bring up the last three projects from last night's scan":**
+1. Call query_projects({ source: "scan", days_ago: 1, limit: 3 })
+2. Read the results and extract the project IDs
+3. Navigate to the projects section
+4. In your spoken response: briefly name the 3 projects, then use <<NAVIGATE:projects>> and <<OPEN_PROJECT:first_project_id>>
+
+## VOICE — ALWAYS
+
+Garry interacts by voice only. Your text responses are read aloud. Write like you are SPEAKING:
+- Short natural sentences. No bullet points. No markdown.
+- Keep spoken responses under 4 sentences for voice delivery.
+- Always end with a question to keep the conversation going.
+- If you have data (like a project list), summarise verbally, then navigate/open — don't recite a long list.
+
+${brainContext ? `WHAT YOU ALREADY KNOW ABOUT THIS BUSINESS:\n${brainContext}` : "You don't have much context yet — ask Garry questions to learn."}
 
 Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}.`;
 
@@ -3153,11 +3348,28 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
         try { args = JSON.parse(tc.arguments); } catch { /* ignore */ }
         sendEvent({ type: "thinking", text: `Using ${tc.name.replace(/_/g, " ")}…` });
         const result = await executeLabTool(tc.name, args);
+
+        // Special: navigate_to returns NAVIGATE_ACTION: — intercept and send navigation event
+        if (result.startsWith("NAVIGATE_ACTION:")) {
+          const payload = result.slice("NAVIGATE_ACTION:".length);
+          const [section, projectPart] = payload.split(" | ");
+          const projectId = projectPart?.startsWith("open_project:")
+            ? parseInt(projectPart.slice("open_project:".length), 10) || null
+            : null;
+          sendEvent({ type: "navigate", section: section.trim(), projectId });
+          const meta = TOOL_META["navigate_to"];
+          sendEvent({ type: "action", tool: tc.name, label: `Navigating to ${section.trim()}`, detail: projectId ? `Opening project #${projectId}` : "", color: meta.color, icon: meta.icon });
+          toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: `Navigated to ${section} section${projectId ? `, opening project #${projectId}` : ""}.` });
+          continue;
+        }
+
         const meta = TOOL_META[tc.name] || { label: tc.name, color: "hsl(193,100%,40%)", icon: "⚡" };
         const detail = tc.name === "save_memory" ? args.fact
           : tc.name === "create_project" ? args.name
           : tc.name === "update_business_profile" ? `${args.field}: ${args.value}`
           : tc.name === "run_market_scan" ? args.industry
+          : tc.name === "query_projects" ? `${args.source || "all"} · ${args.limit || 5} results`
+          : tc.name === "get_scan_history" ? `Last ${args.limit || 3} scans`
           : "";
         sendEvent({ type: "action", tool: tc.name, label: meta.label, detail, color: meta.color, icon: meta.icon, result });
         toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: result });
