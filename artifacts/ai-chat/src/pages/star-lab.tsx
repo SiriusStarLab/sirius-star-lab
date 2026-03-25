@@ -4727,7 +4727,7 @@ function AppBuilderPanel({ pin }: { pin: string }) {
       const res = await fetch(`${base}lab/app-builder/deploy-pipeline`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-lab-pin": pin },
-        body: JSON.stringify({ appName: reqs.appName, techStack: reqs.techStack, files: Object.fromEntries(Object.keys(generatedFiles).map(k => [k, ""])) }),
+        body: JSON.stringify({ appName: reqs.appName, techStack: reqs.techStack, files: Object.fromEntries(Object.keys(allFiles).map(k => [k, ""])) }),
       });
       const reader = res.body!.getReader();
       const dec = new TextDecoder();
@@ -4774,10 +4774,10 @@ function AppBuilderPanel({ pin }: { pin: string }) {
         headers: { "Content-Type": "application/json", "x-lab-pin": pin },
         body: JSON.stringify({
           filename: activeFile,
-          fileContent: generatedFiles[activeFile] || "",
+          fileContent: allFiles[activeFile] || "",
           instruction,
           history: ghostMessages,
-          allFiles: Object.fromEntries(Object.keys(generatedFiles).map(k => [k, ""])),
+          allFiles: Object.fromEntries(Object.keys(allFiles).map(k => [k, ""])),
         }),
       });
       const reader = es.body!.getReader();
@@ -4889,9 +4889,9 @@ function AppBuilderPanel({ pin }: { pin: string }) {
 
   // ── Tools: parse generated files ──────────────────────────────────────────
   const toolsData = (() => {
-    const pkgFile = generatedFiles["package.json"] || generatedFiles["client/package.json"] || "";
-    const envFile = generatedFiles[".env.example"] || generatedFiles[".env"] || "";
-    const schemaFile = Object.entries(generatedFiles).find(([k]) => k.includes("schema"))?.[1] || "";
+    const pkgFile = allFiles["package.json"] || allFiles["client/package.json"] || "";
+    const envFile = allFiles[".env.example"] || allFiles[".env"] || "";
+    const schemaFile = Object.entries(allFiles).find(([k]) => k.includes("schema"))?.[1] || "";
 
     let packages: string[] = [];
     try {
@@ -4909,7 +4909,7 @@ function AppBuilderPanel({ pin }: { pin: string }) {
 
     const schemaTables = (schemaFile.match(/export const (\w+)/g) || []).map(m => m.replace("export const ", ""));
 
-    const deployFiles = Object.keys(generatedFiles).filter(f =>
+    const deployFiles = Object.keys(allFiles).filter(f =>
       f.includes("Dockerfile") || f.includes(".github") || f.includes("docker-compose") || f.includes("nginx") || f.includes("deploy")
     );
 
@@ -4938,7 +4938,7 @@ function AppBuilderPanel({ pin }: { pin: string }) {
               🏛️ Ask Architect
               {architectMessages.length > 0 && <span className="w-4 h-4 rounded-full text-[9px] flex items-center justify-center font-bold" style={{ background: "hsl(45,90%,50%)", color: "white" }}>{architectMessages.filter(m => m.role === "assistant").length}</span>}
             </button>
-            {Object.keys(generatedFiles).length > 0 && (
+            {Object.keys(allFiles).length > 0 && (
               <button onClick={() => setToolsOpen(o => !o)}
                 className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all"
                 style={{ background: toolsOpen ? "hsla(155,70%,45%,0.15)" : "rgba(15,23,42,0.06)", color: toolsOpen ? "hsl(155,70%,35%)" : "rgba(15,23,42,0.55)", border: toolsOpen ? "1px solid hsla(155,70%,45%,0.3)" : "1px solid transparent" }}>
@@ -6102,7 +6102,7 @@ function AppBuilderPanel({ pin }: { pin: string }) {
                   )}
                   <div className="mt-4">
                     <p className="text-xs font-semibold mb-2" style={{ color: "rgba(15,23,42,0.55)" }}>Schema files</p>
-                    {Object.keys(generatedFiles).filter(f => f.includes("schema") || f.includes("migration") || f.includes("model")).map(f => (
+                    {Object.keys(allFiles).filter(f => f.includes("schema") || f.includes("migration") || f.includes("model")).map(f => (
                       <button key={f} onClick={() => { setActiveFile(f); setToolsOpen(false); }}
                         className="w-full text-left px-3 py-1.5 rounded-lg text-xs font-mono mb-1 transition-all hover:opacity-75"
                         style={{ background: "rgba(15,23,42,0.04)", color: "rgba(15,23,42,0.65)" }}>
@@ -10867,6 +10867,7 @@ function LabAvatarGreeting({ userName, onNavigate, onDismiss, projects }: {
         backdropFilter: "blur(20px)",
         opacity: leaving ? 0 : visible ? 1 : 0,
         transition: "opacity 0.35s ease",
+        pointerEvents: (leaving || !visible) ? "none" : "auto",
       }}>
 
       {/* Skip */}
@@ -12344,6 +12345,7 @@ export function StarLabPage() {
   const [showGreeting, setShowGreeting] = useState(false);
   const [pin, setPin] = useState("");
   const [accessLevel, setAccessLevel] = useState<AccessRole>("owner");
+
   const userName = typeof window !== "undefined"
     ? (localStorage.getItem("sirius_display_name") || "").trim() || "Garry"
     : "Garry";
@@ -12403,6 +12405,11 @@ export function StarLabPage() {
   }, [base, headers]);
 
   useEffect(() => { if (unlocked) loadProjects(); }, [unlocked, loadProjects]);
+
+  // Dismiss the voice greeting overlay whenever the user navigates via sidebar
+  useEffect(() => {
+    if (showGreeting) setShowGreeting(false);
+  }, [navMode]);
 
   // Poll every 30s to detect completed funding analyses
   useEffect(() => {
