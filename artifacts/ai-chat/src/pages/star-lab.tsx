@@ -158,6 +158,7 @@ function StarLabGreeting({ userName, onComplete }: { userName?: string; onComple
   const [waveTick, setWaveTick] = useState(0);
   const [captionIdx, setCaptionIdx] = useState(-1);
   const hasSpoken = useRef(false);
+  const completedRef = useRef(false);
 
   const greetingText = `Hi ${userName || "Garry"}, welcome back to Star Lab. Please enter your PIN to continue.`;
 
@@ -167,6 +168,16 @@ function StarLabGreeting({ userName, onComplete }: { userName?: string; onComple
     "You are entering a restricted area.",
     "Please key in your PIN number.",
   ];
+
+  const finish = () => {
+    if (completedRef.current) return;
+    completedRef.current = true;
+    window.speechSynthesis?.cancel();
+    setIsSpeaking(false);
+    setSpeechDone(true);
+    setCaptionIdx(captions.length - 1);
+    setTimeout(onComplete, 400);
+  };
 
   // Waveform ticker
   useEffect(() => {
@@ -186,12 +197,15 @@ function StarLabGreeting({ userName, onComplete }: { userName?: string; onComple
       speakText(greetingText, () => {
         setIsSpeaking(false);
         setSpeechDone(true);
-        setTimeout(onComplete, 600);
+        setTimeout(finish, 600);
       });
     };
     // 400ms allows the browser to settle
     const t = setTimeout(startSpeak, 400);
-    return () => { clearTimeout(t); window.speechSynthesis?.cancel(); };
+    // Safari safety net — speechSynthesis.onend often never fires on Safari/iOS.
+    // Force-advance after 8 seconds regardless so the PIN pad always appears.
+    const safetyTimer = setTimeout(finish, 8000);
+    return () => { clearTimeout(t); clearTimeout(safetyTimer); window.speechSynthesis?.cancel(); };
   }, []);
 
   const bars = 12;
@@ -291,6 +305,14 @@ function StarLabGreeting({ userName, onComplete }: { userName?: string; onComple
         <p className="font-mono text-xs" style={{ color: "rgba(15,23,42,0.5)", letterSpacing: "0.2em" }}>
           {speechDone ? "TRANSITIONING…" : isSpeaking ? "SIRIUS SPEAKING…" : "INITIALISING…"}
         </p>
+
+        {/* Skip button — always visible so users can bypass speech if it stalls */}
+        <button
+          onClick={finish}
+          className="font-mono text-xs px-4 py-2 rounded-lg transition-all hover:opacity-100"
+          style={{ color: "rgba(15,23,42,0.35)", letterSpacing: "0.15em", border: "1px solid rgba(15,23,42,0.1)", background: "transparent", marginTop: 4 }}>
+          TAP TO CONTINUE
+        </button>
       </div>
     </div>
   );
