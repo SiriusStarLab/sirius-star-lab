@@ -13,7 +13,7 @@
  * (to stay within rate limits); oldest-unswept projects are prioritised.
  */
 
-import { and, asc, desc, eq, isNull, ne, not, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, ne, not, or, sql } from "drizzle-orm";
 import { db, labProjects } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
 
@@ -199,7 +199,7 @@ export async function runAiArchSweep(): Promise<{ analysed: number; linked: numb
     const results = await db
       .select({ id: labProjects.id, aiArchLinked: labProjects.aiArchLinked })
       .from(labProjects)
-      .where(sql`${labProjects.id} IN (${toProcess.map(p => p.id).join(",")})`);
+      .where(inArray(labProjects.id, toProcess.map(p => p.id)));
     linked = results.filter(r => r.aiArchLinked === "linked").length;
   }
 
