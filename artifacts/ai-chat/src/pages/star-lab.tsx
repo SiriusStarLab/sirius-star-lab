@@ -2414,6 +2414,7 @@ function SalesPlanProjectTab({ project }: { project: Project }) {
 
 function FundingProjectTab({ project, pin, onUpdate }: { project: Project; pin: string; onUpdate: (p: Project) => void }) {
   const [running, setRunning] = useState(false);
+  const [runError, setRunError] = useState("");
   const [applyingScheme, setApplyingScheme] = useState<string | null>(null);
   const [applicationModal, setApplicationModal] = useState<{ scheme: string; text: string; streaming: boolean } | null>(null);
   const [copied, setCopied] = useState(false);
@@ -2423,9 +2424,21 @@ function FundingProjectTab({ project, pin, onUpdate }: { project: Project; pin: 
 
   const runAnalysis = async () => {
     setRunning(true);
-    await fetch(`${base}lab/projects/${project.id}/funding`, { method: "POST", headers: hdrs() });
-    onUpdate({ ...project, fundingStatus: "pending" });
-    setRunning(false);
+    setRunError("");
+    try {
+      const res = await fetch(`${base}lab/projects/${project.id}/funding`, { method: "POST", headers: hdrs() });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        setRunError(err.error || `Error ${res.status} — please try again`);
+        setRunning(false);
+        return;
+      }
+      onUpdate({ ...project, fundingStatus: "pending" });
+    } catch (e: any) {
+      setRunError("Network error — please check your connection and try again");
+    } finally {
+      setRunning(false);
+    }
   };
 
   const drafts: Record<string, { application: string; scheme: string; generatedAt: string }> = (() => {
@@ -2644,6 +2657,14 @@ function FundingProjectTab({ project, pin, onUpdate }: { project: Project; pin: 
           {running || isPending ? <><Loader2 className="w-3 h-3 animate-spin" /> Running…</> : <><RefreshCw className="w-3 h-3" /> Re-run</>}
         </button>
       </div>
+
+      {/* API/network error from clicking Run */}
+      {runError && (
+        <div className="flex items-center gap-2 p-3 rounded-xl" style={{ background: "hsla(0,70%,55%,0.08)", border: "1px solid hsla(0,70%,55%,0.2)" }}>
+          <AlertCircle className="w-4 h-4 flex-shrink-0" style={{ color: "hsl(0,70%,55%)" }} />
+          <p className="text-xs" style={{ color: "hsl(0,70%,40%)" }}>{runError}</p>
+        </div>
+      )}
 
       {/* Pending state */}
       {isPending && !hasResults && (
@@ -4166,7 +4187,7 @@ function AppBuilderPanel({ pin }: { pin: string }) {
   // Load sessions on mount
   useEffect(() => {
     setSessionsLoading(true);
-    fetch(`${API}/lab/app-builder/sessions`, {
+    fetch(`${API}lab/app-builder/sessions`, {
       method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
       body: JSON.stringify({ pin }),
     })
@@ -4198,7 +4219,7 @@ function AppBuilderPanel({ pin }: { pin: string }) {
         thinkingLog: overrides?.thinkingLog ?? thinkingLog,
         buildLog: overrides?.buildLog ?? buildLog,
       };
-      const res = await fetch(`${API}/lab/app-builder/sessions/save`, {
+      const res = await fetch(`${API}lab/app-builder/sessions/save`, {
         method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
         body: JSON.stringify(body),
       });
@@ -4210,7 +4231,7 @@ function AppBuilderPanel({ pin }: { pin: string }) {
   // Load an existing session
   const loadSession = async (id: number) => {
     try {
-      const res = await fetch(`${API}/lab/app-builder/sessions/${id}`, {
+      const res = await fetch(`${API}lab/app-builder/sessions/${id}`, {
         headers: { "x-lab-pin": pin },
       });
       const data = await res.json();
@@ -4232,7 +4253,7 @@ function AppBuilderPanel({ pin }: { pin: string }) {
   const deleteSession = async (id: number, e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      await fetch(`${API}/lab/app-builder/sessions/${id}`, { method: "DELETE", headers: { "x-lab-pin": pin } });
+      await fetch(`${API}lab/app-builder/sessions/${id}`, { method: "DELETE", headers: { "x-lab-pin": pin } });
       setSessions(prev => prev.filter(s => s.id !== id));
       if (sessionId === id) { setSessionId(null); setPhase(1); }
     } catch {}
@@ -4253,7 +4274,7 @@ function AppBuilderPanel({ pin }: { pin: string }) {
     setArchitectMessages(newMessages);
 
     try {
-      const res = await fetch(`${API}/lab/app-builder/architect`, {
+      const res = await fetch(`${API}lab/app-builder/architect`, {
         method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
         body: JSON.stringify({ message: userMsg, history: updatedHistory.map(m => ({ role: m.role, content: m.content })), requirements: reqs, files: allFiles, pin }),
       });
@@ -4303,7 +4324,7 @@ function AppBuilderPanel({ pin }: { pin: string }) {
     if (!prompt.trim()) return;
     setLoading(true); setError("");
     try {
-      const res = await fetch(`${API}/lab/app-builder/interpret`, {
+      const res = await fetch(`${API}lab/app-builder/interpret`, {
         method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
         body: JSON.stringify({ prompt, pin }),
       });
@@ -4321,7 +4342,7 @@ function AppBuilderPanel({ pin }: { pin: string }) {
     if (!reqs) return;
     setLoading(true); setError("");
     try {
-      const res = await fetch(`${API}/lab/app-builder/plan`, {
+      const res = await fetch(`${API}lab/app-builder/plan`, {
         method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
         body: JSON.stringify({ requirements: reqs, pin }),
       });
@@ -4348,7 +4369,7 @@ function AppBuilderPanel({ pin }: { pin: string }) {
     setPipelineStep("Interpreting requirements…");
     let interpretedReqs: typeof reqs = null;
     try {
-      const res = await fetch(`${API}/lab/app-builder/interpret`, {
+      const res = await fetch(`${API}lab/app-builder/interpret`, {
         method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
         body: JSON.stringify({ prompt, pin }),
       });
@@ -4369,7 +4390,7 @@ function AppBuilderPanel({ pin }: { pin: string }) {
     // ── Step 2: Plan ─────────────────────────────────────────────────────────
     let builtPlan: BuildTask[] = [];
     try {
-      const res = await fetch(`${API}/lab/app-builder/plan`, {
+      const res = await fetch(`${API}lab/app-builder/plan`, {
         method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
         body: JSON.stringify({ requirements: interpretedReqs, pin }),
       });
@@ -4412,7 +4433,7 @@ function AppBuilderPanel({ pin }: { pin: string }) {
     setLearnDone(false);
     const collectedFiles: Record<string, string> = {};
 
-    const res = await fetch(`${API}/lab/build-app`, {
+    const res = await fetch(`${API}lab/build-app`, {
       method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
       body: JSON.stringify({ appName: activeReqs.appName, description: activeReqs.summary, appType: activeReqs.appType, techStack: activeReqs.techStack, features: activeReqs.coreFeatures, pin }),
     });
@@ -4482,7 +4503,7 @@ function AppBuilderPanel({ pin }: { pin: string }) {
     setLoading(true); setTestOutput(""); setBugs([]); setError("");
     const collectedBugs: Bug[] = [];
 
-    const res = await fetch(`${API}/lab/app-builder/test`, {
+    const res = await fetch(`${API}lab/app-builder/test`, {
       method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
       body: JSON.stringify({ files: allFiles, appName: reqs?.appName, techStack: reqs?.techStack, pin }),
     });
@@ -4520,7 +4541,7 @@ function AppBuilderPanel({ pin }: { pin: string }) {
     if (bugs.length === 0) { setPhase(7); return; }
     setLoading(true); setDebugOutput(""); setError("");
 
-    const res = await fetch(`${API}/lab/app-builder/debug`, {
+    const res = await fetch(`${API}lab/app-builder/debug`, {
       method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
       body: JSON.stringify({ files: allFiles, bugs, appName: reqs?.appName, pin }),
     });
@@ -4670,7 +4691,7 @@ function AppBuilderPanel({ pin }: { pin: string }) {
     setLearnSuggestions([]);
     setLearnSummary(null);
     try {
-      const res = await fetch(`${API}/lab/app-builder/learn`, {
+      const res = await fetch(`${API}lab/app-builder/learn`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-lab-pin": pin },
         body: JSON.stringify({ appName: reqs.appName, techStack: reqs.techStack, files: allFiles, pin }),
@@ -4803,7 +4824,7 @@ function AppBuilderPanel({ pin }: { pin: string }) {
               setTimeout(() => ghostRef.current?.scrollTo({ top: ghostRef.current.scrollHeight, behavior: "smooth" }), 30);
             } else if (ev.type === "done") {
               if (ev.updatedCode) {
-                setGeneratedFiles(prev => ({ ...prev, [activeFile]: ev.updatedCode }));
+                setAllFiles(prev => ({ ...prev, [activeFile]: ev.updatedCode }));
                 setGhostMessages(prev => {
                   const msgs = [...prev];
                   msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], content: response, updatedCode: ev.updatedCode };
@@ -4863,7 +4884,7 @@ function AppBuilderPanel({ pin }: { pin: string }) {
 
   const addFigmaToProject = () => {
     if (!figmaResult) return;
-    setGeneratedFiles(prev => ({ ...prev, [figmaResult!.filename]: figmaResult!.content }));
+    setAllFiles(prev => ({ ...prev, [figmaResult!.filename]: figmaResult!.content }));
     setActiveFile(figmaResult.filename);
     setPhase(7);
   };
@@ -10851,8 +10872,17 @@ function LabAvatarGreeting({ userName, onNavigate, onDismiss, projects }: {
       setShowCards(true);
     }, 600);
 
+    // Auto-dismiss after 15 seconds so it never blocks access to the app
+    const autoDismiss = setTimeout(() => {
+      stopListening();
+      window.speechSynthesis?.cancel();
+      setLeaving(true);
+      setTimeout(() => onDismiss(), 350);
+    }, 15000);
+
     return () => {
       clearTimeout(speakTimer);
+      clearTimeout(autoDismiss);
       stopListening();
       window.speechSynthesis?.cancel();
     };
