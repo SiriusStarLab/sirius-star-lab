@@ -30,6 +30,8 @@ const TIER_COLORS: Record<string, string> = {
   pro: Colors.primary,
 };
 
+const WEB_URL = "https://sirius-ai.live";
+
 function SettingRow({
   icon,
   label,
@@ -118,13 +120,7 @@ export default function SettingsScreen() {
     setEditingAiName(false);
   };
 
-  const WEB_URL = "https://ai-companion-huttongarry4.replit.app";
-
   const handleUpgrade = async (tier: "plus" | "pro") => {
-    if (Platform.OS === "ios") {
-      await Linking.openURL(`${WEB_URL}/?upgrade=${tier}`);
-      return;
-    }
     try {
       const base = getApiBase();
       const res = await fetch(`${base}stripe/checkout`, {
@@ -148,10 +144,7 @@ export default function SettingsScreen() {
   const isPro = profile.subscriptionTier === "pro";
   const isFree = profile.subscriptionTier === "free";
 
-  const dailyUsageText =
-    profile.dailyLimit === null
-      ? `${profile.dailyMessageCount} messages today (unlimited)`
-      : `${profile.dailyMessageCount} / ${profile.dailyLimit} messages today`;
+  const isIOS = Platform.OS === "ios";
 
   return (
     <ScrollView
@@ -293,14 +286,14 @@ export default function SettingsScreen() {
         )}
       </View>
 
-      {isFree && (
+      {/* Upgrade section — Android only (iOS manages subscriptions via sirius-ai.live) */}
+      {!isIOS && isFree && (
         <View style={styles.upgradeSection}>
           <Text style={styles.upgradeHeading}>Get more from Sirius</Text>
           <Text style={styles.upgradeSubheading}>
             Less than a coffee a month. Cancel any time.
           </Text>
 
-          {/* Plus — primary CTA */}
           <Pressable
             onPress={() => handleUpgrade("plus")}
             style={({ pressed }) => [styles.plusCard, { opacity: pressed ? 0.9 : 1 }]}
@@ -315,14 +308,9 @@ export default function SettingsScreen() {
               </View>
               <Feather name="arrow-right" size={18} color={Colors.background} />
             </View>
-            <Text style={styles.plusCardNote}>
-              {Platform.OS === "ios"
-                ? "Opens siriusai.app · Cancel any time"
-                : "Secured by Stripe · Cancel any time, no questions asked"}
-            </Text>
+            <Text style={styles.plusCardNote}>Secured by Stripe · Cancel any time, no questions asked</Text>
           </Pressable>
 
-          {/* Pro — secondary */}
           <Pressable
             onPress={() => handleUpgrade("pro")}
             style={({ pressed }) => [styles.proCard, { opacity: pressed ? 0.9 : 1 }]}
@@ -337,7 +325,8 @@ export default function SettingsScreen() {
         </View>
       )}
 
-      {(isPlus || isPro) && (
+      {/* iOS: show subscription info card for paid users */}
+      {isIOS && (isPlus || isPro) && (
         <View style={styles.card}>
           <SectionHeader title="SUBSCRIPTION" />
           <SettingRow
@@ -345,7 +334,24 @@ export default function SettingsScreen() {
             label={`Active: Sirius ${TIER_LABELS[profile.subscriptionTier]}`}
             value={isPro ? "Unlimited" : "200/day"}
           />
-          {isFree || (
+          <SettingRow
+            icon="external-link"
+            label="Manage subscription"
+            onPress={() => Linking.openURL(`${WEB_URL}/pricing`)}
+          />
+        </View>
+      )}
+
+      {/* Android: subscription section for paid users */}
+      {!isIOS && (isPlus || isPro) && (
+        <View style={styles.card}>
+          <SectionHeader title="SUBSCRIPTION" />
+          <SettingRow
+            icon="check-circle"
+            label={`Active: Sirius ${TIER_LABELS[profile.subscriptionTier]}`}
+            value={isPro ? "Unlimited" : "200/day"}
+          />
+          {!isPro && (
             <SettingRow
               icon="arrow-up-circle"
               label="Upgrade to Pro"
@@ -365,12 +371,12 @@ export default function SettingsScreen() {
         <SettingRow
           icon="shield"
           label="Privacy Policy"
-          onPress={() => Linking.openURL("https://ai-companion-huttongarry4.replit.app/privacy")}
+          onPress={() => Linking.openURL(`${WEB_URL}/privacy`)}
         />
         <SettingRow
           icon="file-text"
           label="Terms of Service"
-          onPress={() => Linking.openURL("https://ai-companion-huttongarry4.replit.app/terms")}
+          onPress={() => Linking.openURL(`${WEB_URL}/terms`)}
         />
       </View>
 
