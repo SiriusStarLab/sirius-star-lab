@@ -11009,13 +11009,14 @@ const NAV_LABELS: Record<string, string> = {
   appbuilder: "App Builder", "ai-arch": "AI Architecture", orchestrate: "Command Centre",
 };
 
-function LabFloatingChat({ pin, navMode, activeProject }: {
+function LabFloatingChat({ pin, navMode, activeProject, onNavigate }: {
   pin: string;
   navMode: NavMode;
   activeProject: Project | null;
+  onNavigate: (mode: NavMode) => void;
 }) {
   const [open, setOpen] = React.useState(false);
-  const [messages, setMessages] = React.useState<{ role: "user" | "assistant"; content: string }[]>([]);
+  const [messages, setMessages] = React.useState<{ role: "user" | "assistant"; content: string; actions?: { label: string; color: string }[] }[]>([]);
   const [input, setInput] = React.useState("");
   const [streaming, setStreaming] = React.useState(false);
   const [streamText, setStreamText] = React.useState("");
@@ -11024,15 +11025,14 @@ function LabFloatingChat({ pin, navMode, activeProject }: {
   const inputRef = React.useRef<HTMLInputElement>(null);
   const base = getApiBase();
 
-  // Greet on first open
+  // Greet on first open — speak it aloud
   React.useEffect(() => {
     if (open && messages.length === 0) {
       const page = NAV_LABELS[navMode] ?? navMode;
       const proj = activeProject ? ` You have "${activeProject.name}" open.` : "";
-      setMessages([{
-        role: "assistant",
-        content: `I'm here. You're on ${page}.${proj} What do you need?`,
-      }]);
+      const greeting = `I'm here. You're on ${page}.${proj} What do you need?`;
+      setMessages([{ role: "assistant", content: greeting }]);
+      speakText(greeting);
     }
     if (open) { setUnread(false); setTimeout(() => inputRef.current?.focus(), 150); }
   }, [open]);
@@ -11041,23 +11041,82 @@ function LabFloatingChat({ pin, navMode, activeProject }: {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, streamText]);
 
+  // Simple client-side navigation intent detection
+  const detectNavIntent = (text: string): NavMode | null => {
+    const t = text.toLowerCase();
+    const navMap: [string[], NavMode][] = [
+      [["dashboard", "home", "overview"], "dashboard"],
+      [["project", "portfolio", "innovations"], "projects"],
+      [["bot lab", "botlab", "automation bots", "bots"], "botlab"],
+      [["scout", "scan", "opportunities", "scanning"], "scout"],
+      [["intelligence feed", "feed", "market signals", "trends"], "feed"],
+      [["funding radar", "grants", "funding", "grant"], "grants"],
+      [["commerce", "e-commerce", "retail", "shop"], "commerce"],
+      [["outreach", "sales contacts", "partners"], "outreach"],
+      [["auto lab", "autolab", "pending approval"], "autolab"],
+      [["revenue", "sales plan", "unit economics", "commission"], "revenue"],
+      [["agency", "client delivery"], "agency"],
+      [["mission", "kpi", "objectives"], "mission"],
+      [["growth", "marketing", "growth engine"], "growth"],
+      [["brain", "strategic intelligence", "deep analysis"], "brain"],
+      [["deep research", "research"], "research"],
+      [["document", "docs", "upload"], "docs"],
+      [["lab chat", "labchat", "full conversation"], "labchat"],
+      [["app builder", "appbuilder", "build app"], "appbuilder"],
+      [["ai architecture", "ai arch", "architecture"], "ai-arch"],
+      [["command centre", "orchestrate", "orchestration", "full pipeline"], "orchestrate"],
+    ];
+    const goVerbs = ["go to", "take me to", "open", "show me", "navigate to", "switch to", "go"];
+    const hasGoVerb = goVerbs.some(v => t.includes(v));
+    if (!hasGoVerb) return null;
+    for (const [keywords, mode] of navMap) {
+      if (keywords.some(k => t.includes(k))) return mode;
+    }
+    return null;
+  };
+
   const send = async () => {
     const text = input.trim();
     if (!text || streaming) return;
     setInput("");
 
+    const newMsg = { role: "user" as const, content: text };
+    setMessages(prev => [...prev, newMsg]);
+
+    // Check for navigation intents first (no API call needed)
+    const navTarget = detectNavIntent(text);
+    if (navTarget) {
+      const navName = NAV_LABELS[navTarget] ?? navTarget;
+      const reply = `Taking you to ${navName} now.`;
+      setMessages(prev => [...prev, { role: "assistant", content: reply }]);
+      speakText(reply, () => onNavigate(navTarget));
+      return;
+    }
+
     const page = NAV_LABELS[navMode] ?? navMode;
     const projCtx = activeProject ? `\n\nCurrently open project: "${activeProject.name}" (${activeProject.industry}) — brief: ${(activeProject.brief || "").slice(0, 300)}` : "";
-    const contextMessage = { role: "system" as const, content: `User is on the "${page}" section of Sirius Star Lab.${projCtx}\n\nBe concise and direct. Refer to the current page context when relevant. Do not repeat the user's words back to them.` };
+    const sections = Object.entries(NAV_LABELS).map(([k, v]) => `${v} (${k})`).join(", ");
+    const contextMessage = {
+      role: "system" as const,
+      content: `You are Sirius, the AI intelligence partner inside Star Lab — the private R&D command centre for Strategic Innovation Dundee Ltd. You are speaking with Garry, the founder.
 
-    const newMsg = { role: "user" as const, content: text };
-    const history = [...messages, newMsg];
-    setMessages(history);
+The user is currently on the "${page}" section.${projCtx}
+
+Star Lab sections available: ${sections}
+
+Write responses for voice — short, natural, conversational sentences. No bullet points, no markdown.
+
+If the user asks you to navigate somewhere, end your response with <<NAVIGATE:sectionId>> where sectionId is one of: dashboard, projects, botlab, scout, feed, grants, commerce, outreach, autolab, revenue, agency, mission, growth, brain, research, docs, labchat, appbuilder, ai-arch, orchestrate.
+
+If the user asks you to work on a task, build something, run a scan, or execute a pipeline, tell them what you're doing and include <<NAVIGATE:orchestrate>> to take them to Command Centre where they can initiate it.`,
+    };
+
+    const history = [newMsg];
     setStreaming(true);
     setStreamText("");
 
     try {
-      const apiMessages = [contextMessage, ...history.map(m => ({ role: m.role, content: m.content }))];
+      const apiMessages = [contextMessage, ...messages.filter(m => m.role !== "system").map(m => ({ role: m.role, content: m.content })), { role: "user" as const, content: text }];
       const res = await fetch(`${base}lab/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-lab-pin": pin },
@@ -11068,6 +11127,7 @@ function LabFloatingChat({ pin, navMode, activeProject }: {
       const decoder = new TextDecoder();
       let buf = "";
       let full = "";
+      const pendingActions: { label: string; color: string }[] = [];
 
       while (true) {
         const { done, value } = await reader.read();
@@ -11081,18 +11141,38 @@ function LabFloatingChat({ pin, navMode, activeProject }: {
           if (raw === "[DONE]") { break; }
           try {
             const evt = JSON.parse(raw);
-            // Endpoint sends { type:"text", delta } — not OpenAI streaming format
             if (evt.type === "done") { break; }
             if (evt.type === "text" && evt.delta) {
               full += evt.delta;
               setStreamText(full);
             }
+            if (evt.type === "action" && evt.label) {
+              pendingActions.push({ label: evt.label, color: evt.color || "hsl(193,100%,35%)" });
+            }
           } catch { /* ignore */ }
         }
       }
-      if (full) setMessages(prev => [...prev, { role: "assistant", content: full }]);
+
+      if (full) {
+        // Parse navigate tag from response
+        const navMatch = full.match(/<<NAVIGATE:([^>]+)>>/);
+        const cleanText = full.replace(/<<[^>]+>>/g, "").trim();
+
+        setMessages(prev => [...prev, { role: "assistant", content: cleanText, actions: pendingActions.length ? pendingActions : undefined }]);
+
+        // Speak response aloud (truncate very long responses for voice)
+        const spokenText = cleanText.length > 300 ? cleanText.slice(0, 300) + "." : cleanText;
+        if (navMatch) {
+          const dest = navMatch[1].trim() as NavMode;
+          speakText(spokenText, () => onNavigate(dest));
+        } else {
+          speakText(spokenText);
+        }
+      }
     } catch {
-      setMessages(prev => [...prev, { role: "assistant", content: "Something went wrong — please try again." }]);
+      const errMsg = "Something went wrong — please try again.";
+      setMessages(prev => [...prev, { role: "assistant", content: errMsg }]);
+      speakText(errMsg);
     } finally {
       setStreaming(false);
       setStreamText("");
@@ -11147,14 +11227,25 @@ function LabFloatingChat({ pin, navMode, activeProject }: {
                     <img src="/logo-v2.png" alt="" className="w-full h-full object-cover" />
                   </div>
                 )}
-                <div className="max-w-[260px] px-3 py-2 rounded-xl text-xs leading-relaxed" style={{
-                  background: m.role === "user" ? "rgba(15,23,42,0.85)" : "#fff",
-                  color: m.role === "user" ? "#fff" : "rgba(15,23,42,0.8)",
-                  border: m.role === "assistant" ? "1px solid rgba(15,23,42,0.08)" : "none",
-                  borderBottomRightRadius: m.role === "user" ? 4 : 12,
-                  borderBottomLeftRadius: m.role === "assistant" ? 4 : 12,
-                }}>
-                  {m.content}
+                <div className="flex flex-col gap-1.5">
+                  <div className="max-w-[260px] px-3 py-2 rounded-xl text-xs leading-relaxed" style={{
+                    background: m.role === "user" ? "rgba(15,23,42,0.85)" : "#fff",
+                    color: m.role === "user" ? "#fff" : "rgba(15,23,42,0.8)",
+                    border: m.role === "assistant" ? "1px solid rgba(15,23,42,0.08)" : "none",
+                    borderBottomRightRadius: m.role === "user" ? 4 : 12,
+                    borderBottomLeftRadius: m.role === "assistant" ? 4 : 12,
+                  }}>
+                    {m.content}
+                  </div>
+                  {m.actions && m.actions.length > 0 && (
+                    <div className="flex flex-wrap gap-1 max-w-[260px]">
+                      {m.actions.map((a, ai) => (
+                        <span key={ai} className="text-xs px-2 py-0.5 rounded-full font-mono" style={{ background: `${a.color}18`, color: a.color, border: `1px solid ${a.color}40`, fontSize: 10 }}>
+                          ✓ {a.label}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -12280,6 +12371,37 @@ export function StarLabPage() {
     return () => clearInterval(interval);
   }, [unlocked, loadProjects]);
 
+  // Auto-narrate whenever the user switches to a new section
+  const prevNavRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!unlocked || navMode === prevNavRef.current) return;
+    prevNavRef.current = navMode;
+    const narrate: Partial<Record<NavMode, string>> = {
+      dashboard:   "Dashboard. Here's your command overview.",
+      projects:    "Projects. Your full portfolio of innovations.",
+      botlab:      "Bot Lab. Build and manage your AI automation bots.",
+      scout:       "Scout. Sirius is scanning for market opportunities on your behalf.",
+      feed:        "Intelligence Feed. Live market signals and emerging trends.",
+      grants:      "Funding Radar. Your active grant matches and funding opportunities.",
+      commerce:    "Commerce Lab. E-commerce and retail strategy tools.",
+      outreach:    "Outreach Hub. Sales and partner contact tools.",
+      autolab:     "Auto Lab. Projects pending your review and approval.",
+      revenue:     "Revenue Centre. Sales plans, unit economics, and commission tracking.",
+      agency:      "Agency Hub. Client delivery and project management.",
+      mission:     "Mission Control. Strategic objectives and KPI tracking.",
+      growth:      "Growth Engine. Marketing and growth strategy tools.",
+      brain:       "Sirius Brain. Strategic intelligence and deep business analysis.",
+      research:    "Deep Research. AI-powered market and technology research.",
+      docs:        "Document Intelligence. Upload and analyse documents with AI.",
+      labchat:     "Lab Chat. A full conversation workspace with Sirius.",
+      appbuilder:  "App Builder. Autonomous application development.",
+      "ai-arch":   "AI Architecture. Technical AI design for your projects.",
+      orchestrate: "Command Centre. Run the full orchestration pipeline.",
+    };
+    const text = narrate[navMode as NavMode];
+    if (text) speakText(text);
+  }, [navMode, unlocked]);
+
   const onUnlock = (p: string, role: AccessRole) => {
     setPin(p);
     setAccessLevel(role);
@@ -12651,7 +12773,7 @@ export function StarLabPage() {
       </div>
 
       {/* Persistent floating twin chat — always visible on every page */}
-      <LabFloatingChat pin={pin} navMode={navMode} activeProject={activeProject} />
+      <LabFloatingChat pin={pin} navMode={navMode} activeProject={activeProject} onNavigate={m => setNavMode(m as NavMode)} />
     </div>
   );
 }
