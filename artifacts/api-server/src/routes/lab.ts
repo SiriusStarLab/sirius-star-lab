@@ -4762,7 +4762,9 @@ router.post("/lab/app-builder/architect", authMiddleware, async (req: Request, r
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
   const send = (data: object) => { try { res.write(`data: ${JSON.stringify(data)}\n\n`); } catch {} };
+  const architectHeartbeat = setInterval(() => { try { res.write(": heartbeat\n\n"); } catch {} }, 12000);
 
   try {
     const fileList = files ? Object.keys(files).join(", ") : "none";
@@ -4826,6 +4828,7 @@ Format your response as:
     console.error("[AppBuilder/architect]", err?.message);
     send({ type: "error", error: err?.message });
   } finally {
+    clearInterval(architectHeartbeat);
     res.end();
   }
 });
@@ -5619,10 +5622,18 @@ router.post("/lab/build-app", authMiddleware, async (req: Request, res: Response
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
 
   const send = (data: object) => {
     try { res.write(`data: ${JSON.stringify(data)}\n\n`); } catch {}
   };
+
+  // Keep-alive heartbeat — prevents Replit's proxy from closing the SSE
+  // connection during silent gaps between agents (doc search + GPT call can
+  // take 30-60 s per agent with no data flowing).
+  const heartbeat = setInterval(() => {
+    try { res.write(": heartbeat\n\n"); } catch {}
+  }, 12000);
 
   const allFiles: Record<string, string> = {};
   let checkpointIndex = 0;
@@ -5711,6 +5722,7 @@ router.post("/lab/build-app", authMiddleware, async (req: Request, res: Response
     console.error("[AppBuilder] Fatal error:", err?.message);
     send({ type: "error", error: err?.message });
   } finally {
+    clearInterval(heartbeat);
     res.end();
   }
 });
@@ -5725,10 +5737,12 @@ router.post("/lab/app-builder/learn", authMiddleware, async (req: Request, res: 
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
 
   const send = (data: object) => {
     try { res.write(`data: ${JSON.stringify(data)}\n\n`); } catch {}
   };
+  const learnHeartbeat = setInterval(() => { try { res.write(": heartbeat\n\n"); } catch {} }, 12000);
 
   try {
     const fileSummary = Object.entries(files)
@@ -5799,6 +5813,7 @@ Analyse this codebase. Output improvement suggestions as JSON lines.`;
     console.error("[AppBuilder/Learn] Error:", err?.message);
     send({ type: "error", error: err?.message });
   } finally {
+    clearInterval(learnHeartbeat);
     res.end();
   }
 });
