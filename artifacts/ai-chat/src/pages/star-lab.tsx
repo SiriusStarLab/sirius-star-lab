@@ -11749,6 +11749,10 @@ function SiriusLabChatPanel({ pin, accessLevel, onNavigate, onOpenProject, onNav
   const [voicePhase, setVoicePhase] = useState<"idle" | "listening" | "speaking">("idle");
   const [voiceHint, setVoiceHint] = useState("");
   const [waveTick, setWaveTick] = useState(0);
+  const [chatInputMode, setChatInputMode] = useState<"voice" | "keyboard">("voice");
+  const chatInputModeRef = useRef<"voice" | "keyboard">("voice");
+  const [textInput, setTextInput] = useState("");
+  const textInputRef = useRef<HTMLTextAreaElement>(null);
   const recognitionRef = useRef<any>(null);
   const messagesRef = useRef<LabChatMsg[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -11781,6 +11785,7 @@ function SiriusLabChatPanel({ pin, accessLevel, onNavigate, onOpenProject, onNav
 
   const startListeningLoop = () => {
     if (stoppedRef.current || streaming) return;
+    if (chatInputModeRef.current === "keyboard") return;
     const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRec) { setVoiceHint("Voice not supported in this browser."); return; }
     const rec = new SpeechRec();
@@ -11989,6 +11994,29 @@ function SiriusLabChatPanel({ pin, accessLevel, onNavigate, onOpenProject, onNav
     }
   };
 
+  const switchChatMode = (mode: "voice" | "keyboard") => {
+    chatInputModeRef.current = mode;
+    setChatInputMode(mode);
+    if (mode === "keyboard") {
+      stopListeningNow();
+      window.speechSynthesis?.cancel();
+      setTimeout(() => textInputRef.current?.focus(), 100);
+    } else {
+      setTextInput("");
+      if (!stoppedRef.current && !streaming) setTimeout(() => startListeningLoop(), 300);
+    }
+  };
+
+  const submitTextMessage = () => {
+    const text = textInput.trim();
+    if (!text || streaming) return;
+    setTextInput("");
+    const userMsg: LabChatMsg = { role: "user", content: text };
+    const apiMessages = [...messagesRef.current, userMsg].map(m => ({ role: m.role, content: m.content }));
+    setMessages(prev => [...prev, userMsg]);
+    sendWithMessages(apiMessages);
+  };
+
   return (
     <div className="flex-1 flex flex-col min-h-0" style={{ background: "#F5F7FF" }}>
 
@@ -12011,6 +12039,25 @@ function SiriusLabChatPanel({ pin, accessLevel, onNavigate, onOpenProject, onNav
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {/* Voice / Keyboard mode toggle */}
+          <div className="flex items-center rounded-xl p-0.5" style={{ background: "rgba(15,23,42,0.06)" }}>
+            <button onClick={() => switchChatMode("voice")}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+              style={chatInputMode === "voice"
+                ? { background: "#FFFFFF", color: "hsl(193,100%,35%)", boxShadow: "0 1px 4px rgba(0,0,0,0.1)" }
+                : { background: "transparent", color: "rgba(15,23,42,0.45)" }}>
+              <Mic className="w-3 h-3" />
+              Voice
+            </button>
+            <button onClick={() => switchChatMode("keyboard")}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+              style={chatInputMode === "keyboard"
+                ? { background: "#FFFFFF", color: "hsl(226,70%,50%)", boxShadow: "0 1px 4px rgba(0,0,0,0.1)" }
+                : { background: "transparent", color: "rgba(15,23,42,0.45)" }}>
+              <Keyboard className="w-3 h-3" />
+              Type
+            </button>
+          </div>
           {messages.length > 0 && (
             <button onClick={() => { setMessages([]); stoppedRef.current = true; stopListeningNow(); window.speechSynthesis?.cancel(); try { sessionStorage.removeItem(CHAT_STORAGE_KEY); } catch {} setTimeout(() => { stoppedRef.current = false; hasGreetedRef.current = false; }, 100); }}
               className="text-xs px-2 py-1 rounded-lg transition-all hover:bg-slate-900/5"
@@ -12150,45 +12197,87 @@ function SiriusLabChatPanel({ pin, accessLevel, onNavigate, onOpenProject, onNav
         <div ref={bottomRef} />
       </div>
 
-      {/* Voice status bar — replaces text input entirely */}
+      {/* Input bar — voice or keyboard depending on mode */}
       <div className="flex-shrink-0 border-t" style={{ borderColor: "rgba(15,23,42,0.07)", background: "#FFFFFF" }}>
-        <div className="flex items-center justify-between px-5 py-3">
-          {/* Live waveform */}
-          <div className="flex items-center gap-1 h-8">
-            {Array.from({ length: 12 }, (_, i) => {
-              const active = voicePhase === "listening" || voicePhase === "speaking";
-              const h = active ? 4 + Math.abs(Math.sin(waveTick * 0.28 + i * 0.7)) * 22 : 3;
-              const bg = voicePhase === "listening" ? "hsl(0,75%,55%)" : voicePhase === "speaking" ? "hsl(193,100%,45%)" : "rgba(15,23,42,0.1)";
-              return <div key={i} style={{ width: 3, height: `${h}px`, background: bg, borderRadius: 3, transition: "height 0.09s ease" }} />;
-            })}
-          </div>
 
-          {/* Status label */}
-          <div className="flex-1 px-4 text-center">
-            {voiceHint
-              ? <p className="text-xs" style={{ color: "rgba(15,23,42,0.5)" }}>{voiceHint}</p>
-              : <p className="text-xs font-medium" style={{ color: voicePhase === "listening" ? "hsl(0,75%,50%)" : voicePhase === "speaking" ? "hsl(193,100%,35%)" : streaming ? "hsl(45,90%,50%)" : "rgba(15,23,42,0.35)" }}>
-                  {voicePhase === "listening" ? "Listening…" : voicePhase === "speaking" ? "Sirius is speaking…" : streaming ? "Thinking…" : "Voice conversation · No typing needed"}
-                </p>
-            }
+        {chatInputMode === "keyboard" ? (
+          /* ── Keyboard mode ── */
+          <div className="flex items-end gap-2 px-4 py-3">
+            <textarea
+              ref={textInputRef}
+              value={textInput}
+              onChange={e => setTextInput(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submitTextMessage(); }
+              }}
+              placeholder="Type your message… (Enter to send, Shift+Enter for new line)"
+              rows={1}
+              disabled={streaming}
+              className="flex-1 resize-none rounded-2xl px-4 py-3 text-sm outline-none transition-all"
+              style={{
+                background: "rgba(15,23,42,0.04)",
+                border: "1.5px solid rgba(15,23,42,0.1)",
+                color: "rgba(15,23,42,0.85)",
+                minHeight: 44,
+                maxHeight: 140,
+                lineHeight: "1.5",
+                fontFamily: "inherit",
+              }}
+              onInput={e => {
+                const el = e.currentTarget;
+                el.style.height = "auto";
+                el.style.height = Math.min(el.scrollHeight, 140) + "px";
+              }}
+            />
+            <button
+              onClick={submitTextMessage}
+              disabled={!textInput.trim() || streaming}
+              className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 transition-all active:scale-95"
+              style={{
+                background: textInput.trim() && !streaming ? "linear-gradient(135deg, hsl(226,70%,50%), hsl(193,100%,35%))" : "rgba(15,23,42,0.08)",
+                boxShadow: textInput.trim() && !streaming ? "0 4px 14px rgba(99,102,241,0.35)" : "none",
+              }}>
+              <Send className="w-4 h-4" style={{ color: textInput.trim() && !streaming ? "#fff" : "rgba(15,23,42,0.3)" }} />
+            </button>
           </div>
-
-          {/* Mic / stop button */}
-          <button
-            onClick={() => {
-              if (voicePhase === "listening") { stopListeningNow(); }
-              else if (!streaming && voicePhase === "idle") { startListeningLoop(); }
-              else if (voicePhase === "speaking") { window.speechSynthesis?.cancel(); setVoicePhase("idle"); if (!stoppedRef.current) setTimeout(() => startListeningLoop(), 300); }
-            }}
-            className="w-10 h-10 rounded-2xl flex items-center justify-center transition-all active:scale-95"
-            style={{
-              background: voicePhase === "listening" ? "hsl(0,75%,45%)" : "linear-gradient(135deg, hsl(193,100%,35%), hsl(226,70%,45%))",
-              boxShadow: voicePhase === "listening" ? "0 0 16px hsl(0,75%,40%)" : "0 4px 16px rgba(0,212,255,0.3)",
-              opacity: streaming && voicePhase !== "speaking" ? 0.4 : 1,
-            }}>
-            {voicePhase === "listening" ? <MicOff className="w-4 h-4" style={{ color: "#fff" }} /> : <Mic className="w-4 h-4" style={{ color: "#fff" }} />}
-          </button>
-        </div>
+        ) : (
+          /* ── Voice mode ── */
+          <div className="flex items-center justify-between px-5 py-3">
+            {/* Live waveform */}
+            <div className="flex items-center gap-1 h-8">
+              {Array.from({ length: 12 }, (_, i) => {
+                const active = voicePhase === "listening" || voicePhase === "speaking";
+                const h = active ? 4 + Math.abs(Math.sin(waveTick * 0.28 + i * 0.7)) * 22 : 3;
+                const bg = voicePhase === "listening" ? "hsl(0,75%,55%)" : voicePhase === "speaking" ? "hsl(193,100%,45%)" : "rgba(15,23,42,0.1)";
+                return <div key={i} style={{ width: 3, height: `${h}px`, background: bg, borderRadius: 3, transition: "height 0.09s ease" }} />;
+              })}
+            </div>
+            {/* Status label */}
+            <div className="flex-1 px-4 text-center">
+              {voiceHint
+                ? <p className="text-xs" style={{ color: "rgba(15,23,42,0.5)" }}>{voiceHint}</p>
+                : <p className="text-xs font-medium" style={{ color: voicePhase === "listening" ? "hsl(0,75%,50%)" : voicePhase === "speaking" ? "hsl(193,100%,35%)" : streaming ? "hsl(45,90%,50%)" : "rgba(15,23,42,0.35)" }}>
+                    {voicePhase === "listening" ? "Listening…" : voicePhase === "speaking" ? "Sirius is speaking…" : streaming ? "Thinking…" : "Tap mic to speak"}
+                  </p>
+              }
+            </div>
+            {/* Mic / stop button */}
+            <button
+              onClick={() => {
+                if (voicePhase === "listening") { stopListeningNow(); }
+                else if (!streaming && voicePhase === "idle") { startListeningLoop(); }
+                else if (voicePhase === "speaking") { window.speechSynthesis?.cancel(); setVoicePhase("idle"); if (!stoppedRef.current) setTimeout(() => startListeningLoop(), 300); }
+              }}
+              className="w-10 h-10 rounded-2xl flex items-center justify-center transition-all active:scale-95"
+              style={{
+                background: voicePhase === "listening" ? "hsl(0,75%,45%)" : "linear-gradient(135deg, hsl(193,100%,35%), hsl(226,70%,45%))",
+                boxShadow: voicePhase === "listening" ? "0 0 16px hsl(0,75%,40%)" : "0 4px 16px rgba(0,212,255,0.3)",
+                opacity: streaming && voicePhase !== "speaking" ? 0.4 : 1,
+              }}>
+              {voicePhase === "listening" ? <MicOff className="w-4 h-4" style={{ color: "#fff" }} /> : <Mic className="w-4 h-4" style={{ color: "#fff" }} />}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
