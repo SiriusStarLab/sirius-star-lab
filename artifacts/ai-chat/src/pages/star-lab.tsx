@@ -10640,8 +10640,8 @@ function StarLabVoiceWidget({
           messages: updatedMsgs,
           context: {
             mode: navMode,
+            activeTab: NAV_LABELS[navMode] ?? navMode,
             projectName: activeProject?.name,
-            activeTab: undefined,
             projectList: projects.map(p => p.name).slice(0, 10),
             emotion: emotionRef.current,
           },
@@ -11727,7 +11727,7 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
   );
 }
 
-function SiriusLabChatPanel({ pin, accessLevel, onNavigate, onOpenProject, onNavigateAndBuild }: { pin: string; accessLevel: AccessRole; onNavigate?: (section: NavMode) => void; onOpenProject?: (id: number) => void; onNavigateAndBuild?: (section: NavMode, prompt: string) => void }) {
+function SiriusLabChatPanel({ pin, accessLevel, navMode, activeProject, onNavigate, onOpenProject, onNavigateAndBuild }: { pin: string; accessLevel: AccessRole; navMode?: NavMode; activeProject?: Project | null; onNavigate?: (section: NavMode) => void; onOpenProject?: (id: number) => void; onNavigateAndBuild?: (section: NavMode, prompt: string) => void }) {
   const base = getApiBase();
   const CHAT_STORAGE_KEY = `lab_chat_${accessLevel}`;
   const [messages, setMessages] = useState<LabChatMsg[]>(() => {
@@ -11862,6 +11862,29 @@ function SiriusLabChatPanel({ pin, accessLevel, onNavigate, onOpenProject, onNav
     setThinkingText("");
     setVoiceHint("");
 
+    // Build a live context system message so Sirius always knows exactly what
+    // is on screen — current section, open project, available sections.
+    const page = NAV_LABELS[navMode ?? "labchat"] ?? navMode ?? "Chat with Sirius";
+    const projCtx = activeProject
+      ? `\n\nCurrently open project: "${activeProject.name}" (ID: ${activeProject.id}, ${activeProject.industry}) — brief: ${(activeProject.brief || "").slice(0, 300)}`
+      : "";
+    const sections = Object.entries(NAV_LABELS).map(([k, v]) => `${v} (${k})`).join(", ");
+    const contextSystemMsg = {
+      role: "system" as const,
+      content: `CURRENT CONTEXT: Garry is viewing the "${page}" section.${projCtx}
+
+Available sections: ${sections}
+
+NAVIGATION RULES — CRITICAL:
+- To navigate to a panel: use the navigate_to TOOL with the section id.
+- To open a specific project: FIRST call query_projects to find it and get its real database ID, THEN call navigate_to with section="projects" and the project_id. NEVER guess a project ID.
+- To go back to the projects list: call navigate_to with section="projects" (no project_id).
+- To build an app: use start_app_build TOOL.
+
+VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sentences.`,
+    };
+    const messagesWithContext = [contextSystemMsg, ...apiMessages.filter(m => m.role !== "system")];
+
     let fullText = "";
     const actions: ActionCard[] = [];
 
@@ -11872,7 +11895,7 @@ function SiriusLabChatPanel({ pin, accessLevel, onNavigate, onOpenProject, onNav
       const res = await fetch(`${base}lab/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-lab-pin": pin },
-        body: JSON.stringify({ messages: apiMessages }),
+        body: JSON.stringify({ messages: messagesWithContext }),
         signal: controller.signal,
       });
       clearTimeout(timeout);
@@ -13309,6 +13332,8 @@ export function StarLabPage() {
           <SiriusLabChatPanel
             pin={pin}
             accessLevel={accessLevel}
+            navMode={navMode}
+            activeProject={activeProject}
             onNavigate={m => setNavMode(m as NavMode)}
             onOpenProject={id => {
               loadProject(id);
