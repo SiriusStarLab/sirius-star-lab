@@ -3256,7 +3256,7 @@ const LAB_TOOLS: any[] = [
   },
 ];
 
-async function executeLabTool(name: string, args: any): Promise<string> {
+async function executeLabTool(name: string, args: any, onProgress?: (event: Record<string, unknown>) => void): Promise<string> {
   try {
     switch (name) {
       case "save_memory": {
@@ -3439,8 +3439,8 @@ async function executeLabTool(name: string, args: any): Promise<string> {
           updatedAt: new Date(),
         }).returning({ id: labProjects.id, name: labProjects.name });
         console.log(`[Pipeline] Sirius queued new build: "${appName}" (#${created.id})`);
-        // Also navigate to App Builder so Garry can watch the live progress
-        return `NAVIGATE_AND_BUILD:appbuilder | prompt:${brief}`;
+        // Navigate to App Builder; encode project ID so the SSE handler can pass it back to Sirius
+        return `NAVIGATE_AND_BUILD:appbuilder | prompt:${brief} | project_id:${created.id}`;
       }
 
       case "get_pipeline_status": {
@@ -3555,18 +3555,23 @@ async function executeLabTool(name: string, args: any): Promise<string> {
         // Filter to only fields that need generating (empty or very short)
         const needed = tasks.filter(t => !t.current || t.current.trim().length < 50);
 
-        // Run all needed generations in parallel
-        const results = await Promise.allSettled(
-          needed.map(async t => {
-            const content = await gen(t.systemPrompt, t.userPrompt, t.tokens);
-            return { field: t.field, label: t.label, content };
-          })
-        );
+        // Notify Garry how many steps are running
+        if (onProgress && needed.length > 0) {
+          onProgress({ type: "action", tool: "complete_project", label: `Starting project completion — ${needed.length} document${needed.length > 1 ? "s" : ""} to generate`, color: "hsl(260,80%,55%)", icon: "🏁" });
+        }
 
-        for (const r of results) {
-          if (r.status === "fulfilled" && r.value.content) {
-            updates[r.value.field] = r.value.content;
-            completed.push(r.value.label);
+        // Run sequentially so Garry sees each step complete in real-time
+        for (const t of needed) {
+          try {
+            onProgress?.({ type: "thinking", text: `Generating ${t.label}…` });
+            const content = await gen(t.systemPrompt, t.userPrompt, t.tokens);
+            if (content) {
+              updates[t.field] = content;
+              completed.push(t.label);
+              onProgress?.({ type: "action", tool: "complete_project", label: `✓ ${t.label} generated`, color: "hsl(155,70%,42%)", icon: "✅" });
+            }
+          } catch {
+            onProgress?.({ type: "action", tool: "complete_project", label: `⚠ ${t.label} failed — skipping`, color: "hsl(25,100%,55%)", icon: "⚠️" });
           }
         }
 
@@ -4415,7 +4420,7 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
         let args: any = {};
         try { args = JSON.parse(tc.arguments); } catch { /* ignore */ }
         sendEvent({ type: "thinking", text: `Using ${tc.name.replace(/_/g, " ")}…` });
-        const result = await executeLabTool(tc.name, args);
+        const result = await executeLabTool(tc.name, args, sendEvent);
 
         // Special: navigate_to returns NAVIGATE_ACTION: — intercept and send navigation event
         if (result.startsWith("NAVIGATE_ACTION:")) {
@@ -4434,12 +4439,17 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
         // Special: start_app_build returns NAVIGATE_AND_BUILD: — navigate to App Builder AND auto-start pipeline
         if (result.startsWith("NAVIGATE_AND_BUILD:")) {
           const payload = result.slice("NAVIGATE_AND_BUILD:".length);
-          const [section, promptPart] = payload.split(" | ");
-          const buildPrompt = promptPart?.startsWith("prompt:") ? promptPart.slice("prompt:".length) : "";
-          sendEvent({ type: "navigate_and_build", section: section.trim(), prompt: buildPrompt });
+          const parts = payload.split(" | ");
+          const section = parts[0] || "appbuilder";
+          const buildPrompt = parts.find(p => p.startsWith("prompt:"))?.slice("prompt:".length) || "";
+          const projectIdStr = parts.find(p => p.startsWith("project_id:"))?.slice("project_id:".length) || "";
+          const newProjectId = parseInt(projectIdStr, 10) || null;
+          sendEvent({ type: "navigate_and_build", section: section.trim(), prompt: buildPrompt, projectId: newProjectId });
           const meta = TOOL_META["start_app_build"];
-          sendEvent({ type: "action", tool: tc.name, label: "Launching App Builder", detail: buildPrompt.slice(0, 60) + (buildPrompt.length > 60 ? "…" : ""), color: meta.color, icon: meta.icon });
-          toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: `App Builder launched with prompt: "${buildPrompt}". The full pipeline is starting now — interpret → plan → build → test → debug.` });
+          sendEvent({ type: "action", tool: tc.name, label: "Project created & queued", detail: buildPrompt.slice(0, 60) + (buildPrompt.length > 60 ? "…" : ""), color: meta.color, icon: meta.icon });
+          // Include project ID in the tool result so Sirius can immediately call complete_project
+          const pidNote = newProjectId ? ` Project created with ID #${newProjectId}. NOW immediately call complete_project with projectId: ${newProjectId} to generate all documentation, research, business case, brochure, pitch and social posts for this project right now — do not wait, do not ask.` : "";
+          toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: `Project created and queued for the pipeline.${pidNote}` });
           continue;
         }
 
@@ -6200,7 +6210,8 @@ Rules:
         const meta = TOOL_META[tc.name] || { label: tc.name, color: "hsl(193,100%,40%)", icon: "⚡" };
         res.write(`data: ${JSON.stringify({ toolCall: { name: tc.name, label: meta.label, icon: meta.icon, color: meta.color } })}\n\n`);
         toolEventsEmitted.push({ name: tc.name, label: meta.label, icon: meta.icon, color: meta.color });
-        const result = await executeLabTool(tc.name, args);
+        const singleTurnProgress = (event: Record<string, unknown>) => { try { res.write(`data: ${JSON.stringify(event)}\n\n`); } catch { /* ignore */ } };
+        const result = await executeLabTool(tc.name, args, singleTurnProgress);
         toolResults.push({ id: tc.id, name: tc.name, result });
       }
 
