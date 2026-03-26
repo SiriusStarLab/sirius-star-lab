@@ -11205,20 +11205,21 @@ function LabFloatingChat({ pin, navMode, activeProject, onNavigate, onOpenProjec
     }
 
     const page = NAV_LABELS[navMode] ?? navMode;
-    const projCtx = activeProject ? `\n\nCurrently open project: "${activeProject.name}" (${activeProject.industry}) — brief: ${(activeProject.brief || "").slice(0, 300)}` : "";
+    const projCtx = activeProject ? `\n\nCurrently open project: "${activeProject.name}" (ID: ${activeProject.id}, ${activeProject.industry}) — brief: ${(activeProject.brief || "").slice(0, 300)}` : "";
     const sections = Object.entries(NAV_LABELS).map(([k, v]) => `${v} (${k})`).join(", ");
     const contextMessage = {
       role: "system" as const,
-      content: `You are Sirius, the AI intelligence partner inside Star Lab — the private R&D command centre for Strategic Innovation Dundee Ltd. You are speaking with Garry, the founder.
+      content: `CURRENT CONTEXT: Garry is on the "${page}" section.${projCtx}
 
-The user is currently on the "${page}" section.${projCtx}
+Available sections: ${sections}
 
-Star Lab sections available: ${sections}
+NAVIGATION RULES — CRITICAL:
+- To navigate to a panel: use the navigate_to TOOL with the section id. Do NOT use text tags like <<NAVIGATE:x>>.
+- To open a specific project: FIRST call query_projects to find it and get its real database ID, THEN call navigate_to with section="projects" and the project_id. NEVER guess a project ID from what the user says — always look it up first.
+- To go back to the projects list: call navigate_to with section="projects" (no project_id).
+- To build an app: use start_app_build TOOL.
 
-Write responses for voice — short, natural, conversational sentences. No bullet points, no markdown. Keep responses under 3 sentences. Always end with a question to keep the conversation going.
-
-If the user asks you to navigate somewhere, end your response with <<NAVIGATE:sectionId>>.
-If the user asks to build or execute a pipeline, include <<NAVIGATE:orchestrate>>.`,
+VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sentences. Always end with a question.`,
     };
 
     setStreaming(true);
@@ -11257,25 +11258,16 @@ If the user asks to build or execute a pipeline, include <<NAVIGATE:orchestrate>
               if (evt.section) onNavigate(evt.section as NavMode);
               if (evt.projectId && onOpenProject) setTimeout(() => onOpenProject!(evt.projectId), 300);
             }
+            if (evt.type === "navigate_and_build") {
+              if (evt.section) onNavigate(evt.section as NavMode);
+            }
           } catch {}
         }
       }
 
       if (full) {
-        const navMatch = full.match(/<<NAVIGATE:([^>]+)>>/);
-        const openProjectMatches = [...full.matchAll(/<<OPEN_PROJECT:(\d+)>>/g)];
         const cleanText = full.replace(/<<[^>]+>>/g, "").replace(/[*#>`_~]/g, "").trim();
         setMessages(prev => [...prev, { role: "assistant", content: cleanText, actions: pendingActions.length ? pendingActions : undefined }]);
-
-        // Execute text-based navigation tags
-        if (navMatch) setTimeout(() => onNavigate(navMatch[1].trim() as NavMode), 200);
-        if (openProjectMatches.length > 0) {
-          if (!navMatch) setTimeout(() => onNavigate("projects"), 200);
-          if (onOpenProject) {
-            const firstId = parseInt(openProjectMatches[0][1], 10);
-            if (!isNaN(firstId)) setTimeout(() => onOpenProject!(firstId), 500);
-          }
-        }
 
         const spokenText = cleanText.length > 350 ? cleanText.slice(0, 350) + "." : cleanText;
         setVoicePhase("speaking");
