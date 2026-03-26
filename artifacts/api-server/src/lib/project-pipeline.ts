@@ -13,7 +13,7 @@
  * Bulk triggering is disabled — the scanner only queues projects; this manages them.
  */
 
-import { eq, isNull, or, and, asc } from "drizzle-orm";
+import { eq, isNull, or, and, asc, sql } from "drizzle-orm";
 import { db, labProjects, appBuilderSessions, cadFiles } from "@workspace/db";
 import { triggerAutoBuildForProject } from "./lab-auto-scan.js";
 import { openai } from "@workspace/integrations-openai-ai-server";
@@ -99,6 +99,24 @@ async function tick(): Promise<void> {
   }
 
   try {
+    // 0. Staleness guard — if a project has been stuck in "building" for >45 min
+    //    (e.g. server crashed mid-build), reset it so the pipeline can continue.
+    const staleReset = await db
+      .update(labProjects)
+      .set({ launchStatus: "cad-pending", updatedAt: new Date() })
+      .where(
+        and(
+          eq(labProjects.launchStatus, "building"),
+          sql`${labProjects.updatedAt} < NOW() - INTERVAL '45 minutes'`,
+        ),
+      )
+      .returning({ id: labProjects.id, name: labProjects.name });
+    if (staleReset.length > 0) {
+      for (const p of staleReset) {
+        console.log(`[Pipeline] ⚠ Reset stale build: "${p.name}" → cad-pending (was stuck >45 min)`);
+      }
+    }
+
     // 1. Is anything currently building? If so, wait.
     const [activelyBuilding] = await db
       .select({ id: labProjects.id, name: labProjects.name })
