@@ -79,70 +79,64 @@ function speakText(text: string, onDone?: () => void, rate = 0.78) {
   if (typeof window === "undefined" || !window.speechSynthesis) { onDone?.(); return; }
   window.speechSynthesis.cancel();
 
-  // Small pause after cancel so the engine resets cleanly — avoids the clipped robotic start
+  // Chrome has a hard ~15 second cut-off on a single SpeechSynthesisUtterance.
+  // Fix: split into sentence-level chunks (max ~200 chars each) and chain them via onend.
+  const rawSentences = text.match(/[^.!?\n]+(?:[.!?\n]+|$)/g) ?? [text];
+  const chunks: string[] = [];
+  let buf = "";
+  for (const s of rawSentences) {
+    const t = s.trim();
+    if (!t) continue;
+    if (buf && (buf + " " + t).length > 200) { chunks.push(buf); buf = t; }
+    else { buf = buf ? buf + " " + t : t; }
+  }
+  if (buf) chunks.push(buf);
+  if (chunks.length === 0) { onDone?.(); return; }
+
+  const KNOWN_MALE = ["Daniel","Arthur","Malcolm","Google UK English Male","Microsoft David","Microsoft Mark","Microsoft George","Microsoft James","Alex","Fred","Ralph","Bruce","Junior"];
+  const FEMALE_ORDER = ["Microsoft Aria","Microsoft Jenny","Microsoft Sonia","Microsoft Libby","Microsoft Leah","Microsoft Nora","Microsoft Clara","Microsoft Mia","Microsoft Hazel","Microsoft Zira","Microsoft Susan","Samantha","Karen","Moira","Serena","Victoria","Fiona","Tessa","Google UK English Female","Google US English"];
+  const pickVoice = () => {
+    const v = window.speechSynthesis.getVoices();
+    return v.find(x => FEMALE_ORDER.includes(x.name)) ||
+      v.find(x => x.lang.startsWith("en-GB") && !KNOWN_MALE.includes(x.name) && !x.name.toLowerCase().includes("male")) ||
+      v.find(x => x.lang.startsWith("en-US") && !KNOWN_MALE.includes(x.name) && !x.name.toLowerCase().includes("male")) ||
+      v.find(x => x.lang.startsWith("en")    && !KNOWN_MALE.includes(x.name) && !x.name.toLowerCase().includes("male")) ||
+      v.find(x => x.lang.startsWith("en"));
+  };
+
   setTimeout(() => {
-    const utter = new SpeechSynthesisUtterance(text);
-    utter.rate   = rate;   // 0.78 — measured and conversational, not hurried
-    utter.pitch  = 1.0;    // Natural baseline; 1.18 was the sharp/mechanical edge
-    utter.volume = 0.88;   // Softer overall level
+    let finished = false;
+    const fireOnce = () => { if (finished) return; finished = true; clearInterval(keepAlive); onDone?.(); };
 
-    let callbackFired = false;
-    const fireOnce = () => {
-      if (callbackFired) return;
-      callbackFired = true;
-      onDone?.();
-    };
+    // Chrome bug: pauses utterances when tab loses focus — keep it alive
+    const keepAlive = setInterval(() => {
+      if (window.speechSynthesis.paused) window.speechSynthesis.resume();
+    }, 5000);
 
-    const trySpeak = () => {
-      const voices = window.speechSynthesis.getVoices();
-      const KNOWN_MALE = [
-        "Daniel", "Arthur", "Malcolm", "Google UK English Male",
-        "Microsoft David", "Microsoft Mark", "Microsoft George",
-        "Microsoft James", "Alex", "Fred", "Ralph", "Bruce", "Junior",
-      ];
-      // Neural voices first (Aria, Jenny, Sonia, Libby) — these are noticeably
-      // more human than the older synthesis voices. macOS Samantha / Karen next.
-      // Google UK Female as a fallback only — it's functional but synthetic.
-      const softFemaleOrder = [
-        // Windows neural (best quality on modern Edge / Chrome)
-        "Microsoft Aria", "Microsoft Jenny", "Microsoft Sonia",
-        "Microsoft Libby", "Microsoft Leah", "Microsoft Nora",
-        "Microsoft Clara", "Microsoft Mia",
-        // Windows classic
-        "Microsoft Hazel", "Microsoft Zira", "Microsoft Susan",
-        // macOS
-        "Samantha", "Karen", "Moira", "Serena", "Victoria", "Fiona", "Tessa",
-        // Chrome / Android (last resort — robotic but recognisable)
-        "Google UK English Female", "Google US English",
-      ];
-      const preferred =
-        voices.find(v => softFemaleOrder.includes(v.name)) ||
-        voices.find(v => v.lang.startsWith("en-GB") && !KNOWN_MALE.includes(v.name) && !v.name.toLowerCase().includes("male")) ||
-        voices.find(v => v.lang.startsWith("en-US") && !KNOWN_MALE.includes(v.name) && !v.name.toLowerCase().includes("male")) ||
-        voices.find(v => v.lang.startsWith("en")    && !KNOWN_MALE.includes(v.name) && !v.name.toLowerCase().includes("male")) ||
-        voices.find(v => v.lang.startsWith("en"));
+    // Overall safety net — fire onDone after max possible duration + 4s buffer
+    const totalChars = chunks.reduce((n, c) => n + c.length, 0);
+    const globalTimeout = setTimeout(() => fireOnce(), Math.ceil((totalChars / (rate * 14)) * 1000) + 4000);
+
+    let idx = 0;
+    const speakNext = () => {
+      if (finished) return;
+      if (idx >= chunks.length) { clearTimeout(globalTimeout); fireOnce(); return; }
+      const chunk = chunks[idx++];
+      const utter = new SpeechSynthesisUtterance(chunk);
+      utter.rate   = rate;
+      utter.pitch  = 1.0;
+      utter.volume = 0.88;
+      const preferred = pickVoice();
       if (preferred) utter.voice = preferred;
-      utter.onend  = () => fireOnce();
-      utter.onerror = () => fireOnce();
+      utter.onend  = () => speakNext();
+      utter.onerror = () => speakNext(); // skip broken chunk, continue
       window.speechSynthesis.speak(utter);
-
-      // Chrome bug: speechSynthesis.onend sometimes never fires after long sessions.
-      // Watchdog polls every 250ms and fires the callback the moment speaking stops.
-      const watchdog = setInterval(() => {
-        if (!window.speechSynthesis.speaking && !window.speechSynthesis.pending) {
-          clearInterval(watchdog);
-          fireOnce();
-        }
-      }, 250);
-      // Safety net: always resolve after estimated time + 3s buffer so nothing hangs
-      const estMs = Math.ceil((text.length / (rate * 14)) * 1000) + 3000;
-      setTimeout(() => { clearInterval(watchdog); fireOnce(); }, estMs);
     };
 
     if (window.speechSynthesis.getVoices().length === 0) {
-      window.speechSynthesis.onvoiceschanged = () => trySpeak();
+      window.speechSynthesis.onvoiceschanged = () => speakNext();
     } else {
-      trySpeak();
+      speakNext();
     }
   }, 80);
 }
