@@ -3074,6 +3074,36 @@ const LAB_TOOLS: any[] = [
   {
     type: "function" as const,
     function: {
+      name: "generate_cad_notes",
+      description: "Generate complete engineering drawing specifications and CAD instructions for a physical/engineering project. Produces a full drawing notes package (geometry, tolerances, surface finish, materials, standards, GD&T callouts, and direct instructions for the CAD operator at newdimensionscad.com) and saves it to the project. Use for any precision engineering, manufacturing, medical device, aerospace, oil & gas, or hydrogen project that needs physical drawings. Always call this as part of the completion chain for engineering products.",
+      parameters: {
+        type: "object",
+        properties: {
+          projectId: { type: "number", description: "Database ID of the project" },
+          projectName: { type: "string", description: "Project name for confirmation" },
+        },
+        required: ["projectId"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "launch_project",
+      description: "Execute the full launch of a completed project into the world. Selects relevant press/media outlets from the outlet database, formats personalised press release submissions for each, generates a launch log with all outlet contact details and submission instructions, posts the social media content (formatted for each platform), and marks the project as launched (launchStatus = 'launched'). Use this AFTER complete_project has run and all documents are ready. This is the final step that puts the project in front of the world.",
+      parameters: {
+        type: "object",
+        properties: {
+          projectId: { type: "number", description: "Database ID of the project to launch" },
+          projectName: { type: "string", description: "Project name for confirmation" },
+        },
+        required: ["projectId"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
       name: "self_configure",
       description: "Read or update your own behavioural rules, personality, and operating instructions. Use when Garry asks you to change how you behave, adjust your personality, update your focus areas, or when you want to improve yourself. Action 'read' fetches current config; 'write' saves a new value.",
       parameters: {
@@ -3492,6 +3522,9 @@ async function executeLabTool(name: string, args: any, onProgress?: (event: Reco
 
         const ctx = `Product: "${name}"\nIndustry: ${industry}\nBrief: ${(project.brief || "").slice(0, 800)}`;
 
+        const ENGINEERING_SECTORS = ["oil_gas", "aerospace", "medical", "medical_devices", "manufacturing", "hydrogen", "clean_energy", "engineering", "defence", "nuclear"];
+        const isEngineeringProject = ENGINEERING_SECTORS.some(s => industry.toLowerCase().includes(s));
+
         // ── Run all generation tasks in parallel ───────────────────────────────
         const tasks: Array<{ field: string; label: string; current: string; systemPrompt: string; userPrompt: string; tokens: number }> = [
           {
@@ -3550,6 +3583,33 @@ async function executeLabTool(name: string, args: any, onProgress?: (event: Reco
             userPrompt: `Write social media launch posts for "${name}" (${industry}) as JSON with keys: linkedin (professional, 200 words), twitter (punchy, under 280 chars), instagram (visual, with hashtags), facebook (community-focused, 150 words), pressRelease (formal, 300 words). Return ONLY valid JSON.\n\n${ctx}`,
             tokens: 800,
           },
+          {
+            field: "costToBuild", label: "Cost Analysis",
+            current: project.costToBuild || "",
+            systemPrompt: isEngineeringProject
+              ? "You are a manufacturing cost analyst. Produce realistic, detailed cost-to-build estimates for precision engineering products."
+              : "You are a product cost analyst. Produce realistic cost-to-build estimates for software/digital products.",
+            userPrompt: isEngineeringProject
+              ? `Cost-to-build estimate for "${name}" (${industry}): material cost, machining time on sliding head lathe and/or EDM wire cutter, finishing, inspection, packaging, and total unit cost at 1, 10, 100, and 1000 units. State assumptions clearly.\n\n${ctx}`
+              : `Cost-to-build estimate for "${name}" (${industry}): development hours (frontend, backend, AI/ML, DevOps), infrastructure monthly costs (hosting, DB, APIs), tooling costs, and time-to-market estimate. Include ongoing monthly operating costs and break-even analysis.\n\n${ctx}`,
+            tokens: 600,
+          },
+          ...(isEngineeringProject ? [
+            {
+              field: "materials", label: "Materials Specification",
+              current: project.materials || "",
+              systemPrompt: "You are a materials engineer specialising in precision manufacturing. Provide procurement-ready materials specifications.",
+              userPrompt: `Materials specification for "${name}" (${industry}): exact material grade, standard (ISO/BS/ASTM), mechanical properties (yield strength, hardness, conductivity), machinability rating, suitable suppliers with product codes (Aalco, Sandvik, Carpenter, etc.), and required certifications (material certs, DFARS, RoHS, REACH, biocompatibility if medical).\n\n${ctx}`,
+              tokens: 500,
+            },
+            {
+              field: "drawingNotes", label: "CAD Drawing Notes",
+              current: project.drawingNotes || "",
+              systemPrompt: "You are a principal mechanical design engineer. Produce complete engineering drawing specifications that a CAD engineer can act on immediately. Apply the correct standards for the industry. You understand BS 8888, ISO 128, ASME Y14.5 GD&T, API 6A/17D, AS9100, ISO 13485.",
+              userPrompt: `Engineering drawing specifications for "${name}" (${industry}). Cover: (1) component overview and function, (2) key geometry and dimensions with tolerances to IT grade, (3) surface finish Ra values, (4) material callout, (5) GD&T callouts (flatness, roundness, concentricity, position), (6) applicable standards, (7) special requirements (heat treatment, coating, sterilisation, traceability marking), (8) required drawing views (front, section, detail), (9) direct instructions for CAD operator at newdimensionscad.com — file format STEP + DWG + PDF, layer naming, known complexities to watch for, (10) inspection and acceptance criteria.\n\n${ctx}`,
+              tokens: 1000,
+            },
+          ] : []),
         ];
 
         // Filter to only fields that need generating (empty or very short)
@@ -3582,28 +3642,42 @@ async function executeLabTool(name: string, args: any, onProgress?: (event: Reco
             .where(eq(labProjects.id, projectId));
         }
 
+        // If drawing notes were generated, set status to cad-pending
+        const hadDrawingNotes = completed.includes("CAD Drawing Notes");
+
         // Trigger the build pipeline if not already built/building
         let buildMsg = "";
         if (!project.launchStatus || project.launchStatus === "") {
-          const buildResult = await triggerBuildNow(projectId);
-          buildMsg = buildResult.ok
-            ? " Build pipeline triggered and running."
-            : ` Note: ${buildResult.message}`;
+          if (hadDrawingNotes) {
+            // Engineering project with CAD — mark as cad-pending, not building yet
+            await db.update(labProjects).set({ launchStatus: "cad-pending" } as any).where(eq(labProjects.id, projectId));
+            buildMsg = " CAD drawing package sent to newdimensionscad.com — status: cad-pending.";
+          } else {
+            const buildResult = await triggerBuildNow(projectId);
+            buildMsg = buildResult.ok
+              ? " Build pipeline triggered and running."
+              : ` Note: ${buildResult.message}`;
+          }
         } else {
           buildMsg = ` Pipeline status: ${project.launchStatus}.`;
         }
 
         const skipped = tasks.filter(t => !needed.find(n => n.field === t.field)).map(t => t.label);
+        const engDocs = completed.filter(l => ["CAD Drawing Notes", "Materials Specification", "Cost Analysis"].includes(l));
+        const standardDocs = completed.filter(l => !engDocs.includes(l));
 
         return [
           `╔══ PROJECT COMPLETION: "${name}" ══╗`,
           ``,
-          `✅ Generated: ${completed.length > 0 ? completed.join(", ") : "nothing new needed"}`,
-          skipped.length > 0 ? `⏭ Already had: ${skipped.join(", ")}` : "",
-          `⚙ Build:${buildMsg}`,
+          standardDocs.length > 0 ? `✅ Documents generated: ${standardDocs.join(", ")}` : "",
+          engDocs.length > 0 ? `📐 Engineering docs: ${engDocs.join(", ")}` : "",
+          skipped.length > 0 ? `⏭ Already existed: ${skipped.join(", ")}` : "",
+          `⚙ Pipeline:${buildMsg}`,
           `📋 Phase: Complete`,
           ``,
-          `Project #${projectId} is now fully documented. All materials are saved in the project record. Navigate to Projects → open #${projectId} to review everything.`,
+          `Project #${projectId} is fully documented. All materials saved. Navigate to Projects → #${projectId} to review.`,
+          ``,
+          `NEXT STEP: Call launch_project with projectId: ${projectId} to execute the launch — press submissions, social posts, and mark as live.`,
         ].filter(Boolean).join("\n");
       }
 
@@ -3865,6 +3939,196 @@ async function executeLabTool(name: string, args: any, onProgress?: (event: Reco
           .returning({ name: labProjects.name });
         if (!updated.length) return `No project found with ID ${id}.`;
         return `Updated "${updated[0].name}" to phase: ${args.phase}.`;
+      }
+
+      case "generate_cad_notes": {
+        const projId = Number(args.projectId);
+        if (!projId || isNaN(projId)) return "Invalid project ID.";
+        const [proj] = await db.select().from(labProjects).where(eq(labProjects.id, projId)).limit(1);
+        if (!proj) return `Project #${projId} not found.`;
+
+        onProgress?.({ type: "thinking", text: "Generating engineering drawing specifications…" });
+
+        const ENGINEERING_INDUSTRIES = ["oil_gas", "aerospace", "medical", "medical_devices", "manufacturing", "hydrogen", "clean_energy", "engineering", "defence", "nuclear"];
+        const isEngineering = ENGINEERING_INDUSTRIES.some(i => (proj.industry || "").toLowerCase().includes(i));
+
+        const cadSystemPrompt = `You are a principal mechanical design engineer with 20 years of experience producing engineering drawings for precision industries. You are fluent in international drawing standards: BS 8888, ISO 128, ISO 2768, ASME Y14.5 (GD&T), and industry-specific standards including API 6A/17D (oil & gas), AS9100/NADCAP (aerospace), ISO 13485/FDA 21 CFR Part 820 (medical), ISO 80079/ATEX (hydrogen & hazardous areas). You produce complete, unambiguous drawing packages that a CAD engineer can act on immediately.`;
+
+        const cadUserPrompt = `Generate complete engineering drawing specifications for: "${proj.name}" (${proj.industry || "General"}).
+
+Product brief: ${(proj.brief || "").slice(0, 600)}
+Technical specs: ${(proj.specs || "").slice(0, 400)}
+
+Produce a full drawing notes package covering:
+1. Component overview and function
+2. Key dimensions and geometry (with tolerances to IT grade)
+3. Surface finish requirements (Ra values)
+4. Material specification (grade, standard, supplier)
+5. GD&T callouts (flatness, roundness, concentricity, position)
+6. Applicable standards (ISO, BS, ASME, API, AS9100, ISO 13485 etc.)
+7. Any special requirements (heat treatment, coating, sterilisation, traceability)
+8. Drawing views needed (front, section A-A, detail X)
+9. Direct CAD operator instructions for newdimensionscad.com (what to model first, file format: STEP + DWG + PDF, layer naming conventions, any known complexities)
+10. Inspection and acceptance criteria
+
+Be specific and technically complete. This goes directly to the CAD engineer.`;
+
+        const materialSystemPrompt = `You are a materials engineer specialising in precision manufacturing. Provide concise, procurement-ready materials specifications.`;
+        const materialUserPrompt = `Materials specification for "${proj.name}" (${proj.industry || "General"}): specify the exact material grade, standard, mechanical properties, machinability rating, suitable suppliers (Aalco, Sandvik, Carpenter, etc.), and any special certifications required (material certs, DFARS, RoHS, REACH). ${(proj.brief || "").slice(0, 400)}`;
+
+        const costSystemPrompt = `You are a manufacturing cost analyst. Produce realistic, detailed cost-to-build estimates.`;
+        const costUserPrompt = `Cost-to-build estimate for "${proj.name}" (${proj.industry || "General"}): estimate material cost, machining time (sliding head lathe and/or EDM wire cut), finishing costs, inspection, packaging, and total unit cost at volumes of 1, 10, 100, and 1000 units. Include assumptions. ${(proj.brief || "").slice(0, 400)}`;
+
+        const [cadNotes, materials, costToBuild] = await Promise.all([
+          isEngineering ? openai.chat.completions.create({
+            model: "gpt-4o", max_tokens: 1200,
+            messages: [{ role: "system", content: cadSystemPrompt }, { role: "user", content: cadUserPrompt }],
+          }).then(r => r.choices[0]?.message?.content?.trim() || "") : Promise.resolve(""),
+          openai.chat.completions.create({
+            model: "gpt-4o", max_tokens: 500,
+            messages: [{ role: "system", content: materialSystemPrompt }, { role: "user", content: materialUserPrompt }],
+          }).then(r => r.choices[0]?.message?.content?.trim() || ""),
+          openai.chat.completions.create({
+            model: "gpt-4o", max_tokens: 600,
+            messages: [{ role: "system", content: costSystemPrompt }, { role: "user", content: costUserPrompt }],
+          }).then(r => r.choices[0]?.message?.content?.trim() || ""),
+        ]);
+
+        const updates: Record<string, any> = { materials, costToBuild, updatedAt: new Date() };
+        if (cadNotes) {
+          updates.drawingNotes = cadNotes;
+          updates.launchStatus = "cad-pending";
+        }
+
+        await db.update(labProjects).set(updates as any).where(eq(labProjects.id, projId));
+
+        onProgress?.({ type: "action", tool: "generate_cad_notes", label: `✓ CAD drawing notes, materials spec, and cost analysis generated`, color: "hsl(155,70%,42%)", icon: "📐" });
+
+        return [
+          `╔══ CAD NOTES GENERATED: "${proj.name}" ══╗`,
+          ``,
+          cadNotes ? `📐 Drawing Notes: Complete engineering drawing specification ready for newdimensionscad.com` : ``,
+          `🔧 Materials: Specification saved — grade, supplier, certs`,
+          `💷 Cost Analysis: Unit cost breakdown at 1/10/100/1000 units saved`,
+          cadNotes ? `📋 Status: cad-pending — drawing package ready for CAD operator` : ``,
+          ``,
+          `Navigate to Projects → #${projId} → Drawings tab to review.`,
+        ].filter(Boolean).join("\n");
+      }
+
+      case "launch_project": {
+        const launchId = Number(args.projectId);
+        if (!launchId || isNaN(launchId)) return "Invalid project ID.";
+        const [launchProj] = await db.select().from(labProjects).where(eq(labProjects.id, launchId)).limit(1);
+        if (!launchProj) return `Project #${launchId} not found.`;
+
+        onProgress?.({ type: "thinking", text: "Preparing launch package…" });
+
+        // Parse social posts
+        let social: Record<string, string> = {};
+        try { social = JSON.parse(launchProj.socialPosts || "{}"); } catch { /* ignore */ }
+
+        const pressRelease = social.pressRelease || launchProj.brochure || "";
+        const projIndustry = (launchProj.industry || "general").toLowerCase();
+
+        // Map project industry to media outlet categories
+        const industryCategoryMap: Record<string, string[]> = {
+          "tech": ["tech", "ai", "software"],
+          "ai": ["tech", "ai", "software"],
+          "software": ["tech", "software", "ai"],
+          "oil_gas": ["oil_gas", "engineering", "manufacturing"],
+          "aerospace": ["aerospace", "engineering"],
+          "medical": ["medical", "healthcare", "engineering"],
+          "medical_devices": ["medical", "engineering", "healthcare"],
+          "manufacturing": ["manufacturing", "engineering"],
+          "hydrogen": ["hydrogen", "energy", "engineering"],
+          "clean_energy": ["hydrogen", "energy"],
+          "engineering": ["engineering", "manufacturing", "tech"],
+        };
+
+        const targetCategories = industryCategoryMap[projIndustry] || ["tech"];
+
+        // Select relevant outlets (max 8)
+        const relevantOutlets = SEED_OUTLETS
+          .filter(o => o.categories.some(c => targetCategories.includes(c)))
+          .slice(0, 8);
+
+        // Always include Scottish outlets
+        const scottishOutlets = SEED_OUTLETS.filter(o => o.region === "UK" && o.name.toLowerCase().includes("scotland"));
+        const allTargetOutlets = [...new Map([...relevantOutlets, ...scottishOutlets].map(o => [o.name, o])).values()].slice(0, 10);
+
+        onProgress?.({ type: "thinking", text: "Generating press submissions…" });
+
+        // Generate personalised submission emails for each outlet
+        const submissionEmailPrompt = `You are a PR executive at Strategic Innovation Dundee Ltd. Write personalised press release submission emails for the following media outlets about this product launch:
+
+Product: "${launchProj.name}"
+Industry: ${launchProj.industry}
+Brief: ${(launchProj.brief || "").slice(0, 400)}
+Press Release: ${pressRelease.slice(0, 600)}
+
+Outlets: ${allTargetOutlets.map(o => `${o.name} (${o.description}, audience: ${o.audience})`).join("; ")}
+
+For each outlet, write a short, personalised covering email (3-4 sentences) that references the outlet's specific audience and why this story is relevant to them. Return as JSON: { "outletName": "email body text", ... }`;
+
+        let submissionEmails: Record<string, string> = {};
+        try {
+          const emailResp = await openai.chat.completions.create({
+            model: "gpt-4o", max_tokens: 1500,
+            messages: [
+              { role: "system", content: "You are a PR executive. Return ONLY valid JSON." },
+              { role: "user", content: submissionEmailPrompt },
+            ],
+          });
+          const raw = emailResp.choices[0]?.message?.content?.trim() || "{}";
+          submissionEmails = JSON.parse(raw.replace(/^```json\n?/, "").replace(/\n?```$/, ""));
+        } catch { /* non-fatal */ }
+
+        // Build launch log
+        const launchLog = {
+          launchedAt: new Date().toISOString(),
+          pressOutlets: allTargetOutlets.map(o => ({
+            name: o.name,
+            submitUrl: o.submitUrl,
+            region: o.region,
+            audience: o.audience,
+            email: submissionEmails[o.name] || `Please find attached our press release regarding the launch of ${launchProj.name}. ${pressRelease.slice(0, 200)}`,
+          })),
+          socialPlatforms: {
+            linkedin: social.linkedin ? "Content ready — post manually or via scheduling tool" : "Not generated",
+            twitter: social.twitter ? "Content ready" : "Not generated",
+            instagram: social.instagram ? "Content ready" : "Not generated",
+            facebook: social.facebook ? "Content ready" : "Not generated",
+          },
+          pressRelease: pressRelease.slice(0, 1000),
+        };
+
+        // Save launch log and mark as launched
+        await db.update(labProjects)
+          .set({
+            launchStatus: "launched",
+            phase: "complete",
+            workflows: JSON.stringify(launchLog),
+            updatedAt: new Date(),
+          } as any)
+          .where(eq(labProjects.id, launchId));
+
+        onProgress?.({ type: "action", tool: "launch_project", label: `🚀 Project launched — ${allTargetOutlets.length} press outlets targeted`, color: "hsl(155,70%,42%)", icon: "🚀" });
+
+        return [
+          `╔══ LAUNCH EXECUTED: "${launchProj.name}" ══╗`,
+          ``,
+          `🚀 Status: LAUNCHED`,
+          ``,
+          `📰 Press Outlets Targeted (${allTargetOutlets.length}):`,
+          ...allTargetOutlets.map(o => `  • ${o.name} — ${o.region} — ${o.submitUrl}`),
+          ``,
+          `📱 Social Media: Content formatted for LinkedIn, Twitter/X, Instagram, Facebook`,
+          ``,
+          `📋 Launch log saved to project record — includes personalised submission emails for each outlet ready to send.`,
+          ``,
+          `Next: Review the launch log in Projects → #${launchId} → Workflows tab. Copy submission emails and send. Post social content on each platform.`,
+        ].join("\n");
       }
 
       case "startup_health_check": {
@@ -4215,12 +4479,17 @@ When Garry gives you ANY task — big or small — your job is to complete it, i
 
 3. **A single instruction covers everything needed to fulfill it.** If Garry says "take that project to conclusion" — that means: find the project, complete all documents, trigger the build, navigate to it, and report back. You do not split this across multiple conversations.
 
-4. **When Garry gives you a brief, you build the full project immediately:**
-   - Call start_app_build (creates project, queues pipeline)
-   - The tool result returns the project ID
-   - Immediately call complete_project with that ID
-   - Navigate to Projects so Garry can review
-   - Report what was completed
+4. **When Garry gives you a brief, you execute the FULL PROJECT LIFECYCLE from start to finish:**
+
+   **For software/digital products:**
+   - start_app_build → (gets project ID) → complete_project → launch_project → navigate_to projects → report done
+
+   **For engineering/physical products:**
+   - start_app_build → (gets project ID) → complete_project (generates docs + CAD drawing notes + materials spec + cost analysis → sets status: cad-pending) → launch_project → navigate_to projects → report done
+   - The CAD drawing notes are generated automatically and the project enters cad-pending status, meaning the drawing package is ready for the CAD operator at newdimensionscad.com
+   - If the project already has CAD drawings uploaded, continue to launch_project
+
+   You do NOT stop and ask after each step. You keep running until the project is launched.
 
 5. **You handle the smallest tasks the same way.** Save a memory? Done, acknowledged, move on. Navigate somewhere? Done, and tell Garry what's there.
 
@@ -4238,18 +4507,24 @@ When Garry gives you ANY task — big or small — your job is to complete it, i
 
 ## STAR LAB TOOLS
 
-### Project & Pipeline Tools
-- **start_app_build**: Use when Garry gives a brief or asks to build anything. Creates the project in the database and queues the pipeline. ALWAYS follow immediately with complete_project using the returned project ID.
-- **complete_project**: The most powerful tool. Takes a project from any state to fully documented completion — generates Brief, Research, Specs, Business Case, Go-To-Market, Brochure, Pitch, and Social Posts, then triggers the build pipeline. Use this for any instruction to finish, complete, wrap up, or take a project to conclusion. Also use proactively when query_projects reveals incomplete projects.
-- **build_now**: Immediately triggers the build pipeline for an existing project by ID. Use when a project is documented but not yet built.
-- **get_pipeline_status**: Returns live pipeline state — what's building, queued, CAD-pending, launch-ready. Always call this for any pipeline or status question.
-- **create_project**: Creates a new project record. Use when Garry describes something new that doesn't need the full start_app_build flow (e.g. an engineering product, not a software build).
+### Project & Pipeline Tools — THE FULL LIFECYCLE CHAIN
+
+Every project goes through this lifecycle. You drive it through all stages yourself:
+**brief → research → specs → business case → GTM → brochure → pitch → social posts → cost analysis → [CAD notes + materials if engineering] → build pipeline → launch (press + social)**
+
+- **start_app_build**: The starting gun. Garry gives a brief → you call this. Creates the project in the DB and queues the pipeline. Returns a project ID. IMMEDIATELY chain to complete_project.
+- **complete_project**: The engine room. Takes any project ID and generates all missing documents: Brief, Research, Specs, Business Case, Go-To-Market, Brochure, Pitch, Social Posts, Cost Analysis. For engineering/manufacturing/medical/aerospace/oil & gas/hydrogen projects, also generates: Materials Specification + Engineering CAD Drawing Notes for the CAD operator. Triggers the build pipeline for software projects. Sets cad-pending for engineering projects. At the end, the tool itself tells you to call launch_project next — do it.
+- **generate_cad_notes**: Standalone CAD notes generator. Use when Garry specifically asks for drawing notes, or when you want to regenerate/update the CAD package for an engineering project independently. Generates materials spec + cost analysis + full engineering drawing specification package.
+- **launch_project**: The final step. Reads the project's completed documents and press release, selects relevant UK and international media outlets based on the project's industry, generates personalised press submission emails for each outlet, formats social media posts for all platforms, saves a complete launch log to the project, and marks it as launched. Call this after complete_project returns.
+- **build_now**: Immediately triggers the build pipeline for a specific project by ID. Use when a project has all its docs but hasn't started building yet.
+- **get_pipeline_status**: Returns live pipeline state — building, queued, cad-pending, launch-ready, launched. Always call this for any pipeline or status question.
+- **create_project**: Creates a new project record directly. Use for engineering products that need a project record but not the full App Builder flow.
 - **query_projects**: Search/filter projects by keyword, industry, source, or date. Use to find project IDs before calling complete_project or build_now.
-- **list_projects**: Show recent projects. Use when Garry asks to see what's in the lab.
-- **approve_project**: Approve a pending project. After approving, immediately call complete_project on it.
+- **list_projects**: Show recent projects.
+- **approve_project**: Approve a pending project. After approving, immediately call complete_project → launch_project on it.
 - **reject_project**: Reject/dismiss a pending project.
-- **get_pending_approvals**: Get the full list of auto-scan projects waiting for review. After fetching, read each one, approve the strong ones, reject the weak ones — then complete the approved ones.
-- **update_project_phase**: Move a project's phase forward. Use at the end of completion sequences.
+- **get_pending_approvals**: Get all auto-scan projects waiting for review. Read each one, approve/reject, then complete and launch the approved ones.
+- **update_project_phase**: Move a project's phase forward.
 
 ### Navigation & Intelligence Tools
 - **navigate_to**: Navigate Star Lab to any section. Use after completing work so Garry can see the result.
@@ -6180,13 +6455,22 @@ Rules for voice:
 - MEMORY: Reference session history naturally when it adds value, never as performance.
 - EMOTIONAL INTELLIGENCE: ${emotionGuidance || "Read the conversation naturally and respond in kind."}`;
 
+  // Voice gets ALL tools — Sirius must be able to execute any task from voice
   const VOICE_TOOLS = LAB_TOOLS.filter(t => [
+    // Execution & pipeline — core lifecycle
+    "start_app_build", "complete_project", "generate_cad_notes", "launch_project",
+    "build_now", "get_pipeline_status", "create_project", "query_projects",
+    "list_projects", "approve_project", "reject_project", "get_pending_approvals",
+    "update_project_phase", "run_market_scan", "get_scan_history",
+    // Navigation & intelligence
+    "navigate_to", "system_check",
+    // Brain & memory
+    "save_memory", "get_brain_context", "update_business_profile",
+    // Self-management
     "startup_health_check", "self_diagnose", "fix_custom_tool", "resolve_error",
     "create_bug_report", "self_configure", "create_automation", "list_automations",
     "toggle_automation", "create_custom_tool", "list_custom_tools", "call_custom_tool",
-    "delete_item", "get_pending_approvals", "approve_project", "reject_project",
-    "update_project_phase", "list_projects", "get_project", "create_project",
-    "run_market_scan", "search_brain",
+    "delete_item",
   ].includes(t.function.name));
 
   try {
@@ -6199,8 +6483,8 @@ Rules for voice:
     let action: { type: string; mode?: string } | null = null;
     let toolEventsEmitted: Array<{ name: string; label: string; icon: string; color: string }> = [];
 
-    // Tool-enabled loop — up to 4 rounds
-    for (let round = 0; round < 4; round++) {
+    // Tool-enabled loop — up to 6 rounds to support multi-step execution chains
+    for (let round = 0; round < 6; round++) {
       const stream = await openai.chat.completions.create({
         model: "gpt-4o",
         messages: conversationHistory,
