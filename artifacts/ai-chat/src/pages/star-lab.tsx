@@ -10714,6 +10714,7 @@ function StarLabVoiceWidget({
   const [keyboardText, setKeyboardText] = useState("");
   const keyboardInputRef                = useRef<HTMLInputElement>(null);
   const [showFeed, setShowFeed]         = useState(false);
+  const [statusText, setStatusText]     = useState("");
   type ToolEvent = { id: string; name: string; label: string; icon: string; color: string; ts: number };
   const [toolLog, setToolLog]           = useState<ToolEvent[]>([]);
   const [prevSession, setPrevSession]   = useState<{ summary: string; createdAt: string; messageCount: number } | null>(null);
@@ -10981,7 +10982,8 @@ function StarLabVoiceWidget({
       let action: { type: string; mode?: string } | null = null;
       let spokenText = "";
 
-      setPhase("speaking");
+      setPhase("thinking");
+      setStatusText("Sirius is thinking…");
       setSiriusText("");
 
       while (true) {
@@ -10997,6 +10999,10 @@ function StarLabVoiceWidget({
             if (parsed.delta) {
               const clean = parsed.delta.replace(/<<[^>]+>>/g, "");
               fullResponse += parsed.delta;
+              if (clean) {
+                setPhase("speaking");
+                setStatusText("");
+              }
               setSiriusText(prev => prev + clean);
             }
             if (parsed.toolCall) {
@@ -11008,10 +11014,18 @@ function StarLabVoiceWidget({
                 color: parsed.toolCall.color,
                 ts: Date.now(),
               }]);
+              setStatusText(`${parsed.toolCall.icon || "⚡"} ${parsed.toolCall.label || parsed.toolCall.name}…`);
+            }
+            if (parsed.type === "thinking" && parsed.text) {
+              setStatusText(parsed.text);
+            }
+            if (parsed.type === "status" && parsed.message) {
+              setStatusText(parsed.message);
             }
             if (parsed.done) {
               action = parsed.action;
               spokenText = parsed.spokenText || fullResponse.replace(/<<[^>]+>>/g, "").trim();
+              setStatusText("");
             }
           } catch {}
         }
@@ -11035,6 +11049,7 @@ function StarLabVoiceWidget({
       console.error("[Voice]", err);
       busyRef.current = false;
       setPhase("idle");
+      setStatusText("");
       if (active && inputModeRef.current === "voice") setTimeout(() => startListening(), 1000);
     }
   };
@@ -11174,16 +11189,24 @@ function StarLabVoiceWidget({
                 return items;
               })()}
 
-              {/* Live typing indicator when thinking */}
+              {/* Live thinking/status indicator */}
               {isThinking && (
                 <div className="flex justify-start">
-                  <div className="px-2.5 py-1.5 rounded-2xl rounded-bl-sm" style={{ background: "rgba(255,255,255,0.06)" }}>
-                    <div className="flex gap-1 items-center h-3">
-                      {[0,1,2].map(i => (
-                        <motion.span key={i} className="w-1 h-1 rounded-full" style={{ background: "rgba(255,255,255,0.4)" }}
-                          animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 0.9, repeat: Infinity, delay: i * 0.2 }} />
-                      ))}
-                    </div>
+                  <div className="px-2.5 py-1.5 rounded-2xl rounded-bl-sm max-w-[90%]" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,190,0,0.12)" }}>
+                    {statusText ? (
+                      <div className="flex items-center gap-1.5">
+                        <motion.span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: "hsl(45,100%,55%)" }}
+                          animate={{ opacity: [0.4, 1, 0.4] }} transition={{ duration: 0.9, repeat: Infinity }} />
+                        <span className="text-[9px] leading-relaxed italic" style={{ color: "rgba(255,190,0,0.75)" }}>{statusText}</span>
+                      </div>
+                    ) : (
+                      <div className="flex gap-1 items-center h-3">
+                        {[0,1,2].map(i => (
+                          <motion.span key={i} className="w-1 h-1 rounded-full" style={{ background: "rgba(255,255,255,0.4)" }}
+                            animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 0.9, repeat: Infinity, delay: i * 0.2 }} />
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -11217,8 +11240,8 @@ function StarLabVoiceWidget({
             <div className="flex items-center gap-2 px-3 pt-3 pb-2">
               <span className="w-2 h-2 rounded-full flex-shrink-0"
                 style={{ background: isListening ? "hsl(193,100%,55%)" : isSpeaking ? "hsl(155,70%,55%)" : isThinking ? "hsl(45,100%,55%)" : inputMode === "keyboard" ? "hsl(45,100%,55%)" : "rgba(255,255,255,0.2)", animation: isListening || isSpeaking ? "pulse 1.2s infinite" : "none" }} />
-              <span className="flex-1 text-xs font-semibold tracking-wide" style={{ color: isListening ? "hsl(193,100%,65%)" : isSpeaking ? "hsl(155,70%,65%)" : isThinking ? "hsl(45,100%,65%)" : inputMode === "keyboard" ? "hsl(45,100%,65%)" : "rgba(255,255,255,0.35)" }}>
-                {isListening ? "LISTENING" : isSpeaking ? "SPEAKING" : isThinking ? "THINKING" : inputMode === "keyboard" ? "KEYBOARD" : "SIRIUS VOICE"}
+              <span className="flex-1 text-xs font-semibold tracking-wide truncate" style={{ color: isListening ? "hsl(193,100%,65%)" : isSpeaking ? "hsl(155,70%,65%)" : isThinking ? "hsl(45,100%,65%)" : inputMode === "keyboard" ? "hsl(45,100%,65%)" : "rgba(255,255,255,0.35)" }}>
+                {isListening ? "LISTENING" : isSpeaking ? "SPEAKING" : isThinking ? (statusText || "THINKING…") : inputMode === "keyboard" ? "KEYBOARD" : "SIRIUS VOICE"}
               </span>
               {/* Chat log toggle */}
               <button
