@@ -10985,6 +10985,7 @@ function StarLabVoiceWidget({
       setPhase("thinking");
       setStatusText("Sirius is thinking…");
       setSiriusText("");
+      setShowFeed(true);
 
       while (true) {
         const { done, value } = await reader.read();
@@ -11151,9 +11152,11 @@ function StarLabVoiceWidget({
                     const relevant = toolLog.slice(toolIdx, toolIdx + 3);
                     relevant.forEach(t => {
                       items.push(
-                        <div key={t.id} className="flex items-center gap-1.5 py-0.5">
-                          <span className="text-xs">{t.icon}</span>
-                          <span className="text-[9px] font-semibold tracking-wide" style={{ color: t.color }}>{t.label}</span>
+                        <div key={t.id} className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg"
+                          style={{ background: "rgba(255,255,255,0.05)", borderLeft: `2px solid ${t.color}`, border: `1px solid rgba(255,255,255,0.07)`, borderLeftWidth: 2 }}>
+                          <span className="text-xs flex-shrink-0">{t.icon}</span>
+                          <span className="text-[9px] font-semibold flex-1 truncate" style={{ color: "rgba(255,255,255,0.75)" }}>{t.label}</span>
+                          <span className="text-[8px]" style={{ color: "hsl(155,70%,55%)" }}>✓</span>
                         </div>
                       );
                       toolIdx++;
@@ -11179,9 +11182,11 @@ function StarLabVoiceWidget({
                 while (toolIdx < toolLog.length) {
                   const t = toolLog[toolIdx++];
                   items.push(
-                    <div key={t.id} className="flex items-center gap-1.5 py-0.5">
-                      <span className="text-xs">{t.icon}</span>
-                      <span className="text-[9px] font-semibold tracking-wide" style={{ color: t.color }}>{t.label}</span>
+                    <div key={t.id} className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg"
+                      style={{ background: "rgba(255,255,255,0.05)", borderLeft: `2px solid ${t.color}`, border: `1px solid rgba(255,255,255,0.07)`, borderLeftWidth: 2 }}>
+                      <span className="text-xs flex-shrink-0">{t.icon}</span>
+                      <span className="text-[9px] font-semibold flex-1 truncate" style={{ color: "rgba(255,255,255,0.75)" }}>{t.label}</span>
+                      <span className="text-[8px]" style={{ color: "hsl(155,70%,55%)" }}>✓</span>
                     </div>
                   );
                 }
@@ -11869,6 +11874,7 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
     setStreamText("");
     setStreamingActions([]);
     setThinkingText("");
+    setOpen(true);
 
     try {
       const apiMessages = [contextMessage, ...messages.map(m => ({ role: m.role, content: m.content })), { role: "user" as const, content: text }];
@@ -12321,8 +12327,11 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
               const card: ActionCard = { tool: evt.tool, label: evt.label, detail: evt.detail, color: evt.color, icon: evt.icon, result: evt.result };
               actions.push(card);
               setStreamingActions([...actions]);
+              setThinkingText("");
             } else if (evt.type === "thinking") {
-              setThinkingText(prev => evt.text || prev);
+              setThinkingText(evt.text || "");
+            } else if (evt.type === "status" && evt.message) {
+              setThinkingText(evt.message);
             } else if (evt.type === "navigate") {
               // Buffer navigation — fire it AFTER speaking so the loop stays alive
               if (evt.section) {
