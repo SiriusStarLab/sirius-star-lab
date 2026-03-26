@@ -11939,7 +11939,7 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
               actions.push(card);
               setStreamingActions([...actions]);
             } else if (evt.type === "thinking") {
-              setThinkingText(evt.text || "");
+              setThinkingText(prev => evt.text || prev);
             } else if (evt.type === "navigate") {
               // Buffer navigation — fire it AFTER speaking so the loop stays alive
               if (evt.section) {
@@ -12175,8 +12175,8 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
                   ))}
                 </div>
               )}
-              {/* Thinking indicator */}
-              {thinkingText && !streamingText && (
+              {/* Thinking indicator — always visible while a tool is running */}
+              {thinkingText && (
                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-slate-500 italic"
                   style={{ background: "rgba(15,23,42,0.03)", border: "1px solid rgba(15,23,42,0.07)" }}>
                   <Loader2 className="w-3 h-3 animate-spin text-cyan-500 flex-shrink-0" />
