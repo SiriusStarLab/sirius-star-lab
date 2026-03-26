@@ -2986,6 +2986,21 @@ const LAB_TOOLS: any[] = [
   {
     type: "function" as const,
     function: {
+      name: "complete_project",
+      description: "Take an existing project ALL THE WAY to completion in one command. Generates every missing document in parallel (brief, market research, technical specs, business case, go-to-market plan, brochure, investor pitch, social posts), triggers the build pipeline, and marks the project complete. Use this EVERY TIME Garry says 'complete this project', 'finish it', 'take it to conclusion', 'do everything for project X', 'wrap it up', or 'publish project X'. Always call query_projects first if you don't have the project ID.",
+      parameters: {
+        type: "object",
+        properties: {
+          projectId: { type: "number", description: "Database ID of the project to complete. Use query_projects to find it if needed." },
+          projectName: { type: "string", description: "Name of the project for confirmation (optional)." },
+        },
+        required: ["projectId"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
       name: "system_check",
       description: "Run a full live system check across all Star Lab subsystems. Use this when the user asks for a status check, system check, health check, or 'how is everything running'. Returns real-time data from the database covering projects, pipeline, brain, app builder, and scanner.",
       parameters: {
@@ -3451,6 +3466,140 @@ async function executeLabTool(name: string, args: any): Promise<string> {
         if (!id || isNaN(id)) return "Invalid project ID — call query_projects first to get the correct ID.";
         const result = await triggerBuildNow(id);
         return result.message;
+      }
+
+      case "complete_project": {
+        const projectId = Number(args.projectId);
+        if (!projectId || isNaN(projectId)) return "Invalid project ID — call query_projects first.";
+
+        const [project] = await db.select().from(labProjects).where(eq(labProjects.id, projectId)).limit(1);
+        if (!project) return `Project #${projectId} not found.`;
+
+        const name = project.name;
+        const industry = project.industry || "General";
+        const completed: string[] = [];
+        const updates: Record<string, string> = {};
+
+        // Helper — generate content with GPT-4o
+        const gen = async (systemPrompt: string, userPrompt: string, maxTokens = 600): Promise<string> => {
+          const r = await openai.chat.completions.create({
+            model: "gpt-4o",
+            messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
+            max_tokens: maxTokens,
+          });
+          return r.choices[0]?.message?.content?.trim() || "";
+        };
+
+        const ctx = `Product: "${name}"\nIndustry: ${industry}\nBrief: ${(project.brief || "").slice(0, 800)}`;
+
+        // ── Run all generation tasks in parallel ───────────────────────────────
+        const tasks: Array<{ field: string; label: string; current: string; systemPrompt: string; userPrompt: string; tokens: number }> = [
+          {
+            field: "brief", label: "Brief",
+            current: project.brief || "",
+            systemPrompt: "You are Sirius, a strategic product intelligence system for Strategic Innovation Dundee Ltd. Write a detailed product brief.",
+            userPrompt: `Write a comprehensive product brief for "${name}" in the ${industry} industry. Cover: what it is, who it's for, core problem it solves, key features (5-8), competitive advantage, and market opportunity. 400-500 words.`,
+            tokens: 700,
+          },
+          {
+            field: "research", label: "Market Research",
+            current: project.research || "",
+            systemPrompt: "You are a market research analyst. Produce concise, data-driven market research.",
+            userPrompt: `Market research for "${name}" (${industry}): target market size, key competitors, customer pain points, market trends, and opportunity gap. 300-400 words.\n\n${ctx}`,
+            tokens: 600,
+          },
+          {
+            field: "specs", label: "Technical Specs",
+            current: project.specs || "",
+            systemPrompt: "You are a technical product architect. Produce clear technical specifications.",
+            userPrompt: `Technical specifications for "${name}" (${industry}): core components, tech stack, integrations, performance requirements, scalability approach, and MVP feature set. 300-400 words.\n\n${ctx}`,
+            tokens: 600,
+          },
+          {
+            field: "businessCase", label: "Business Case",
+            current: project.businessCase || "",
+            systemPrompt: "You are a business strategist. Produce a compelling business case.",
+            userPrompt: `Business case for "${name}" (${industry}): ROI analysis, revenue model, cost structure, payback period, and strategic value. Include realistic projections. 300-400 words.\n\n${ctx}`,
+            tokens: 600,
+          },
+          {
+            field: "goToMarket", label: "Go-To-Market Plan",
+            current: project.goToMarket || "",
+            systemPrompt: "You are a GTM strategist. Produce an actionable go-to-market plan.",
+            userPrompt: `Go-to-market plan for "${name}" (${industry}): launch strategy, target customer segments, pricing model, distribution channels, key partnerships, and 90-day launch roadmap. 300-400 words.\n\n${ctx}`,
+            tokens: 600,
+          },
+          {
+            field: "brochure", label: "Product Brochure",
+            current: project.brochure || "",
+            systemPrompt: "You are a professional copywriter. Write compelling marketing copy.",
+            userPrompt: `Marketing brochure copy for "${name}" (${industry}): headline, tagline, value proposition, 3 key benefits, features list, customer testimonial (imagined), and call to action. 250-350 words.\n\n${ctx}`,
+            tokens: 500,
+          },
+          {
+            field: "pitch", label: "Investor Pitch",
+            current: project.pitch || "",
+            systemPrompt: "You are a pitch deck writer. Create compelling investor pitch content.",
+            userPrompt: `Investor pitch for "${name}" (${industry}): problem statement, solution, market size (TAM/SAM/SOM), business model, traction/roadmap, team requirement, and funding ask with use of funds. 300-400 words.\n\n${ctx}`,
+            tokens: 600,
+          },
+          {
+            field: "socialPosts", label: "Social Media Posts",
+            current: project.socialPosts && project.socialPosts !== "{}" ? project.socialPosts : "",
+            systemPrompt: "You are a social media manager. Create platform-optimised posts.",
+            userPrompt: `Write social media launch posts for "${name}" (${industry}) as JSON with keys: linkedin (professional, 200 words), twitter (punchy, under 280 chars), instagram (visual, with hashtags), facebook (community-focused, 150 words), pressRelease (formal, 300 words). Return ONLY valid JSON.\n\n${ctx}`,
+            tokens: 800,
+          },
+        ];
+
+        // Filter to only fields that need generating (empty or very short)
+        const needed = tasks.filter(t => !t.current || t.current.trim().length < 50);
+
+        // Run all needed generations in parallel
+        const results = await Promise.allSettled(
+          needed.map(async t => {
+            const content = await gen(t.systemPrompt, t.userPrompt, t.tokens);
+            return { field: t.field, label: t.label, content };
+          })
+        );
+
+        for (const r of results) {
+          if (r.status === "fulfilled" && r.value.content) {
+            updates[r.value.field] = r.value.content;
+            completed.push(r.value.label);
+          }
+        }
+
+        // Apply all DB updates at once
+        if (Object.keys(updates).length > 0) {
+          await db.update(labProjects)
+            .set({ ...updates, phase: "complete", updatedAt: new Date() } as any)
+            .where(eq(labProjects.id, projectId));
+        }
+
+        // Trigger the build pipeline if not already built/building
+        let buildMsg = "";
+        if (!project.launchStatus || project.launchStatus === "") {
+          const buildResult = await triggerBuildNow(projectId);
+          buildMsg = buildResult.ok
+            ? " Build pipeline triggered and running."
+            : ` Note: ${buildResult.message}`;
+        } else {
+          buildMsg = ` Pipeline status: ${project.launchStatus}.`;
+        }
+
+        const skipped = tasks.filter(t => !needed.find(n => n.field === t.field)).map(t => t.label);
+
+        return [
+          `╔══ PROJECT COMPLETION: "${name}" ══╗`,
+          ``,
+          `✅ Generated: ${completed.length > 0 ? completed.join(", ") : "nothing new needed"}`,
+          skipped.length > 0 ? `⏭ Already had: ${skipped.join(", ")}` : "",
+          `⚙ Build:${buildMsg}`,
+          `📋 Phase: Complete`,
+          ``,
+          `Project #${projectId} is now fully documented. All materials are saved in the project record. Navigate to Projects → open #${projectId} to review everything.`,
+        ].filter(Boolean).join("\n");
       }
 
       case "system_check": {
@@ -3930,6 +4079,7 @@ const TOOL_META: Record<string, { label: string; color: string; icon: string }> 
   start_app_build: { label: "Queuing new build", color: "hsl(155,70%,42%)", icon: "🚀" },
   get_pipeline_status: { label: "Pipeline status loaded", color: "hsl(193,100%,40%)", icon: "⚙️" },
   build_now: { label: "Build triggered", color: "hsl(155,70%,42%)", icon: "▶️" },
+  complete_project: { label: "Completing project — generating all materials", color: "hsl(260,80%,55%)", icon: "🏁" },
   system_check: { label: "System check running", color: "hsl(193,100%,35%)", icon: "🖥️" },
   get_pending_approvals: { label: "Loading approval queue", color: "hsl(25,90%,55%)", icon: "📋" },
   approve_project: { label: "Project approved", color: "hsl(155,70%,45%)", icon: "✅" },
@@ -4061,6 +4211,7 @@ ${selfConfigBlock ? `## YOUR SELF-CONFIGURED SETTINGS\n\n${selfConfigBlock}\n` :
 - **start_app_build**: CRITICAL — use this when Garry asks to build, create, develop, or make any app, tool, bot, platform, or software. This creates a REAL project in the database, queues it for the autonomous pipeline, and navigates to the App Builder panel to show live progress.
 - **get_pipeline_status**: CRITICAL — use this when Garry asks "what's building?", "what's in the pipeline?", "what's launch-ready?", "pipeline status", or any question about what the autonomous build system is doing. Returns live data direct from the database.
 - **build_now**: CRITICAL — use this to immediately trigger a build for a specific project by its database ID. Use when Garry says "build project X", "start that one now", "kick it off", "build #ID". Always call query_projects first if you don't have the ID. This bypasses the queue and starts the build RIGHT NOW.
+- **complete_project**: CRITICAL — use this EVERY TIME Garry says "complete this project", "take it to conclusion", "finish it", "do everything for X", "wrap it up", "take this from start to finish", or any instruction to fully finish a project. This single tool generates ALL missing materials in parallel (brief, research, specs, business case, go-to-market, brochure, pitch, social posts), triggers the build pipeline, and marks the project complete. You MUST call query_projects first if you don't have the project ID. Once complete_project returns, summarise everything it generated and tell Garry the project is done and ready to review in Projects.
 - **system_check**: CRITICAL — use this EVERY TIME Garry asks for a status check, system check, or "how is everything running". Queries live data. NEVER guess status from memory.
 - **update_business_profile**: Update stored business context (name, sector, goals, key clients).
 - **get_brain_context**: Read all stored memories and business profile.
