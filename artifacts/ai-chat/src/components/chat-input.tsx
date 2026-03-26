@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, KeyboardEvent, useState, useCallback } from "react";
-import { Send, Square, Mic, MicOff, Paperclip, X, Loader2, Zap, FileText, HelpCircle, Volume2, VolumeX } from "lucide-react";
+import { Send, Square, Mic, MicOff, Paperclip, X, Loader2, Zap, FileText, HelpCircle, Volume2, VolumeX, Keyboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useSubscription } from "@/hooks/use-subscription";
@@ -515,6 +515,19 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
               )}
             </button>
           )}
+
+          {/* Keyboard / type button */}
+          <button
+            onClick={() => { setTimeout(() => textareaRef.current?.focus(), 0); }}
+            className="h-8 w-8 rounded-lg flex items-center justify-center transition-all duration-200"
+            style={{
+              background: "hsl(210 30% 95%)",
+              border: "1px solid hsl(210 25% 87%)",
+            }}
+            title="Type your message"
+          >
+            <Keyboard size={13} style={{ color: "hsl(220 14% 46%)" }} />
+          </button>
 
           {/* Mic button */}
           <button

@@ -135,6 +135,21 @@ export function ChatInput({ onSend, disabled = false, placeholder = "Message Sir
           />
         )}
 
+        {/* Keyboard / type button — focuses the input and brings up native keyboard */}
+        {!isVoiceBusy && (
+          <Pressable
+            onPress={() => inputRef.current?.focus()}
+            style={({ pressed }) => [
+              styles.actionBtn,
+              styles.keyboardBtn,
+              pressed && { opacity: 0.7 },
+            ]}
+            testID="keyboard-button"
+          >
+            <Feather name="edit-2" size={16} color={Colors.textDim} />
+          </Pressable>
+        )}
+
         {onToggleVoice && !isVoiceBusy && (
           <Pressable
             onPress={onToggleVoice}
@@ -269,6 +284,9 @@ const styles = StyleSheet.create({
     borderColor: `${Colors.primary}40`,
   },
   speakerBtnIdle: {
+    backgroundColor: "transparent",
+  },
+  keyboardBtn: {
     backgroundColor: "transparent",
   },
 });
