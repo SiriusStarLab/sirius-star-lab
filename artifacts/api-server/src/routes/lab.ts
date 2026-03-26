@@ -2944,6 +2944,21 @@ const LAB_TOOLS: any[] = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "start_app_build",
+      description: "Launch the full App Builder pipeline for a new application. Use this — NOT navigate_to — whenever the user asks to build, create, develop, or make a new app, tool, bot, platform, or software product. This navigates to the App Builder and immediately fires the full automatic pipeline (interpret → plan → build → test → debug) without requiring any extra user input.",
+      parameters: {
+        type: "object",
+        properties: {
+          appName: { type: "string", description: "Short, clear app name (2-5 words)" },
+          description: { type: "string", description: "Full natural-language description of the app: purpose, core features, target users, tech preferences (if any). Be as detailed as possible — the builder will interpret this." },
+        },
+        required: ["appName", "description"],
+      },
+    },
+  },
 ];
 
 async function executeLabTool(name: string, args: any): Promise<string> {
@@ -3113,6 +3128,17 @@ async function executeLabTool(name: string, args: any): Promise<string> {
         return `NAVIGATE_ACTION:${args.section}${projectTag}`;
       }
 
+      case "start_app_build": {
+        // Combine app name + description into a full prompt for the App Builder
+        const fullPrompt = args.appName && args.description
+          ? `${args.appName}: ${args.description}`
+          : args.description || args.appName || "";
+        // Returns a special marker — the SSE handler intercepts this and sends
+        // a navigate_and_build event to the frontend which pre-fills the form
+        // and fires the full pipeline automatically
+        return `NAVIGATE_AND_BUILD:appbuilder | prompt:${fullPrompt}`;
+      }
+
       default:
         return `Unknown tool: ${name}`;
     }
@@ -3131,6 +3157,7 @@ const TOOL_META: Record<string, { label: string; color: string; icon: string }> 
   query_projects: { label: "Projects queried", color: "hsl(193,100%,40%)", icon: "🔍" },
   get_scan_history: { label: "Scan history loaded", color: "hsl(155,70%,45%)", icon: "📡" },
   navigate_to: { label: "Navigating", color: "hsl(226,70%,55%)", icon: "🧭" },
+  start_app_build: { label: "Launching App Builder", color: "hsl(155,70%,42%)", icon: "🚀" },
 };
 
 // Detect whether a message is primarily an information/research query
@@ -3222,6 +3249,7 @@ You are a genuine strategic intelligence partner with real capabilities:
 - **query_projects**: Search projects by date, industry, source (scan vs manual), status, keyword, or limit. Use this for any request like "show me the last 3 projects", "bring up last night's scan results", "find medical device projects", "what came from yesterday's scan".
 - **get_scan_history**: Get recent auto-scan run history. Use when asked "what did the scan find?", "what came in last night?", "recent scanner output".
 - **navigate_to**: Navigate Star Lab to a section and optionally open a specific project. ALWAYS use this when the user says "bring up", "show me", "open", "take me to" anything.
+- **start_app_build**: CRITICAL — use this when Garry asks to build, create, develop, or make any app, tool, bot, platform, or software. This is the ONLY tool that actually starts a real build. It navigates to the App Builder AND fires the full automatic pipeline (interpret → plan → build → test → debug) without any extra clicks. NEVER just say "I'll start building" — call this tool immediately.
 - **update_business_profile**: Update business context.
 - **get_brain_context**: Read stored context.
 - **run_market_scan**: Scan a sector for live opportunities.
@@ -3388,6 +3416,18 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
           const meta = TOOL_META["navigate_to"];
           sendEvent({ type: "action", tool: tc.name, label: `Navigating to ${section.trim()}`, detail: projectId ? `Opening project #${projectId}` : "", color: meta.color, icon: meta.icon });
           toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: `Navigated to ${section} section${projectId ? `, opening project #${projectId}` : ""}.` });
+          continue;
+        }
+
+        // Special: start_app_build returns NAVIGATE_AND_BUILD: — navigate to App Builder AND auto-start pipeline
+        if (result.startsWith("NAVIGATE_AND_BUILD:")) {
+          const payload = result.slice("NAVIGATE_AND_BUILD:".length);
+          const [section, promptPart] = payload.split(" | ");
+          const buildPrompt = promptPart?.startsWith("prompt:") ? promptPart.slice("prompt:".length) : "";
+          sendEvent({ type: "navigate_and_build", section: section.trim(), prompt: buildPrompt });
+          const meta = TOOL_META["start_app_build"];
+          sendEvent({ type: "action", tool: tc.name, label: "Launching App Builder", detail: buildPrompt.slice(0, 60) + (buildPrompt.length > 60 ? "…" : ""), color: meta.color, icon: meta.icon });
+          toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: `App Builder launched with prompt: "${buildPrompt}". The full pipeline is starting now — interpret → plan → build → test → debug.` });
           continue;
         }
 

@@ -4049,7 +4049,7 @@ const BUILDER_AGENTS: AgentStatus[] = [
 type SessionSummary = { id: number; appName: string; status: string; phase: number; updatedAt: string };
 type ArchitectMessage = { role: "user" | "assistant"; content: string; thinking?: string };
 
-function AppBuilderPanel({ pin }: { pin: string }) {
+function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed }: { pin: string; preloadPrompt?: string | null; onPreloadConsumed?: () => void }) {
   const API = getApiBase();
   const [phase, setPhase] = useState(1);
   const [prompt, setPrompt] = useState("");
@@ -4196,6 +4196,15 @@ function AppBuilderPanel({ pin }: { pin: string }) {
       .catch(() => {})
       .finally(() => setSessionsLoading(false));
   }, [pin]);
+
+  // Auto-start flag — set when Sirius sends a build command from the Lab Chat
+  const [preloadPending, setPreloadPending] = useState(false);
+  useEffect(() => {
+    if (!preloadPrompt || phase !== 1 || loading) return;
+    setPrompt(preloadPrompt);
+    setPreloadPending(true);
+    if (onPreloadConsumed) onPreloadConsumed();
+  }, [preloadPrompt]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-save session after phase transitions
   const saveSession = useCallback(async (overrides?: Partial<{
@@ -4535,6 +4544,13 @@ function AppBuilderPanel({ pin }: { pin: string }) {
     }
     setLoading(false);
   };
+
+  // Fire the pipeline automatically when Sirius preloads a prompt from the Lab Chat
+  useEffect(() => {
+    if (!preloadPending || !prompt.trim() || loading) return;
+    setPreloadPending(false);
+    handleFullPipeline();
+  }, [preloadPending, prompt, loading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Phase 5 (UI 6): Self-Debug
   const handleDebug = async () => {
@@ -11430,7 +11446,7 @@ If the user asks to build or execute a pipeline, include <<NAVIGATE:orchestrate>
   );
 }
 
-function SiriusLabChatPanel({ pin, accessLevel, onNavigate, onOpenProject }: { pin: string; accessLevel: AccessRole; onNavigate?: (section: NavMode) => void; onOpenProject?: (id: number) => void }) {
+function SiriusLabChatPanel({ pin, accessLevel, onNavigate, onOpenProject, onNavigateAndBuild }: { pin: string; accessLevel: AccessRole; onNavigate?: (section: NavMode) => void; onOpenProject?: (id: number) => void; onNavigateAndBuild?: (section: NavMode, prompt: string) => void }) {
   const base = getApiBase();
   const CHAT_STORAGE_KEY = `lab_chat_${accessLevel}`;
   const [messages, setMessages] = useState<LabChatMsg[]>(() => {
@@ -11590,6 +11606,13 @@ function SiriusLabChatPanel({ pin, accessLevel, onNavigate, onOpenProject }: { p
               if (evt.section && onNavigate) onNavigate(evt.section as NavMode);
               if (evt.projectId && onOpenProject) {
                 setTimeout(() => onOpenProject!(evt.projectId), 300);
+              }
+            } else if (evt.type === "navigate_and_build") {
+              // start_app_build tool fired — navigate to App Builder AND auto-start pipeline
+              if (evt.section && evt.prompt && onNavigateAndBuild) {
+                onNavigateAndBuild(evt.section as NavMode, evt.prompt);
+              } else if (evt.section && onNavigate) {
+                onNavigate(evt.section as NavMode);
               }
             } else if (evt.type === "error") {
               fullText = evt.message || "Something went wrong.";
@@ -12405,6 +12428,7 @@ export function StarLabPage() {
   const [showGreeting, setShowGreeting] = useState(false);
   const [pin, setPin] = useState("");
   const [accessLevel, setAccessLevel] = useState<AccessRole>("owner");
+  const [appBuilderPreload, setAppBuilderPreload] = useState<string | null>(null);
 
   const userName = typeof window !== "undefined"
     ? (localStorage.getItem("sirius_display_name") || "").trim() || "Garry"
@@ -12824,6 +12848,10 @@ export function StarLabPage() {
               loadProject(id);
               setNavMode("projects");
             }}
+            onNavigateAndBuild={(section, prompt) => {
+              setAppBuilderPreload(prompt);
+              setNavMode(section as NavMode);
+            }}
           />
         )}
         {navMode === "brain" && <BrainPanel pin={pin} />}
@@ -12854,7 +12882,13 @@ export function StarLabPage() {
             else { setNavMode("projects"); }
           }} />
         )}
-        {navMode === "appbuilder" && <AppBuilderPanel pin={pin} />}
+        {navMode === "appbuilder" && (
+          <AppBuilderPanel
+            pin={pin}
+            preloadPrompt={appBuilderPreload}
+            onPreloadConsumed={() => setAppBuilderPreload(null)}
+          />
+        )}
         {navMode === "ai-arch" && (
           <AiArchLabPanel pin={pin} projects={projects} onNavigate={setNavMode} onOpenProject={(p) => { setActiveProject(p); setNavMode("projects"); }} />
         )}
