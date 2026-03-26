@@ -10410,6 +10410,9 @@ function StarLabVoiceWidget({
   const navVisitedRef     = useRef<Set<string>>(new Set());
   const [journalSaved, setJournalSaved] = useState<"idle" | "saving" | "saved">("idle");
 
+  // Startup health check — fires once per session when voice widget first activates
+  const hasRunStartupRef = useRef(false);
+
   useEffect(() => {
     if (active) {
       tickRef.current = setInterval(() => setWaveTick(t => t + 1), 80);
@@ -10417,6 +10420,17 @@ function StarLabVoiceWidget({
       if (tickRef.current) clearInterval(tickRef.current);
     }
     return () => { if (tickRef.current) clearInterval(tickRef.current); };
+  }, [active]);
+
+  // Auto-trigger startup maintenance check on first activation
+  useEffect(() => {
+    if (active && !hasRunStartupRef.current && !busyRef.current) {
+      hasRunStartupRef.current = true;
+      const startupTimer = setTimeout(() => {
+        sendMessage("[STARTUP_CHECK] Run your startup maintenance check now. Briefly summarise the health status in your greeting — if all systems are healthy say so, if there are any issues or pending approvals tell me.");
+      }, 1800);
+      return () => clearTimeout(startupTimer);
+    }
   }, [active]);
 
   // Track which Star Lab sections are visited during a voice session

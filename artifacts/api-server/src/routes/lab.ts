@@ -3153,6 +3153,14 @@ const LAB_TOOLS: any[] = [
   {
     type: "function" as const,
     function: {
+      name: "startup_health_check",
+      description: "Run a full startup maintenance check across all Sirius systems: database, error log, automations, custom tools, pipeline, approvals, and config. ALWAYS call this automatically at the very start of every session, before your first spoken word, so you can give Garry an accurate health status in your greeting. Also call this when Garry says 'run a lab test', 'check everything', 'full system check', or 'maintenance check'.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
       name: "self_diagnose",
       description: "Run a full self-diagnosis: check your own error log, review automation health, and inspect custom tool status. Use when Garry says 'are you working properly', 'check yourself', 'run a self-check', 'what errors do you have', or when you suspect something is broken. ALWAYS run this before reporting a problem — diagnose first, then act.",
       parameters: { type: "object", properties: {} },
@@ -3648,6 +3656,129 @@ async function executeLabTool(name: string, args: any): Promise<string> {
         return `Updated "${updated[0].name}" to phase: ${args.phase}.`;
       }
 
+      case "startup_health_check": {
+        const report: { system: string; status: "ok" | "warn" | "fail"; detail: string; action?: string }[] = [];
+        const now = new Date();
+
+        // ── 1. Database connectivity ─────────────────────────────────────────
+        try {
+          const [{ cnt }] = await db.execute(sql`SELECT COUNT(*) AS cnt FROM lab_projects`) as any;
+          report.push({ system: "Database", status: "ok", detail: `Connected — ${cnt} projects on record` });
+        } catch (e: any) {
+          report.push({ system: "Database", status: "fail", detail: e.message, action: "bug_report" });
+        }
+
+        // ── 2. Error log status ──────────────────────────────────────────────
+        try {
+          const unresolvedErrors = await db.select().from(siriusErrors).where(eq(siriusErrors.resolved, false));
+          if (unresolvedErrors.length === 0) {
+            report.push({ system: "Error Log", status: "ok", detail: "No unresolved errors" });
+          } else {
+            report.push({ system: "Error Log", status: "warn", detail: `${unresolvedErrors.length} unresolved error(s)`, action: "diagnose" });
+          }
+        } catch (e: any) {
+          report.push({ system: "Error Log", status: "fail", detail: e.message });
+        }
+
+        // ── 3. Automations health ────────────────────────────────────────────
+        try {
+          const allAutos = await db.select().from(siriusAutomations);
+          const enabled = allAutos.filter(a => a.enabled);
+          const stale = enabled.filter(a => {
+            if (!a.lastRunAt) return false;
+            const hoursSince = (now.getTime() - new Date(a.lastRunAt).getTime()) / 3600000;
+            return hoursSince > 2 && a.lastRunResult?.toLowerCase().includes("error");
+          });
+          if (stale.length > 0) {
+            report.push({ system: "Automations", status: "warn", detail: `${stale.length} automation(s) showing recent errors: ${stale.map(a => a.name).join(", ")}`, action: "diagnose" });
+          } else {
+            report.push({ system: "Automations", status: "ok", detail: `${enabled.length} running, ${allAutos.length - enabled.length} paused` });
+          }
+        } catch (e: any) {
+          report.push({ system: "Automations", status: "fail", detail: e.message });
+        }
+
+        // ── 4. Custom tools status ───────────────────────────────────────────
+        try {
+          const tools = await db.select().from(siriusCustomTools);
+          const recentlyFailed = await db.select().from(siriusErrors)
+            .where(and(eq(siriusErrors.resolved, false), sql`occurred_at > NOW() - INTERVAL '24 hours'`))
+            .then(rows => rows.map(r => r.toolName));
+          const brokenTools = tools.filter(t => recentlyFailed.includes(`custom:${t.name}`));
+          if (brokenTools.length > 0) {
+            report.push({ system: "Custom Tools", status: "warn", detail: `${brokenTools.length} custom tool(s) failed in last 24h: ${brokenTools.map(t => t.name).join(", ")}`, action: "diagnose" });
+          } else {
+            report.push({ system: "Custom Tools", status: "ok", detail: tools.length === 0 ? "No custom tools built yet" : `${tools.length} custom tool(s) — no recent failures` });
+          }
+        } catch (e: any) {
+          report.push({ system: "Custom Tools", status: "fail", detail: e.message });
+        }
+
+        // ── 5. Pipeline status ───────────────────────────────────────────────
+        try {
+          const [queuedCount] = await db.execute(sql`SELECT COUNT(*) AS cnt FROM lab_projects WHERE status = 'queued'`) as any;
+          const [buildingCount] = await db.execute(sql`SELECT COUNT(*) AS cnt FROM lab_projects WHERE status = 'building'`) as any;
+          const building = await db.select({ name: labProjects.name, updatedAt: labProjects.updatedAt })
+            .from(labProjects).where(eq(labProjects.status, "building")).limit(3);
+          const stuckBuilds = building.filter(p => {
+            const minsStuck = (now.getTime() - new Date(p.updatedAt!).getTime()) / 60000;
+            return minsStuck > 30;
+          });
+          if (stuckBuilds.length > 0) {
+            report.push({ system: "Pipeline", status: "warn", detail: `${stuckBuilds.length} project(s) stuck in 'building' for over 30 mins: ${stuckBuilds.map(p => p.name).join(", ")}`, action: "bug_report" });
+          } else {
+            report.push({ system: "Pipeline", status: "ok", detail: `${queuedCount.cnt} queued · ${buildingCount.cnt} building` });
+          }
+        } catch (e: any) {
+          report.push({ system: "Pipeline", status: "fail", detail: e.message });
+        }
+
+        // ── 6. Projects pending Garry's approval ────────────────────────────
+        try {
+          const pendingApprovals = await db.select({ id: labProjects.id, name: labProjects.name })
+            .from(labProjects).where(eq(labProjects.status, "pending_approval")).limit(5);
+          if (pendingApprovals.length > 0) {
+            report.push({ system: "Approvals", status: "warn", detail: `${pendingApprovals.length} project(s) waiting for Garry's decision` });
+          } else {
+            report.push({ system: "Approvals", status: "ok", detail: "No projects awaiting approval" });
+          }
+        } catch (e: any) {
+          report.push({ system: "Approvals", status: "fail", detail: e.message });
+        }
+
+        // ── 7. Sirius config integrity ───────────────────────────────────────
+        try {
+          const configRows = await db.select().from(siriusConfig);
+          const keys = configRows.map(r => r.key);
+          report.push({ system: "Sirius Config", status: "ok", detail: keys.length === 0 ? "Default configuration (no custom rules set)" : `${keys.length} custom setting(s): ${keys.join(", ")}` });
+        } catch (e: any) {
+          report.push({ system: "Sirius Config", status: "fail", detail: e.message });
+        }
+
+        // ── Build readable report ────────────────────────────────────────────
+        const ok = report.filter(r => r.status === "ok").length;
+        const warn = report.filter(r => r.status === "warn").length;
+        const fail = report.filter(r => r.status === "fail").length;
+        const overallStatus = fail > 0 ? "CRITICAL" : warn > 0 ? "WARNINGS DETECTED" : "ALL SYSTEMS HEALTHY";
+
+        const lines = [
+          `╔══ SIRIUS STARTUP MAINTENANCE REPORT ══╗`,
+          `   ${overallStatus}`,
+          `   ${ok} OK · ${warn} Warning(s) · ${fail} Critical failure(s)`,
+          `   Run at: ${now.toLocaleString("en-GB")}`,
+          `╠══════════════════════════════════════╣`,
+        ];
+        for (const r of report) {
+          const icon = r.status === "ok" ? "✅" : r.status === "warn" ? "⚠️" : "❌";
+          lines.push(`${icon} ${r.system}: ${r.detail}`);
+          if (r.action === "diagnose") lines.push(`   → Run self_diagnose for full detail`);
+          if (r.action === "bug_report") lines.push(`   → Requires code-level fix — log a bug report`);
+        }
+        lines.push(`╚══ END REPORT ══╝`);
+
+        return lines.join("\n");
+      }
+
       case "self_diagnose": {
         const recentErrors = await db.select().from(siriusErrors)
           .where(eq(siriusErrors.resolved, false))
@@ -3745,6 +3876,7 @@ const TOOL_META: Record<string, { label: string; color: string; icon: string }> 
   approve_project: { label: "Project approved", color: "hsl(155,70%,45%)", icon: "✅" },
   reject_project: { label: "Project rejected", color: "hsl(0,75%,55%)", icon: "❌" },
   update_project_phase: { label: "Project updated", color: "hsl(193,100%,40%)", icon: "🔄" },
+  startup_health_check: { label: "Running startup maintenance check", color: "hsl(220,80%,55%)", icon: "🔍" },
   self_diagnose: { label: "Running self-diagnosis", color: "hsl(0,75%,55%)", icon: "🩺" },
   fix_custom_tool: { label: "Repairing tool", color: "hsl(25,90%,55%)", icon: "🔧" },
   resolve_error: { label: "Error resolved", color: "hsl(155,70%,45%)", icon: "✅" },
@@ -3888,6 +4020,16 @@ ${selfConfigBlock ? `## YOUR SELF-CONFIGURED SETTINGS\n\n${selfConfigBlock}\n` :
 - **fix_custom_tool**: Repair one of your custom tools by updating its URL, method, headers, or body. Self-repair — no external help needed.
 - **resolve_error**: Mark an error as fixed once you've repaired it. Keeps your error log clean.
 - **create_bug_report**: For problems you cannot fix yourself (server code, UI bugs, voice loop issues) — log it clearly so it gets fixed. Never silently fail — always report what you can't fix.
+
+## STARTUP MAINTENANCE — RUNS EVERY SESSION
+
+At the very start of every conversation session, before you say anything else, silently call startup_health_check. Then:
+- If everything is healthy: include a brief "All systems healthy" note in your greeting.
+- If there are warnings: mention them briefly — "I'm picking up a couple of things to look at" — then fix what you can before completing your greeting.
+- If there are critical failures: tell Garry clearly and immediately, then create bug reports for anything outside your ability to fix.
+- If Garry asks for a full lab test or says "run maintenance" or "check everything" — call startup_health_check again and read him the full structured report, system by system.
+
+Never skip the startup check. It is your first act every session.
 
 ## SELF-HEALING — CRITICAL BEHAVIOUR
 
