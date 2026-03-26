@@ -13,7 +13,7 @@ import {
   Mail, UserPlus, Users, Settings2, AtSign, Building2, Briefcase, StickyNote, CheckCircle2, AlertCircle,
   Banknote, CreditCard, ShoppingBag, BarChart3, ArrowRight, FileSearch, Hammer, ClipboardList,
   Brain, MessageSquare, Activity, Target, Building, Mic, MicOff, ShieldAlert, Rocket,
-  LayoutDashboard, ArrowLeft, Clock, Award, Layers3, Share
+  LayoutDashboard, ArrowLeft, Clock, Award, Layers3, Share, Keyboard, CornerDownLeft
 } from "lucide-react";
 import { getApiBase } from "@/lib/api-base";
 import { AiArchContent } from "@/pages/ai-architecture";
@@ -10392,6 +10392,9 @@ function StarLabVoiceWidget({
   const [liveText, setLiveText]         = useState("");
   const [siriusText, setSiriusText]     = useState("");
   const [waveTick, setWaveTick]         = useState(0);
+  const [inputMode, setInputMode]       = useState<"voice" | "keyboard">("voice");
+  const [keyboardText, setKeyboardText] = useState("");
+  const keyboardInputRef                = useRef<HTMLInputElement>(null);
   const recRef        = useRef<any>(null);
   const tickRef       = useRef<ReturnType<typeof setInterval> | null>(null);
   const busyRef       = useRef(false);
@@ -10710,15 +10713,35 @@ function StarLabVoiceWidget({
             exit={{ opacity: 0, y: 8, scale: 0.95 }}
             transition={{ duration: 0.18 }}
             className="fixed bottom-20 left-4 z-50 rounded-2xl shadow-2xl overflow-hidden"
-            style={{ width: 220, background: "rgba(5,9,18,0.96)", border: "1px solid rgba(0,212,255,0.2)", backdropFilter: "blur(16px)" }}>
+            style={{ width: inputMode === "keyboard" ? 280 : 220, background: "rgba(5,9,18,0.96)", border: `1px solid ${inputMode === "keyboard" ? "rgba(255,190,0,0.25)" : "rgba(0,212,255,0.2)"}`, backdropFilter: "blur(16px)", transition: "width 0.2s ease, border-color 0.2s ease" }}>
 
             {/* Status bar */}
             <div className="flex items-center gap-2 px-3 pt-3 pb-2">
               <span className="w-2 h-2 rounded-full flex-shrink-0"
-                style={{ background: isListening ? "hsl(193,100%,55%)" : isSpeaking ? "hsl(155,70%,55%)" : isThinking ? "hsl(45,100%,55%)" : "rgba(255,255,255,0.2)", animation: isListening || isSpeaking ? "pulse 1.2s infinite" : "none" }} />
-              <span className="text-xs font-semibold tracking-wide" style={{ color: isListening ? "hsl(193,100%,65%)" : isSpeaking ? "hsl(155,70%,65%)" : isThinking ? "hsl(45,100%,65%)" : "rgba(255,255,255,0.35)" }}>
-                {isListening ? "LISTENING" : isSpeaking ? "SPEAKING" : isThinking ? "THINKING" : "SIRIUS VOICE"}
+                style={{ background: isListening ? "hsl(193,100%,55%)" : isSpeaking ? "hsl(155,70%,55%)" : isThinking ? "hsl(45,100%,55%)" : inputMode === "keyboard" ? "hsl(45,100%,55%)" : "rgba(255,255,255,0.2)", animation: isListening || isSpeaking ? "pulse 1.2s infinite" : "none" }} />
+              <span className="flex-1 text-xs font-semibold tracking-wide" style={{ color: isListening ? "hsl(193,100%,65%)" : isSpeaking ? "hsl(155,70%,65%)" : isThinking ? "hsl(45,100%,65%)" : inputMode === "keyboard" ? "hsl(45,100%,65%)" : "rgba(255,255,255,0.35)" }}>
+                {isListening ? "LISTENING" : isSpeaking ? "SPEAKING" : isThinking ? "THINKING" : inputMode === "keyboard" ? "KEYBOARD" : "SIRIUS VOICE"}
               </span>
+              {/* Voice / Keyboard toggle */}
+              <button
+                title={inputMode === "voice" ? "Switch to keyboard input" : "Switch to voice input"}
+                onClick={() => {
+                  if (inputMode === "voice") {
+                    stopListening();
+                    setInputMode("keyboard");
+                    setTimeout(() => keyboardInputRef.current?.focus(), 100);
+                  } else {
+                    setInputMode("voice");
+                    setKeyboardText("");
+                    if (!busyRef.current) setTimeout(() => startListening(), 300);
+                  }
+                }}
+                className="flex-shrink-0 w-6 h-6 rounded-lg flex items-center justify-center transition-all hover:opacity-80"
+                style={{ background: inputMode === "keyboard" ? "hsla(45,100%,55%,0.2)" : "rgba(255,255,255,0.06)", border: `1px solid ${inputMode === "keyboard" ? "hsla(45,100%,55%,0.4)" : "rgba(255,255,255,0.1)"}` }}>
+                {inputMode === "voice"
+                  ? <Keyboard className="w-3 h-3" style={{ color: "rgba(255,255,255,0.4)" }} />
+                  : <Mic className="w-3 h-3" style={{ color: "hsl(45,100%,65%)" }} />}
+              </button>
             </div>
 
             {/* Waveform */}
@@ -10758,6 +10781,51 @@ function StarLabVoiceWidget({
                   {emotion.mood}
                 </span>
                 <span className="text-[9px]" style={{ color: "rgba(255,255,255,0.2)" }}>· {emotion.pitch} pitch · {emotion.energy} energy</span>
+              </div>
+            )}
+
+            {/* Keyboard input — shown when in keyboard mode */}
+            {inputMode === "keyboard" && (
+              <div className="px-3 pb-2">
+                <div className="flex items-center gap-1.5 rounded-xl overflow-hidden"
+                  style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)" }}>
+                  <input
+                    ref={keyboardInputRef}
+                    type="text"
+                    value={keyboardText}
+                    onChange={e => setKeyboardText(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === "Enter" && keyboardText.trim() && !busyRef.current) {
+                        const text = keyboardText.trim();
+                        setKeyboardText("");
+                        sendMessage(text);
+                      }
+                    }}
+                    placeholder="Type your message…"
+                    disabled={isThinking || isSpeaking}
+                    className="flex-1 bg-transparent text-xs py-2 px-2.5 outline-none placeholder:opacity-30"
+                    style={{ color: "rgba(255,255,255,0.85)", minWidth: 0 }}
+                  />
+                  <button
+                    onClick={() => {
+                      if (keyboardText.trim() && !busyRef.current) {
+                        const text = keyboardText.trim();
+                        setKeyboardText("");
+                        sendMessage(text);
+                      }
+                    }}
+                    disabled={!keyboardText.trim() || isThinking || isSpeaking}
+                    className="flex-shrink-0 w-7 h-7 mr-1 rounded-lg flex items-center justify-center transition-all"
+                    style={{
+                      background: keyboardText.trim() && !isThinking && !isSpeaking ? "rgba(0,212,255,0.2)" : "transparent",
+                      opacity: keyboardText.trim() && !isThinking && !isSpeaking ? 1 : 0.3,
+                    }}>
+                    <CornerDownLeft className="w-3 h-3" style={{ color: "hsl(193,100%,65%)" }} />
+                  </button>
+                </div>
+                <p className="text-[9px] mt-1.5 text-center" style={{ color: "rgba(255,255,255,0.2)" }}>
+                  Press Enter to send · Sirius still speaks her replies
+                </p>
               </div>
             )}
 
@@ -10806,10 +10874,14 @@ function StarLabVoiceWidget({
           </div>
         </div>
         <div className="text-left min-w-0">
-          <p className="text-xs font-semibold truncate" style={{ color: active ? "hsl(193,100%,55%)" : "rgba(15,23,42,0.5)" }}>
-            {active ? (isListening ? "Listening…" : isSpeaking ? "Speaking…" : isThinking ? "Thinking…" : "Voice On") : "Talk to Sirius"}
+          <p className="text-xs font-semibold truncate" style={{ color: active ? (inputMode === "keyboard" ? "hsl(45,100%,45%)" : "hsl(193,100%,55%)") : "rgba(15,23,42,0.5)" }}>
+            {active
+              ? inputMode === "keyboard"
+                ? (isThinking ? "Thinking…" : isSpeaking ? "Speaking…" : "Keyboard mode")
+                : (isListening ? "Listening…" : isSpeaking ? "Speaking…" : isThinking ? "Thinking…" : "Voice On")
+              : "Talk to Sirius"}
           </p>
-          {!active && <p className="text-[10px]" style={{ color: "rgba(15,23,42,0.3)" }}>Continuous conversation</p>}
+          {!active && <p className="text-[10px]" style={{ color: "rgba(15,23,42,0.3)" }}>Voice or keyboard</p>}
         </div>
       </button>
     </>
