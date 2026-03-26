@@ -11707,9 +11707,11 @@ function LabFloatingChat({ pin, navMode, activeProject, onNavigate, onOpenProjec
   onOpenProject?: (id: number) => void;
 }) {
   const [open, setOpen] = React.useState(false);
-  const [messages, setMessages] = React.useState<{ role: "user" | "assistant"; content: string; actions?: { label: string; color: string }[] }[]>([]);
+  const [messages, setMessages] = React.useState<{ role: "user" | "assistant"; content: string; actions?: { label: string; color: string; icon?: string }[] }[]>([]);
   const [streaming, setStreaming] = React.useState(false);
   const [streamText, setStreamText] = React.useState("");
+  const [streamingActions, setStreamingActions] = React.useState<{ label: string; color: string; icon?: string; detail?: string }[]>([]);
+  const [thinkingText, setThinkingText] = React.useState("");
   const [unread, setUnread] = React.useState(false);
   const [voicePhase, setVoicePhase] = React.useState<"idle" | "listening" | "speaking">("idle");
   const [waveTick, setWaveTick] = React.useState(0);
@@ -11842,6 +11844,8 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
 
     setStreaming(true);
     setStreamText("");
+    setStreamingActions([]);
+    setThinkingText("");
 
     try {
       const apiMessages = [contextMessage, ...messages.map(m => ({ role: m.role, content: m.content })), { role: "user" as const, content: text }];
@@ -11855,7 +11859,7 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
       const decoder = new TextDecoder();
       let buf = "";
       let full = "";
-      const pendingActions: { label: string; color: string }[] = [];
+      const liveActions: { label: string; color: string; icon?: string; detail?: string }[] = [];
 
       while (true) {
         const { done, value } = await reader.read();
@@ -11870,8 +11874,23 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
           try {
             const evt = JSON.parse(raw);
             if (evt.type === "done") break;
-            if (evt.type === "text" && evt.delta) { full += evt.delta; setStreamText(full); }
-            if (evt.type === "action" && evt.label) pendingActions.push({ label: evt.label, color: evt.color || "hsl(193,100%,35%)" });
+            if (evt.type === "text" && evt.delta) {
+              full += evt.delta;
+              setStreamText(full);
+              setThinkingText("");
+            }
+            if (evt.type === "thinking" && evt.text) {
+              setThinkingText(evt.text);
+            }
+            if (evt.type === "status" && evt.message) {
+              setThinkingText(evt.message);
+            }
+            if (evt.type === "action" && evt.label) {
+              const card = { label: evt.label, color: evt.color || "hsl(193,100%,35%)", icon: evt.icon, detail: evt.detail };
+              liveActions.push(card);
+              setStreamingActions([...liveActions]);
+              setThinkingText("");
+            }
             if (evt.type === "navigate") {
               if (evt.section) onNavigate(evt.section as NavMode);
               if (evt.projectId && onOpenProject) setTimeout(() => onOpenProject!(evt.projectId), 300);
@@ -11885,7 +11904,7 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
 
       if (full) {
         const cleanText = full.replace(/<<[^>]+>>/g, "").replace(/[*#>`_~]/g, "").trim();
-        setMessages(prev => [...prev, { role: "assistant", content: cleanText, actions: pendingActions.length ? pendingActions : undefined }]);
+        setMessages(prev => [...prev, { role: "assistant", content: cleanText, actions: liveActions.length ? liveActions : undefined }]);
 
         const spokenText = cleanText.length > 350 ? cleanText.slice(0, 350) + "." : cleanText;
         setVoicePhase("speaking");
@@ -11903,6 +11922,8 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
     } finally {
       setStreaming(false);
       setStreamText("");
+      setStreamingActions([]);
+      setThinkingText("");
       if (!open) setUnread(true);
     }
   };
@@ -11965,37 +11986,56 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
                     {m.content}
                   </div>
                   {m.actions && m.actions.length > 0 && (
-                    <div className="flex flex-wrap gap-1 max-w-[260px]">
+                    <div className="flex flex-col gap-1 max-w-[270px]">
                       {m.actions.map((a, ai) => (
-                        <span key={ai} className="text-xs px-2 py-0.5 rounded-full font-mono" style={{ background: `${a.color}18`, color: a.color, border: `1px solid ${a.color}40`, fontSize: 10 }}>
-                          ✓ {a.label}
-                        </span>
+                        <div key={ai} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-medium"
+                          style={{ background: "rgba(15,23,42,0.03)", border: "1px solid rgba(15,23,42,0.07)", borderLeft: `2.5px solid ${a.color}` }}>
+                          {a.icon && <span className="text-xs leading-none flex-shrink-0">{a.icon}</span>}
+                          <span className="truncate" style={{ color: "rgba(15,23,42,0.65)" }}>{a.label}</span>
+                          <Check className="w-3 h-3 ml-auto flex-shrink-0" style={{ color: "hsl(155,70%,45%)" }} />
+                        </div>
                       ))}
                     </div>
                   )}
                 </div>
               </div>
             ))}
-            {streaming && streamText && (
-              <div className="flex justify-start items-end gap-2">
-                <div className="w-5 h-5 rounded-full overflow-hidden flex-shrink-0 mb-0.5" style={{ border: "1px solid hsl(193,100%,70%)" }}>
+            {streaming && (
+              <div className="flex justify-start items-start gap-2">
+                <div className="w-5 h-5 rounded-full overflow-hidden flex-shrink-0 mt-1" style={{ border: "1px solid hsl(193,100%,70%)" }}>
                   <img src="/logo-v2.png" alt="" className="w-full h-full object-cover" />
                 </div>
-                <div className="max-w-[260px] px-3 py-2 rounded-xl text-xs leading-relaxed" style={{ background: "#fff", color: "rgba(15,23,42,0.8)", border: "1px solid rgba(15,23,42,0.08)", borderBottomLeftRadius: 4 }}>
-                  {streamText}
-                  <span className="inline-block w-1 h-3 ml-0.5 rounded animate-pulse" style={{ background: "hsl(193,100%,45%)", verticalAlign: "middle" }} />
-                </div>
-              </div>
-            )}
-            {streaming && !streamText && (
-              <div className="flex justify-start items-end gap-2">
-                <div className="w-5 h-5 rounded-full overflow-hidden flex-shrink-0 mb-0.5" style={{ border: "1px solid hsl(193,100%,70%)" }}>
-                  <img src="/logo-v2.png" alt="" className="w-full h-full object-cover" />
-                </div>
-                <div className="flex gap-1 px-3 py-2.5 rounded-xl" style={{ background: "#fff", border: "1px solid rgba(15,23,42,0.08)" }}>
-                  {[0,1,2].map(i => (
-                    <div key={i} className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: "hsl(193,100%,45%)", animationDelay: `${i * 0.15}s` }} />
+                <div className="flex flex-col gap-1.5 max-w-[270px]">
+                  {/* Live action cards — what Sirius is doing right now */}
+                  {streamingActions.map((a, ai) => (
+                    <div key={ai} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-medium"
+                      style={{ background: "#fff", border: `1px solid rgba(15,23,42,0.08)`, borderLeft: `2.5px solid ${a.color}` }}>
+                      {a.icon && <span className="text-xs leading-none flex-shrink-0">{a.icon}</span>}
+                      <span className="font-semibold truncate" style={{ color: "rgba(15,23,42,0.75)" }}>{a.label}</span>
+                      <Check className="w-3 h-3 ml-auto flex-shrink-0" style={{ color: "hsl(155,70%,45%)" }} />
+                    </div>
                   ))}
+                  {/* Thinking / status text */}
+                  {thinkingText && (
+                    <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px]"
+                      style={{ background: "#fff", border: "1px solid rgba(15,23,42,0.07)", color: "rgba(15,23,42,0.5)", fontStyle: "italic" }}>
+                      <Loader2 className="w-2.5 h-2.5 animate-spin flex-shrink-0" style={{ color: "hsl(193,100%,45%)" }} />
+                      <span className="truncate">{thinkingText}</span>
+                    </div>
+                  )}
+                  {/* Streaming text */}
+                  {streamText ? (
+                    <div className="px-3 py-2 rounded-xl text-xs leading-relaxed" style={{ background: "#fff", color: "rgba(15,23,42,0.8)", border: "1px solid rgba(15,23,42,0.08)", borderBottomLeftRadius: 4 }}>
+                      {streamText}
+                      <span className="inline-block w-1 h-3 ml-0.5 rounded animate-pulse" style={{ background: "hsl(193,100%,45%)", verticalAlign: "middle" }} />
+                    </div>
+                  ) : !thinkingText && streamingActions.length === 0 && (
+                    <div className="flex gap-1 px-3 py-2.5 rounded-xl" style={{ background: "#fff", border: "1px solid rgba(15,23,42,0.08)" }}>
+                      {[0,1,2].map(i => (
+                        <div key={i} className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: "hsl(193,100%,45%)", animationDelay: `${i * 0.15}s` }} />
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
