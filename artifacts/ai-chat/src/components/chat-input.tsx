@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, KeyboardEvent, useState, useCallback } from "react";
-import { Send, Square, Mic, MicOff, Paperclip, X, Loader2, Zap, FileText, HelpCircle } from "lucide-react";
+import { Send, Square, Mic, MicOff, Paperclip, X, Loader2, Zap, FileText, HelpCircle, Volume2, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useSubscription } from "@/hooks/use-subscription";
@@ -80,9 +80,11 @@ interface ChatInputProps {
   onSend: (message: string, imageBase64?: string, mode?: string, documentBase64?: string, documentName?: string) => void;
   isTyping: boolean;
   onStop: () => void;
+  voiceMode?: boolean;
+  onToggleVoice?: () => void;
 }
 
-export function ChatInput({ onSend, isTyping, onStop }: ChatInputProps) {
+export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggleVoice }: ChatInputProps) {
   const [input, setInput] = React.useState("");
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [phVisible, setPhVisible] = useState(true);
@@ -228,7 +230,9 @@ export function ChatInput({ onSend, isTyping, onStop }: ChatInputProps) {
           });
           if (resp.ok) {
             const { text } = await resp.json();
-            if (text) setInput(prev => prev ? prev + " " + text : text);
+            if (text?.trim()) {
+              onSend(text.trim(), undefined, mode !== "guru" ? mode : undefined);
+            }
           }
         } catch (err) {
           console.error("Transcription failed", err);
@@ -493,6 +497,25 @@ export function ChatInput({ onSend, isTyping, onStop }: ChatInputProps) {
         />
 
         <div className="flex items-center gap-1.5 pr-2 pb-2.5 self-end shrink-0">
+          {/* Speaker / TTS toggle */}
+          {onToggleVoice && (
+            <button
+              onClick={onToggleVoice}
+              className="h-8 w-8 rounded-lg flex items-center justify-center transition-all duration-200"
+              style={{
+                background: voiceMode ? "hsl(193 100% 52% / 0.12)" : "hsl(210 30% 95%)",
+                border: voiceMode ? "1px solid hsl(193 100% 52% / 0.4)" : "1px solid hsl(210 25% 87%)",
+              }}
+              title={voiceMode ? "Sirius is speaking — click to mute" : "Click to hear Sirius speak"}
+            >
+              {voiceMode ? (
+                <Volume2 size={13} style={{ color: "hsl(193 100% 52%)" }} />
+              ) : (
+                <VolumeX size={13} style={{ color: "hsl(220 14% 46%)" }} />
+              )}
+            </button>
+          )}
+
           {/* Mic button */}
           <button
             onClick={toggleRecording}

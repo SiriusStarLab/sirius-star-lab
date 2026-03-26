@@ -1,6 +1,7 @@
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { fetch } from "expo/fetch";
 import { useLocalSearchParams } from "expo-router";
+import * as Speech from "expo-speech";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   FlatList,
@@ -78,6 +79,7 @@ export default function ChatScreen() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [showTyping, setShowTyping] = useState(false);
   const [conversationId, setConversationId] = useState<number | null>(null);
+  const [voiceMode, setVoiceMode] = useState(true);
 
   const promptHandledRef = useRef<string | undefined>(undefined);
   const convoHandledRef = useRef<string | undefined>(undefined);
@@ -184,6 +186,15 @@ export default function ChatScreen() {
           } catch {}
         }
       }
+      if (voiceMode && fullContent) {
+        Speech.stop();
+        const clean = fullContent
+          .replace(/\*\*/g, "")
+          .replace(/#{1,6}\s/g, "")
+          .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+          .slice(0, 4000);
+        Speech.speak(clean, { language: "en-GB", rate: 0.95, pitch: 1.0 });
+      }
     } catch {
       setShowTyping(false);
       setMessages(prev => [
@@ -198,7 +209,7 @@ export default function ChatScreen() {
       setIsStreaming(false);
       setShowTyping(false);
     }
-  }, [conversationId, isStreaming, userId]);
+  }, [conversationId, isStreaming, userId, voiceMode]);
 
   useEffect(() => {
     if (
@@ -389,6 +400,11 @@ export default function ChatScreen() {
           onSend={handleSend}
           disabled={isStreaming}
           placeholder={`Message ${aiName}...`}
+          voiceMode={voiceMode}
+          onToggleVoice={() => {
+            if (voiceMode) Speech.stop();
+            setVoiceMode(v => !v);
+          }}
         />
       </View>
     </KeyboardAvoidingView>

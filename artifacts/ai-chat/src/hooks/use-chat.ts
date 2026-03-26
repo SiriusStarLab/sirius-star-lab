@@ -80,7 +80,7 @@ export function useChat(conversationId?: number) {
     }
   }, []);
 
-  const sendMessage = async (content: string, imageBase64?: string, mode?: string, documentBase64?: string, documentName?: string) => {
+  const sendMessage = async (content: string, imageBase64?: string, mode?: string, documentBase64?: string, documentName?: string, onResponseComplete?: (text: string) => void) => {
     if (!content.trim() && !imageBase64 && !documentBase64) return;
     
     stopStream();
@@ -138,6 +138,7 @@ export function useChat(conversationId?: number) {
       if (!reader) throw new Error("No readable stream");
 
       let buffer = "";
+      let fullResponseText = "";
 
       while (true) {
         const { done, value } = await reader.read();
@@ -163,6 +164,9 @@ export function useChat(conversationId?: number) {
                 ));
                 queryClient.invalidateQueries({ queryKey: getGetOpenaiConversationQueryKey(activeId) });
                 setIsTyping(false);
+                if (onResponseComplete && fullResponseText) {
+                  onResponseComplete(fullResponseText);
+                }
               } else if (data.type === "image_generating") {
                 setMessages(prev => prev.map(m =>
                   m.id === assistantMsgId
@@ -188,6 +192,7 @@ export function useChat(conversationId?: number) {
                     : m
                 ));
               } else if (data.content) {
+                fullResponseText += data.content;
                 setMessages(prev => prev.map(m => 
                   m.id === assistantMsgId
                     ? { ...m, isSearching: false, content: m.content + data.content }

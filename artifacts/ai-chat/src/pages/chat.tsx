@@ -40,6 +40,8 @@ export function ChatPage() {
   const [upgradeParam, setUpgradeParam] = useState<"plus" | "pro" | null>(null);
   const [expandedSection, setExpandedSection] = useState<ExpandedSection>(null);
   const [savedFlash, setSavedFlash] = useState(false);
+  const [voiceMode, setVoiceMode] = useState(() => localStorage.getItem("sirius_voice_mode") === "true");
+  const currentAudioRef = useRef<HTMLAudioElement | null>(null);
   const prevConvId = useRef<number | undefined>(undefined);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { profile } = useProfile();
@@ -97,10 +99,44 @@ export function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
 
+  const toggleVoiceMode = () => {
+    setVoiceMode(prev => {
+      const next = !prev;
+      localStorage.setItem("sirius_voice_mode", String(next));
+      if (!next && currentAudioRef.current) {
+        currentAudioRef.current.pause();
+        currentAudioRef.current = null;
+      }
+      return next;
+    });
+  };
+
+  const playTTS = async (text: string) => {
+    if (currentAudioRef.current) {
+      currentAudioRef.current.pause();
+      currentAudioRef.current = null;
+    }
+    try {
+      const clean = text.replace(/\*\*/g, "").replace(/#{1,6}\s/g, "").replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").slice(0, 4000);
+      const resp = await fetch("/api/openai/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: clean }),
+      });
+      if (!resp.ok) return;
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      currentAudioRef.current = audio;
+      audio.play();
+      audio.onended = () => { URL.revokeObjectURL(url); currentAudioRef.current = null; };
+    } catch {}
+  };
+
   // When a topic/mood/wisdom chip triggers a chat, collapse the section
   const handleSend = (content: string, imageBase64?: string, mode?: string, documentBase64?: string, documentName?: string) => {
     setExpandedSection(null);
-    sendMessage(content, imageBase64, mode, documentBase64, documentName);
+    sendMessage(content, imageBase64, mode, documentBase64, documentName, voiceMode ? playTTS : undefined);
   };
 
   const toggleSection = (section: ExpandedSection) => {
@@ -376,7 +412,7 @@ export function ChatPage() {
           className="absolute bottom-0 left-0 right-0 z-30 pt-10 pb-5 px-4 md:px-8"
           style={{ background: "linear-gradient(to top, hsl(var(--background)) 60%, transparent)" }}
         >
-          <ChatInput onSend={handleSend} isTyping={isTyping} onStop={stopStream} />
+          <ChatInput onSend={handleSend} isTyping={isTyping} onStop={stopStream} voiceMode={voiceMode} onToggleVoice={toggleVoiceMode} />
         </div>
       </div>
     </div>
