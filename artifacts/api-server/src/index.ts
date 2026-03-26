@@ -2,6 +2,7 @@ import app from "./app";
 import { startScheduledSweeps } from "./routes/intelligence-sweep.js";
 import { startLabAutoScanner } from "./lib/lab-auto-scan.js";
 import { startAiArchSweep } from "./lib/ai-arch-sweep.js";
+import { startProjectPipeline } from "./lib/project-pipeline.js";
 
 const rawPort = process.env["PORT"];
 if (!rawPort) {
@@ -17,4 +18,5 @@ app.listen(port, () => {
   startScheduledSweeps(6);
   startLabAutoScanner(24);
   startAiArchSweep(24);
+  startProjectPipeline();
 });

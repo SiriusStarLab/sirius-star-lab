@@ -7,6 +7,7 @@ import { ObjectStorageService } from "../lib/objectStorage";
 import { runLabAutoScan, isLabScanRunning } from "../lib/lab-auto-scan.js";
 import { runAiArchSweep, getAiArchSweepStatus } from "../lib/ai-arch-sweep.js";
 import { runOrchestration, type OrchEvent } from "../lib/orchestrator.js";
+import { onCadFileAttached, getPipelineStatus } from "../lib/project-pipeline.js";
 import { recordPinFailure, clearPinRecord, securityLog } from "../middlewares/security.js";
 
 const router: IRouter = Router();
@@ -2421,6 +2422,9 @@ router.post("/lab/projects/:id/cad-files", authMiddleware, async (req: Request, 
       description: description || "",
     }).returning();
 
+    // Advance the project pipeline: cad-pending → launch-ready
+    onCadFileAttached(projectId).catch(console.error);
+
     return res.json(file);
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
@@ -2538,6 +2542,30 @@ router.post("/lab/auto-scan/trigger", authMiddleware, async (_req: Request, res:
   res.json({ status: "started", message: "Autonomous scan started in background." });
   // Fire and forget
   runLabAutoScan().catch(err => console.error("[Lab Auto-Scan] Manual trigger error:", err));
+});
+
+// ── Project pipeline status ───────────────────────────────────────────────────
+router.get("/lab/pipeline/status", authMiddleware, async (_req: Request, res: Response) => {
+  try {
+    const status = await getPipelineStatus();
+    res.json(status);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Mark a launch-ready project as launched
+router.post("/lab/pipeline/launch/:id", authMiddleware, async (req: Request, res: Response) => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) return res.status(400).json({ error: "Invalid project ID" });
+  try {
+    await db.update(labProjects)
+      .set({ launchStatus: "launched", phase: "complete", updatedAt: new Date() })
+      .where(eq(labProjects.id, id));
+    res.json({ ok: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.get("/lab/auto-scan/status", authMiddleware, (_req: Request, res: Response) => {

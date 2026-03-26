@@ -533,10 +533,7 @@ async function saveOpportunities(
       });
       created++;
 
-      console.log(`[Lab Auto-Scan] [${passLabel}] Created: "${project.name}" [${opp.industry}] → AUTO-APPROVED`);
-
-      triggerFundingForProject(project.id).catch(() => {});
-      triggerAutoBuildForProject(project.id, project.name, opp.brief || "", opp.industry || "General").catch(() => {});
+      console.log(`[Lab Auto-Scan] [${passLabel}] Created: "${project.name}" [${opp.industry}] → queued for pipeline`);
     } catch (err) {
       console.error(`[Lab Auto-Scan] [${passLabel}] Failed to create "${opp.name}":`, err);
     }
