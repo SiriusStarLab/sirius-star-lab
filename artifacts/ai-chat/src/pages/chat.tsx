@@ -41,7 +41,6 @@ export function ChatPage() {
   const [expandedSection, setExpandedSection] = useState<ExpandedSection>(null);
   const [savedFlash, setSavedFlash] = useState(false);
   const [voiceMode, setVoiceMode] = useState(() => localStorage.getItem("sirius_voice_mode") === "true");
-  const currentAudioRef = useRef<HTMLAudioElement | null>(null);
   const prevConvId = useRef<number | undefined>(undefined);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { profile } = useProfile();
@@ -103,34 +102,33 @@ export function ChatPage() {
     setVoiceMode(prev => {
       const next = !prev;
       localStorage.setItem("sirius_voice_mode", String(next));
-      if (!next && currentAudioRef.current) {
-        currentAudioRef.current.pause();
-        currentAudioRef.current = null;
-      }
+      if (!next) stopTTS();
       return next;
     });
   };
 
-  const playTTS = async (text: string) => {
-    if (currentAudioRef.current) {
-      currentAudioRef.current.pause();
-      currentAudioRef.current = null;
-    }
-    try {
-      const clean = text.replace(/\*\*/g, "").replace(/#{1,6}\s/g, "").replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").slice(0, 4000);
-      const resp = await fetch("/api/openai/tts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: clean }),
-      });
-      if (!resp.ok) return;
-      const blob = await resp.blob();
-      const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      currentAudioRef.current = audio;
-      audio.play();
-      audio.onended = () => { URL.revokeObjectURL(url); currentAudioRef.current = null; };
-    } catch {}
+  const playTTS = (text: string) => {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const clean = text
+      .replace(/\*\*/g, "")
+      .replace(/#{1,6}\s/g, "")
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+      .slice(0, 4000);
+    const utt = new SpeechSynthesisUtterance(clean);
+    utt.lang = "en-GB";
+    utt.rate = 0.95;
+    utt.pitch = 1.0;
+    const voices = window.speechSynthesis.getVoices();
+    const preferred = voices.find(v => v.lang === "en-GB" && v.name.toLowerCase().includes("female"))
+      || voices.find(v => v.lang === "en-GB")
+      || voices.find(v => v.lang.startsWith("en"));
+    if (preferred) utt.voice = preferred;
+    window.speechSynthesis.speak(utt);
+  };
+
+  const stopTTS = () => {
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
   };
 
   // When a topic/mood/wisdom chip triggers a chat, collapse the section
