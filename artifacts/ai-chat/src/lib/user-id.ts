@@ -1,10 +1,10 @@
 const USER_ID_KEY = "sirius_user_id";
+const OWNER_USER_ID = "garry";
 
 export function getUserId(): string {
-  let id = localStorage.getItem(USER_ID_KEY);
-  if (!id) {
-    id = crypto.randomUUID();
-    localStorage.setItem(USER_ID_KEY, id);
+  const stored = localStorage.getItem(USER_ID_KEY);
+  if (!stored || stored !== OWNER_USER_ID) {
+    localStorage.setItem(USER_ID_KEY, OWNER_USER_ID);
   }
-  return id;
+  return OWNER_USER_ID;
 }

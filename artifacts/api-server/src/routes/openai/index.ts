@@ -639,6 +639,7 @@ async function extractAndSaveMemories(
   try {
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
+      response_format: { type: "json_object" },
       messages: [
         {
           role: "system",
@@ -678,7 +679,8 @@ Rules:
     const content = response.choices[0]?.message?.content;
     if (!content) return;
 
-    const parsed = JSON.parse(content);
+    const stripped = content.replace(/^```(?:json)?\s*/m, "").replace(/```\s*$/m, "").trim();
+    const parsed = JSON.parse(stripped);
     const facts: string[] = parsed.facts ?? [];
     if (!Array.isArray(facts) || facts.length === 0) return;
 
