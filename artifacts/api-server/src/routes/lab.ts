@@ -2361,25 +2361,25 @@ router.post("/lab/funding", authMiddleware, async (req: Request, res: Response) 
   sseHeaders(res);
 
   try {
-    const projects = await db.select().from(labProjects).orderBy(desc(labProjects.updatedAt));
+    const allProjects = await db.select().from(labProjects).orderBy(desc(labProjects.updatedAt));
+
+    // Only analyse projects that have meaningful content — cap at 12 to stay within context limits
+    const projects = allProjects
+      .filter(p => (p.brief && p.brief.length > 20) || (p.specs && p.specs.length > 20))
+      .slice(0, 12);
 
     if (projects.length === 0) {
-      res.write(`data: ${JSON.stringify({ done: true, content: JSON.stringify({ opportunities: [], summary: "No projects found in the Lab. Add projects and fill in their Brief and Specs to enable funding analysis." }) })}\n\n`);
+      res.write(`data: ${JSON.stringify({ done: true, content: JSON.stringify({ opportunities: [], summary: "No projects with content found. Add a Brief or Specs to at least one project to enable funding analysis." }) })}\n\n`);
       res.end();
       return;
     }
 
+    // Keep each project summary lean so we stay well within context limits
     const projectSummaries = projects.map(p => ({
-      id: p.id,
       name: p.name,
-      industry: p.industry,
-      phase: p.phase,
-      brief: (p.brief || "").slice(0, 800),
-      specs: (p.specs || "").slice(0, 600),
-      research: (p.research || "").slice(0, 400),
-      materials: (p.materials || "").slice(0, 300),
-      code: p.code ? "[Code present]" : "",
-      costToBuild: (p.costToBuild || "").slice(0, 200),
+      industry: p.industry || "General",
+      brief: (p.brief || "").slice(0, 350),
+      specs: (p.specs || "").slice(0, 250),
     }));
 
     const userMessage = `Analyse these R&D projects for UK and international funding opportunities. Be rigorous — only include schemes where there is genuine eligibility.

@@ -7050,6 +7050,7 @@ function FundingRadarPanel({ pin }: { pin: string }) {
   const [rawStream, setRawStream] = useState("");
   const [filter, setFilter] = useState<"all" | "UK" | "EU" | "International">("all");
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+  const [fundingError, setFundingError] = useState<string | null>(null);
   const base = getApiBase();
 
   const toggleCard = (key: string) => {
@@ -7061,13 +7062,17 @@ function FundingRadarPanel({ pin }: { pin: string }) {
   };
 
   const runAnalysis = async () => {
-    setRunning(true); setSearching(false); setResult(null); setRawStream(""); setExpandedCards(new Set());
+    setRunning(true); setSearching(false); setResult(null); setRawStream(""); setExpandedCards(new Set()); setFundingError(null);
     try {
       const res = await fetch(`${base}lab/funding`, {
         method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
         body: JSON.stringify({}),
       });
-      if (!res.ok || !res.body) { setRunning(false); return; }
+      if (!res.ok || !res.body) {
+        setFundingError("Analysis failed — please try again");
+        setRunning(false);
+        return;
+      }
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -7083,18 +7088,21 @@ function FundingRadarPanel({ pin }: { pin: string }) {
           if (!line.startsWith("data: ")) continue;
           try {
             const msg = JSON.parse(line.slice(6));
+            if (msg.error) { setFundingError(msg.error); }
             if (msg.type === "searching") { setSearching(true); }
             if (msg.delta) { setSearching(false); setRawStream(prev => prev + msg.delta); }
             if (msg.done && msg.content) {
               try {
                 const parsed = JSON.parse(msg.content) as FundingResult;
                 setResult(parsed);
-              } catch { /* ignore parse error */ }
+              } catch { setFundingError("Could not parse funding results — please try again"); }
             }
-          } catch { /* ignore */ }
+          } catch { /* line parse error — skip */ }
         }
       }
-    } catch { /* ignore */ }
+    } catch (err: any) {
+      setFundingError("Connection error — please check your network and try again");
+    }
     setRunning(false); setSearching(false);
   };
 
@@ -7155,7 +7163,19 @@ function FundingRadarPanel({ pin }: { pin: string }) {
 
       {/* Content */}
       <div className="flex-1 p-6 space-y-6">
-        {!result && !running && (
+        {fundingError && (
+          <div className="rounded-xl p-4 flex items-start gap-3"
+            style={{ background: "hsla(0,80%,50%,0.06)", border: "1px solid hsla(0,80%,50%,0.2)" }}>
+            <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" style={{ color: "hsl(0,80%,55%)" }} />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold" style={{ color: "hsl(0,80%,45%)" }}>Analysis failed</p>
+              <p className="text-xs mt-0.5 leading-relaxed" style={{ color: "rgba(15,23,42,0.55)" }}>{fundingError}</p>
+            </div>
+            <button onClick={() => setFundingError(null)} className="text-xs opacity-50 hover:opacity-80">✕</button>
+          </div>
+        )}
+
+        {!result && !running && !fundingError && (
           <div className="flex flex-col items-center justify-center py-24 gap-5">
             <div className="w-16 h-16 rounded-2xl flex items-center justify-center"
               style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.09)" }}>
@@ -7164,13 +7184,23 @@ function FundingRadarPanel({ pin }: { pin: string }) {
             <div className="text-center space-y-1.5">
               <p className="text-slate-800 font-semibold text-base">Find funding for your projects</p>
               <p className="text-xs max-w-sm leading-relaxed" style={{ color: "rgba(15,23,42,0.4)" }}>
-                Analyses every project in your Lab against UK RDEC, Innovate UK, Horizon Europe, DASA, sector-specific funds, and international tax incentives. Projects with a Brief or Specs get the most relevant results.
+                Analyses your most developed projects against UK RDEC, Innovate UK, Horizon Europe, DASA, sector-specific funds, and international tax incentives. Projects with a Brief or Specs get the most relevant results.
               </p>
             </div>
             <button onClick={runAnalysis}
               className="px-6 py-3 rounded-xl font-semibold text-sm transition-all"
               style={{ background: "hsl(155,70%,38%)", color: "white", border: "1px solid hsla(155,70%,45%,0.3)", boxShadow: "0 0 24px hsla(155,70%,38%,0.2)" }}>
               Run Funding Analysis
+            </button>
+          </div>
+        )}
+
+        {!result && !running && fundingError && (
+          <div className="flex justify-center pt-4">
+            <button onClick={runAnalysis}
+              className="px-6 py-3 rounded-xl font-semibold text-sm transition-all"
+              style={{ background: "hsl(155,70%,38%)", color: "white", border: "1px solid hsla(155,70%,45%,0.3)" }}>
+              Try Again
             </button>
           </div>
         )}

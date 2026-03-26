@@ -40,10 +40,10 @@ router.get("/public/discover", async (_req: Request, res: Response) => {
       .orderBy(desc(aiDiscoveries.discoveredAt))
       .limit(8);
 
-    // Stats
+    // Stats — use actual meaningful counts
     const allProjects = await db.select({ id: labProjects.id }).from(labProjects);
-    const approvedProjects = await db.select({ id: labProjects.id }).from(labProjects)
-      .where(eq(labProjects.approvalStatus, "approved"));
+    const autoProjects = await db.select({ id: labProjects.id }).from(labProjects)
+      .where(eq(labProjects.autoCreated, "auto"));
 
     res.json({
       projects: projects.map(p => ({
@@ -60,7 +60,7 @@ router.get("/public/discover", async (_req: Request, res: Response) => {
       })),
       stats: {
         totalOpportunities: allProjects.length,
-        approvedInsights: approvedProjects.length,
+        approvedInsights: autoProjects.length,
         sectorsActive: 8,
         lastScan: new Date().toISOString(),
       },
