@@ -7,7 +7,7 @@ import {
   BookOpen, Telescope, ExternalLink, Sparkles, X, FolderOpen,
   Pencil, Check, Bot, Zap, TrendingUp, Package, Layers,
   ChevronDown, RotateCcw, Copy, Globe,
-  Cpu, Wrench, ChevronRight, Rss, RefreshCw, Bookmark, BookmarkCheck,
+  Cpu, Wrench, ChevronRight, ChevronLeft, Rss, RefreshCw, Bookmark, BookmarkCheck,
   Heart, FlaskConical, Eye, EyeOff, Trash, Bell, BellOff, Filter,
   ChevronUp, BadgeCheck, Lightbulb, Atom, Upload, Download,
   Mail, UserPlus, Users, Settings2, AtSign, Building2, Briefcase, StickyNote, CheckCircle2, AlertCircle,
@@ -6811,10 +6811,11 @@ function DashboardPanel({ projects, pin, onNavigate, onOpenProject }: {
 
 // ── Auto Lab Panel ────────────────────────────────────────────────────────────
 
-function AutoLabPanel({ pin, onSelectProject }: {
+function AutoLabPanel({ pin, onSelectProject, onFocusProject }: {
   pin: string;
   projects?: Project[];
   onSelectProject: (p: Project) => void;
+  onFocusProject?: (p: Project | null) => void;
 }) {
   const [pendingProjects, setPendingProjects] = useState<Project[]>([]);
   const [approvedProjects, setApprovedProjects] = useState<Project[]>([]);
@@ -6825,6 +6826,7 @@ function AutoLabPanel({ pin, onSelectProject }: {
   const [expandedBiz, setExpandedBiz] = useState<number | null>(null);
   const [rankResults, setRankResults] = useState<RankResult[] | null>(null);
   const [isRanking, setIsRanking] = useState(false);
+  const [focusedId, setFocusedId] = useState<number | null>(null);
   const base = getApiBase();
   const hdrs = () => ({ "Content-Type": "application/json", "x-lab-pin": pin });
 
@@ -6855,6 +6857,13 @@ function AutoLabPanel({ pin, onSelectProject }: {
     return () => clearInterval(iv);
   }, []);
 
+  // Auto-focus first pending project when list loads
+  useEffect(() => {
+    if (pendingProjects.length > 0 && focusedId === null) {
+      focusProject(pendingProjects[0]);
+    }
+  }, [pendingProjects.length]);
+
   const triggerScan = async () => {
     setTriggering(true);
     const res = await fetch(`${base}lab/auto-scan/trigger`, { method: "POST", headers: hdrs() });
@@ -6874,9 +6883,40 @@ function AutoLabPanel({ pin, onSelectProject }: {
   const reject = async (id: number) => {
     setActioningId(id);
     await fetch(`${base}lab/projects/${id}/reject`, { method: "POST", headers: hdrs() });
-    setPendingProjects(prev => prev.filter(p => p.id !== id));
+    setPendingProjects(prev => {
+      const updated = prev.filter(p => p.id !== id);
+      // If we rejected the focused project, auto-advance to next
+      if (focusedId === id && updated.length > 0) {
+        const oldIdx = prev.findIndex(p => p.id === id);
+        const nextProject = updated[Math.min(oldIdx, updated.length - 1)];
+        setFocusedId(nextProject.id);
+        onFocusProject?.(nextProject);
+      } else if (focusedId === id) {
+        setFocusedId(null);
+        onFocusProject?.(null);
+      }
+      return updated;
+    });
     setRankResults(prev => prev ? prev.filter(r => r.projectId !== id) : null);
     setActioningId(null);
+  };
+
+  const focusProject = (p: Project) => {
+    setFocusedId(p.id);
+    setExpandedBiz(p.id);
+    onFocusProject?.(p);
+  };
+
+  const navigatePending = (dir: -1 | 1) => {
+    if (pendingProjects.length === 0) return;
+    const currentIdx = pendingProjects.findIndex(p => p.id === focusedId);
+    let nextIdx: number;
+    if (currentIdx === -1) {
+      nextIdx = dir === 1 ? 0 : pendingProjects.length - 1;
+    } else {
+      nextIdx = (currentIdx + dir + pendingProjects.length) % pendingProjects.length;
+    }
+    focusProject(pendingProjects[nextIdx]);
   };
 
   const rankOpportunities = async () => {
@@ -6990,28 +7030,53 @@ function AutoLabPanel({ pin, onSelectProject }: {
         {pendingProjects.length > 0 && (
           <div>
             <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-              <div className="flex items-center gap-2.5">
+              <div className="flex items-center gap-2.5 min-w-0">
                 <div className="w-2 h-2 rounded-full animate-pulse flex-shrink-0" style={{ background: "hsl(25,90%,60%)" }} />
                 <p className="text-slate-800 font-semibold text-sm">
-                  Awaiting Your Approval — {pendingProjects.length} new project{pendingProjects.length !== 1 ? "s" : ""}
+                  Awaiting Your Approval — {pendingProjects.length} project{pendingProjects.length !== 1 ? "s" : ""}
                 </p>
               </div>
-              <button
-                onClick={rankResults ? () => setRankResults(null) : rankOpportunities}
-                disabled={isRanking}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all flex-shrink-0"
-                style={{
-                  background: rankResults ? "hsla(155,70%,40%,0.15)" : "hsla(280,70%,55%,0.15)",
-                  border: rankResults ? "1px solid hsla(155,70%,50%,0.35)" : "1px solid hsla(280,70%,55%,0.35)",
-                  color: rankResults ? "hsl(155,70%,60%)" : "hsl(280,70%,70%)",
-                }}>
-                {isRanking
-                  ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Ranking…</>
-                  : rankResults
-                  ? <><RotateCcw className="w-3.5 h-3.5" /> Show All</>
-                  : <><TrendingUp className="w-3.5 h-3.5" /> Rank by Opportunity</>
-                }
-              </button>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {/* Prev / Next navigation */}
+                {pendingProjects.length > 1 && !rankResults && (() => {
+                  const currentIdx = pendingProjects.findIndex(p => p.id === focusedId);
+                  return (
+                    <div className="flex items-center gap-1 rounded-xl overflow-hidden" style={{ border: "1px solid rgba(15,23,42,0.1)" }}>
+                      <button onClick={() => navigatePending(-1)}
+                        className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium transition-all hover:bg-slate-100"
+                        style={{ color: "rgba(15,23,42,0.6)", background: "white" }}
+                        title="Previous project">
+                        <ChevronLeft className="w-3.5 h-3.5" />
+                      </button>
+                      <span className="px-2 text-xs font-semibold" style={{ color: "rgba(15,23,42,0.5)", background: "white", borderLeft: "1px solid rgba(15,23,42,0.08)", borderRight: "1px solid rgba(15,23,42,0.08)" }}>
+                        {currentIdx === -1 ? "—" : currentIdx + 1} / {pendingProjects.length}
+                      </span>
+                      <button onClick={() => navigatePending(1)}
+                        className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium transition-all hover:bg-slate-100"
+                        style={{ color: "rgba(15,23,42,0.6)", background: "white" }}
+                        title="Next project">
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  );
+                })()}
+                <button
+                  onClick={rankResults ? () => setRankResults(null) : rankOpportunities}
+                  disabled={isRanking}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all flex-shrink-0"
+                  style={{
+                    background: rankResults ? "hsla(155,70%,40%,0.15)" : "hsla(280,70%,55%,0.15)",
+                    border: rankResults ? "1px solid hsla(155,70%,50%,0.35)" : "1px solid hsla(280,70%,55%,0.35)",
+                    color: rankResults ? "hsl(155,70%,60%)" : "hsl(280,70%,70%)",
+                  }}>
+                  {isRanking
+                    ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Ranking…</>
+                    : rankResults
+                    ? <><RotateCcw className="w-3.5 h-3.5" /> Show All</>
+                    : <><TrendingUp className="w-3.5 h-3.5" /> Rank by Opportunity</>
+                  }
+                </button>
+              </div>
             </div>
 
             {/* ── RANKED VIEW ── */}
@@ -7112,11 +7177,28 @@ function AutoLabPanel({ pin, onSelectProject }: {
               <div className="space-y-3">
                 {pendingProjects.map(p => {
                   const cap = capLabel(p);
-                  const isExpanded = expandedBiz === p.id;
+                  const isFocused = focusedId === p.id;
+                  const isExpanded = isFocused || expandedBiz === p.id;
                   return (
-                    <div key={p.id} className="rounded-2xl overflow-hidden"
-                      style={{ background: "#F1F5F9", border: "1px solid hsla(25,90%,55%,0.2)" }}>
+                    <div key={p.id}
+                      onClick={() => focusProject(p)}
+                      className="rounded-2xl overflow-hidden cursor-pointer transition-all"
+                      style={{
+                        background: isFocused ? "#FFFFFF" : "#F1F5F9",
+                        border: isFocused ? "2px solid hsl(25,90%,60%)" : "1px solid hsla(25,90%,55%,0.2)",
+                        boxShadow: isFocused ? "0 0 0 3px hsla(25,90%,60%,0.12)" : "none",
+                      }}>
                       <div className="p-4">
+                        {/* Focus indicator banner */}
+                        {isFocused && (
+                          <div className="flex items-center gap-1.5 mb-3 px-2.5 py-1.5 rounded-lg" style={{ background: "hsla(25,90%,60%,0.1)", border: "1px solid hsla(25,90%,60%,0.2)" }}>
+                            <div className="w-1.5 h-1.5 rounded-full animate-pulse flex-shrink-0" style={{ background: "hsl(25,90%,60%)" }} />
+                            <span className="text-xs font-semibold" style={{ color: "hsl(25,90%,50%)" }}>
+                              Reviewing — {pendingProjects.findIndex(x => x.id === p.id) + 1} of {pendingProjects.length}
+                            </span>
+                            <span className="text-xs ml-auto" style={{ color: "rgba(15,23,42,0.4)" }}>Click ‹ › to navigate</span>
+                          </div>
+                        )}
                         <div className="flex items-start gap-3 mb-3">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1 flex-wrap">
@@ -7131,13 +7213,13 @@ function AutoLabPanel({ pin, onSelectProject }: {
                         </div>
 
                         {p.brief && (
-                          <p className="text-xs leading-relaxed mb-3 line-clamp-3" style={{ color: "rgba(15,23,42,0.58)" }}>
-                            {p.brief.slice(0, 280)}…
+                          <p className="text-xs leading-relaxed mb-3" style={{ color: "rgba(15,23,42,0.58)" }}>
+                            {isFocused ? p.brief : p.brief.slice(0, 220) + (p.brief.length > 220 ? "…" : "")}
                           </p>
                         )}
 
                         {p.businessCase && (
-                          <button onClick={() => setExpandedBiz(isExpanded ? null : p.id)}
+                          <button onClick={(e) => { e.stopPropagation(); setExpandedBiz(isExpanded ? null : p.id); }}
                             className="flex items-center gap-1.5 text-xs mb-3 transition-all"
                             style={{ color: "hsl(193,100%,55%)" }}>
                             <Lightbulb className="w-3.5 h-3.5" />
@@ -7156,7 +7238,7 @@ function AutoLabPanel({ pin, onSelectProject }: {
                           )}
                         </AnimatePresence>
 
-                        <div className="flex gap-2">
+                        <div className="flex gap-2" onClick={e => e.stopPropagation()}>
                           <button onClick={() => approve(p)} disabled={actioningId === p.id}
                             className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-all"
                             style={{ background: actioningId === p.id ? "#F1F5F9" : "hsl(155,70%,32%)", color: "white", border: "1px solid hsla(155,70%,40%,0.4)" }}>
@@ -11736,7 +11818,12 @@ function LabFloatingChat({ pin, navMode, activeProject, onNavigate, onOpenProjec
     }
 
     const page = NAV_LABELS[navMode] ?? navMode;
-    const projCtx = activeProject ? `\n\nCurrently open project: "${activeProject.name}" (ID: ${activeProject.id}, ${activeProject.industry}) — brief: ${(activeProject.brief || "").slice(0, 300)}` : "";
+    const isAutolabCtx = navMode === "autolab";
+    const projCtx = activeProject
+      ? `\n\n${isAutolabCtx
+          ? `Garry is reviewing this PENDING APPROVAL project (not yet approved): "${activeProject.name}" (ID: ${activeProject.id}, ${activeProject.industry}). They are in the Approvals queue — browsing pending projects. When they say "approve it", "approve this one", "what is this", "tell me about it" — this is the project they mean. DO NOT ask which project.`
+          : `Currently open project: "${activeProject.name}" (ID: ${activeProject.id}, ${activeProject.industry})`} — brief: ${(activeProject.brief || "").slice(0, 300)}`
+      : "";
     const sections = Object.entries(NAV_LABELS).map(([k, v]) => `${v} (${k})`).join(", ");
     const contextMessage = {
       role: "system" as const,
@@ -12107,8 +12194,9 @@ function SiriusLabChatPanel({ pin, accessLevel, navMode, activeProject, onNaviga
     // Build a live context system message so Sirius always knows exactly what
     // is on screen — current section, open project, available sections.
     const page = NAV_LABELS[navMode ?? "labchat"] ?? navMode ?? "Chat with Sirius";
+    const isAutolab = (navMode ?? "") === "autolab";
     const projCtx = activeProject
-      ? `\n\nCurrently open project: "${activeProject.name}" (ID: ${activeProject.id}, ${activeProject.industry}) — brief: ${(activeProject.brief || "").slice(0, 300)}`
+      ? `\n\n${isAutolab ? `Garry is reviewing this PENDING APPROVAL project (it has NOT been approved yet): "${activeProject.name}" (ID: ${activeProject.id}, ${activeProject.industry}). They are in the Approvals queue. When they say "approve it", "approve this one", "what do you think", "tell me about this", etc — this is the project they mean. DO NOT ask which project.` : `Currently open project: "${activeProject.name}" (ID: ${activeProject.id}, ${activeProject.industry})`} — brief: ${(activeProject.brief || "").slice(0, 300)}`
       : "";
     const sections = Object.entries(NAV_LABELS).map(([k, v]) => `${v} (${k})`).join(", ");
     const contextSystemMsg = {
@@ -13585,6 +13673,7 @@ export function StarLabPage() {
             pin={pin}
             projects={projects}
             onSelectProject={p => { setActiveProject(p); setNavMode("projects"); }}
+            onFocusProject={p => setActiveProject(p)}
           />
         )}
         {navMode === "orchestrate" && (
