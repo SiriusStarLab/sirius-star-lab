@@ -11747,17 +11747,21 @@ function SiriusLabChatPanel({ pin, accessLevel, onNavigate, onOpenProject, onNav
                 <img src="/logo-v2.png" alt="Sirius" className="w-full h-full object-cover" />
               </div>
             )}
-            <div className="flex flex-col gap-2 max-w-[78%]">
-              {/* Action cards */}
-              {msg.actions && msg.actions.map((a, ai) => (
-                <div key={ai} className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold"
-                  style={{ background: `${a.color}14`, border: `1px solid ${a.color}30` }}>
-                  <span>{a.icon}</span>
-                  <span style={{ color: a.color }}>{a.label}</span>
-                  {a.detail && <span className="text-slate-400 font-normal truncate max-w-[160px]">— {a.detail}</span>}
-                  <Check className="w-3 h-3 ml-auto flex-shrink-0" style={{ color: a.color }} />
+            <div className="flex flex-col gap-1.5 max-w-[78%]">
+              {/* Action log — what Sirius did */}
+              {msg.actions && msg.actions.length > 0 && (
+                <div className="flex flex-col gap-1 mb-1">
+                  {msg.actions.map((a, ai) => (
+                    <div key={ai} className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium"
+                      style={{ background: "rgba(15,23,42,0.04)", border: "1px solid rgba(15,23,42,0.08)", borderLeft: `3px solid ${a.color}` }}>
+                      <span className="text-sm leading-none">{a.icon}</span>
+                      <span className="font-semibold text-slate-700">{a.label}</span>
+                      {a.detail && <span className="text-slate-400 font-normal truncate max-w-[200px]">— {a.detail}</span>}
+                      <Check className="w-3.5 h-3.5 ml-auto flex-shrink-0 text-emerald-500" />
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
               {/* Message bubble */}
               {msg.content && (
                 <div className="px-4 py-3 rounded-2xl text-sm leading-relaxed"
@@ -11778,21 +11782,26 @@ function SiriusLabChatPanel({ pin, accessLevel, onNavigate, onOpenProject, onNav
               style={{ border: "1px solid rgba(0,212,255,0.2)" }}>
               <img src="/logo-v2.png" alt="Sirius" className="w-full h-full object-cover" />
             </div>
-            <div className="flex flex-col gap-2 max-w-[78%]">
-              {/* Live action cards */}
-              {streamingActions.map((a, ai) => (
-                <div key={ai} className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold"
-                  style={{ background: `${a.color}14`, border: `1px solid ${a.color}30` }}>
-                  <span>{a.icon}</span>
-                  <span style={{ color: a.color }}>{a.label}</span>
-                  {a.detail && <span className="text-slate-400 font-normal truncate max-w-[160px]">— {a.detail}</span>}
-                  <Check className="w-3 h-3 ml-auto flex-shrink-0" style={{ color: a.color }} />
+            <div className="flex flex-col gap-1.5 max-w-[78%]">
+              {/* Live action log — tools Sirius is using right now */}
+              {streamingActions.length > 0 && (
+                <div className="flex flex-col gap-1 mb-1">
+                  {streamingActions.map((a, ai) => (
+                    <div key={ai} className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium"
+                      style={{ background: "rgba(15,23,42,0.04)", border: "1px solid rgba(15,23,42,0.08)", borderLeft: `3px solid ${a.color}` }}>
+                      <span className="text-sm leading-none">{a.icon}</span>
+                      <span className="font-semibold text-slate-700">{a.label}</span>
+                      {a.detail && <span className="text-slate-400 font-normal truncate max-w-[200px]">— {a.detail}</span>}
+                      <Check className="w-3.5 h-3.5 ml-auto flex-shrink-0 text-emerald-500" />
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
               {/* Thinking indicator */}
               {thinkingText && !streamingText && (
-                <div className="flex items-center gap-2 text-xs text-slate-400 italic px-1">
-                  <Loader2 className="w-3 h-3 animate-spin" />
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-slate-500 italic"
+                  style={{ background: "rgba(15,23,42,0.03)", border: "1px solid rgba(15,23,42,0.07)" }}>
+                  <Loader2 className="w-3 h-3 animate-spin text-cyan-500 flex-shrink-0" />
                   {thinkingText}
                 </div>
               )}
@@ -11806,9 +11815,9 @@ function SiriusLabChatPanel({ pin, accessLevel, onNavigate, onOpenProject, onNav
                 <div className="px-4 py-3 rounded-2xl"
                   style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.09)", borderRadius: "18px 18px 18px 4px" }}>
                   <div className="flex items-center gap-1.5">
-                    <div className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce" style={{ animationDelay: "0ms" }} />
-                    <div className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce" style={{ animationDelay: "150ms" }} />
-                    <div className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce" style={{ animationDelay: "300ms" }} />
+                    <div className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: "rgba(15,23,42,0.3)", animationDelay: "0ms" }} />
+                    <div className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: "rgba(15,23,42,0.3)", animationDelay: "150ms" }} />
+                    <div className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: "rgba(15,23,42,0.3)", animationDelay: "300ms" }} />
                   </div>
                 </div>
               )}
