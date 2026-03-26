@@ -1,5 +1,5 @@
-import { db, siriusAutomations, siriusCustomTools, siriusConfig } from "@workspace/db";
-import { eq, and, lte } from "drizzle-orm";
+import { db, siriusAutomations, siriusCustomTools, siriusConfig, siriusErrors } from "@workspace/db";
+import { eq, desc } from "drizzle-orm";
 
 // ── Cron helper — returns true if it's time to run based on trigger config ──
 function shouldRunNow(triggerConfig: string, lastRunAt: Date | null): boolean {
@@ -115,6 +115,22 @@ export async function setSiriusConfigValue(key: string, value: string): Promise<
   await db.insert(siriusConfig)
     .values({ key, value, updatedAt: new Date() })
     .onConflictDoUpdate({ target: siriusConfig.key, set: { value, updatedAt: new Date() } });
+}
+
+// ── Log an error Sirius encountered ──────────────────────────────────────────
+export async function logSiriusError(toolName: string, errorMessage: string, context = ""): Promise<void> {
+  try {
+    await db.insert(siriusErrors).values({ toolName, errorMessage, context: context.slice(0, 500) });
+  } catch {}
+}
+
+// ── Resolve an error — Sirius marks it as fixed ───────────────────────────────
+export async function resolveSiriusError(id: number, note: string): Promise<boolean> {
+  const updated = await db.update(siriusErrors)
+    .set({ resolved: true, resolvedNote: note, resolvedAt: new Date() })
+    .where(eq(siriusErrors.id, id))
+    .returning({ id: siriusErrors.id });
+  return updated.length > 0;
 }
 
 // ── Background automation tick — call every 60 seconds ───────────────────────

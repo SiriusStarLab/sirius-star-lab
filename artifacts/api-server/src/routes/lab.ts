@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { eq, desc, gte, lte, and, or, like, sql, isNull } from "drizzle-orm";
-import { db, labProjects, labMessages, scoutReports, cadFiles, labScanHistory, userProfilesTable, mediaOutlets, appBuilderSessions, voiceJournalTable, siriusConfig, siriusAutomations, siriusCustomTools } from "@workspace/db";
-import { getSiriusConfigValue, setSiriusConfigValue, executeCustomTool, runAutomation } from "../lib/sirius-automation.js";
+import { db, labProjects, labMessages, scoutReports, cadFiles, labScanHistory, userProfilesTable, mediaOutlets, appBuilderSessions, voiceJournalTable, siriusConfig, siriusAutomations, siriusCustomTools, siriusErrors } from "@workspace/db";
+import { getSiriusConfigValue, setSiriusConfigValue, executeCustomTool, runAutomation, logSiriusError } from "../lib/sirius-automation.js";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { generateImageBuffer } from "@workspace/integrations-openai-ai-server/image";
 import { ObjectStorageService } from "../lib/objectStorage";
@@ -3150,6 +3150,64 @@ const LAB_TOOLS: any[] = [
       },
     },
   },
+  {
+    type: "function" as const,
+    function: {
+      name: "self_diagnose",
+      description: "Run a full self-diagnosis: check your own error log, review automation health, and inspect custom tool status. Use when Garry says 'are you working properly', 'check yourself', 'run a self-check', 'what errors do you have', or when you suspect something is broken. ALWAYS run this before reporting a problem — diagnose first, then act.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "fix_custom_tool",
+      description: "Update and repair one of your custom-built tools. Use when a custom tool is returning errors or wrong results and you know how to fix the URL, method, headers, or body. This is self-repair — diagnose the issue with self_diagnose first, then fix.",
+      parameters: {
+        type: "object",
+        properties: {
+          tool_name: { type: "string", description: "Name of the custom tool to fix" },
+          url: { type: "string", description: "New URL if the endpoint was wrong" },
+          method: { type: "string", enum: ["GET", "POST", "PUT", "DELETE"], description: "Corrected HTTP method if needed" },
+          headers: { type: "object", description: "Updated headers if authentication was missing" },
+          body: { type: "object", description: "Corrected request body if the format was wrong" },
+          description: { type: "string", description: "Updated description explaining what was fixed" },
+        },
+        required: ["tool_name"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "resolve_error",
+      description: "Mark an error in your log as resolved once you have fixed it. Use after successfully repairing an issue — provide the error ID from self_diagnose and a note explaining what you did to fix it.",
+      parameters: {
+        type: "object",
+        properties: {
+          error_id: { type: "number", description: "The ID of the error to resolve (from self_diagnose)" },
+          resolution_note: { type: "string", description: "What you did to fix it" },
+        },
+        required: ["error_id", "resolution_note"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "create_bug_report",
+      description: "Log a bug that you cannot fix yourself — it requires a code-level change. Use when you encounter a persistent error that is outside your ability to repair (e.g. a broken server endpoint, a voice loop issue, a UI problem). This creates a visible record that will be reviewed.",
+      parameters: {
+        type: "object",
+        properties: {
+          description: { type: "string", description: "Clear description of the bug: what happened, what you tried, what the expected behaviour should be" },
+          area: { type: "string", description: "Where the bug is: 'voice', 'tools', 'navigation', 'automation', 'database', 'ui', 'other'" },
+          severity: { type: "string", enum: ["critical", "high", "medium", "low"], description: "How badly this affects functionality" },
+        },
+        required: ["description"],
+      },
+    },
+  },
 ];
 
 async function executeLabTool(name: string, args: any): Promise<string> {
@@ -3590,11 +3648,84 @@ async function executeLabTool(name: string, args: any): Promise<string> {
         return `Updated "${updated[0].name}" to phase: ${args.phase}.`;
       }
 
+      case "self_diagnose": {
+        const recentErrors = await db.select().from(siriusErrors)
+          .where(eq(siriusErrors.resolved, false))
+          .orderBy(desc(siriusErrors.occurredAt)).limit(20);
+        const automations = await db.select().from(siriusAutomations).where(eq(siriusAutomations.enabled, true));
+        const customToolList = await db.select().from(siriusCustomTools).orderBy(desc(siriusCustomTools.createdAt)).limit(10);
+        const lines: string[] = ["╔══ SIRIUS SELF-DIAGNOSIS ══╗", ""];
+        if (recentErrors.length === 0) {
+          lines.push("✅ No unresolved errors on record.");
+        } else {
+          lines.push(`⚠️ ${recentErrors.length} unresolved error(s):`);
+          recentErrors.forEach(e => {
+            const when = new Date(e.occurredAt!).toLocaleString("en-GB");
+            lines.push(`  [ID:${e.id}] ${e.toolName} — ${e.errorMessage.slice(0, 100)} (${when})`);
+            if (e.context) lines.push(`    Context: ${e.context.slice(0, 80)}`);
+          });
+        }
+        lines.push("");
+        lines.push(`🔁 Active automations: ${automations.length}`);
+        automations.forEach(a => {
+          const last = a.lastRunAt ? new Date(a.lastRunAt).toLocaleString("en-GB") : "never";
+          const lastResult = a.lastRunResult ? ` → ${a.lastRunResult.slice(0, 60)}` : "";
+          lines.push(`  [ID:${a.id}] "${a.name}" — last ran: ${last}${lastResult}`);
+        });
+        lines.push("");
+        lines.push(`🔧 Custom tools: ${customToolList.length}`);
+        customToolList.forEach(t => {
+          const last = t.lastUsedAt ? new Date(t.lastUsedAt).toLocaleString("en-GB") : "never used";
+          lines.push(`  "${t.name}" (${t.handlerType}) — last used: ${last}`);
+        });
+        lines.push("");
+        lines.push("╚══ END DIAGNOSIS ══╝");
+        return lines.join("\n");
+      }
+
+      case "fix_custom_tool": {
+        const { tool_name, url, method, headers, body, description } = args;
+        if (!tool_name) return "tool_name is required.";
+        const existing = await db.select().from(siriusCustomTools).where(eq(siriusCustomTools.name, tool_name));
+        if (!existing.length) return `No custom tool named "${tool_name}" found.`;
+        const handlerConfig: any = { ...JSON.parse(existing[0].handlerConfig || "{}") };
+        if (url) handlerConfig.url = url;
+        if (method) handlerConfig.method = method;
+        if (headers) handlerConfig.headers = headers;
+        if (body) handlerConfig.body = body;
+        await db.update(siriusCustomTools)
+          .set({
+            description: description || existing[0].description,
+            handlerConfig: JSON.stringify(handlerConfig),
+          })
+          .where(eq(siriusCustomTools.name, tool_name));
+        return `Custom tool "${tool_name}" updated. Changes take effect immediately.`;
+      }
+
+      case "resolve_error": {
+        const id = Number(args.error_id);
+        const note = args.resolution_note || "Resolved by Sirius";
+        const success = await (await import("../lib/sirius-automation.js")).resolveSiriusError(id, note);
+        return success ? `Error [ID:${id}] marked as resolved: "${note}"` : `No error found with ID ${id}.`;
+      }
+
+      case "create_bug_report": {
+        await db.insert(siriusErrors).values({
+          toolName: "user_reported",
+          errorMessage: args.description || "No description provided",
+          context: `Severity: ${args.severity || "medium"} | Area: ${args.area || "unknown"} | Reported at: ${new Date().toLocaleString("en-GB")}`,
+          resolved: false,
+        });
+        return `Bug report logged. Description: "${args.description}". This is now visible in the Star Lab error queue and will be reviewed.`;
+      }
+
       default:
         return `Unknown tool: ${name}`;
     }
   } catch (err: any) {
-    return `Tool error: ${err?.message}`;
+    // Every tool failure is automatically logged so Sirius can diagnose herself
+    await logSiriusError(name, err?.message || "Unknown error", JSON.stringify(args).slice(0, 200)).catch(() => {});
+    return `Tool error in "${name}": ${err?.message}`;
   }
 }
 
@@ -3614,6 +3745,10 @@ const TOOL_META: Record<string, { label: string; color: string; icon: string }> 
   approve_project: { label: "Project approved", color: "hsl(155,70%,45%)", icon: "✅" },
   reject_project: { label: "Project rejected", color: "hsl(0,75%,55%)", icon: "❌" },
   update_project_phase: { label: "Project updated", color: "hsl(193,100%,40%)", icon: "🔄" },
+  self_diagnose: { label: "Running self-diagnosis", color: "hsl(0,75%,55%)", icon: "🩺" },
+  fix_custom_tool: { label: "Repairing tool", color: "hsl(25,90%,55%)", icon: "🔧" },
+  resolve_error: { label: "Error resolved", color: "hsl(155,70%,45%)", icon: "✅" },
+  create_bug_report: { label: "Bug report logged", color: "hsl(0,75%,55%)", icon: "🐛" },
   self_configure: { label: "Self-configuring", color: "hsl(280,70%,55%)", icon: "⚙️" },
   create_automation: { label: "Automation created", color: "hsl(155,70%,42%)", icon: "⚡" },
   list_automations: { label: "Automations loaded", color: "hsl(193,100%,40%)", icon: "🔁" },
@@ -3749,6 +3884,20 @@ ${selfConfigBlock ? `## YOUR SELF-CONFIGURED SETTINGS\n\n${selfConfigBlock}\n` :
 - **list_custom_tools**: List all custom tools you've built for yourself.
 - **call_custom_tool**: Execute one of your custom-built tools by name.
 - **delete_item**: Delete an automation or custom tool by ID/name.
+- **self_diagnose**: Run a full self-check — reads your error log, checks all automations and custom tools. ALWAYS use this first if something seems broken. Diagnose before you report.
+- **fix_custom_tool**: Repair one of your custom tools by updating its URL, method, headers, or body. Self-repair — no external help needed.
+- **resolve_error**: Mark an error as fixed once you've repaired it. Keeps your error log clean.
+- **create_bug_report**: For problems you cannot fix yourself (server code, UI bugs, voice loop issues) — log it clearly so it gets fixed. Never silently fail — always report what you can't fix.
+
+## SELF-HEALING — CRITICAL BEHAVIOUR
+
+You are responsible for your own health. Follow this protocol:
+
+1. **When a tool fails**: The error is automatically logged. On the next relevant conversation, call self_diagnose and check what failed.
+2. **When you detect a pattern** (same tool failing repeatedly): Diagnose, attempt a fix (fix_custom_tool, self_configure, or create_automation as a workaround), then resolve the error.
+3. **When you cannot fix it yourself**: Call create_bug_report with a precise description. Never just say "sorry, something went wrong" — always diagnose and either fix or report.
+4. **Proactively on startup**: If Garry says "how are you?" or "are you working properly?", always call self_diagnose first before answering.
+5. **After fixing something**: Call resolve_error to mark it done so the log stays accurate.
 
 ## APPROVAL FLOW — CRITICAL PATTERN
 
