@@ -11459,6 +11459,11 @@ function SiriusLabChatPanel({ pin, accessLevel, onNavigate, onOpenProject, onNav
   const bottomRef = useRef<HTMLDivElement>(null);
   const stoppedRef = useRef(false);
   const hasGreetedRef = useRef(false);
+  // Buffer navigation requests that arrive mid-response — execute after speaking
+  const pendingNavRef = useRef<{ section: NavMode; projectId?: number } | null>(null);
+  const pendingBuildRef = useRef<{ section: NavMode; prompt: string } | null>(null);
+  // Counts consecutive silent recognition cycles before going fully idle
+  const silentRetryRef = useRef(0);
 
   // Keep ref in sync for stale-closure-safe reads
   useEffect(() => {
@@ -11494,6 +11499,7 @@ function SiriusLabChatPanel({ pin, accessLevel, onNavigate, onOpenProject, onNav
       const text = Array.from(e.results as any[]).map((r: any) => r[0].transcript).join(" ").trim();
       if (e.results[e.results.length - 1].isFinal && text.length > 1) {
         gotResult = true;
+        silentRetryRef.current = 0; // reset retry counter on successful speech
         stopListeningNow();
         setVoiceHint(`Heard: "${text.slice(0, 60)}${text.length > 60 ? "…" : ""}"`);
         const userMsg: LabChatMsg = { role: "user", content: text };
@@ -11503,13 +11509,27 @@ function SiriusLabChatPanel({ pin, accessLevel, onNavigate, onOpenProject, onNav
       }
     };
     rec.onerror = (e: any) => {
-      const msg = e.error === "not-allowed" ? "Microphone access denied — check browser settings." : e.error === "no-speech" ? "Nothing heard — speak when the waveform pulses." : "Voice error — tap the mic to try again.";
-      setVoiceHint(msg);
-      setVoicePhase("idle");
+      if (e.error === "not-allowed") {
+        setVoiceHint("Microphone access denied — check browser settings.");
+        setVoicePhase("idle");
+      } else if (e.error === "no-speech") {
+        // Silent — handled in onend, don't show error
+      } else {
+        setVoiceHint("Voice error — tap the mic to retry.");
+        setVoicePhase("idle");
+      }
     };
     rec.onend = () => {
-      if (!gotResult && !stoppedRef.current) {
+      if (gotResult || stoppedRef.current) return;
+      // Nothing was heard — auto-retry up to 4 times before going idle
+      silentRetryRef.current += 1;
+      if (silentRetryRef.current <= 4) {
         setVoicePhase("idle");
+        setTimeout(() => startListeningLoop(), 800);
+      } else {
+        silentRetryRef.current = 0;
+        setVoicePhase("idle");
+        setVoiceHint("Tap the mic when you're ready to speak.");
       }
     };
     rec.start();
@@ -11594,17 +11614,16 @@ function SiriusLabChatPanel({ pin, accessLevel, onNavigate, onOpenProject, onNav
             } else if (evt.type === "thinking") {
               setThinkingText(evt.text || "");
             } else if (evt.type === "navigate") {
-              // Server-side navigate_to tool fired — navigate the UI immediately
-              if (evt.section && onNavigate) onNavigate(evt.section as NavMode);
-              if (evt.projectId && onOpenProject) {
-                setTimeout(() => onOpenProject!(evt.projectId), 300);
+              // Buffer navigation — fire it AFTER speaking so the loop stays alive
+              if (evt.section) {
+                pendingNavRef.current = { section: evt.section as NavMode, projectId: evt.projectId || undefined };
               }
             } else if (evt.type === "navigate_and_build") {
-              // start_app_build tool fired — navigate to App Builder AND auto-start pipeline
-              if (evt.section && evt.prompt && onNavigateAndBuild) {
-                onNavigateAndBuild(evt.section as NavMode, evt.prompt);
-              } else if (evt.section && onNavigate) {
-                onNavigate(evt.section as NavMode);
+              // Buffer build navigation — fire it AFTER speaking
+              if (evt.section && evt.prompt) {
+                pendingBuildRef.current = { section: evt.section as NavMode, prompt: evt.prompt };
+              } else if (evt.section) {
+                pendingNavRef.current = { section: evt.section as NavMode };
               }
             } else if (evt.type === "error") {
               fullText = evt.message || "Something went wrong.";
@@ -11638,12 +11657,29 @@ function SiriusLabChatPanel({ pin, accessLevel, onNavigate, onOpenProject, onNav
       const finalText = cleanedText || "No response — please try again.";
       setMessages(prev => [...prev, { role: "assistant", content: finalText, actions: actions.length > 0 ? [...actions] : undefined }]);
 
-      // Speak the response, then auto-listen for the next turn
+      // Speak the response, then execute any buffered navigation, then restart listening
       setVoicePhase("speaking");
       const voiceText = finalText.replace(/[*#>`_~]/g, "").replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").slice(0, 500);
       speakText(voiceText, () => {
         setVoicePhase("idle");
-        if (!stoppedRef.current) setTimeout(() => startListeningLoop(), 400);
+        // Flush buffered navigation AFTER speaking so the component doesn't unmount mid-response
+        const pendingBuild = pendingBuildRef.current;
+        const pendingNav = pendingNavRef.current;
+        pendingBuildRef.current = null;
+        pendingNavRef.current = null;
+        if (pendingBuild && onNavigateAndBuild) {
+          setTimeout(() => onNavigateAndBuild!(pendingBuild.section, pendingBuild.prompt), 200);
+        } else if (pendingBuild && onNavigate) {
+          setTimeout(() => onNavigate!(pendingBuild.section), 200);
+        } else if (pendingNav) {
+          setTimeout(() => {
+            if (onNavigate) onNavigate!(pendingNav.section);
+            if (pendingNav.projectId && onOpenProject) setTimeout(() => onOpenProject!(pendingNav.projectId!), 300);
+          }, 200);
+        } else if (!stoppedRef.current) {
+          // No navigation — restart listening for the next turn
+          setTimeout(() => startListeningLoop(), 400);
+        }
       });
 
     } catch (err: any) {
