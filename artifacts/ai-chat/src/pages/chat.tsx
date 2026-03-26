@@ -70,7 +70,7 @@ export function ChatPage() {
     isLoading: isDbLoading,
     isError,
   } = useGetOpenaiConversation(conversationId as number, {
-    query: { enabled: !!conversationId },
+    query: { enabled: !!conversationId } as any,
   });
 
   const { messages, setInitialMessages, sendMessage, isTyping, stopStream } =
@@ -89,9 +89,11 @@ export function ChatPage() {
     if (conversationId && prevConvId.current === undefined) {
       setSavedFlash(true);
       const t = setTimeout(() => setSavedFlash(false), 3000);
+      prevConvId.current = conversationId;
       return () => clearTimeout(t);
     }
     prevConvId.current = conversationId;
+    return;
   }, [conversationId]);
 
   useEffect(() => {

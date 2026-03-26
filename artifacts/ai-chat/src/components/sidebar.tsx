@@ -456,7 +456,7 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing }: SidebarProps) {
 
       <SettingsPanel isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
       <MemoryPortrait isOpen={isPortraitOpen} onClose={() => setIsPortraitOpen(false)} aiName={aiName} />
-      <PricingModal isOpen={isPricingOpen} onClose={() => setIsPricingOpen(false)} currentTier={status.tier} hasStripeCustomer={status.hasStripeCustomer} />
+      <PricingModal isOpen={isPricingOpen} onClose={() => setIsPricingOpen(false)} currentTier={status.tier} />
       <TutorialsModal open={isTutorialsOpen} onClose={() => setIsTutorialsOpen(false)} />
     </>
   );

@@ -10480,6 +10480,7 @@ function StarLabVoiceWidget({
       }, 1800);
       return () => clearTimeout(startupTimer);
     }
+    return;
   }, [active]);
 
   // Track which Star Lab sections are visited during a voice session
