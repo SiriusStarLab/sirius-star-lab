@@ -893,8 +893,8 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
 
   const mode = body.data.mode;
   const imageBase64 = body.data.imageBase64;
-  const documentBase64 = body.data.documentBase64 as string | undefined;
-  const documentName = body.data.documentName as string | undefined;
+  const documentBase64 = (body.data as any).documentBase64 as string | undefined;
+  const documentName = (body.data as any).documentName as string | undefined;
   const systemPrompt = buildSystemPrompt(profile, mode);
 
   // Extract text from uploaded document (PDF, Word, plain text, CSV, Markdown)
@@ -907,9 +907,10 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
       const isPdf  = lowerName.endsWith(".pdf");
 
       if (isPdf) {
-        const pdfParse = (await import("pdf-parse")).default;
-        const parsed = await pdfParse(buffer);
-        extractedDocumentText = parsed.text?.trim() || null;
+        const { PDFParse } = await import("pdf-parse");
+        const pdfParser = new PDFParse({ data: new Uint8Array(buffer) });
+        const result = await pdfParser.getText();
+        extractedDocumentText = result.text?.trim() || null;
       } else if (isDocx) {
         const mammoth = (await import("mammoth")).default;
         const result = await mammoth.extractRawText({ buffer });
@@ -998,7 +999,7 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
           const resetDate = dbProfile.dailyMessageReset ? new Date(dbProfile.dailyMessageReset) : null;
           const needsReset = !resetDate || resetDate.toDateString() !== now.toDateString();
           const currentCount = needsReset ? 0 : parseInt(dbProfile.dailyMessageCount || "0", 10);
-          await db.update(userProfilesTable).set({ dailyMessageCount: String(currentCount + 1), dailyMessageReset: now.toISOString() }).where(eq(userProfilesTable.userId, userId));
+          await db.update(userProfilesTable).set({ dailyMessageCount: String(currentCount + 1), dailyMessageReset: now }).where(eq(userProfilesTable.userId, userId));
           extractAndSaveMemories(userId, [{ role: "user", content: body.data.content }, { role: "assistant", content: fullResponse }], dbProfile.memories || "");
         }
       }
@@ -1136,7 +1137,7 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
       ...inputMessages,
       { role: "assistant", content: fullResponse },
     ];
-    extractAndSaveMemories(userId, conversationForMemory, profile.memories).catch(() => {});
+    extractAndSaveMemories(userId, conversationForMemory as any, profile.memories).catch(() => {});
 
     // Increment daily message count
     db.select().from(userProfilesTable).where(eq(userProfilesTable.userId, userId))

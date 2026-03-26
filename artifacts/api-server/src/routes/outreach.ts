@@ -40,7 +40,7 @@ router.post("/outreach/contacts", authMiddleware, async (req: Request, res: Resp
 });
 
 router.put("/outreach/contacts/:id", authMiddleware, async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   const updates: Partial<OutreachContact> = req.body;
   const [updated] = await db.update(outreachContacts).set({ ...updates, updatedAt: new Date() })
     .where(eq(outreachContacts.id, id)).returning();
@@ -48,7 +48,7 @@ router.put("/outreach/contacts/:id", authMiddleware, async (req: Request, res: R
 });
 
 router.delete("/outreach/contacts/:id", authMiddleware, async (req: Request, res: Response) => {
-  await db.delete(outreachContacts).where(eq(outreachContacts.id, parseInt(req.params.id)));
+  await db.delete(outreachContacts).where(eq(outreachContacts.id, parseInt(req.params.id as string)));
   res.json({ ok: true });
 });
 
@@ -202,7 +202,7 @@ router.post("/outreach/campaigns", authMiddleware, async (req: Request, res: Res
 });
 
 router.put("/outreach/campaigns/:id", authMiddleware, async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   const updates = req.body;
   if (updates.targetSectors && Array.isArray(updates.targetSectors)) {
     updates.targetSectors = JSON.stringify(updates.targetSectors);
@@ -213,14 +213,14 @@ router.put("/outreach/campaigns/:id", authMiddleware, async (req: Request, res: 
 });
 
 router.delete("/outreach/campaigns/:id", authMiddleware, async (req: Request, res: Response) => {
-  await db.delete(outreachSends).where(eq(outreachSends.campaignId, parseInt(req.params.id)));
-  await db.delete(outreachCampaigns).where(eq(outreachCampaigns.id, parseInt(req.params.id)));
+  await db.delete(outreachSends).where(eq(outreachSends.campaignId, parseInt(req.params.id as string)));
+  await db.delete(outreachCampaigns).where(eq(outreachCampaigns.id, parseInt(req.params.id as string)));
   res.json({ ok: true });
 });
 
 // Get sends for a campaign (with contact info)
 router.get("/outreach/campaigns/:id/sends", authMiddleware, async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   const sends = await db.select().from(outreachSends).where(eq(outreachSends.campaignId, id));
   const contactIds = [...new Set(sends.map(s => s.contactId))];
   const contacts = contactIds.length
@@ -232,7 +232,7 @@ router.get("/outreach/campaigns/:id/sends", authMiddleware, async (req: Request,
 
 // Generate AI pitches for all contacts in a campaign's target sectors (streaming)
 router.post("/outreach/campaigns/:id/generate", authMiddleware, async (req: Request, res: Response) => {
-  const campaignId = parseInt(req.params.id);
+  const campaignId = parseInt(req.params.id as string);
   const [campaign] = await db.select().from(outreachCampaigns).where(eq(outreachCampaigns.id, campaignId));
   if (!campaign) { res.status(404).json({ error: "Campaign not found" }); return; }
 
@@ -322,13 +322,13 @@ router.put("/outreach/sends/:id", authMiddleware, async (req: Request, res: Resp
   const { subject, body } = req.body;
   const [updated] = await db.update(outreachSends)
     .set({ subject, body })
-    .where(eq(outreachSends.id, parseInt(req.params.id))).returning();
+    .where(eq(outreachSends.id, parseInt(req.params.id as string))).returning();
   res.json(updated);
 });
 
 // Launch campaign — blast all pending sends via SMTP
 router.post("/outreach/campaigns/:id/launch", authMiddleware, async (req: Request, res: Response) => {
-  const campaignId = parseInt(req.params.id);
+  const campaignId = parseInt(req.params.id as string);
   const { smtpHost, smtpPort, smtpUser, smtpPass, fromName, fromEmail } = req.body;
 
   const host = smtpHost || process.env.SMTP_HOST;

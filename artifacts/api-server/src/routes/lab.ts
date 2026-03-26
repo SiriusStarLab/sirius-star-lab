@@ -582,7 +582,7 @@ router.get("/lab/projects/pending-approval", authMiddleware, async (_req: Reques
 });
 
 router.get("/lab/projects/:id", authMiddleware, async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   const [project] = await db.select().from(labProjects).where(eq(labProjects.id, id));
   if (!project) { res.status(404).json({ error: "Not found" }); return; }
   const messages = await db.select().from(labMessages).where(eq(labMessages.projectId, id)).orderBy(labMessages.createdAt);
@@ -590,7 +590,7 @@ router.get("/lab/projects/:id", authMiddleware, async (req: Request, res: Respon
 });
 
 router.put("/lab/projects/:id", authMiddleware, async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   const {
     name, industry, phase, status,
     brief, research, specs, code, drawingNotes, cadUrl, materials,
@@ -619,13 +619,13 @@ router.put("/lab/projects/:id", authMiddleware, async (req: Request, res: Respon
 });
 
 router.delete("/lab/projects/:id", authMiddleware, async (req: Request, res: Response) => {
-  await db.delete(labProjects).where(eq(labProjects.id, parseInt(req.params.id)));
+  await db.delete(labProjects).where(eq(labProjects.id, parseInt(req.params.id as string)));
   res.json({ success: true });
 });
 
 router.get("/lab/projects/:id/messages", authMiddleware, async (req: Request, res: Response) => {
   const messages = await db.select().from(labMessages)
-    .where(eq(labMessages.projectId, parseInt(req.params.id)))
+    .where(eq(labMessages.projectId, parseInt(req.params.id as string)))
     .orderBy(labMessages.createdAt);
   res.json(messages);
 });
@@ -696,7 +696,7 @@ const PROJECT_CHAT_TOOLS: any[] = [
 ];
 
 router.post("/lab/projects/:id/chat", authMiddleware, async (req: Request, res: Response) => {
-  const projectId = parseInt(req.params.id);
+  const projectId = parseInt(req.params.id as string);
   const { message, tab, mode } = req.body;
 
   const [project] = await db.select().from(labProjects).where(eq(labProjects.id, projectId));
@@ -990,14 +990,14 @@ router.get("/lab/scout/reports", authMiddleware, async (req: Request, res: Respo
 });
 
 router.delete("/lab/scout/reports/:id", authMiddleware, async (req: Request, res: Response) => {
-  await db.delete(scoutReports).where(eq(scoutReports.id, parseInt(req.params.id)));
+  await db.delete(scoutReports).where(eq(scoutReports.id, parseInt(req.params.id as string)));
   res.json({ success: true });
 });
 
 // ─── PRODUCT RENDER GENERATION ─────────────────────────────────────────────
 
 router.post("/lab/projects/:id/render", authMiddleware, async (req: Request, res: Response) => {
-  const projectId = parseInt(req.params.id);
+  const projectId = parseInt(req.params.id as string);
   const { type = "3d", angle = "perspective", style = "product render" } = req.body;
 
   const [project] = await db.select().from(labProjects).where(eq(labProjects.id, projectId));
@@ -1042,7 +1042,7 @@ router.post("/lab/projects/:id/render", authMiddleware, async (req: Request, res
 // ─── AI DOCUMENT GENERATION ────────────────────────────────────────────────
 
 router.post("/lab/projects/:id/generate", authMiddleware, async (req: Request, res: Response) => {
-  const projectId = parseInt(req.params.id);
+  const projectId = parseInt(req.params.id as string);
   const { section } = req.body;
 
   const [project] = await db.select().from(labProjects).where(eq(labProjects.id, projectId));
@@ -1546,7 +1546,7 @@ Structure:
 // ─── SIRIUS INSIGHTS ───────────────────────────────────────────────────────
 
 router.post("/lab/projects/:id/insights", authMiddleware, async (req: Request, res: Response) => {
-  const [p] = await db.select().from(labProjects).where(eq(labProjects.id, parseInt(req.params.id)));
+  const [p] = await db.select().from(labProjects).where(eq(labProjects.id, parseInt(req.params.id as string)));
   if (!p) { res.status(404).json({ error: "Not found" }); return; }
 
   const phase = p.phase || "design";
@@ -1634,7 +1634,7 @@ Be brutally specific. Reference real things. No generic advice.`;
 });
 
 router.get("/lab/projects/:id/completeness", authMiddleware, async (req: Request, res: Response) => {
-  const [p] = await db.select().from(labProjects).where(eq(labProjects.id, parseInt(req.params.id)));
+  const [p] = await db.select().from(labProjects).where(eq(labProjects.id, parseInt(req.params.id as string)));
   if (!p) { res.status(404).json({ error: "Not found" }); return; }
 
   const checks = [
@@ -2162,7 +2162,7 @@ Return the JSON response as specified. This is for a single project — the oppo
 
 // Per-project funding analysis — manual trigger or auto-called
 router.post("/lab/projects/:id/funding", authMiddleware, async (req: Request, res: Response) => {
-  const projectId = parseInt(req.params.id);
+  const projectId = parseInt(req.params.id as string);
   if (isNaN(projectId)) { res.status(400).json({ error: "Invalid project ID" }); return; }
 
   // Mark as pending immediately so the UI can show progress
@@ -2175,7 +2175,7 @@ router.post("/lab/projects/:id/funding", authMiddleware, async (req: Request, re
 
 // ─── Auto-draft funding application for a specific scheme ────────────────────
 router.post("/lab/projects/:id/apply", authMiddleware, async (req: Request, res: Response) => {
-  const projectId = parseInt(req.params.id);
+  const projectId = parseInt(req.params.id as string);
   if (isNaN(projectId)) { res.status(400).json({ error: "Invalid project ID" }); return; }
 
   const { scheme, type, geography, amount, matchReason, keyEvidence, url, matchStrength } = req.body;
@@ -2406,7 +2406,7 @@ const storage = new ObjectStorageService();
 
 // Request a presigned upload URL and register the file
 router.post("/lab/projects/:id/cad-files", authMiddleware, async (req: Request, res: Response) => {
-  const projectId = parseInt(req.params.id);
+  const projectId = parseInt(req.params.id as string);
   const { fileName, fileSize, fileType, objectPath, description } = req.body;
 
   if (!fileName || !objectPath) {
@@ -2445,7 +2445,7 @@ router.post("/lab/projects/:id/cad-files/upload-url", authMiddleware, async (_re
 
 // List CAD files for a project
 router.get("/lab/projects/:id/cad-files", authMiddleware, async (req: Request, res: Response) => {
-  const projectId = parseInt(req.params.id);
+  const projectId = parseInt(req.params.id as string);
   try {
     const files = await db
       .select()
@@ -2460,7 +2460,7 @@ router.get("/lab/projects/:id/cad-files", authMiddleware, async (req: Request, r
 
 // Update description of a CAD file
 router.patch("/lab/projects/:id/cad-files/:fileId", authMiddleware, async (req: Request, res: Response) => {
-  const fileId = parseInt(req.params.fileId);
+  const fileId = parseInt(req.params.fileId as string);
   const { description } = req.body;
   try {
     const [updated] = await db
@@ -2476,7 +2476,7 @@ router.patch("/lab/projects/:id/cad-files/:fileId", authMiddleware, async (req: 
 
 // Delete a CAD file
 router.delete("/lab/projects/:id/cad-files/:fileId", authMiddleware, async (req: Request, res: Response) => {
-  const fileId = parseInt(req.params.fileId);
+  const fileId = parseInt(req.params.fileId as string);
   try {
     await db.delete(cadFiles).where(eq(cadFiles.id, fileId));
     return res.json({ success: true });
@@ -2487,7 +2487,7 @@ router.delete("/lab/projects/:id/cad-files/:fileId", authMiddleware, async (req:
 
 // Generate a presigned download URL for a CAD file
 router.get("/lab/projects/:id/cad-files/:fileId/download-url", authMiddleware, async (req: Request, res: Response) => {
-  const fileId = parseInt(req.params.fileId);
+  const fileId = parseInt(req.params.fileId as string);
   try {
     const [record] = await db.select().from(cadFiles).where(eq(cadFiles.id, fileId));
     if (!record) return res.status(404).json({ error: "File not found" });
@@ -2513,14 +2513,14 @@ router.get("/lab/notification-count", authMiddleware, async (_req: Request, res:
 });
 
 router.post("/lab/projects/:id/approve", authMiddleware, async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   if (!id) return res.status(400).json({ error: "Invalid id" });
   await db.update(labProjects).set({ approvalStatus: "approved", updatedAt: new Date() }).where(eq(labProjects.id, id));
   res.json({ ok: true });
 });
 
 router.post("/lab/projects/:id/reject", authMiddleware, async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   if (!id) return res.status(400).json({ error: "Invalid id" });
   await db.update(labProjects).set({ approvalStatus: "rejected", updatedAt: new Date() }).where(eq(labProjects.id, id));
   res.json({ ok: true });
@@ -2557,7 +2557,7 @@ router.get("/lab/pipeline/status", authMiddleware, async (_req: Request, res: Re
 
 // Mark a launch-ready project as launched
 router.post("/lab/pipeline/launch/:id", authMiddleware, async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   if (isNaN(id)) return res.status(400).json({ error: "Invalid project ID" });
   try {
     await db.update(labProjects)
@@ -2575,7 +2575,7 @@ router.get("/lab/auto-scan/status", authMiddleware, (_req: Request, res: Respons
 
 // ── Complete All Sections ──────────────────────────────────────────────────
 router.post("/lab/projects/:id/complete-all", authMiddleware, async (req: Request, res: Response) => {
-  const projectId = parseInt(req.params.id);
+  const projectId = parseInt(req.params.id as string);
   const [project] = await db.select().from(labProjects).where(eq(labProjects.id, projectId));
   if (!project) { res.status(404).json({ error: "Project not found" }); return; }
 
@@ -4410,9 +4410,10 @@ router.post("/lab/docs", async (req, res): Promise<void> => {
 
     if (isPdf) {
       try {
-        const pdfParse = (await import("pdf-parse")).default;
-        const parsed = await pdfParse(buffer);
-        extractedText = parsed.text;
+        const { PDFParse } = await import("pdf-parse");
+        const pdfParser = new PDFParse({ data: new Uint8Array(buffer) });
+        const result = await pdfParser.getText();
+        extractedText = result.text;
       } catch {
         extractedText = buffer.toString("utf-8").replace(/[^\x20-\x7E\n\r\t]/g, " ").trim();
       }
@@ -4477,7 +4478,7 @@ const SOCIAL_PLATFORMS = [
 ];
 
 router.post("/lab/projects/:id/social-posts/generate", authMiddleware, async (req: Request, res: Response) => {
-  const projectId = parseInt(req.params.id);
+  const projectId = parseInt(req.params.id as string);
   const [project] = await db.select().from(labProjects).where(eq(labProjects.id, projectId));
   if (!project) { res.status(404).json({ error: "Project not found" }); return; }
 
@@ -4544,7 +4545,7 @@ Be authentic, specific to this product, and commercially sharp.`,
 
 // Update social posts + launch platforms
 router.put("/lab/projects/:id/social-posts", authMiddleware, async (req: Request, res: Response) => {
-  const projectId = parseInt(req.params.id);
+  const projectId = parseInt(req.params.id as string);
   const { posts, platforms, launchStatus } = req.body;
   const updates: any = { updatedAt: new Date() };
   if (posts !== undefined) updates.socialPosts = JSON.stringify(posts);
@@ -4624,7 +4625,7 @@ router.get("/lab/media-outlets", authMiddleware, async (req: Request, res: Respo
 
 // AI-match outlets to a project
 router.post("/lab/projects/:id/media-match", authMiddleware, async (req: Request, res: Response) => {
-  const projectId = parseInt(req.params.id);
+  const projectId = parseInt(req.params.id as string);
   const [project] = await db.select().from(labProjects).where(eq(labProjects.id, projectId));
   if (!project) { res.status(404).json({ error: "Project not found" }); return; }
 
@@ -4691,7 +4692,7 @@ router.post("/lab/app-builder/sessions", authMiddleware, async (req: Request, re
 // Load a specific session
 router.get("/lab/app-builder/sessions/:id", authMiddleware, async (req: Request, res: Response) => {
   try {
-    const session = await db.select().from(appBuilderSessions).where(eq(appBuilderSessions.id, parseInt(req.params.id))).limit(1);
+    const session = await db.select().from(appBuilderSessions).where(eq(appBuilderSessions.id, parseInt(req.params.id as string))).limit(1);
     if (!session[0]) return res.status(404).json({ error: "Session not found" });
     const s = session[0];
     res.json({
@@ -4744,7 +4745,7 @@ router.post("/lab/app-builder/sessions/save", authMiddleware, async (req: Reques
 // Delete a session
 router.delete("/lab/app-builder/sessions/:id", authMiddleware, async (req: Request, res: Response) => {
   try {
-    await db.delete(appBuilderSessions).where(eq(appBuilderSessions.id, parseInt(req.params.id)));
+    await db.delete(appBuilderSessions).where(eq(appBuilderSessions.id, parseInt(req.params.id as string)));
     res.json({ ok: true });
   } catch (err: any) { res.status(500).json({ error: err?.message }); }
 });
@@ -5573,7 +5574,7 @@ router.post("/lab/app-builder/share", authMiddleware, async (req: Request, res: 
 router.get("/lab/app-builder/view/:id", async (req: Request, res: Response) => {
   try {
     const session = await db.select({ id: appBuilderSessions.id, appName: appBuilderSessions.appName, phase: appBuilderSessions.phase, status: appBuilderSessions.status, files: appBuilderSessions.files })
-      .from(appBuilderSessions).where(eq(appBuilderSessions.id, parseInt(req.params.id))).limit(1);
+      .from(appBuilderSessions).where(eq(appBuilderSessions.id, parseInt(req.params.id as string))).limit(1);
     if (!session[0]) return res.status(404).json({ error: "Session not found" });
     res.json({ ...session[0], files: JSON.parse(session[0].files || "{}") });
   } catch (err: any) { res.status(500).json({ error: err?.message }); }
@@ -6204,7 +6205,7 @@ router.post("/lab/ai-arch-sweep/trigger", authMiddleware, async (req: Request, r
 });
 
 router.post("/lab/projects/:id/ai-arch/analyze", authMiddleware, async (req: Request, res: Response) => {
-  const projectId = parseInt(req.params["id"] ?? "0");
+  const projectId = parseInt((req.params["id"] as string) ?? "0");
   if (!projectId) return res.status(400).json({ error: "Invalid project ID" });
 
   const [project] = await db.select().from(labProjects).where(eq(labProjects.id, projectId)).limit(1);

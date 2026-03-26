@@ -189,11 +189,12 @@ export function pinBanMiddleware(req: Request, res: Response, next: NextFunction
   const { banned, banExpiresAt } = checkPinBan(req);
   if (banned) {
     securityLog("PIN_BAN_BLOCKED", req, `Blocked — ban expires ${banExpiresAt?.toISOString()}`);
-    return res.status(403).json({
+    res.status(403).json({
       error: "Access temporarily locked",
       message: "Too many incorrect PIN attempts. Access is locked for 15 minutes.",
       unlocksAt: banExpiresAt?.toISOString(),
     });
+    return;
   }
   next();
 }
@@ -212,10 +213,11 @@ export function payloadSizeGuard(req: Request, res: Response, next: NextFunction
 
   if (contentLength > limit) {
     securityLog("PAYLOAD_TOO_LARGE", req, `Content-Length: ${contentLength} bytes (limit: ${limit})`);
-    return res.status(413).json({
+    res.status(413).json({
       error: "Payload too large",
       message: `Request body exceeds the ${isImageRoute ? "30MB" : "5MB"} limit.`,
     });
+    return;
   }
   next();
 }

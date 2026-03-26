@@ -4,9 +4,14 @@
     "composite": true,
     "declarationMap": true,
     "emitDeclarationOnly": true,
+    "noEmitOnError": false,
     "outDir": "dist",
     "rootDir": "src",
-    "types": ["node"]
+    "types": ["node"],
+    "typeRoots": [
+      "../../node_modules/.pnpm/@types+node@25.3.5/node_modules/@types",
+      "../../node_modules/@types"
+    ]
   },
   "include": ["src"]
 }

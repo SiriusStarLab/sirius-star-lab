@@ -115,7 +115,7 @@ router.get("/learn/study-plans", async (req: Request, res: Response) => {
 
 // DELETE /api/learn/study-plans/:id
 router.delete("/learn/study-plans/:id", async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
   try {
     await db.delete(studyPlans).where(eq(studyPlans.id, id));

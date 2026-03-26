@@ -377,7 +377,7 @@ router.get("/lab/revenue/commissions", authMiddleware, async (_req: Request, res
 // PATCH /api/lab/revenue/commissions/:id — update commission status/notes
 router.patch("/lab/revenue/commissions/:id", authMiddleware, async (req: Request, res: Response) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(req.params.id as string);
     const { status, notes } = req.body as { status?: string; notes?: string };
     const updatePayload: any = { updatedAt: new Date() };
     if (status) updatePayload.status = status;
@@ -457,7 +457,7 @@ router.post("/lab/revenue/blueprints", authMiddleware, async (req: Request, res:
 // POST /api/lab/revenue/blueprints/:id/checkout — buy a blueprint
 router.post("/lab/revenue/blueprints/:id/checkout", async (req: Request, res: Response) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(req.params.id as string);
     const { email } = req.body as { email?: string };
     const [blueprint] = await db.select().from(labBlueprints).where(and(eq(labBlueprints.id, id), eq(labBlueprints.status, "active")));
     if (!blueprint) return res.status(404).json({ error: "Blueprint not found" });
@@ -469,7 +469,7 @@ router.post("/lab/revenue/blueprints/:id/checkout", async (req: Request, res: Re
       payment_method_types: ["card"],
       mode: "payment",
       customer_email: email || undefined,
-      line_items: [{ price: blueprint.stripePriceId, quantity: 1 }],
+      line_items: [{ price: blueprint.stripePriceId!, quantity: 1 }],
       metadata: { type: "blueprint", blueprintId: String(id) },
       success_url: `${base}/star-lab?tab=revenue&blueprint_session={CHECKOUT_SESSION_ID}&blueprint_id=${id}`,
       cancel_url: `${base}/star-lab?tab=revenue`,

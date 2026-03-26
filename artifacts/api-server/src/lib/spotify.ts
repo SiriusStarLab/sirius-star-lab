@@ -35,7 +35,7 @@ async function getAccessToken() {
     }
   )
     .then((res) => res.json())
-    .then((data) => data.items?.[0]);
+    .then((data: any) => data?.items?.[0]);
 
   const refreshToken =
     connectionSettings?.settings?.oauth?.credentials?.refresh_token;

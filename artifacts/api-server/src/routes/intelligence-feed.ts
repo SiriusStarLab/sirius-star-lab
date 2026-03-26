@@ -68,7 +68,7 @@ router.get("/feed/stats", authMiddleware, async (req: Request, res: Response) =>
 
 // PATCH /api/feed/discoveries/:id — mark read/saved
 router.patch("/feed/discoveries/:id", authMiddleware, async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   const { isRead, isSaved } = req.body;
   const updates: Record<string, boolean> = {};
   if (isRead !== undefined) updates.isRead = isRead;
@@ -79,7 +79,7 @@ router.patch("/feed/discoveries/:id", authMiddleware, async (req: Request, res: 
 
 // DELETE /api/feed/discoveries/:id
 router.delete("/feed/discoveries/:id", authMiddleware, async (req: Request, res: Response) => {
-  await db.delete(aiDiscoveries).where(eq(aiDiscoveries.id, parseInt(req.params.id)));
+  await db.delete(aiDiscoveries).where(eq(aiDiscoveries.id, parseInt(req.params.id as string)));
   res.json({ success: true });
 });
 

@@ -129,7 +129,7 @@ router.post("/intelligence/briefing/:userId", async (req, res) => {
   });
 
   const briefing = completion.choices[0]?.message?.content ?? null;
-  return res.json({ briefing, date: today });
+  res.json({ briefing, date: today });
 });
 
 // POST /api/intelligence/research — autonomous multi-step research
