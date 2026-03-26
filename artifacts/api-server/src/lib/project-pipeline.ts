@@ -90,6 +90,64 @@ export async function getPipelineStatus() {
   };
 }
 
+/**
+ * Immediately trigger a build for a specific project, bypassing the 3-minute queue.
+ * Used by Sirius tools so she can command the pipeline directly.
+ */
+export async function triggerBuildNow(projectId: number): Promise<{ ok: boolean; message: string }> {
+  if (pipelineRunning) {
+    return { ok: false, message: "A build is already in progress — project queued and will start next." };
+  }
+
+  const [project] = await db
+    .select()
+    .from(labProjects)
+    .where(eq(labProjects.id, projectId))
+    .limit(1);
+
+  if (!project) return { ok: false, message: `Project #${projectId} not found.` };
+  if (project.launchStatus === "building") return { ok: false, message: `"${project.name}" is already building.` };
+  if (project.launchStatus === "cad-pending") return { ok: false, message: `"${project.name}" has already been built — awaiting CAD.` };
+  if (project.launchStatus === "launch-ready") return { ok: false, message: `"${project.name}" is already launch-ready.` };
+  if (!project.brief || project.brief.trim().length < 20) return { ok: false, message: `"${project.name}" has no brief — cannot build.` };
+
+  // Mark as building and fire immediately (non-blocking)
+  await db.update(labProjects).set({ launchStatus: "building", updatedAt: new Date() }).where(eq(labProjects.id, projectId));
+  pipelineRunning = true;
+
+  console.log(`[Pipeline] ▶ IMMEDIATE build triggered by Sirius for "${project.name}" (#${projectId})`);
+
+  // Run async — don't await so the tool response returns quickly
+  (async () => {
+    try {
+      await triggerAutoBuildForProject(projectId, project.name, project.brief || "", project.industry || "General");
+
+      // Auto drawing notes
+      try {
+        const drawingRes = await (await import("@workspace/integrations-openai-ai-server")).openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [{ role: "user", content: `Write concise CAD drawing specs for "${project.name}" (${project.industry}): ${(project.brief || "").slice(0, 400)}. Under 200 words, numbered.` }],
+          max_tokens: 300,
+        });
+        const notes = drawingRes.choices[0]?.message?.content || "";
+        if (notes) await db.update(labProjects).set({ drawingNotes: notes, updatedAt: new Date() }).where(eq(labProjects.id, projectId));
+      } catch { /* non-critical */ }
+
+      const existingCad = await db.select({ id: cadFiles.id }).from(cadFiles).where(eq(cadFiles.projectId, projectId)).limit(1);
+      const nextStatus = existingCad.length > 0 ? "launch-ready" : "cad-pending";
+      await db.update(labProjects).set({ launchStatus: nextStatus, updatedAt: new Date() }).where(eq(labProjects.id, projectId));
+      console.log(`[Pipeline] ✅ "${project.name}" → ${nextStatus.toUpperCase()} (Sirius-triggered)`);
+    } catch (err: any) {
+      console.error(`[Pipeline] Sirius-triggered build failed for "${project.name}":`, err?.message);
+      await db.update(labProjects).set({ launchStatus: "", updatedAt: new Date() }).where(eq(labProjects.id, projectId));
+    } finally {
+      pipelineRunning = false;
+    }
+  })();
+
+  return { ok: true, message: `Build started for "${project.name}". The pipeline is now running — check pipeline status for live updates.` };
+}
+
 // ── Core tick ─────────────────────────────────────────────────────────────────
 
 async function tick(): Promise<void> {

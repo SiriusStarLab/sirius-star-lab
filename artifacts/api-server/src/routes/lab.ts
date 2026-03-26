@@ -8,7 +8,7 @@ import { ObjectStorageService } from "../lib/objectStorage";
 import { runLabAutoScan, isLabScanRunning } from "../lib/lab-auto-scan.js";
 import { runAiArchSweep, getAiArchSweepStatus } from "../lib/ai-arch-sweep.js";
 import { runOrchestration, type OrchEvent } from "../lib/orchestrator.js";
-import { onCadFileAttached, getPipelineStatus } from "../lib/project-pipeline.js";
+import { onCadFileAttached, getPipelineStatus, triggerBuildNow } from "../lib/project-pipeline.js";
 import { recordPinFailure, clearPinRecord, securityLog } from "../middlewares/security.js";
 
 const router: IRouter = Router();
@@ -2963,6 +2963,29 @@ const LAB_TOOLS: any[] = [
   {
     type: "function" as const,
     function: {
+      name: "get_pipeline_status",
+      description: "Get the live status of the autonomous build pipeline. Use when asked what's building, what's queued, what's ready to launch, or to check pipeline health. Returns the currently-building project, queue size, CAD-pending count, and launch-ready projects.",
+      parameters: { type: "object", properties: {}, required: [] },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "build_now",
+      description: "Immediately trigger the pipeline to build a specific approved project by its ID. Use when the user says 'build project X', 'start building [name]', or 'kick off the build for #ID'. Call query_projects first if you need to find the project ID. This bypasses the 3-minute queue and starts the build right now.",
+      parameters: {
+        type: "object",
+        properties: {
+          projectId: { type: "number", description: "The database ID of the project to build immediately." },
+          projectName: { type: "string", description: "The name of the project (for confirmation message)." },
+        },
+        required: ["projectId"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
       name: "system_check",
       description: "Run a full live system check across all Star Lab subsystems. Use this when the user asks for a status check, system check, health check, or 'how is everything running'. Returns real-time data from the database covering projects, pipeline, brain, app builder, and scanner.",
       parameters: {
@@ -3386,14 +3409,48 @@ async function executeLabTool(name: string, args: any): Promise<string> {
       }
 
       case "start_app_build": {
-        // Combine app name + description into a full prompt for the App Builder
-        const fullPrompt = args.appName && args.description
-          ? `${args.appName}: ${args.description}`
-          : args.description || args.appName || "";
-        // Returns a special marker — the SSE handler intercepts this and sends
-        // a navigate_and_build event to the frontend which pre-fills the form
-        // and fires the full pipeline automatically
-        return `NAVIGATE_AND_BUILD:appbuilder | prompt:${fullPrompt}`;
+        const appName = args.appName || "Unnamed App";
+        const description = args.description || "";
+        const brief = `${appName}: ${description}`;
+        // Create a real project in the database and queue it for the pipeline
+        const [created] = await db.insert(labProjects).values({
+          name: appName,
+          brief,
+          industry: "Technology",
+          autoCreated: "sirius",
+          approvalStatus: "approved",
+          launchStatus: "",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }).returning({ id: labProjects.id, name: labProjects.name });
+        console.log(`[Pipeline] Sirius queued new build: "${appName}" (#${created.id})`);
+        // Also navigate to App Builder so Garry can watch the live progress
+        return `NAVIGATE_AND_BUILD:appbuilder | prompt:${brief}`;
+      }
+
+      case "get_pipeline_status": {
+        const status = await getPipelineStatus();
+        const lines = ["╔══ PIPELINE STATUS ══╗"];
+        lines.push(status.currentlyBuilding
+          ? `▶ BUILDING NOW: "${status.currentlyBuilding.name}" (#${status.currentlyBuilding.id})`
+          : "▶ IDLE — no active build");
+        lines.push(`📋 Queued: ${status.queued} projects`);
+        lines.push(`📐 Awaiting CAD: ${status.cadPending}`);
+        lines.push(`🚀 Launch-ready: ${status.launchReady.length}`);
+        if (status.launchReady.length > 0) {
+          lines.push("\nLAUNCH-READY PROJECTS:");
+          for (const p of status.launchReady.slice(0, 5)) {
+            lines.push(`  • "${p.name}" (#${p.id}) — ${p.industry}`);
+          }
+        }
+        return lines.join("\n");
+      }
+
+      case "build_now": {
+        const id = Number(args.projectId);
+        if (!id || isNaN(id)) return "Invalid project ID — call query_projects first to get the correct ID.";
+        const result = await triggerBuildNow(id);
+        return result.message;
       }
 
       case "system_check": {
@@ -3870,7 +3927,9 @@ const TOOL_META: Record<string, { label: string; color: string; icon: string }> 
   query_projects: { label: "Projects queried", color: "hsl(193,100%,40%)", icon: "🔍" },
   get_scan_history: { label: "Scan history loaded", color: "hsl(155,70%,45%)", icon: "📡" },
   navigate_to: { label: "Navigating", color: "hsl(226,70%,55%)", icon: "🧭" },
-  start_app_build: { label: "Launching App Builder", color: "hsl(155,70%,42%)", icon: "🚀" },
+  start_app_build: { label: "Queuing new build", color: "hsl(155,70%,42%)", icon: "🚀" },
+  get_pipeline_status: { label: "Pipeline status loaded", color: "hsl(193,100%,40%)", icon: "⚙️" },
+  build_now: { label: "Build triggered", color: "hsl(155,70%,42%)", icon: "▶️" },
   system_check: { label: "System check running", color: "hsl(193,100%,35%)", icon: "🖥️" },
   get_pending_approvals: { label: "Loading approval queue", color: "hsl(25,90%,55%)", icon: "📋" },
   approve_project: { label: "Project approved", color: "hsl(155,70%,45%)", icon: "✅" },
@@ -3999,7 +4058,9 @@ ${selfConfigBlock ? `## YOUR SELF-CONFIGURED SETTINGS\n\n${selfConfigBlock}\n` :
 - **query_projects**: Search projects by date, industry, source (scan vs manual), status, or keyword. Use for "show me the last 3 projects", "find medical device projects", "what came from yesterday's scan".
 - **get_scan_history**: Get recent auto-scan run history. Use when asked "what did the scan find?", "what came in last night?".
 - **navigate_to**: Navigate Star Lab to a section. ALWAYS use this when Garry says "bring up", "show me", "open", "take me to", "go to" anything.
-- **start_app_build**: CRITICAL — use this when Garry asks to build, create, develop, or make any app, tool, bot, platform, or software. This navigates to App Builder AND fires the full pipeline automatically.
+- **start_app_build**: CRITICAL — use this when Garry asks to build, create, develop, or make any app, tool, bot, platform, or software. This creates a REAL project in the database, queues it for the autonomous pipeline, and navigates to the App Builder panel to show live progress.
+- **get_pipeline_status**: CRITICAL — use this when Garry asks "what's building?", "what's in the pipeline?", "what's launch-ready?", "pipeline status", or any question about what the autonomous build system is doing. Returns live data direct from the database.
+- **build_now**: CRITICAL — use this to immediately trigger a build for a specific project by its database ID. Use when Garry says "build project X", "start that one now", "kick it off", "build #ID". Always call query_projects first if you don't have the ID. This bypasses the queue and starts the build RIGHT NOW.
 - **system_check**: CRITICAL — use this EVERY TIME Garry asks for a status check, system check, or "how is everything running". Queries live data. NEVER guess status from memory.
 - **update_business_profile**: Update stored business context (name, sector, goals, key clients).
 - **get_brain_context**: Read all stored memories and business profile.

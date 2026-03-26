@@ -4152,6 +4152,36 @@ function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed }: { pin: strin
   const [learnRunning, setLearnRunning] = useState(false);
   const [learnDone, setLearnDone] = useState(false);
 
+  // ── App Builder top-level view: "pipeline" (default) or "build" (manual wizard) ──
+  const [appBuilderView, setAppBuilderView] = useState<"pipeline" | "build">("pipeline");
+
+  // Pipeline control view state
+  type PipelineStatus = {
+    currentlyBuilding: { id: number; name: string } | null;
+    queued: number;
+    cadPending: number;
+    launchReady: Array<{ id: number; name: string; industry: string; updatedAt: string }>;
+    launched: number;
+  };
+  const [pipelineStatus, setPipelineStatus] = useState<PipelineStatus | null>(null);
+  const [pipelineLoading, setPipelineLoading] = useState(false);
+
+  const fetchPipelineStatus = useCallback(() => {
+    setPipelineLoading(true);
+    fetch(`${API}lab/pipeline/status`, { headers: { "x-lab-pin": pin } })
+      .then(r => r.json())
+      .then(data => setPipelineStatus(data))
+      .catch(() => {})
+      .finally(() => setPipelineLoading(false));
+  }, [API, pin]);
+
+  useEffect(() => {
+    if (appBuilderView !== "pipeline") return;
+    fetchPipelineStatus();
+    const id = setInterval(fetchPipelineStatus, 8000);
+    return () => clearInterval(id);
+  }, [appBuilderView, fetchPipelineStatus]);
+
   // Ghostwriter — inline code assistant
   const [ghostwriterOpen, setGhostwriterOpen] = useState(false);
   const [ghostMessages, setGhostMessages] = useState<Array<{ role: "user" | "assistant"; content: string; updatedCode?: string | null }>>([]);
@@ -4225,6 +4255,7 @@ function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed }: { pin: strin
     if (!preloadPrompt || phase !== 1 || loading) return;
     setPrompt(preloadPrompt);
     setPreloadPending(true);
+    setAppBuilderView("build"); // switch to build view so Garry sees the wizard start
     if (onPreloadConsumed) onPreloadConsumed();
   }, [preloadPrompt]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -4988,9 +5019,24 @@ function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed }: { pin: strin
                 Code Intelligence
               </div>
             </div>
-            <p className="text-sm" style={{ color: "rgba(15,23,42,0.5)" }}>Autonomous 9-phase AI build system · live web search · checkpoints · virtual browser testing</p>
+            <p className="text-sm" style={{ color: "rgba(15,23,42,0.5)" }}>
+              {appBuilderView === "pipeline" ? "Live autonomous pipeline control — Sirius commands, you watch" : "Autonomous 9-phase AI build system · live web search · checkpoints · virtual browser testing"}
+            </p>
           </div>
           <div className="flex items-center gap-2">
+            {/* View tab switcher */}
+            <div className="flex gap-0.5 p-0.5 rounded-xl mr-1" style={{ background: "rgba(15,23,42,0.07)" }}>
+              <button onClick={() => setAppBuilderView("pipeline")}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                style={{ background: appBuilderView === "pipeline" ? "white" : "transparent", color: appBuilderView === "pipeline" ? "hsl(193,100%,35%)" : "rgba(15,23,42,0.45)", boxShadow: appBuilderView === "pipeline" ? "0 1px 4px rgba(0,0,0,0.1)" : "none" }}>
+                ⚙️ Pipeline
+              </button>
+              <button onClick={() => setAppBuilderView("build")}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                style={{ background: appBuilderView === "build" ? "white" : "transparent", color: appBuilderView === "build" ? "hsl(155,70%,35%)" : "rgba(15,23,42,0.45)", boxShadow: appBuilderView === "build" ? "0 1px 4px rgba(0,0,0,0.1)" : "none" }}>
+                🏗️ New Build
+              </button>
+            </div>
             <button onClick={() => setArchitectOpen(o => !o)}
               className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all"
               style={{ background: architectOpen ? "hsla(45,90%,50%,0.15)" : "rgba(15,23,42,0.06)", color: architectOpen ? "hsl(45,80%,40%)" : "rgba(15,23,42,0.55)", border: architectOpen ? "1px solid hsla(45,90%,50%,0.3)" : "1px solid transparent" }}>
@@ -5017,8 +5063,8 @@ function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed }: { pin: strin
           </div>
         </div>
 
-        {/* Phase stepper */}
-        <div className="flex items-center gap-1">
+        {/* Phase stepper — only shown in New Build view */}
+        {appBuilderView === "build" && <div className="flex items-center gap-1">
           {BUILD_PHASES.map((p, i) => {
             const isActive = phase === p.id || (phase === 4 && p.id === 3) || (phase === 5 && p.id === 4) || (phase === 6 && p.id === 5) || (phase === 7 && p.id === 6);
             const isDone = (p.id === 1 && phase >= 2) || (p.id === 2 && phase >= 3) || (p.id === 3 && phase >= 5) || (p.id === 4 && phase >= 6) || (p.id === 5 && phase >= 7) || (p.id === 6 && phase >= 7);
@@ -5042,11 +5088,88 @@ function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed }: { pin: strin
               </React.Fragment>
             );
           })}
-        </div>
+        </div>}
       </div>
 
       {/* Body */}
       <div className="flex-1 overflow-auto min-h-0">
+
+        {/* ── Pipeline Control View ── */}
+        {appBuilderView === "pipeline" && (
+          <div className="p-6">
+            {/* Status refresh indicator */}
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold" style={{ color: "rgba(15,23,42,0.7)" }}>Live Pipeline State</h3>
+              <button onClick={fetchPipelineStatus} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all" style={{ background: "rgba(15,23,42,0.06)", color: "rgba(15,23,42,0.55)" }}>
+                {pipelineLoading ? "⟳ Refreshing..." : "↺ Refresh"}
+              </button>
+            </div>
+
+            {/* Currently building */}
+            <div className="rounded-2xl p-5 mb-4" style={{ background: pipelineStatus?.currentlyBuilding ? "hsla(155,70%,45%,0.08)" : "rgba(15,23,42,0.04)", border: `1px solid ${pipelineStatus?.currentlyBuilding ? "hsla(155,70%,45%,0.25)" : "rgba(15,23,42,0.08)"}` }}>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0" style={{ background: pipelineStatus?.currentlyBuilding ? "hsla(155,70%,45%,0.15)" : "rgba(15,23,42,0.07)" }}>
+                  {pipelineStatus?.currentlyBuilding ? "▶" : "⏸"}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-bold uppercase tracking-wider mb-0.5" style={{ color: pipelineStatus?.currentlyBuilding ? "hsl(155,70%,35%)" : "rgba(15,23,42,0.4)" }}>
+                    {pipelineStatus?.currentlyBuilding ? "Building Now" : "Pipeline Idle"}
+                  </div>
+                  {pipelineStatus?.currentlyBuilding ? (
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold truncate" style={{ color: "rgba(15,23,42,0.85)" }}>{pipelineStatus.currentlyBuilding.name}</p>
+                      <span className="text-xs px-2 py-0.5 rounded-full font-mono" style={{ background: "hsla(155,70%,45%,0.15)", color: "hsl(155,70%,35%)" }}>#{pipelineStatus.currentlyBuilding.id}</span>
+                      <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: "hsl(155,70%,45%)" }} />
+                    </div>
+                  ) : (
+                    <p className="text-sm" style={{ color: "rgba(15,23,42,0.5)" }}>Next queued project will start within 3 minutes — or ask Sirius to build now</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Stats row */}
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              {[
+                { label: "Queued", value: pipelineStatus?.queued ?? "—", color: "hsl(193,100%,40%)", bg: "hsla(193,100%,40%,0.08)", icon: "📋" },
+                { label: "Awaiting CAD", value: pipelineStatus?.cadPending ?? "—", color: "hsl(25,100%,55%)", bg: "hsla(25,100%,55%,0.08)", icon: "📐" },
+                { label: "Launch-Ready", value: pipelineStatus?.launchReady?.length ?? "—", color: "hsl(155,70%,35%)", bg: "hsla(155,70%,45%,0.08)", icon: "🚀" },
+              ].map(s => (
+                <div key={s.label} className="rounded-xl p-4 text-center" style={{ background: s.bg, border: `1px solid ${s.color}22` }}>
+                  <div className="text-2xl font-bold mb-1" style={{ color: s.color }}>{s.value}</div>
+                  <div className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: s.color }}>{s.icon} {s.label}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Launch-ready projects */}
+            {(pipelineStatus?.launchReady?.length ?? 0) > 0 && (
+              <div className="rounded-2xl overflow-hidden mb-4" style={{ border: "1px solid rgba(15,23,42,0.08)" }}>
+                <div className="px-4 py-2.5" style={{ background: "hsla(155,70%,45%,0.08)", borderBottom: "1px solid rgba(15,23,42,0.06)" }}>
+                  <span className="text-xs font-bold uppercase tracking-wider" style={{ color: "hsl(155,70%,35%)" }}>🚀 Launch-Ready Projects</span>
+                </div>
+                {pipelineStatus!.launchReady.map(p => (
+                  <div key={p.id} className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid rgba(15,23,42,0.04)" }}>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="text-xs font-mono px-2 py-0.5 rounded-lg" style={{ background: "rgba(15,23,42,0.06)", color: "rgba(15,23,42,0.5)" }}>#{p.id}</span>
+                      <span className="text-sm font-medium truncate" style={{ color: "rgba(15,23,42,0.85)" }}>{p.name}</span>
+                      <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: "hsla(193,100%,40%,0.1)", color: "hsl(193,100%,35%)" }}>{p.industry}</span>
+                    </div>
+                    <span className="text-[10px] flex-shrink-0" style={{ color: "rgba(15,23,42,0.4)" }}>{new Date(p.updatedAt).toLocaleDateString()}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Prompt to use Sirius */}
+            <div className="rounded-xl p-4 text-sm" style={{ background: "hsla(193,100%,40%,0.06)", border: "1px dashed hsla(193,100%,40%,0.3)", color: "hsl(193,100%,30%)" }}>
+              <strong>Voice control:</strong> Tell Sirius "what's building", "pipeline status", "build project #42", or "build me a [description]" — she controls this panel directly.
+            </div>
+          </div>
+        )}
+
+        {/* ── Build Wizard (existing phases) — only when "build" view is active ── */}
+        {appBuilderView === "build" && <>
 
         {/* ── Phase 1: Describe ── */}
         {phase === 1 && (
@@ -6078,6 +6201,7 @@ function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed }: { pin: strin
             </div>
           </div>
         )}
+        </> /* end build wizard */}
       </div>
 
       {/* ── Floating Architect Sub-Agent Panel ── */}
