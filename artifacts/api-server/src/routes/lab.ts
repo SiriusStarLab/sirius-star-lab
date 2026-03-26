@@ -6651,7 +6651,19 @@ Rules for voice:
         toolEventsEmitted.push({ name: tc.name, label: meta.label, icon: meta.icon, color: meta.color });
         const singleTurnProgress = (event: Record<string, unknown>) => { try { res.write(`data: ${JSON.stringify(event)}\n\n`); } catch { /* ignore */ } };
         const result = await executeLabTool(tc.name, args, singleTurnProgress);
-        toolResults.push({ id: tc.id, name: tc.name, result });
+
+        // Intercept NAVIGATE_ACTION — extract section + project ID and send as a proper SSE event
+        if (result.startsWith("NAVIGATE_ACTION:")) {
+          const payload = result.slice("NAVIGATE_ACTION:".length);
+          const [section, projectPart] = payload.split(" | ");
+          const projectId = projectPart?.startsWith("open_project:")
+            ? parseInt(projectPart.slice("open_project:".length), 10) || null
+            : null;
+          res.write(`data: ${JSON.stringify({ navigate: { section: section.trim(), projectId } })}\n\n`);
+          toolResults.push({ id: tc.id, name: tc.name, result: `Navigated to ${section.trim()}${projectId ? `, opening project #${projectId}` : ""}.` });
+        } else {
+          toolResults.push({ id: tc.id, name: tc.name, result });
+        }
       }
 
       conversationHistory.push({

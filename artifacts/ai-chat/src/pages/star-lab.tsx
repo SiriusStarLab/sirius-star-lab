@@ -10694,10 +10694,11 @@ const NAV_DESTINATIONS: { mode: NavMode; label: string; icon: string; color: str
 type VoiceMsg = { role: "user" | "assistant"; content: string };
 
 function StarLabVoiceWidget({
-  navMode, onNavigate, activeProject, projects, pin,
+  navMode, onNavigate, onOpenProject, activeProject, projects, pin,
 }: {
   navMode: string;
   onNavigate: (mode: string) => void;
+  onOpenProject?: (id: number) => void;
   activeProject: Project | null;
   projects: Project[];
   pin: string;
@@ -11022,6 +11023,11 @@ function StarLabVoiceWidget({
             }
             if (parsed.type === "status" && parsed.message) {
               setStatusText(parsed.message);
+            }
+            if (parsed.navigate) {
+              const { section, projectId } = parsed.navigate;
+              if (section) onNavigate(section);
+              if (projectId && onOpenProject) setTimeout(() => onOpenProject(projectId), 300);
             }
             if (parsed.done) {
               action = parsed.action;
@@ -13650,6 +13656,7 @@ export function StarLabPage() {
             <StarLabVoiceWidget
               navMode={navMode}
               onNavigate={(mode) => setNavMode(mode as NavMode)}
+              onOpenProject={id => { loadProject(id); setNavMode("projects"); }}
               activeProject={activeProject}
               projects={projects}
               pin={pin}
