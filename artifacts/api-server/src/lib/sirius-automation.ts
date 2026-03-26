@@ -1,0 +1,133 @@
+import { db, siriusAutomations, siriusCustomTools, siriusConfig } from "@workspace/db";
+import { eq, and, lte } from "drizzle-orm";
+
+// ── Cron helper — returns true if it's time to run based on trigger config ──
+function shouldRunNow(triggerConfig: string, lastRunAt: Date | null): boolean {
+  try {
+    const config = JSON.parse(triggerConfig || "{}");
+    if (!config.interval_minutes) return false;
+    if (!lastRunAt) return true;
+    const minutesSince = (Date.now() - new Date(lastRunAt).getTime()) / 60000;
+    return minutesSince >= config.interval_minutes;
+  } catch {
+    return false;
+  }
+}
+
+// ── Execute a single automation step ─────────────────────────────────────────
+async function executeStep(step: any): Promise<string> {
+  try {
+    if (step.type === "http") {
+      const { url, method = "GET", headers = {}, body } = step;
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json", ...headers },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      const text = await res.text();
+      return `HTTP ${res.status}: ${text.slice(0, 200)}`;
+    }
+    if (step.type === "log") {
+      return `[LOG] ${step.message}`;
+    }
+    return `Unknown step type: ${step.type}`;
+  } catch (err: any) {
+    return `Step error: ${err?.message}`;
+  }
+}
+
+// ── Run a single automation ───────────────────────────────────────────────────
+export async function runAutomation(automation: any): Promise<string> {
+  const steps = JSON.parse(automation.steps || "[]");
+  const results: string[] = [];
+  for (const step of steps) {
+    const result = await executeStep(step);
+    results.push(result);
+  }
+  const summary = results.join(" | ");
+  await db.update(siriusAutomations)
+    .set({ lastRunAt: new Date(), lastRunResult: summary.slice(0, 500), updatedAt: new Date() })
+    .where(eq(siriusAutomations.id, automation.id));
+  return summary;
+}
+
+// ── Execute a custom tool defined by Sirius ───────────────────────────────────
+export async function executeCustomTool(toolName: string, args: Record<string, any>): Promise<string> {
+  const tools = await db.select().from(siriusCustomTools)
+    .where(eq(siriusCustomTools.name, toolName));
+  const tool = tools[0];
+  if (!tool) return `Custom tool "${toolName}" not found.`;
+
+  const config = JSON.parse(tool.handlerConfig || "{}");
+
+  if (tool.handlerType === "http") {
+    try {
+      let url: string = config.url || "";
+      // Template substitution — replace {arg_name} with actual arg values
+      for (const [k, v] of Object.entries(args)) {
+        url = url.replace(`{${k}}`, encodeURIComponent(String(v)));
+      }
+      const method: string = config.method || "GET";
+      let body: any = config.body;
+      if (body && typeof body === "object") {
+        body = JSON.parse(JSON.stringify(body).replace(
+          /"\{(\w+)\}"/g,
+          (_: string, k: string) => JSON.stringify(args[k] ?? `{${k}}`)
+        ));
+      }
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json", ...(config.headers || {}) },
+        body: method !== "GET" && body ? JSON.stringify(body) : undefined,
+      });
+      const text = await res.text();
+      await db.update(siriusCustomTools)
+        .set({ lastUsedAt: new Date() })
+        .where(eq(siriusCustomTools.name, toolName));
+      return `${res.status === 200 ? "OK" : `HTTP ${res.status}`}: ${text.slice(0, 400)}`;
+    } catch (err: any) {
+      return `Custom tool error: ${err?.message}`;
+    }
+  }
+
+  if (tool.handlerType === "chain") {
+    const steps = config.steps || [];
+    const results: string[] = [];
+    for (const step of steps) {
+      results.push(await executeStep({ ...step, args }));
+    }
+    await db.update(siriusCustomTools)
+      .set({ lastUsedAt: new Date() })
+      .where(eq(siriusCustomTools.name, toolName));
+    return results.join(" → ");
+  }
+
+  return `Unsupported handler type: ${tool.handlerType}`;
+}
+
+// ── Get the self-configurable system prompt addendum ─────────────────────────
+export async function getSiriusConfigValue(key: string): Promise<string> {
+  const rows = await db.select().from(siriusConfig).where(eq(siriusConfig.key, key));
+  return rows[0]?.value ?? "";
+}
+
+export async function setSiriusConfigValue(key: string, value: string): Promise<void> {
+  await db.insert(siriusConfig)
+    .values({ key, value, updatedAt: new Date() })
+    .onConflictDoUpdate({ target: siriusConfig.key, set: { value, updatedAt: new Date() } });
+}
+
+// ── Background automation tick — call every 60 seconds ───────────────────────
+export async function tickAutomations(): Promise<void> {
+  try {
+    const automations = await db.select().from(siriusAutomations)
+      .where(eq(siriusAutomations.enabled, true));
+    for (const automation of automations) {
+      if (automation.triggerType === "schedule" && shouldRunNow(automation.triggerConfig || "", automation.lastRunAt)) {
+        await runAutomation(automation);
+      }
+    }
+  } catch (err: any) {
+    console.error("[Sirius Automations] Tick error:", err?.message);
+  }
+}

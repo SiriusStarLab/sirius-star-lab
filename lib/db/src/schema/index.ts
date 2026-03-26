@@ -33,3 +33,6 @@ export * from "./outreach_engine";
 export * from "./media_outlets";
 export * from "./app_builder_sessions";
 export * from "./voice_journal";
+export * from "./sirius_config";
+export * from "./sirius_automations";
+export * from "./sirius_custom_tools";

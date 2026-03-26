@@ -3,6 +3,7 @@ import { startScheduledSweeps } from "./routes/intelligence-sweep.js";
 import { startLabAutoScanner } from "./lib/lab-auto-scan.js";
 import { startAiArchSweep } from "./lib/ai-arch-sweep.js";
 import { startProjectPipeline } from "./lib/project-pipeline.js";
+import { tickAutomations } from "./lib/sirius-automation.js";
 
 const rawPort = process.env["PORT"];
 if (!rawPort) {
@@ -19,4 +20,7 @@ app.listen(port, () => {
   startLabAutoScanner(24);
   startAiArchSweep(24);
   startProjectPipeline();
+  // Sirius self-management — run automations she has created
+  setInterval(() => tickAutomations(), 60_000);
+  console.log("[Sirius Automations] Self-management engine started — checking every 60 seconds");
 });

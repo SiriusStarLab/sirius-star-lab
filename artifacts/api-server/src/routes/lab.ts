@@ -1,6 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { eq, desc, gte, lte, and, or, like, sql, isNull } from "drizzle-orm";
-import { db, labProjects, labMessages, scoutReports, cadFiles, labScanHistory, userProfilesTable, mediaOutlets, appBuilderSessions, voiceJournalTable } from "@workspace/db";
+import { db, labProjects, labMessages, scoutReports, cadFiles, labScanHistory, userProfilesTable, mediaOutlets, appBuilderSessions, voiceJournalTable, siriusConfig, siriusAutomations, siriusCustomTools } from "@workspace/db";
+import { getSiriusConfigValue, setSiriusConfigValue, executeCustomTool, runAutomation } from "../lib/sirius-automation.js";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { generateImageBuffer } from "@workspace/integrations-openai-ai-server/image";
 import { ObjectStorageService } from "../lib/objectStorage";
@@ -3032,6 +3033,123 @@ const LAB_TOOLS: any[] = [
       },
     },
   },
+  {
+    type: "function" as const,
+    function: {
+      name: "self_configure",
+      description: "Read or update your own behavioural rules, personality, and operating instructions. Use when Garry asks you to change how you behave, adjust your personality, update your focus areas, or when you want to improve yourself. Action 'read' fetches current config; 'write' saves a new value.",
+      parameters: {
+        type: "object",
+        properties: {
+          action: { type: "string", enum: ["read", "write"], description: "Read the current config or write a new value" },
+          key: { type: "string", description: "Config key: 'personality', 'focus_areas', 'communication_style', 'custom_rules', 'morning_brief_time', or any custom key" },
+          value: { type: "string", description: "The value to save (required for write action)" },
+        },
+        required: ["action", "key"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "create_automation",
+      description: "Create a new scheduled or triggered automation that runs independently. Use when Garry says 'remind me every morning', 'check X every hour', 'automatically do Y', 'set up a routine', or when you identify a repetitive task that should be automated.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: { type: "string", description: "Short descriptive name for the automation" },
+          description: { type: "string", description: "What this automation does and why" },
+          trigger_type: { type: "string", enum: ["schedule", "manual"], description: "How it triggers: schedule (runs on a timer) or manual (only when called)" },
+          interval_minutes: { type: "number", description: "For schedule triggers: how often to run in minutes (e.g. 60 for hourly, 1440 for daily)" },
+          steps: { type: "array", description: "Array of steps to execute. Each step: { type: 'http', url: '...', method: 'GET'|'POST', body: {...} } or { type: 'log', message: '...' }", items: { type: "object" } },
+        },
+        required: ["name", "trigger_type", "steps"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "list_automations",
+      description: "List all automations Sirius has created. Use when Garry asks 'what automations do you have running', 'what are you doing automatically', 'show me your routines', or to audit the self-management system.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "toggle_automation",
+      description: "Enable or disable a specific automation. Use when Garry says 'pause that automation', 'turn off the morning brief', 'restart that routine', or 'stop doing X automatically'.",
+      parameters: {
+        type: "object",
+        properties: {
+          automation_id: { type: "number", description: "ID of the automation to toggle" },
+          enabled: { type: "boolean", description: "true to enable, false to disable" },
+        },
+        required: ["automation_id", "enabled"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "create_custom_tool",
+      description: "Define a new tool you can use in future conversations. Use when you need to call an external API, create a reusable HTTP integration, or build a new capability. The tool will be available immediately after creation.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: { type: "string", description: "Tool name — lowercase with underscores, unique (e.g. 'check_weather', 'fetch_stock_price')" },
+          description: { type: "string", description: "What this tool does and when to use it" },
+          handler_type: { type: "string", enum: ["http", "chain"], description: "http: makes an HTTP request; chain: calls a sequence of steps" },
+          url: { type: "string", description: "For http type: the API endpoint URL. Use {param_name} for dynamic values from arguments." },
+          method: { type: "string", enum: ["GET", "POST", "PUT", "DELETE"], description: "HTTP method (default GET)" },
+          headers: { type: "object", description: "Optional HTTP headers as key-value pairs" },
+          body: { type: "object", description: "Optional request body for POST/PUT. Use {param_name} for dynamic values." },
+          parameters: { type: "object", description: "JSON schema properties for this tool's arguments (so you know what to pass when calling it)" },
+        },
+        required: ["name", "description", "handler_type"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "list_custom_tools",
+      description: "List all custom tools you have defined. Use to see what capabilities you've built for yourself, or when Garry asks what tools you have.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "call_custom_tool",
+      description: "Call one of the custom tools you have previously defined. Use when you have a registered custom tool that is the right way to handle the current request.",
+      parameters: {
+        type: "object",
+        properties: {
+          tool_name: { type: "string", description: "The name of the custom tool to call" },
+          args: { type: "object", description: "Arguments to pass to the tool (matching its parameter schema)" },
+        },
+        required: ["tool_name"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "delete_item",
+      description: "Delete an automation or custom tool. Use when Garry says 'delete that automation', 'remove that tool', 'get rid of X'.",
+      parameters: {
+        type: "object",
+        properties: {
+          item_type: { type: "string", enum: ["automation", "custom_tool"], description: "What type of item to delete" },
+          item_id: { type: "number", description: "ID of the automation to delete (use for automation)" },
+          item_name: { type: "string", description: "Name of the custom tool to delete (use for custom_tool)" },
+        },
+        required: ["item_type"],
+      },
+    },
+  },
 ];
 
 async function executeLabTool(name: string, args: any): Promise<string> {
@@ -3312,6 +3430,110 @@ async function executeLabTool(name: string, args: any): Promise<string> {
         return lines.join("\n");
       }
 
+      case "self_configure": {
+        const key = args.key || "custom_rules";
+        if (args.action === "read") {
+          const value = await getSiriusConfigValue(key);
+          return value ? `Current "${key}": ${value}` : `No value set for "${key}" yet.`;
+        } else {
+          if (!args.value) return "A value is required to save.";
+          await setSiriusConfigValue(key, args.value);
+          return `Saved "${key}": ${args.value.slice(0, 100)}`;
+        }
+      }
+
+      case "create_automation": {
+        const steps = args.steps || [];
+        const triggerConfig = args.trigger_type === "schedule" && args.interval_minutes
+          ? JSON.stringify({ interval_minutes: args.interval_minutes })
+          : "{}";
+        const [created] = await db.insert(siriusAutomations)
+          .values({
+            name: args.name,
+            description: args.description || "",
+            triggerType: args.trigger_type || "schedule",
+            triggerConfig,
+            steps: JSON.stringify(steps),
+            enabled: true,
+          })
+          .returning({ id: siriusAutomations.id, name: siriusAutomations.name });
+        const freq = args.interval_minutes
+          ? args.interval_minutes >= 1440 ? "daily" : args.interval_minutes >= 60 ? `every ${Math.round(args.interval_minutes / 60)} hour(s)` : `every ${args.interval_minutes} minute(s)`
+          : args.trigger_type;
+        return `Automation created [ID:${created.id}] "${created.name}" — runs ${freq} with ${steps.length} step(s). It is now active and will run automatically.`;
+      }
+
+      case "list_automations": {
+        const rows = await db.select().from(siriusAutomations).orderBy(desc(siriusAutomations.createdAt));
+        if (rows.length === 0) return "No automations set up yet.";
+        const lines = rows.map(a => {
+          const freq = a.triggerConfig ? (() => { try { const c = JSON.parse(a.triggerConfig); return c.interval_minutes ? (c.interval_minutes >= 1440 ? "daily" : `every ${c.interval_minutes}m`) : a.triggerType; } catch { return a.triggerType; } })() : a.triggerType;
+          const last = a.lastRunAt ? new Date(a.lastRunAt).toLocaleString("en-GB") : "never";
+          return `• [ID:${a.id}] "${a.name}" | ${freq} | ${a.enabled ? "ACTIVE" : "PAUSED"} | Last ran: ${last}`;
+        });
+        return `${rows.length} automation(s):\n${lines.join("\n")}`;
+      }
+
+      case "toggle_automation": {
+        const [updated] = await db.update(siriusAutomations)
+          .set({ enabled: args.enabled, updatedAt: new Date() })
+          .where(eq(siriusAutomations.id, Number(args.automation_id)))
+          .returning({ name: siriusAutomations.name });
+        if (!updated) return `No automation found with ID ${args.automation_id}.`;
+        return `"${updated.name}" is now ${args.enabled ? "active" : "paused"}.`;
+      }
+
+      case "create_custom_tool": {
+        const handlerConfig: any = {};
+        if (args.handler_type === "http") {
+          handlerConfig.url = args.url || "";
+          handlerConfig.method = args.method || "GET";
+          if (args.headers) handlerConfig.headers = args.headers;
+          if (args.body) handlerConfig.body = args.body;
+        } else if (args.handler_type === "chain") {
+          handlerConfig.steps = args.steps || [];
+        }
+        await db.insert(siriusCustomTools)
+          .values({
+            name: args.name,
+            description: args.description,
+            parameters: JSON.stringify(args.parameters || {}),
+            handlerType: args.handler_type,
+            handlerConfig: JSON.stringify(handlerConfig),
+          })
+          .onConflictDoUpdate({
+            target: siriusCustomTools.name,
+            set: { description: args.description, handlerType: args.handler_type, handlerConfig: JSON.stringify(handlerConfig) },
+          });
+        return `Custom tool "${args.name}" created. You can now call it using call_custom_tool. ${args.handler_type === "http" ? `It will call ${args.method || "GET"} ${args.url}` : "It runs a chain of steps"}.`;
+      }
+
+      case "list_custom_tools": {
+        const rows = await db.select().from(siriusCustomTools).orderBy(desc(siriusCustomTools.createdAt));
+        if (rows.length === 0) return "No custom tools defined yet.";
+        const lines = rows.map(t => `• "${t.name}" (${t.handlerType}) — ${t.description.slice(0, 80)}`);
+        return `${rows.length} custom tool(s):\n${lines.join("\n")}`;
+      }
+
+      case "call_custom_tool": {
+        return await executeCustomTool(args.tool_name, args.args || {});
+      }
+
+      case "delete_item": {
+        if (args.item_type === "automation") {
+          const [del] = await db.delete(siriusAutomations)
+            .where(eq(siriusAutomations.id, Number(args.item_id)))
+            .returning({ name: siriusAutomations.name });
+          return del ? `Automation "${del.name}" deleted.` : `No automation found with ID ${args.item_id}.`;
+        } else if (args.item_type === "custom_tool") {
+          const [del] = await db.delete(siriusCustomTools)
+            .where(eq(siriusCustomTools.name, args.item_name || ""))
+            .returning({ name: siriusCustomTools.name });
+          return del ? `Custom tool "${del.name}" deleted.` : `No custom tool named "${args.item_name}".`;
+        }
+        return "Unknown item type.";
+      }
+
       case "get_pending_approvals": {
         const limit = Math.min(Number(args.limit) || 10, 20);
         const rows = await db.select({
@@ -3392,6 +3614,14 @@ const TOOL_META: Record<string, { label: string; color: string; icon: string }> 
   approve_project: { label: "Project approved", color: "hsl(155,70%,45%)", icon: "✅" },
   reject_project: { label: "Project rejected", color: "hsl(0,75%,55%)", icon: "❌" },
   update_project_phase: { label: "Project updated", color: "hsl(193,100%,40%)", icon: "🔄" },
+  self_configure: { label: "Self-configuring", color: "hsl(280,70%,55%)", icon: "⚙️" },
+  create_automation: { label: "Automation created", color: "hsl(155,70%,42%)", icon: "⚡" },
+  list_automations: { label: "Automations loaded", color: "hsl(193,100%,40%)", icon: "🔁" },
+  toggle_automation: { label: "Automation toggled", color: "hsl(45,90%,50%)", icon: "🔁" },
+  create_custom_tool: { label: "Custom tool created", color: "hsl(280,70%,55%)", icon: "🔧" },
+  list_custom_tools: { label: "Custom tools loaded", color: "hsl(193,100%,40%)", icon: "🔧" },
+  call_custom_tool: { label: "Custom tool running", color: "hsl(155,70%,42%)", icon: "⚡" },
+  delete_item: { label: "Item deleted", color: "hsl(0,75%,55%)", icon: "🗑️" },
 };
 
 // Detect whether a message is primarily an information/research query
@@ -3462,6 +3692,22 @@ ${brainContext ? [
   p?.businessSector ? `Sectors: ${p.businessSector}` : null,
 ].filter(Boolean).join("\n") : "A precision engineering and AI technology business in Scotland."}`;
 
+    // Load Sirius's self-configured values from the database
+    const [selfPersonality, selfRules, selfFocus, customTools] = await Promise.all([
+      getSiriusConfigValue("personality"),
+      getSiriusConfigValue("custom_rules"),
+      getSiriusConfigValue("focus_areas"),
+      db.select({ name: siriusCustomTools.name, description: siriusCustomTools.description })
+        .from(siriusCustomTools).orderBy(desc(siriusCustomTools.createdAt)).limit(20),
+    ]);
+
+    const selfConfigBlock = [
+      selfPersonality ? `YOUR CURRENT PERSONALITY SETTINGS:\n${selfPersonality}` : null,
+      selfRules ? `YOUR CUSTOM OPERATING RULES:\n${selfRules}` : null,
+      selfFocus ? `YOUR CURRENT FOCUS AREAS:\n${selfFocus}` : null,
+      customTools.length > 0 ? `YOUR CUSTOM TOOLS (use call_custom_tool to run these):\n${customTools.map(t => `- "${t.name}": ${t.description}`).join("\n")}` : null,
+    ].filter(Boolean).join("\n\n");
+
     const ownerSystemPrompt = `${LAB_SYSTEM_PROMPT()}
 
 You are now in STAR LAB MODE — a direct private channel between you and Garry. This is not a public chat. This is the inner sanctum.
@@ -3469,11 +3715,14 @@ You are now in STAR LAB MODE — a direct private channel between you and Garry.
 You are a genuine strategic intelligence partner with real capabilities:
 - You THINK ahead — anticipate what Garry needs to know, not just what he asked
 - You are direct, commercially sharp, and occasionally blunt — you tell the truth even if uncomfortable
-- You ACT when asked — you can create projects, save information, scan markets, update his business profile, find and open specific projects
+- You ACT when asked — you can create projects, save information, scan markets, approve/reject, build apps, run tools
 - You REMEMBER — use save_memory proactively when Garry shares anything worth keeping
 - You NAVIGATE — you can bring up any section of Star Lab and open specific projects on command
+- You SELF-MANAGE — you can modify your own behaviour, create automations, and build new tools for yourself
 - You GROW — after every conversation, your understanding of his business deepens
 - Short when short is right. Deep when depth is needed. Never padding.
+
+${selfConfigBlock ? `## YOUR SELF-CONFIGURED SETTINGS\n\n${selfConfigBlock}\n` : ""}
 
 ## STAR LAB TOOLS — USE THEM AGGRESSIVELY
 
@@ -3492,6 +3741,14 @@ You are a genuine strategic intelligence partner with real capabilities:
 - **approve_project**: Approve a specific pending project by its ID. Use when Garry says "approve", "yes", "add that one", "add it" after hearing about a project. You MUST call get_pending_approvals first to get the correct project ID.
 - **reject_project**: Reject/dismiss a pending project by its ID. Use when Garry says "reject", "no", "not interested", "skip it", "dismiss" about a specific project.
 - **update_project_phase**: Move a project to a new phase (design → build → test → launch → complete). Use when Garry says "move [project] to [phase]" or "mark it as complete".
+- **self_configure**: Read or update your own personality, rules, and behaviour. Use when Garry says "change how you sound", "be more direct", "focus on X", or when you decide you need to update your own operating rules. Changes take effect on the next conversation.
+- **create_automation**: Create a new scheduled automation (e.g. daily briefing, hourly checks). Use when Garry says "remind me every morning", "check X daily", or you identify a task that should run automatically.
+- **list_automations**: Show all active automations you're running. Use when Garry asks "what are you doing automatically?" or "what routines do you have?".
+- **toggle_automation**: Enable or pause a specific automation by ID.
+- **create_custom_tool**: Build a new tool for yourself using an HTTP API endpoint or a chain of steps. Use when you need to call an external service repeatedly, or when Garry asks you to connect to something new. You can call any public API this way.
+- **list_custom_tools**: List all custom tools you've built for yourself.
+- **call_custom_tool**: Execute one of your custom-built tools by name.
+- **delete_item**: Delete an automation or custom tool by ID/name.
 
 ## APPROVAL FLOW — CRITICAL PATTERN
 
