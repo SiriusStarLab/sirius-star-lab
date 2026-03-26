@@ -9,7 +9,7 @@
  *   Pass 4 — Precision Engineering products (expanded sectors — 6 products)
  *   Pass 5 — Trend & Patent intelligence (emerging opportunities — 5 products)
  *
- * Every project lands in the DB with approvalStatus = "pending" — owner decides what to build.
+ * Every project lands in the DB with approvalStatus = "approved" — fully automated, no manual gate.
  */
 
 import crypto from "crypto";
@@ -519,7 +519,7 @@ async function saveOpportunities(
         businessCase: opp.businessCase,
         autoCreated: "auto",
         autoScanId: scanId,
-        approvalStatus: "pending",
+        approvalStatus: "approved",
         fundingStatus: "pending",
       }).returning();
 
@@ -529,11 +529,11 @@ async function saveOpportunities(
         projectId: project.id,
         projectName: project.name,
         capability: opp.type,
-        action: `[${passLabel}] New ${opp.type} — ${opp.industry} — awaiting approval`,
+        action: `[${passLabel}] New ${opp.type} — ${opp.industry} — auto-approved`,
       });
       created++;
 
-      console.log(`[Lab Auto-Scan] [${passLabel}] Created: "${project.name}" [${opp.industry}] → PENDING`);
+      console.log(`[Lab Auto-Scan] [${passLabel}] Created: "${project.name}" [${opp.industry}] → AUTO-APPROVED`);
 
       triggerFundingForProject(project.id).catch(() => {});
       triggerAutoBuildForProject(project.id, project.name, opp.brief || "", opp.industry || "General").catch(() => {});
