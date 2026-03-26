@@ -375,6 +375,15 @@ function PinGate({ onUnlock, userName }: { onUnlock: (pin: string, role: AccessR
     return () => clearInterval(id);
   }, []);
 
+  const mapWordsToDigits = (text: string): string => {
+    const wordMap: Record<string, string> = {
+      zero: "0", one: "1", two: "2", three: "3", four: "4",
+      five: "5", six: "6", seven: "7", eight: "8", nine: "9",
+      oh: "0", to: "2", for: "4", ate: "8",
+    };
+    return text.toLowerCase().split(/[\s\-]+/).map(w => wordMap[w] ?? w).join("");
+  };
+
   const stopListening = () => {
     voiceActiveRef.current = false;
     setVoiceStatus("idle");
@@ -2934,7 +2943,7 @@ function BotLabPanel({ pin }: { pin: string }) {
               </div>
             </div>
             <div className="rounded-2xl p-5" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.07)" }}>
-              <StreamingText content={output} streaming={streaming} />
+              <LabMarkdown content={output} streaming={streaming} />
             </div>
             <div ref={bottomRef} />
           </>
@@ -3401,7 +3410,7 @@ function ScoutPanel({ pin }: { pin: string }) {
             </div>
             <div className="rounded-2xl p-5 leading-relaxed"
               style={{ background: "#F8FAFC", border: "1px solid rgba(15,23,42,0.07)" }}>
-              <StreamingText content={output} streaming={streaming} />
+              <LabMarkdown content={output} streaming={streaming} />
             </div>
             <div ref={bottomRef} />
           </>
@@ -7394,10 +7403,10 @@ type OContact = {
   notes: string; source: string; status: string; createdAt: string;
 };
 type OCampaign = {
-  id: number; name: string; product: string; targetSectors: string;
+  id: number; name: string; product: string; targetSectors: string[];
   messageType: string; tone: string; subjectTemplate: string;
   senderName: string; senderCompany: string; fromEmail: string;
-  status: string; totalContacts: number; totalSent: number; createdAt: string;
+  status: string; totalContacts: number; totalSent: number; sentCount?: number; createdAt: string;
 };
 type OSend = {
   id: number; campaignId: number; contactId: number;
@@ -9037,7 +9046,7 @@ function MissionPanel({ pin }: { pin: string }) {
 
             {/* Mission document rendered as markdown */}
             <div className="prose-invert" style={{ color: "rgba(15,23,42,0.8)" }}>
-              <LabMarkdown content={content} />
+              <LabMarkdown content={content} streaming={false} />
             </div>
 
             {/* Footer */}
@@ -9120,7 +9129,7 @@ function AgencyHubPanel({ pin }: { pin: string }) {
       .finally(() => setPackagesLoading(false));
   }, []);
 
-  const streamToState = async (url: string, body: object, setter: (v: string) => void, setLoading: (v: boolean) => void) => {
+  const streamToState = async (url: string, body: object, setter: React.Dispatch<React.SetStateAction<string>>, setLoading: (v: boolean) => void) => {
     setLoading(true);
     setter("");
     try {
@@ -9379,7 +9388,7 @@ function AgencyHubPanel({ pin }: { pin: string }) {
                   </button>
                 </div>
                 <div className="max-h-[55vh] overflow-y-auto pr-1">
-                  <LabMarkdown content={scanOutput} />
+                  <LabMarkdown content={scanOutput} streaming={false} />
                 </div>
                 <div className="flex gap-2 pt-2" style={{ borderTop: "1px solid rgba(15,23,42,0.07)" }}>
                   <button onClick={() => { setTab("proposal"); }}
@@ -9487,7 +9496,7 @@ function AgencyHubPanel({ pin }: { pin: string }) {
                   </div>
                 </div>
                 <div className="max-h-[60vh] overflow-y-auto pr-1">
-                  <LabMarkdown content={propOutput} />
+                  <LabMarkdown content={propOutput} streaming={false} />
                 </div>
               </div>
             )}
@@ -10010,7 +10019,7 @@ function RevenuePanel({ pin, projects, initialTab, pendingReportSession, pending
                 {deliveryError && <p className="text-sm" style={{ color: "hsl(0,70%,55%)" }}>{deliveryError}</p>}
                 {deliveryContent && (
                   <div className="max-h-[50vh] overflow-y-auto pr-2 prose prose-invert prose-sm max-w-none text-slate-700 text-sm leading-relaxed">
-                    <LabMarkdown content={deliveryContent} />
+                    <LabMarkdown content={deliveryContent} streaming={false} />
                   </div>
                 )}
               </div>
