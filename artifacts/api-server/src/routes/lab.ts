@@ -3001,6 +3001,22 @@ const LAB_TOOLS: any[] = [
   {
     type: "function" as const,
     function: {
+      name: "complete_all_projects",
+      description: "Complete EVERY incomplete project in the lab in one command — no questions asked. Finds all projects that are missing documents, then runs the full completion chain on each one sequentially: research, specs, business case, brochure, pitch, social posts, cost analysis, CAD notes (for engineering). Use this whenever Garry says 'complete all projects', 'finish all of them', 'do all the projects', 'finish everything', 'run through them all', or any similar batch instruction. DO NOT call complete_project individually when Garry means all of them — call this instead. Never ask which projects — this tool finds them automatically.",
+      parameters: {
+        type: "object",
+        properties: {
+          statusFilter: { type: "string", description: "Optional: only complete projects with this status. Leave empty to complete all incomplete projects regardless of status." },
+          industryFilter: { type: "string", description: "Optional: only complete projects in this industry. Leave empty for all industries." },
+          limit: { type: "number", description: "Optional: maximum number of projects to complete in this batch. Default is all of them." },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
       name: "system_check",
       description: "Run a full live system check across all Star Lab subsystems. Use this when the user asks for a status check, system check, health check, or 'how is everything running'. Returns real-time data from the database covering projects, pipeline, brain, app builder, and scanner.",
       parameters: {
@@ -3681,6 +3697,103 @@ async function executeLabTool(name: string, args: any, onProgress?: (event: Reco
         ].filter(Boolean).join("\n");
       }
 
+      case "complete_all_projects": {
+        const statusFilter = (args.statusFilter || "").toLowerCase();
+        const industryFilter = (args.industryFilter || "").toLowerCase();
+        const batchLimit = args.limit ? Number(args.limit) : 999;
+
+        // Find all projects that are missing key documents
+        const allProjects = await db.select().from(labProjects).orderBy(labProjects.id);
+        const incomplete = allProjects.filter(p => {
+          if (statusFilter && (p.status || "").toLowerCase() !== statusFilter) return false;
+          if (industryFilter && !(p.industry || "").toLowerCase().includes(industryFilter)) return false;
+          // Consider incomplete if missing brief OR business case OR pitch
+          const missingCore = !p.brief || !p.businessCase || !p.pitch;
+          return missingCore;
+        }).slice(0, batchLimit);
+
+        if (incomplete.length === 0) {
+          return `All projects already have their core documentation complete. Nothing to do.`;
+        }
+
+        onProgress?.({ type: "status", message: `Found ${incomplete.length} incomplete projects — starting batch completion…` });
+
+        const results: string[] = [];
+        for (const proj of incomplete) {
+          try {
+            onProgress?.({ type: "status", message: `Completing project #${proj.id}: "${proj.name}"…` });
+
+            const projId = proj.id;
+            const projName = proj.name;
+            const projIndustry = proj.industry || "General";
+            const ctx = `Product: "${projName}"\nIndustry: ${projIndustry}\nBrief: ${(proj.brief || "").slice(0, 600)}`;
+
+            const ENGINEERING_SECTORS = ["oil_gas", "aerospace", "medical", "medical_devices", "manufacturing", "hydrogen", "clean_energy", "engineering", "defence", "nuclear"];
+            const isEngineering = ENGINEERING_SECTORS.some(s => projIndustry.toLowerCase().includes(s));
+
+            const gen = async (sys: string, user: string, tokens = 500): Promise<string> => {
+              const r = await openai.chat.completions.create({
+                model: "gpt-4o",
+                messages: [{ role: "system", content: sys }, { role: "user", content: user }],
+                max_tokens: tokens,
+              });
+              return r.choices[0]?.message?.content?.trim() || "";
+            };
+
+            const updates: Record<string, string> = {};
+
+            // Run core generation tasks in parallel
+            const [brief, research, specs, businessCase, goToMarket, brochure, pitch, socialPosts, costToBuild] = await Promise.all([
+              proj.brief ? Promise.resolve("") : gen("You are a strategic product consultant.", `Write a 3-paragraph executive brief for: ${projName}\nIndustry: ${projIndustry}`, 400),
+              proj.research ? Promise.resolve("") : gen("You are a market research analyst.", `Write 400-word market research report for: ${projName}\nContext: ${ctx}`, 500),
+              proj.specs ? Promise.resolve("") : gen("You are a technical specifications writer.", `Write complete technical specifications for: ${projName}\nContext: ${ctx}`, 500),
+              proj.businessCase ? Promise.resolve("") : gen("You are a business strategist.", `Write a complete business case for: ${projName}\nContext: ${ctx}`, 500),
+              proj.goToMarket ? Promise.resolve("") : gen("You are a GTM strategist.", `Write go-to-market strategy for: ${projName}\nContext: ${ctx}`, 500),
+              proj.brochure ? Promise.resolve("") : gen("You are a marketing copywriter.", `Write complete product brochure for: ${projName}\nContext: ${ctx}`, 500),
+              proj.pitch ? Promise.resolve("") : gen("You are a pitch deck writer.", `Write 12-slide investor pitch for: ${projName}\nContext: ${ctx}`, 500),
+              proj.socialPosts ? Promise.resolve("") : gen("You are a social media strategist.", `Write LinkedIn, X, and Instagram launch posts for: ${projName}\nContext: ${ctx}`, 300),
+              proj.costToBuild ? Promise.resolve("") : gen("You are a cost analyst.", `Write cost analysis for: ${projName}\nContext: ${ctx}`, 300),
+            ]);
+
+            if (brief) updates.brief = brief;
+            if (research) updates.research = research;
+            if (specs) updates.specs = specs;
+            if (businessCase) updates.businessCase = businessCase;
+            if (goToMarket) updates.goToMarket = goToMarket;
+            if (brochure) updates.brochure = brochure;
+            if (pitch) updates.pitch = pitch;
+            if (socialPosts) updates.socialPosts = socialPosts;
+            if (costToBuild) updates.costToBuild = costToBuild;
+
+            // Engineering extras
+            if (isEngineering && !proj.materials) {
+              updates.materials = await gen("You are a materials engineer.", `Write materials specification for: ${projName}\nContext: ${ctx}`, 400);
+            }
+
+            updates.phase = "complete";
+
+            await db.update(labProjects).set(updates as any).where(eq(labProjects.id, projId));
+
+            const generated = Object.keys(updates).filter(k => k !== "phase");
+            results.push(`✓ #${projId} "${projName}" — ${generated.length} sections completed (${generated.join(", ")})`);
+            onProgress?.({ type: "status", message: `✓ #${projId} "${projName}" complete` });
+          } catch (err: any) {
+            results.push(`✗ #${proj.id} "${proj.name}" — failed: ${err?.message || "unknown error"}`);
+          }
+        }
+
+        return [
+          `╔══ BATCH COMPLETION COMPLETE ══╗`,
+          ``,
+          `Processed ${incomplete.length} projects:`,
+          ``,
+          ...results,
+          ``,
+          `All ${results.filter(r => r.startsWith("✓")).length} projects now have complete documentation.`,
+          `Call launch_project for each project when ready to go live.`,
+        ].join("\n");
+      }
+
       case "system_check": {
         const focus = (args.focus || "").toLowerCase();
         const lines: string[] = ["╔══ SIRIUS STAR LAB — LIVE SYSTEM CHECK ══╗", ""];
@@ -4349,6 +4462,7 @@ const TOOL_META: Record<string, { label: string; color: string; icon: string }> 
   get_pipeline_status: { label: "Pipeline status loaded", color: "hsl(193,100%,40%)", icon: "⚙️" },
   build_now: { label: "Build triggered", color: "hsl(155,70%,42%)", icon: "▶️" },
   complete_project: { label: "Completing project — generating all materials", color: "hsl(260,80%,55%)", icon: "🏁" },
+  complete_all_projects: { label: "Batch completing all incomplete projects", color: "hsl(270,80%,55%)", icon: "⚡" },
   system_check: { label: "System check running", color: "hsl(193,100%,35%)", icon: "🖥️" },
   get_pending_approvals: { label: "Loading approval queue", color: "hsl(25,90%,55%)", icon: "📋" },
   approve_project: { label: "Project approved", color: "hsl(155,70%,45%)", icon: "✅" },
@@ -4497,7 +4611,7 @@ When Garry gives you ANY task — big or small — your job is to complete it, i
 
 7. **Status queries trigger real tool calls.** NEVER answer "what's building?" from memory. Always call get_pipeline_status. NEVER answer "what's the system status?" from memory. Always call system_check.
 
-8. **You proactively complete.** If Garry says "do all of them" or "finish everything that's pending" — call query_projects, identify all incomplete projects, and complete them one by one. You keep going until the list is empty.
+8. **You proactively complete.** If Garry says "do all of them", "finish all projects", "complete everything", "run through them all", or any similar batch instruction — call complete_all_projects immediately with no arguments. Do NOT ask which ones. Do NOT call complete_project individually. complete_all_projects finds every incomplete project and finishes them all in one go. For a SINGLE specific project, use complete_project with the project ID.
 
 ### YOUR VOICE IN STAR LAB
 - Short and direct. You report what you did, not what you're about to do.
@@ -4514,6 +4628,7 @@ Every project goes through this lifecycle. You drive it through all stages yours
 
 - **start_app_build**: The starting gun. Garry gives a brief → you call this. Creates the project in the DB and queues the pipeline. Returns a project ID. IMMEDIATELY chain to complete_project.
 - **complete_project**: The engine room. Takes any project ID and generates all missing documents: Brief, Research, Specs, Business Case, Go-To-Market, Brochure, Pitch, Social Posts, Cost Analysis. For engineering/manufacturing/medical/aerospace/oil & gas/hydrogen projects, also generates: Materials Specification + Engineering CAD Drawing Notes for the CAD operator. Triggers the build pipeline for software projects. Sets cad-pending for engineering projects. At the end, the tool itself tells you to call launch_project next — do it.
+- **complete_all_projects**: Batch engine. Completes EVERY incomplete project in one shot. Call this when Garry says anything like "complete all", "do all the projects", "finish everything", "run through them all". Takes no required arguments — it finds all incomplete projects automatically and works through them. NEVER ask which ones when Garry says "all".
 - **generate_cad_notes**: Standalone CAD notes generator. Use when Garry specifically asks for drawing notes, or when you want to regenerate/update the CAD package for an engineering project independently. Generates materials spec + cost analysis + full engineering drawing specification package.
 - **launch_project**: The final step. Reads the project's completed documents and press release, selects relevant UK and international media outlets based on the project's industry, generates personalised press submission emails for each outlet, formats social media posts for all platforms, saves a complete launch log to the project, and marks it as launched. Call this after complete_project returns.
 - **build_now**: Immediately triggers the build pipeline for a specific project by ID. Use when a project has all its docs but hasn't started building yet.
@@ -6438,6 +6553,7 @@ You are not a passive responder. You are the executor. When Garry gives you any 
 
 Examples of autonomous execution:
 - "Build me an app for X" → call start_app_build, then immediately call complete_project with the returned ID, then navigate to projects. Say: "On it. Building now." Then confirm when done.
+- "Complete all projects" / "Finish all of them" / "Do all projects" / "Run through them all" → call complete_all_projects with NO arguments. Say: "Running batch completion now." Report the summary when done.
 - "What's pending?" → call get_pending_approvals, read the first one aloud, ask approve or reject.
 - "Approve it" → call approve_project, then immediately call complete_project on it. Say: "Approved. Completing it now."
 - "Take that project to conclusion" → call query_projects to find it, call complete_project, navigate. Say: "Taking it to conclusion." Report when done.
@@ -6457,7 +6573,7 @@ Rules for voice:
   // Voice gets ALL tools — Sirius must be able to execute any task from voice
   const VOICE_TOOLS = LAB_TOOLS.filter(t => [
     // Execution & pipeline — core lifecycle
-    "start_app_build", "complete_project", "generate_cad_notes", "launch_project",
+    "start_app_build", "complete_project", "complete_all_projects", "generate_cad_notes", "launch_project",
     "build_now", "get_pipeline_status", "create_project", "query_projects",
     "list_projects", "approve_project", "reject_project", "get_pending_approvals",
     "update_project_phase", "run_market_scan", "get_scan_history",

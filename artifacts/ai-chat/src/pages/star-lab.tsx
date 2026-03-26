@@ -911,9 +911,83 @@ function ChatPanel({ project, pin, mode, onUpdate }: { project: Project; pin: st
   const [showCompleteAll, setShowCompleteAll] = useState(false);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const [lastSaved, setLastSaved] = useState<{ field: string; label: string } | null>(null);
+  const [voicePhase, setVoicePhase] = useState<"idle" | "listening">("idle");
+  const voiceRecRef = useRef<any>(null);
   const projectRef = useRef(project);
   const bottomRef = useRef<HTMLDivElement>(null);
   const base = getApiBase();
+
+  const startVoice = () => {
+    const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRec || voicePhase === "listening") return;
+    const rec = new SpeechRec();
+    voiceRecRef.current = rec;
+    rec.lang = "en-GB"; rec.continuous = false; rec.interimResults = false;
+    rec.onstart = () => setVoicePhase("listening");
+    rec.onerror = () => { setVoicePhase("idle"); };
+    rec.onend = () => setVoicePhase("idle");
+    rec.onresult = (e: any) => {
+      const text = e.results[0]?.[0]?.transcript?.trim() || "";
+      if (text.length > 1) {
+        setVoicePhase("idle");
+        rec.stop();
+        // Auto-send the voice input directly
+        setMessages(prev => [...prev, { role: "user", content: text }, { role: "assistant", content: "" }]);
+        setStreaming(true);
+        (async () => {
+          let assistant = "";
+          try {
+            const res = await fetch(`${base}lab/projects/${project.id}/chat`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+              body: JSON.stringify({ message: text, tab: activeTab, mode: mode === "bot" ? "bot" : "engineering" }),
+            });
+            const reader = res.body!.getReader(); const decoder = new TextDecoder();
+            let buf = ""; let done = false;
+            while (!done) {
+              const { done: d, value } = await reader.read(); if (d) break;
+              buf += decoder.decode(value, { stream: true });
+              const lines = buf.split("\n"); buf = lines.pop() || "";
+              for (const line of lines) {
+                if (!line.startsWith("data: ")) continue;
+                try {
+                  const ev = JSON.parse(line.slice(6));
+                  if (ev.content) {
+                    assistant += ev.content;
+                    setMessages(prev => { const u = [...prev]; u[u.length - 1] = { role: "assistant", content: assistant }; return u; });
+                  }
+                  if (ev.type === "field_saved" && ev.field && ev.label) {
+                    setLastSaved({ field: ev.field, label: ev.label });
+                    setTimeout(() => setLastSaved(null), 3000);
+                    if (onUpdate && ev.preview !== undefined) onUpdate({ ...projectRef.current, [ev.field]: ev.preview + "…(saved)" });
+                  }
+                  if (ev.done) done = true;
+                } catch {}
+              }
+            }
+            reader.cancel().catch(() => {});
+            // Speak the response back
+            if (assistant && window.speechSynthesis) {
+              const utter = new SpeechSynthesisUtterance(assistant.replace(/[#*`_]/g, "").slice(0, 500));
+              utter.lang = "en-GB"; utter.rate = 1.05; utter.pitch = 1.0;
+              const voices = window.speechSynthesis.getVoices();
+              const preferred = voices.find(v => v.name.toLowerCase().includes("samantha") || v.name.toLowerCase().includes("karen") || (v.lang === "en-GB" && v.name.toLowerCase().includes("female"))) || voices.find(v => v.lang === "en-GB") || voices[0];
+              if (preferred) utter.voice = preferred;
+              window.speechSynthesis.speak(utter);
+            }
+          } catch {}
+          setStreaming(false);
+        })();
+      }
+    };
+    rec.start();
+  };
+
+  const stopVoice = () => {
+    try { voiceRecRef.current?.stop(); } catch {}
+    voiceRecRef.current = null;
+    setVoicePhase("idle");
+  };
 
   useEffect(() => { projectRef.current = project; }, [project]);
 
@@ -1106,21 +1180,36 @@ function ChatPanel({ project, pin, mode, onUpdate }: { project: Project; pin: st
           </div>
         )}
         <div className="p-3 border-t flex-shrink-0" style={{ borderColor: "rgba(15,23,42,0.06)" }}>
-          <div className="flex gap-2">
+          <div className="flex gap-2 mb-2">
+            {/* Voice button */}
+            <button
+              onClick={voicePhase === "listening" ? stopVoice : startVoice}
+              disabled={streaming}
+              title={voicePhase === "listening" ? "Stop listening" : "Speak to Sirius"}
+              className="w-9 h-9 rounded-xl flex items-center justify-center self-end transition-all flex-shrink-0"
+              style={{
+                background: voicePhase === "listening" ? "hsl(0,80%,55%)" : "rgba(15,23,42,0.07)",
+                border: voicePhase === "listening" ? "none" : "1px solid rgba(15,23,42,0.1)",
+                opacity: streaming ? 0.4 : 1,
+              }}>
+              {voicePhase === "listening"
+                ? <Loader2 className="w-3.5 h-3.5 text-white animate-spin" />
+                : <Mic className="w-3.5 h-3.5" style={{ color: "rgba(15,23,42,0.5)" }} />}
+            </button>
             <textarea value={input} onChange={e => setInput(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-              placeholder={mode === "bot" ? "Ask the bot architect…" : "Write the brief · Update the specs · Generate the pitch · Ask anything…"}
+              placeholder={voicePhase === "listening" ? "Listening…" : mode === "bot" ? "Ask the bot architect…" : "Type or tap mic to speak · Ask anything…"}
               rows={2}
               className="flex-1 px-3 py-2 rounded-xl text-xs placeholder-slate-400 resize-none outline-none"
-              style={{ background: "#F8FAFC", border: "1px solid rgba(15,23,42,0.09)", color: "#0F172A" }} />
+              style={{ background: voicePhase === "listening" ? "hsla(0,80%,55%,0.05)" : "#F8FAFC", border: `1px solid ${voicePhase === "listening" ? "hsla(0,80%,55%,0.3)" : "rgba(15,23,42,0.09)"}`, color: "#0F172A" }} />
             <button onClick={() => send()} disabled={streaming || !input.trim()}
               className="w-9 h-9 rounded-xl flex items-center justify-center self-end transition-all flex-shrink-0"
               style={{ background: "hsl(193,100%,35%)", opacity: streaming || !input.trim() ? 0.3 : 1 }}>
               {streaming ? <Loader2 className="w-3.5 h-3.5 text-slate-800 animate-spin" /> : <Send className="w-3.5 h-3.5 text-slate-800" />}
             </button>
           </div>
-          <p className="text-xs text-center mt-1.5" style={{ color: "rgba(15,23,42,0.45)" }}>
-            Sirius can write and save any section · Shift+Enter for new line
+          <p className="text-xs text-center" style={{ color: "rgba(15,23,42,0.35)" }}>
+            🎤 Speak or type · Sirius writes &amp; saves every section
           </p>
         </div>
       </div>
