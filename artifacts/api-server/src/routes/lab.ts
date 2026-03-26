@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { eq, desc, gte, lte, and, or, like, sql } from "drizzle-orm";
+import { eq, desc, gte, lte, and, or, like, sql, isNull } from "drizzle-orm";
 import { db, labProjects, labMessages, scoutReports, cadFiles, labScanHistory, userProfilesTable, mediaOutlets, appBuilderSessions, voiceJournalTable } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { generateImageBuffer } from "@workspace/integrations-openai-ai-server/image";
@@ -2959,6 +2959,20 @@ const LAB_TOOLS: any[] = [
       },
     },
   },
+  {
+    type: "function" as const,
+    function: {
+      name: "system_check",
+      description: "Run a full live system check across all Star Lab subsystems. Use this when the user asks for a status check, system check, health check, or 'how is everything running'. Returns real-time data from the database covering projects, pipeline, brain, app builder, and scanner.",
+      parameters: {
+        type: "object",
+        properties: {
+          focus: { type: "string", description: "Optional area to focus on: 'projects', 'pipeline', 'brain', 'appbuilder', 'scanner'. Leave empty for a full check across all systems." },
+        },
+        required: [],
+      },
+    },
+  },
 ];
 
 async function executeLabTool(name: string, args: any): Promise<string> {
@@ -3139,6 +3153,106 @@ async function executeLabTool(name: string, args: any): Promise<string> {
         return `NAVIGATE_AND_BUILD:appbuilder | prompt:${fullPrompt}`;
       }
 
+      case "system_check": {
+        const focus = (args.focus || "").toLowerCase();
+        const lines: string[] = ["╔══ SIRIUS STAR LAB — LIVE SYSTEM CHECK ══╗", ""];
+
+        // ── Projects ──────────────────────────────────────────────────────────
+        if (!focus || focus === "projects") {
+          const [totalRow] = await db.select({ count: sql<number>`count(*)` }).from(labProjects);
+          const totalProjects = Number(totalRow?.count ?? 0);
+
+          const [activeRow] = await db.select({ count: sql<number>`count(*)` })
+            .from(labProjects).where(eq(labProjects.status, "active"));
+          const activeProjects = Number(activeRow?.count ?? 0);
+
+          const recentProjects = await db.select({ id: labProjects.id, name: labProjects.name, industry: labProjects.industry })
+            .from(labProjects).orderBy(desc(labProjects.createdAt)).limit(3);
+
+          lines.push(`📁 PROJECTS`);
+          lines.push(`   Total: ${totalProjects.toLocaleString()} | Active: ${activeProjects.toLocaleString()}`);
+          if (recentProjects.length > 0) {
+            lines.push(`   Latest: ${recentProjects.map(p => `"${p.name}" [${p.industry}]`).join(", ")}`);
+          }
+          lines.push("");
+        }
+
+        // ── Pipeline ──────────────────────────────────────────────────────────
+        if (!focus || focus === "pipeline") {
+          const [queuedRow] = await db.select({ count: sql<number>`count(*)` })
+            .from(labProjects).where(or(isNull(labProjects.launchStatus), eq(labProjects.launchStatus, "")));
+          const queued = Number(queuedRow?.count ?? 0);
+
+          const [buildingRow] = await db.select({ count: sql<number>`count(*)` })
+            .from(labProjects).where(eq(labProjects.launchStatus, "building"));
+          const building = Number(buildingRow?.count ?? 0);
+
+          const [doneRow] = await db.select({ count: sql<number>`count(*)` })
+            .from(labProjects).where(eq(labProjects.launchStatus, "launch-ready"));
+          const done = Number(doneRow?.count ?? 0);
+
+          const buildingNow = await db.select({ name: labProjects.name })
+            .from(labProjects).where(eq(labProjects.launchStatus, "building")).limit(3);
+
+          lines.push(`🔧 PIPELINE`);
+          lines.push(`   Queued: ${queued.toLocaleString()} | Building: ${building} | Launch-ready: ${done.toLocaleString()}`);
+          if (buildingNow.length > 0) {
+            lines.push(`   Currently building: ${buildingNow.map(p => `"${p.name}"`).join(", ")}`);
+          } else {
+            lines.push(`   No active builds right now — next tick in ≤3 minutes`);
+          }
+          lines.push("");
+        }
+
+        // ── Brain ─────────────────────────────────────────────────────────────
+        if (!focus || focus === "brain") {
+          const profileRows = await db.select().from(userProfilesTable).where(eq(userProfilesTable.userId, BRAIN_USER));
+          const p = profileRows[0];
+          const memoryLines = p?.memories ? p.memories.split("\n").filter(Boolean).length : 0;
+          lines.push(`🧠 BRAIN`);
+          lines.push(`   Memories stored: ${memoryLines} entries`);
+          if (p?.businessName) lines.push(`   Business: ${p.businessName}`);
+          if (p?.businessSector) lines.push(`   Sectors: ${p.businessSector}`);
+          lines.push("");
+        }
+
+        // ── App Builder ───────────────────────────────────────────────────────
+        if (!focus || focus === "appbuilder") {
+          const [sessionRow] = await db.select({ count: sql<number>`count(*)` }).from(appBuilderSessions);
+          const totalSessions = Number(sessionRow?.count ?? 0);
+          const recentSessions = await db.select({ appName: appBuilderSessions.appName, status: appBuilderSessions.status })
+            .from(appBuilderSessions).orderBy(desc(appBuilderSessions.updatedAt)).limit(3);
+          lines.push(`🚀 APP BUILDER`);
+          lines.push(`   Total sessions: ${totalSessions.toLocaleString()}`);
+          if (recentSessions.length > 0) {
+            lines.push(`   Recent: ${recentSessions.map(s => `"${s.appName}" [${s.status}]`).join(", ")}`);
+          }
+          lines.push("");
+        }
+
+        // ── Scanner ───────────────────────────────────────────────────────────
+        if (!focus || focus === "scanner") {
+          const lastScans = await db.select().from(labScanHistory)
+            .orderBy(desc(labScanHistory.startedAt)).limit(1);
+          const lastScan = lastScans[0];
+          lines.push(`📡 SCANNER`);
+          if (lastScan) {
+            const when = new Date(lastScan.startedAt).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+            const duration = lastScan.completedAt
+              ? `${Math.round((new Date(lastScan.completedAt).getTime() - new Date(lastScan.startedAt).getTime()) / 60000)} mins`
+              : "still running";
+            lines.push(`   Last scan: ${when} (${duration}) — ${lastScan.projectsCreated} new projects`);
+            lines.push(`   Next scan: auto every 24 hours`);
+          } else {
+            lines.push(`   No scans run yet`);
+          }
+          lines.push("");
+        }
+
+        lines.push("╚══ END OF SYSTEM CHECK ══╝");
+        return lines.join("\n");
+      }
+
       default:
         return `Unknown tool: ${name}`;
     }
@@ -3158,6 +3272,7 @@ const TOOL_META: Record<string, { label: string; color: string; icon: string }> 
   get_scan_history: { label: "Scan history loaded", color: "hsl(155,70%,45%)", icon: "📡" },
   navigate_to: { label: "Navigating", color: "hsl(226,70%,55%)", icon: "🧭" },
   start_app_build: { label: "Launching App Builder", color: "hsl(155,70%,42%)", icon: "🚀" },
+  system_check: { label: "System check running", color: "hsl(193,100%,35%)", icon: "🖥️" },
 };
 
 // Detect whether a message is primarily an information/research query
@@ -3250,6 +3365,7 @@ You are a genuine strategic intelligence partner with real capabilities:
 - **get_scan_history**: Get recent auto-scan run history. Use when asked "what did the scan find?", "what came in last night?", "recent scanner output".
 - **navigate_to**: Navigate Star Lab to a section and optionally open a specific project. ALWAYS use this when the user says "bring up", "show me", "open", "take me to" anything.
 - **start_app_build**: CRITICAL — use this when Garry asks to build, create, develop, or make any app, tool, bot, platform, or software. This is the ONLY tool that actually starts a real build. It navigates to the App Builder AND fires the full automatic pipeline (interpret → plan → build → test → debug) without any extra clicks. NEVER just say "I'll start building" — call this tool immediately.
+- **system_check**: CRITICAL — use this EVERY TIME Garry asks for a system check, status check, health check, or anything like "how is everything running / what's the status / give me a full report". This queries the live database and returns REAL numbers. NEVER describe system status from memory — always call this tool first so the response is based on actual live data.
 - **update_business_profile**: Update business context.
 - **get_brain_context**: Read stored context.
 - **run_market_scan**: Scan a sector for live opportunities.
