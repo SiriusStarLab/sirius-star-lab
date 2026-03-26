@@ -52,13 +52,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
 
   const initUser = useCallback(async () => {
-    let id = await AsyncStorage.getItem(USER_ID_KEY);
-    if (!id) {
-      id = `mobile-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      await AsyncStorage.setItem(USER_ID_KEY, id);
+    const OWNER_ID = "garry";
+    const stored = await AsyncStorage.getItem(USER_ID_KEY);
+    if (!stored || stored !== OWNER_ID) {
+      await AsyncStorage.setItem(USER_ID_KEY, OWNER_ID);
     }
-    setUserId(id);
-    return id;
+    setUserId(OWNER_ID);
+    return OWNER_ID;
   }, []);
 
   const refreshProfile = useCallback(async () => {
