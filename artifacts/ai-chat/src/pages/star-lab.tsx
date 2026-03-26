@@ -4125,7 +4125,7 @@ function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed }: { pin: strin
   // Step 9 — Deploy pipeline
   const [deployLogs, setDeployLogs] = useState<Array<{ level: string; step: string; message: string; ts: string }>>([]);
   const [deployRunning, setDeployRunning] = useState(false);
-  const [deployDone, setDeployDone] = useState<{ url: string; appName: string } | null>(null);
+  const [deployDone, setDeployDone] = useState<{ packageReady?: boolean; fileCount?: number; url?: string; appName: string } | null>(null);
   const deployRef = useRef<HTMLDivElement>(null);
 
   // Checkpoints — per-agent file snapshots for rollback
@@ -4836,7 +4836,7 @@ function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed }: { pin: strin
               setDeployLogs(prev => [...prev, { level: ev.level, step: ev.step, message: ev.message, ts: ev.ts }]);
               setTimeout(() => deployRef.current?.scrollTo({ top: deployRef.current.scrollHeight, behavior: "smooth" }), 30);
             } else if (ev.type === "done") {
-              setDeployDone({ url: ev.url, appName: ev.appName });
+              setDeployDone({ packageReady: ev.packageReady, fileCount: ev.fileCount, url: ev.url, appName: ev.appName });
             }
           } catch {}
         }
@@ -5160,6 +5160,19 @@ function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed }: { pin: strin
                 ))}
               </div>
             )}
+
+            {/* Generated Code access */}
+            <div className="rounded-xl p-4 mb-3 flex items-center justify-between gap-3" style={{ background: "rgba(15,23,42,0.03)", border: "1px solid rgba(15,23,42,0.07)" }}>
+              <div>
+                <div className="text-xs font-semibold mb-0.5" style={{ color: "rgba(15,23,42,0.7)" }}>📁 Browse Generated Code</div>
+                <div className="text-[11px]" style={{ color: "rgba(15,23,42,0.4)" }}>View & edit all code files produced by the pipeline</div>
+              </div>
+              <button onClick={() => setAppBuilderView("build")}
+                className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:opacity-90"
+                style={{ background: "rgba(15,23,42,0.08)", color: "rgba(15,23,42,0.65)" }}>
+                Open File Browser →
+              </button>
+            </div>
 
             {/* Prompt to use Sirius */}
             <div className="rounded-xl p-4 text-sm" style={{ background: "hsla(193,100%,40%,0.06)", border: "1px dashed hsla(193,100%,40%,0.3)", color: "hsl(193,100%,30%)" }}>
@@ -5940,7 +5953,7 @@ function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed }: { pin: strin
                         <span className="text-sm">🚀</span>
                         <span className="text-xs font-semibold" style={{ color: "rgba(255,255,255,0.8)" }}>Step 9 — Deploy Pipeline</span>
                         {deployRunning && <Loader2 className="w-3 h-3 animate-spin" style={{ color: "rgba(255,255,255,0.5)" }} />}
-                        {deployDone && <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: "hsla(130,60%,45%,0.3)", color: "hsl(130,60%,70%)" }}>✓ Live</span>}
+                        {deployDone && <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: "hsla(130,60%,45%,0.3)", color: "hsl(130,60%,70%)" }}>✓ Built</span>}
                       </div>
                       {!deployRunning && !deployDone && (
                         <button onClick={handleDeployPipeline}
@@ -5950,11 +5963,10 @@ function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed }: { pin: strin
                         </button>
                       )}
                       {deployDone && (
-                        <a href={deployDone.url} target="_blank" rel="noopener noreferrer"
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
-                          style={{ background: "hsl(155,70%,40%)", color: "white" }}>
-                          <ExternalLink className="w-3 h-3" /> Open Live App
-                        </a>
+                        <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
+                          style={{ background: "hsla(155,70%,40%,0.15)", color: "hsl(155,70%,35%)", border: "1px solid hsla(155,70%,40%,0.3)" }}>
+                          ✓ {deployDone.fileCount ? `${deployDone.fileCount} files` : "Code"} ready to deploy
+                        </span>
                       )}
                     </div>
                     <div ref={deployRef} className="p-3 space-y-1 font-mono" style={{ background: "hsl(220,15%,11%)", minHeight: 80, maxHeight: 200, overflowY: "auto" }}>
@@ -5976,9 +5988,16 @@ function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed }: { pin: strin
                       )}
                     </div>
                     {deployDone && (
-                      <div className="px-4 py-3 flex items-center gap-2" style={{ background: "hsla(130,60%,40%,0.15)", borderTop: "1px solid hsla(130,60%,40%,0.3)" }}>
-                        <span className="text-sm">🌐</span>
-                        <span className="text-xs font-mono font-semibold" style={{ color: "hsl(130,60%,60%)" }}>{deployDone.url}</span>
+                      <div className="px-4 py-3 flex items-center gap-3" style={{ background: "hsla(130,60%,40%,0.08)", borderTop: "1px solid hsla(130,60%,40%,0.2)" }}>
+                        <span className="text-sm">📦</span>
+                        <div>
+                          <div className="text-xs font-semibold" style={{ color: "hsl(130,60%,35%)" }}>
+                            {deployDone.appName} — code package generated
+                          </div>
+                          <div className="text-[11px]" style={{ color: "rgba(15,23,42,0.45)" }}>
+                            Use the quick-deploy buttons below to publish to Vercel, Railway, Fly.io, or AWS
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>

@@ -5690,15 +5690,14 @@ router.post("/lab/app-builder/deploy-pipeline", authMiddleware, async (req: Requ
     await log("info", "ci", "→ Building production bundle…", 600);
     await log("success", "ci", `✓ Build complete — ${Math.round(Math.random() * 200 + 150)}kb gzipped`, 900);
 
-    await log("info", "deploy", "Pushing image to container registry…", 400);
-    await log("success", "deploy", "✓ Image pushed: sha256:" + Math.random().toString(16).slice(2, 10), 600);
-    await log("info", "deploy", "Rolling out to production infrastructure…", 500);
-    await log("info", "deploy", "Health check: GET /health → waiting…", 800);
-    await log("success", "deploy", "✓ Health check passed (200 OK)", 600);
-    await log("success", "deploy", `✓ ${appName} is LIVE 🚀`, 400);
+    const fileCount = Object.keys(files).length;
+    await log("info", "package", `Packaging ${fileCount} generated files…`, 300);
+    await log("success", "package", `✓ Code package ready — ${fileCount} files, ${techStack}`, 400);
+    await log("info", "package", "Review generated files in the File Browser above", 200);
+    await log("info", "deploy", "To deploy: use the quick-deploy buttons below or run locally", 300);
+    await log("success", "deploy", `✓ ${appName} — ready to deploy`, 400);
 
-    const domain = `${appName.toLowerCase().replace(/\s+/g, "-")}-${Math.random().toString(36).slice(2, 6)}.railway.app`;
-    send({ type: "done", url: `https://${domain}`, appName, ts: new Date().toISOString() });
+    send({ type: "done", packageReady: true, fileCount, appName, ts: new Date().toISOString() });
   } catch (err: any) {
     console.error("[DeployPipeline]", err?.message);
     send({ type: "error", error: err?.message });

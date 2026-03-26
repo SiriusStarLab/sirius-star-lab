@@ -298,15 +298,58 @@ function isSoftwareBuildable(name: string, brief: string): boolean {
   return SOFTWARE_KEYWORDS.some(kw => text.includes(kw));
 }
 
+/** Strip leading/trailing markdown code fences that GPT often wraps content in */
+function stripCodeFences(content: string): string {
+  // Remove opening fence: ```lang or ``` at start (with optional whitespace)
+  let s = content.trim();
+  s = s.replace(/^```[\w]*\r?\n/, "");
+  // Remove closing fence: ``` at end
+  s = s.replace(/\r?\n```$/, "");
+  return s.trim();
+}
+
 function parseAgentFiles(output: string): Record<string, string> {
   const files: Record<string, string> = {};
-  const fileRegex = /###\s*FILE:\s*(.+?)\s*###\n([\s\S]*?)###\s*END FILE\s*###/g;
+
+  // Pattern 1: ### FILE: path ### ... ### END FILE ### (primary expected format)
+  const primary = /###\s*FILE:\s*(.+?)\s*###\n([\s\S]*?)###\s*END FILE\s*###/g;
   let match: RegExpExecArray | null;
-  while ((match = fileRegex.exec(output)) !== null) {
+  while ((match = primary.exec(output)) !== null) {
     const path = match[1].trim();
-    const content = match[2].trim();
+    const content = stripCodeFences(match[2]);
     if (path && content) files[path] = content;
   }
+
+  // Pattern 2: ```language\n// filename: path\ncontent\n``` (GPT markdown code blocks with filename comment)
+  if (Object.keys(files).length === 0) {
+    const mdBlock = /```(?:\w+)?\n\/\/\s*(?:file(?:name)?|path):\s*(.+?)\n([\s\S]*?)```/gi;
+    while ((match = mdBlock.exec(output)) !== null) {
+      const path = match[1].trim();
+      const content = match[2].trim();
+      if (path && content) files[path] = content;
+    }
+  }
+
+  // Pattern 3: **filename.ext** or `filename.ext`\n```\ncontent\n``` (bold/code filename then block)
+  if (Object.keys(files).length === 0) {
+    const boldFile = /(?:\*\*|`)([a-zA-Z0-9_\-./]+\.[a-zA-Z]{1,10})(?:\*\*|`)[^\n]*\n```(?:\w+)?\n([\s\S]*?)```/g;
+    while ((match = boldFile.exec(output)) !== null) {
+      const path = match[1].trim();
+      const content = match[2].trim();
+      if (path && content && !path.includes(" ")) files[path] = content;
+    }
+  }
+
+  // Pattern 4: === filename.ext === or --- filename.ext --- separators
+  if (Object.keys(files).length === 0) {
+    const separator = /(?:===|---)\s*([a-zA-Z0-9_\-./]+\.[a-zA-Z]{1,10})\s*(?:===|---)\n([\s\S]*?)(?=(?:===|---)|$)/g;
+    while ((match = separator.exec(output)) !== null) {
+      const path = match[1].trim();
+      const content = match[2].trim();
+      if (path && content) files[path] = content;
+    }
+  }
+
   return files;
 }
 
@@ -327,14 +370,17 @@ Tech stack: ${techStack}
 Features required: ${featureList}
 Files already created: ${fileList}
 
-CRITICAL RULES:
-- Output ONLY code files, no explanation text outside files
-- Wrap every file exactly like this:
-  ### FILE: path/filename.ext ###
-  [full file content here]
-  ### END FILE ###
-- Write complete, production-quality code — no placeholders, no TODOs
-- Every file must be fully functional and immediately usable`;
+ABSOLUTE RULES — VIOLATING THESE BREAKS THE BUILD:
+- Output ONLY code files. Zero prose, zero explanation, zero markdown outside of file blocks.
+- Every single file MUST be wrapped EXACTLY like this — no variations, no markdown code fences around the block:
+
+### FILE: path/to/filename.ext ###
+[complete file content here — no truncation, no placeholders]
+### END FILE ###
+
+- The file separator lines must be EXACTLY "### FILE: path ###" and "### END FILE ###" — nothing else on those lines
+- Write 100% complete, production-quality code. No TODOs, no "// implement this", no stubs.
+- Every file must compile and run without modification`;
 
   const rolePrompts: Record<string, string> = {
     architect: `${base}\n\nYour role: System Architect\nCreate: package.json, README.md, .env.example, ARCHITECTURE.md`,
