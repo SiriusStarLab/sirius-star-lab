@@ -10393,6 +10393,7 @@ function StarLabVoiceWidget({
   const [siriusText, setSiriusText]     = useState("");
   const [waveTick, setWaveTick]         = useState(0);
   const [inputMode, setInputMode]       = useState<"voice" | "keyboard">("voice");
+  const inputModeRef                    = useRef<"voice" | "keyboard">("voice");
   const [keyboardText, setKeyboardText] = useState("");
   const keyboardInputRef                = useRef<HTMLInputElement>(null);
   const [showFeed, setShowFeed]         = useState(false);
@@ -10598,6 +10599,7 @@ function StarLabVoiceWidget({
 
   const startListening = () => {
     if (busyRef.current) return;
+    if (inputModeRef.current === "keyboard") return;   // never open mic in keyboard mode
     const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRec) return;
     const rec = new SpeechRec();
@@ -10708,14 +10710,14 @@ function StarLabVoiceWidget({
         busyRef.current = false;
         setPhase("idle");
         setSiriusText("");
-        if (active) setTimeout(() => startListening(), 400);
+        if (active && inputModeRef.current === "voice") setTimeout(() => startListening(), 400);
       });
 
     } catch (err) {
       console.error("[Voice]", err);
       busyRef.current = false;
       setPhase("idle");
-      if (active) setTimeout(() => startListening(), 1000);
+      if (active && inputModeRef.current === "voice") setTimeout(() => startListening(), 1000);
     }
   };
 
@@ -10739,12 +10741,12 @@ function StarLabVoiceWidget({
       setActive(true);
       setMessages([]);
       setTimeout(() => {
-        const greeting = "I'm listening. What would you like to do?";
+        const greeting = inputModeRef.current === "keyboard" ? "I'm ready. Type your message below." : "I'm listening. What would you like to do?";
         setSiriusText(greeting);
         speakText(greeting, () => {
           setSiriusText("");
           busyRef.current = false;
-          startListening();
+          if (inputModeRef.current === "voice") startListening();
         });
       }, 200);
     }
@@ -10912,11 +10914,13 @@ function StarLabVoiceWidget({
               <button
                 title={inputMode === "voice" ? "Switch to keyboard input" : "Switch to voice input"}
                 onClick={() => {
-                  if (inputMode === "voice") {
+                  if (inputModeRef.current === "voice") {
                     stopListening();
+                    inputModeRef.current = "keyboard";
                     setInputMode("keyboard");
                     setTimeout(() => keyboardInputRef.current?.focus(), 100);
                   } else {
+                    inputModeRef.current = "voice";
                     setInputMode("voice");
                     setKeyboardText("");
                     if (!busyRef.current) setTimeout(() => startListening(), 300);
