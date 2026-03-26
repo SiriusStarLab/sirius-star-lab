@@ -86,6 +86,13 @@ function speakText(text: string, onDone?: () => void, rate = 0.78) {
     utter.pitch  = 1.0;    // Natural baseline; 1.18 was the sharp/mechanical edge
     utter.volume = 0.88;   // Softer overall level
 
+    let callbackFired = false;
+    const fireOnce = () => {
+      if (callbackFired) return;
+      callbackFired = true;
+      onDone?.();
+    };
+
     const trySpeak = () => {
       const voices = window.speechSynthesis.getVoices();
       const KNOWN_MALE = [
@@ -115,9 +122,21 @@ function speakText(text: string, onDone?: () => void, rate = 0.78) {
         voices.find(v => v.lang.startsWith("en")    && !KNOWN_MALE.includes(v.name) && !v.name.toLowerCase().includes("male")) ||
         voices.find(v => v.lang.startsWith("en"));
       if (preferred) utter.voice = preferred;
-      utter.onend  = () => onDone?.();
-      utter.onerror = () => onDone?.();
+      utter.onend  = () => fireOnce();
+      utter.onerror = () => fireOnce();
       window.speechSynthesis.speak(utter);
+
+      // Chrome bug: speechSynthesis.onend sometimes never fires after long sessions.
+      // Watchdog polls every 250ms and fires the callback the moment speaking stops.
+      const watchdog = setInterval(() => {
+        if (!window.speechSynthesis.speaking && !window.speechSynthesis.pending) {
+          clearInterval(watchdog);
+          fireOnce();
+        }
+      }, 250);
+      // Safety net: always resolve after estimated time + 3s buffer so nothing hangs
+      const estMs = Math.ceil((text.length / (rate * 14)) * 1000) + 3000;
+      setTimeout(() => { clearInterval(watchdog); fireOnce(); }, estMs);
     };
 
     if (window.speechSynthesis.getVoices().length === 0) {

@@ -2973,6 +2973,65 @@ const LAB_TOOLS: any[] = [
       },
     },
   },
+  {
+    type: "function" as const,
+    function: {
+      name: "get_pending_approvals",
+      description: "Get all projects currently awaiting Garry's approval from the Autonomous Lab. Use when Garry asks 'what needs my approval', 'what's pending', 'what's waiting', 'what did the lab find', or 'show me the queue'. Returns full brief so you can summarise each one verbally.",
+      parameters: {
+        type: "object",
+        properties: {
+          limit: { type: "number", description: "Max results (default 10)" },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "approve_project",
+      description: "Approve a specific project from the Autonomous Lab approval queue and add it to the Star Lab workspace. Use when Garry says 'approve', 'yes', 'add that one', 'add it', or confirms he wants a specific pending project. You MUST call get_pending_approvals first to get the project ID.",
+      parameters: {
+        type: "object",
+        properties: {
+          project_id: { type: "number", description: "The numeric ID of the project to approve (from get_pending_approvals)" },
+          project_name: { type: "string", description: "Project name — for spoken confirmation" },
+        },
+        required: ["project_id"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "reject_project",
+      description: "Reject and dismiss a specific project from the Autonomous Lab approval queue. Use when Garry says 'reject', 'no', 'not that one', 'skip it', 'dismiss', or declines a pending project.",
+      parameters: {
+        type: "object",
+        properties: {
+          project_id: { type: "number", description: "The numeric ID of the project to reject (from get_pending_approvals)" },
+          project_name: { type: "string", description: "Project name — for spoken confirmation" },
+        },
+        required: ["project_id"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "update_project_phase",
+      description: "Update the current phase of a project in Star Lab. Use when Garry says 'move [project] to [phase]', 'mark it as complete', 'start the build phase', or wants to advance a project's status.",
+      parameters: {
+        type: "object",
+        properties: {
+          project_id: { type: "number", description: "The numeric ID of the project to update" },
+          phase: { type: "string", enum: ["design", "build", "test", "launch", "complete"], description: "The new phase to set" },
+        },
+        required: ["project_id", "phase"],
+      },
+    },
+  },
 ];
 
 async function executeLabTool(name: string, args: any): Promise<string> {
@@ -3253,6 +3312,62 @@ async function executeLabTool(name: string, args: any): Promise<string> {
         return lines.join("\n");
       }
 
+      case "get_pending_approvals": {
+        const limit = Math.min(Number(args.limit) || 10, 20);
+        const rows = await db.select({
+          id: labProjects.id,
+          name: labProjects.name,
+          industry: labProjects.industry,
+          brief: labProjects.brief,
+          createdAt: labProjects.createdAt,
+        })
+          .from(labProjects)
+          .where(eq(labProjects.approvalStatus, "pending"))
+          .orderBy(desc(labProjects.createdAt))
+          .limit(limit);
+        if (rows.length === 0) return "No projects currently awaiting approval. The Autonomous Lab queue is empty.";
+        const lines = rows.map((r, i) => {
+          const date = r.createdAt ? new Date(r.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "unknown";
+          const brief = r.brief ? r.brief.slice(0, 250) : "No brief available.";
+          return `${i + 1}. [ID:${r.id}] "${r.name}" — ${r.industry} | Found: ${date}\n   ${brief}`;
+        });
+        return `${rows.length} project(s) awaiting your approval:\n\n${lines.join("\n\n")}\n\nTo approve: call approve_project with the project_id. To reject: call reject_project with the project_id. Read each one to Garry and ask whether to approve or reject.`;
+      }
+
+      case "approve_project": {
+        const id = Number(args.project_id);
+        if (!id) return "Project ID required to approve.";
+        const updated = await db.update(labProjects)
+          .set({ approvalStatus: "approved", status: "active", updatedAt: new Date() })
+          .where(eq(labProjects.id, id))
+          .returning({ name: labProjects.name, industry: labProjects.industry });
+        if (!updated.length) return `No project found with ID ${id}.`;
+        return `APPROVED: "${updated[0].name}" (${updated[0].industry}) has been added to your Star Lab workspace. It will appear in the Projects section.`;
+      }
+
+      case "reject_project": {
+        const id = Number(args.project_id);
+        if (!id) return "Project ID required to reject.";
+        const updated = await db.update(labProjects)
+          .set({ approvalStatus: "rejected", updatedAt: new Date() })
+          .where(eq(labProjects.id, id))
+          .returning({ name: labProjects.name });
+        if (!updated.length) return `No project found with ID ${id}.`;
+        return `REJECTED: "${updated[0].name}" has been removed from the approval queue.`;
+      }
+
+      case "update_project_phase": {
+        const id = Number(args.project_id);
+        if (!id) return "Project ID required.";
+        if (!args.phase) return "Phase required (design, build, test, launch, or complete).";
+        const updated = await db.update(labProjects)
+          .set({ phase: args.phase, updatedAt: new Date() })
+          .where(eq(labProjects.id, id))
+          .returning({ name: labProjects.name });
+        if (!updated.length) return `No project found with ID ${id}.`;
+        return `Updated "${updated[0].name}" to phase: ${args.phase}.`;
+      }
+
       default:
         return `Unknown tool: ${name}`;
     }
@@ -3273,6 +3388,10 @@ const TOOL_META: Record<string, { label: string; color: string; icon: string }> 
   navigate_to: { label: "Navigating", color: "hsl(226,70%,55%)", icon: "🧭" },
   start_app_build: { label: "Launching App Builder", color: "hsl(155,70%,42%)", icon: "🚀" },
   system_check: { label: "System check running", color: "hsl(193,100%,35%)", icon: "🖥️" },
+  get_pending_approvals: { label: "Loading approval queue", color: "hsl(25,90%,55%)", icon: "📋" },
+  approve_project: { label: "Project approved", color: "hsl(155,70%,45%)", icon: "✅" },
+  reject_project: { label: "Project rejected", color: "hsl(0,75%,55%)", icon: "❌" },
+  update_project_phase: { label: "Project updated", color: "hsl(193,100%,40%)", icon: "🔄" },
 };
 
 // Detect whether a message is primarily an information/research query
@@ -3358,17 +3477,34 @@ You are a genuine strategic intelligence partner with real capabilities:
 
 ## STAR LAB TOOLS — USE THEM AGGRESSIVELY
 
-- **save_memory**: Save any fact Garry shares. Use liberally.
-- **create_project**: Create a Star Lab project when asked.
+- **save_memory**: Save any fact Garry shares. Use liberally — locations, clients, preferences, decisions, numbers.
+- **create_project**: Create a new Star Lab project when asked to start work on something.
 - **list_projects**: Show all current projects (up to 20 most recent).
-- **query_projects**: Search projects by date, industry, source (scan vs manual), status, keyword, or limit. Use this for any request like "show me the last 3 projects", "bring up last night's scan results", "find medical device projects", "what came from yesterday's scan".
-- **get_scan_history**: Get recent auto-scan run history. Use when asked "what did the scan find?", "what came in last night?", "recent scanner output".
-- **navigate_to**: Navigate Star Lab to a section and optionally open a specific project. ALWAYS use this when the user says "bring up", "show me", "open", "take me to" anything.
-- **start_app_build**: CRITICAL — use this when Garry asks to build, create, develop, or make any app, tool, bot, platform, or software. This is the ONLY tool that actually starts a real build. It navigates to the App Builder AND fires the full automatic pipeline (interpret → plan → build → test → debug) without any extra clicks. NEVER just say "I'll start building" — call this tool immediately.
-- **system_check**: CRITICAL — use this EVERY TIME Garry asks for a system check, status check, health check, or anything like "how is everything running / what's the status / give me a full report". This queries the live database and returns REAL numbers. NEVER describe system status from memory — always call this tool first so the response is based on actual live data.
-- **update_business_profile**: Update business context.
-- **get_brain_context**: Read stored context.
-- **run_market_scan**: Scan a sector for live opportunities.
+- **query_projects**: Search projects by date, industry, source (scan vs manual), status, or keyword. Use for "show me the last 3 projects", "find medical device projects", "what came from yesterday's scan".
+- **get_scan_history**: Get recent auto-scan run history. Use when asked "what did the scan find?", "what came in last night?".
+- **navigate_to**: Navigate Star Lab to a section. ALWAYS use this when Garry says "bring up", "show me", "open", "take me to", "go to" anything.
+- **start_app_build**: CRITICAL — use this when Garry asks to build, create, develop, or make any app, tool, bot, platform, or software. This navigates to App Builder AND fires the full pipeline automatically.
+- **system_check**: CRITICAL — use this EVERY TIME Garry asks for a status check, system check, or "how is everything running". Queries live data. NEVER guess status from memory.
+- **update_business_profile**: Update stored business context (name, sector, goals, key clients).
+- **get_brain_context**: Read all stored memories and business profile.
+- **run_market_scan**: Trigger a market scan for a specific industry.
+- **get_pending_approvals**: CRITICAL — use this when Garry asks "what needs my approval", "what's waiting", "what did the autonomous lab find", "what's in the queue", or anything about pending items. Fetches the full list with briefs so you can read each one aloud and ask approve or reject.
+- **approve_project**: Approve a specific pending project by its ID. Use when Garry says "approve", "yes", "add that one", "add it" after hearing about a project. You MUST call get_pending_approvals first to get the correct project ID.
+- **reject_project**: Reject/dismiss a pending project by its ID. Use when Garry says "reject", "no", "not interested", "skip it", "dismiss" about a specific project.
+- **update_project_phase**: Move a project to a new phase (design → build → test → launch → complete). Use when Garry says "move [project] to [phase]" or "mark it as complete".
+
+## APPROVAL FLOW — CRITICAL PATTERN
+
+When Garry asks about pending approvals ("what needs my approval", "yes show me", "what's waiting"):
+1. Call get_pending_approvals immediately
+2. Read the FIRST project aloud: name, industry, and a 1-sentence summary of the brief
+3. Ask "Do you want to approve or reject this one?" — then STOP and listen
+4. When he responds: call approve_project OR reject_project with that project's ID
+5. Confirm verbally ("Approved." / "Rejected.") then move to the next project
+6. Repeat until the queue is empty, then say "That's everything in the queue."
+
+NEVER list all projects at once — do them ONE AT A TIME so Garry can decide verbally on each.
+NEVER say "I'll check" and stop. Actually call the tool and do it.
 
 ## NAVIGATION — CRITICAL
 
