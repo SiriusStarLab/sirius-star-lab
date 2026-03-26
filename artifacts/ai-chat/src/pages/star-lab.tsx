@@ -10395,6 +10395,12 @@ function StarLabVoiceWidget({
   const [inputMode, setInputMode]       = useState<"voice" | "keyboard">("voice");
   const [keyboardText, setKeyboardText] = useState("");
   const keyboardInputRef                = useRef<HTMLInputElement>(null);
+  const [showFeed, setShowFeed]         = useState(false);
+  type ToolEvent = { id: string; name: string; label: string; icon: string; color: string; ts: number };
+  const [toolLog, setToolLog]           = useState<ToolEvent[]>([]);
+  const [prevSession, setPrevSession]   = useState<{ summary: string; createdAt: string; messageCount: number } | null>(null);
+  const feedRef                         = useRef<HTMLDivElement>(null);
+  const autosaveTimerRef                = useRef<ReturnType<typeof setTimeout> | null>(null);
   const recRef        = useRef<any>(null);
   const tickRef       = useRef<ReturnType<typeof setInterval> | null>(null);
   const busyRef       = useRef(false);
@@ -10412,6 +10418,42 @@ function StarLabVoiceWidget({
   const prevMoodRef       = useRef<string>("neutral");
   const navVisitedRef     = useRef<Set<string>>(new Set());
   const [journalSaved, setJournalSaved] = useState<"idle" | "saving" | "saved">("idle");
+
+  // Load previous session history on mount
+  useEffect(() => {
+    fetch(`${base}lab/voice/history`, { headers: { "x-lab-pin": pin } })
+      .then(r => r.json())
+      .then(data => {
+        if (data.session && data.messages?.length > 0) {
+          setPrevSession({
+            summary: data.session.summary,
+            createdAt: data.session.createdAt,
+            messageCount: data.session.messageCount,
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Auto-scroll feed to bottom when messages or tools change
+  useEffect(() => {
+    if (showFeed && feedRef.current) {
+      feedRef.current.scrollTop = feedRef.current.scrollHeight;
+    }
+  }, [messages, toolLog, showFeed]);
+
+  // Auto-save messages after each exchange (debounced 2s)
+  useEffect(() => {
+    if (!sessionKeyRef.current || messages.length < 2) return;
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    autosaveTimerRef.current = setTimeout(() => {
+      fetch(`${base}lab/voice/autosave`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+        body: JSON.stringify({ sessionKey: sessionKeyRef.current, messages }),
+      }).catch(() => {});
+    }, 2000);
+  }, [messages]);
 
   // Startup health check — fires once per session when voice widget first activates
   const hasRunStartupRef = useRef(false);
@@ -10637,6 +10679,16 @@ function StarLabVoiceWidget({
               fullResponse += parsed.delta;
               setSiriusText(prev => prev + clean);
             }
+            if (parsed.toolCall) {
+              setToolLog(prev => [...prev, {
+                id: `${Date.now()}_${Math.random()}`,
+                name: parsed.toolCall.name,
+                label: parsed.toolCall.label,
+                icon: parsed.toolCall.icon,
+                color: parsed.toolCall.color,
+                ts: Date.now(),
+              }]);
+            }
             if (parsed.done) {
               action = parsed.action;
               spokenText = parsed.spokenText || fullResponse.replace(/<<[^>]+>>/g, "").trim();
@@ -10704,6 +10756,132 @@ function StarLabVoiceWidget({
 
   return (
     <>
+      {/* Live chat feed panel — expandable above the bubble */}
+      <AnimatePresence>
+        {active && showFeed && (
+          <motion.div
+            key="chat-feed"
+            initial={{ opacity: 0, y: 12, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 8, scale: 0.96 }}
+            transition={{ duration: 0.2 }}
+            className="fixed z-50 rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+            style={{ bottom: 176, left: 4, width: 320, maxHeight: 440, background: "rgba(5,9,18,0.97)", border: "1px solid rgba(0,212,255,0.15)", backdropFilter: "blur(20px)" }}>
+
+            {/* Feed header */}
+            <div className="flex items-center justify-between px-4 py-2.5 border-b" style={{ borderColor: "rgba(255,255,255,0.06)", flexShrink: 0 }}>
+              <div className="flex items-center gap-2">
+                <MessageSquare className="w-3.5 h-3.5" style={{ color: "hsl(193,100%,55%)" }} />
+                <span className="text-xs font-semibold tracking-wide" style={{ color: "hsl(193,100%,65%)" }}>Live Session Feed</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[9px] font-medium" style={{ color: "rgba(255,255,255,0.25)" }}>{Math.floor(messages.length / 2)} exchange{messages.length !== 2 ? "s" : ""}</span>
+                <button onClick={() => setShowFeed(false)} className="w-5 h-5 rounded-md flex items-center justify-center hover:opacity-70" style={{ background: "rgba(255,255,255,0.06)" }}>
+                  <X className="w-3 h-3" style={{ color: "rgba(255,255,255,0.4)" }} />
+                </button>
+              </div>
+            </div>
+
+            {/* Previous session banner */}
+            {prevSession && messages.length === 0 && (
+              <div className="mx-3 mt-3 px-3 py-2 rounded-xl" style={{ background: "rgba(0,212,255,0.06)", border: "1px solid rgba(0,212,255,0.12)" }}>
+                <p className="text-[9px] font-semibold tracking-widest mb-0.5" style={{ color: "hsl(193,100%,55%)" }}>PREVIOUS SESSION</p>
+                <p className="text-[10px] leading-relaxed" style={{ color: "rgba(255,255,255,0.6)" }}>{prevSession.summary}</p>
+                <p className="text-[9px] mt-1" style={{ color: "rgba(255,255,255,0.25)" }}>{new Date(prevSession.createdAt).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })} · {prevSession.messageCount} messages</p>
+              </div>
+            )}
+
+            {/* Message list */}
+            <div ref={feedRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-2" style={{ scrollbarWidth: "none" }}>
+              {messages.length === 0 && !prevSession && (
+                <div className="flex flex-col items-center justify-center h-24 gap-2">
+                  <Activity className="w-5 h-5" style={{ color: "rgba(255,255,255,0.1)" }} />
+                  <p className="text-[10px] text-center" style={{ color: "rgba(255,255,255,0.2)" }}>Conversation will appear here</p>
+                </div>
+              )}
+
+              {/* Render messages interleaved with tool events */}
+              {(() => {
+                const items: React.ReactNode[] = [];
+                let toolIdx = 0;
+
+                for (let i = 0; i < messages.length; i++) {
+                  const msg = messages[i];
+                  const isUser = msg.role === "user";
+                  const isStartup = msg.content.startsWith("[STARTUP_CHECK]");
+                  const displayContent = isStartup ? "🔍 Startup maintenance check" : msg.content;
+
+                  // Insert any tool events that happened before this assistant message
+                  if (!isUser && toolIdx < toolLog.length) {
+                    const relevant = toolLog.slice(toolIdx, toolIdx + 3);
+                    relevant.forEach(t => {
+                      items.push(
+                        <div key={t.id} className="flex items-center gap-1.5 py-0.5">
+                          <span className="text-xs">{t.icon}</span>
+                          <span className="text-[9px] font-semibold tracking-wide" style={{ color: t.color }}>{t.label}</span>
+                        </div>
+                      );
+                      toolIdx++;
+                    });
+                  }
+
+                  items.push(
+                    <div key={i} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+                      <div className="max-w-[85%] px-2.5 py-1.5 rounded-2xl text-[10px] leading-relaxed"
+                        style={{
+                          background: isUser ? "rgba(0,212,255,0.15)" : "rgba(255,255,255,0.06)",
+                          color: isUser ? "hsl(193,100%,75%)" : "rgba(255,255,255,0.75)",
+                          borderBottomRightRadius: isUser ? 4 : undefined,
+                          borderBottomLeftRadius: !isUser ? 4 : undefined,
+                        }}>
+                        {displayContent}
+                      </div>
+                    </div>
+                  );
+                }
+
+                // Any remaining tool events after last message
+                while (toolIdx < toolLog.length) {
+                  const t = toolLog[toolIdx++];
+                  items.push(
+                    <div key={t.id} className="flex items-center gap-1.5 py-0.5">
+                      <span className="text-xs">{t.icon}</span>
+                      <span className="text-[9px] font-semibold tracking-wide" style={{ color: t.color }}>{t.label}</span>
+                    </div>
+                  );
+                }
+
+                return items;
+              })()}
+
+              {/* Live typing indicator when thinking */}
+              {isThinking && (
+                <div className="flex justify-start">
+                  <div className="px-2.5 py-1.5 rounded-2xl rounded-bl-sm" style={{ background: "rgba(255,255,255,0.06)" }}>
+                    <div className="flex gap-1 items-center h-3">
+                      {[0,1,2].map(i => (
+                        <motion.span key={i} className="w-1 h-1 rounded-full" style={{ background: "rgba(255,255,255,0.4)" }}
+                          animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 0.9, repeat: Infinity, delay: i * 0.2 }} />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Live Sirius text while speaking */}
+              {isSpeaking && siriusText && (
+                <div className="flex justify-start">
+                  <div className="max-w-[85%] px-2.5 py-1.5 rounded-2xl rounded-bl-sm text-[10px] leading-relaxed"
+                    style={{ background: "rgba(155,255,180,0.07)", color: "rgba(155,255,180,0.7)", borderLeft: "2px solid hsl(155,70%,45%)" }}>
+                    {siriusText}
+                  </div>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Floating bubble when active */}
       <AnimatePresence>
         {active && (
@@ -10722,6 +10900,14 @@ function StarLabVoiceWidget({
               <span className="flex-1 text-xs font-semibold tracking-wide" style={{ color: isListening ? "hsl(193,100%,65%)" : isSpeaking ? "hsl(155,70%,65%)" : isThinking ? "hsl(45,100%,65%)" : inputMode === "keyboard" ? "hsl(45,100%,65%)" : "rgba(255,255,255,0.35)" }}>
                 {isListening ? "LISTENING" : isSpeaking ? "SPEAKING" : isThinking ? "THINKING" : inputMode === "keyboard" ? "KEYBOARD" : "SIRIUS VOICE"}
               </span>
+              {/* Chat log toggle */}
+              <button
+                title={showFeed ? "Hide chat log" : "Show live chat log"}
+                onClick={() => setShowFeed(f => !f)}
+                className="flex-shrink-0 w-6 h-6 rounded-lg flex items-center justify-center transition-all hover:opacity-80"
+                style={{ background: showFeed ? "hsla(193,100%,55%,0.2)" : "rgba(255,255,255,0.06)", border: `1px solid ${showFeed ? "hsla(193,100%,55%,0.4)" : "rgba(255,255,255,0.1)"}` }}>
+                <MessageSquare className="w-3 h-3" style={{ color: showFeed ? "hsl(193,100%,65%)" : "rgba(255,255,255,0.4)" }} />
+              </button>
               {/* Voice / Keyboard toggle */}
               <button
                 title={inputMode === "voice" ? "Switch to keyboard input" : "Switch to voice input"}

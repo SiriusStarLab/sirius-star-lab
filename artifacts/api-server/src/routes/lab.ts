@@ -5902,39 +5902,156 @@ Rules:
 - MEMORY: You have access to Garry's voice session history above. Reference it naturally when relevant — e.g. "Last time you seemed stressed about the manufacturing workflow — how's that going?" but only when it genuinely adds value, not as a performance.
 - EMOTIONAL INTELLIGENCE: ${emotionGuidance || "Read the conversation naturally and respond in kind."} You can occasionally acknowledge the emotional tone naturally — e.g. if Garry sounds stressed, you might say "Let's slow down for a second" — but only when it feels natural, not forced.`;
 
+  const VOICE_TOOLS = LAB_TOOLS.filter(t => [
+    "startup_health_check", "self_diagnose", "fix_custom_tool", "resolve_error",
+    "create_bug_report", "self_configure", "create_automation", "list_automations",
+    "toggle_automation", "create_custom_tool", "list_custom_tools", "call_custom_tool",
+    "delete_item", "get_pending_approvals", "approve_project", "reject_project",
+    "update_project_phase", "list_projects", "get_project", "create_project",
+    "run_market_scan", "search_brain",
+  ].includes(t.function.name));
+
   try {
-    const stream = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        { role: "system", content: systemPrompt },
-        ...messages.slice(-12),
-      ],
-      stream: true,
-      max_tokens: 300,
-      temperature: 0.7,
-    });
+    const conversationHistory: any[] = [
+      { role: "system", content: systemPrompt },
+      ...messages.slice(-20),
+    ];
 
     let fullText = "";
-    for await (const chunk of stream) {
-      const delta = chunk.choices[0]?.delta?.content || "";
-      if (delta) {
-        fullText += delta;
-        res.write(`data: ${JSON.stringify({ delta })}\n\n`);
+    let action: { type: string; mode?: string } | null = null;
+    let toolEventsEmitted: Array<{ name: string; label: string; icon: string; color: string }> = [];
+
+    // Tool-enabled loop — up to 4 rounds
+    for (let round = 0; round < 4; round++) {
+      const stream = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: conversationHistory,
+        tools: VOICE_TOOLS,
+        tool_choice: "auto",
+        stream: true,
+        max_tokens: 400,
+        temperature: 0.7,
+      });
+
+      let roundText = "";
+      let finishReason = "";
+      const toolCallBuffers: Record<number, { id: string; name: string; arguments: string }> = {};
+
+      for await (const chunk of stream) {
+        const choice = chunk.choices[0];
+        if (!choice) continue;
+        const delta = choice.delta?.content || "";
+        if (delta) {
+          roundText += delta;
+          const clean = delta.replace(/<<[^>]+>>/g, "");
+          if (clean) res.write(`data: ${JSON.stringify({ delta: clean })}\n\n`);
+        }
+        if (choice.delta?.tool_calls) {
+          for (const tc of choice.delta.tool_calls) {
+            const idx = tc.index ?? 0;
+            if (!toolCallBuffers[idx]) toolCallBuffers[idx] = { id: "", name: "", arguments: "" };
+            if (tc.id) toolCallBuffers[idx].id = tc.id;
+            if (tc.function?.name) toolCallBuffers[idx].name = tc.function.name;
+            if (tc.function?.arguments) toolCallBuffers[idx].arguments += tc.function.arguments;
+          }
+        }
+        if (choice.finish_reason) finishReason = choice.finish_reason;
+      }
+
+      fullText += roundText;
+
+      if (finishReason !== "tool_calls" || Object.keys(toolCallBuffers).length === 0) break;
+
+      // Execute tools and emit events
+      const toolCalls = Object.values(toolCallBuffers);
+      const toolResults: any[] = [];
+
+      for (const tc of toolCalls) {
+        let args: any = {};
+        try { args = JSON.parse(tc.arguments || "{}"); } catch {}
+        const meta = TOOL_META[tc.name] || { label: tc.name, color: "hsl(193,100%,40%)", icon: "⚡" };
+        res.write(`data: ${JSON.stringify({ toolCall: { name: tc.name, label: meta.label, icon: meta.icon, color: meta.color } })}\n\n`);
+        toolEventsEmitted.push({ name: tc.name, label: meta.label, icon: meta.icon, color: meta.color });
+        const result = await executeLabTool(tc.name, args);
+        toolResults.push({ id: tc.id, name: tc.name, result });
+      }
+
+      conversationHistory.push({
+        role: "assistant",
+        content: roundText || null,
+        tool_calls: toolCalls.map(tc => ({ id: tc.id, type: "function" as const, function: { name: tc.name, arguments: tc.arguments } })),
+      });
+      for (const tr of toolResults) {
+        conversationHistory.push({ role: "tool", tool_call_id: tr.id, content: tr.result });
       }
     }
 
-    // Parse action tag — strip from spoken text
+    // Parse navigation tag
     const navMatch = fullText.match(/<<NAVIGATE:(\w+)>>/);
-    const action = navMatch ? { type: "navigate", mode: navMatch[1] } : null;
+    action = navMatch ? { type: "navigate", mode: navMatch[1] } : null;
     const spokenText = fullText.replace(/<<[^>]+>>/g, "").trim();
 
-    res.write(`data: ${JSON.stringify({ done: true, action, spokenText })}\n\n`);
+    res.write(`data: ${JSON.stringify({ done: true, action, spokenText, toolsUsed: toolEventsEmitted })}\n\n`);
     res.end();
   } catch (err: any) {
     console.error("[Voice] Error:", err?.message);
     res.write(`data: ${JSON.stringify({ error: "Voice unavailable" })}\n\n`);
     res.end();
   }
+});
+
+// ── Voice Session History — load previous messages ───────────────────────────
+router.get("/lab/voice/history", authMiddleware, async (req: Request, res: Response) => {
+  const pin = (req as any).labPin as string;
+  try {
+    const [latest] = await db
+      .select({ id: voiceJournalTable.id, createdAt: voiceJournalTable.createdAt, rawTranscript: voiceJournalTable.rawTranscript, summary: voiceJournalTable.summary, dominantMood: voiceJournalTable.dominantMood, messageCount: voiceJournalTable.messageCount })
+      .from(voiceJournalTable)
+      .where(eq(voiceJournalTable.pin, pin))
+      .orderBy(desc(voiceJournalTable.createdAt))
+      .limit(1);
+
+    if (!latest) return res.json({ messages: [], session: null });
+
+    let messages: Array<{ role: string; content: string }> = [];
+    try { messages = JSON.parse(latest.rawTranscript || "[]"); } catch {}
+
+    return res.json({
+      messages: messages.slice(-30),
+      session: {
+        id: latest.id,
+        createdAt: latest.createdAt,
+        summary: latest.summary,
+        dominantMood: latest.dominantMood,
+        messageCount: latest.messageCount,
+      },
+    });
+  } catch (err: any) {
+    return res.json({ messages: [], session: null });
+  }
+});
+
+// ── Voice Session Auto-save — saves mid-session transcript ───────────────────
+router.post("/lab/voice/autosave", authMiddleware, async (req: Request, res: Response) => {
+  const pin = (req as any).labPin as string;
+  const { sessionKey, messages } = req.body as { sessionKey: string; messages: Array<{ role: string; content: string }> };
+  if (!sessionKey || !messages?.length) return res.json({ ok: false });
+  try {
+    const rawTranscript = JSON.stringify(messages);
+    const existing = await db.select({ id: voiceJournalTable.id }).from(voiceJournalTable)
+      .where(and(eq(voiceJournalTable.pin, pin), eq(voiceJournalTable.sessionKey, sessionKey))).limit(1);
+    if (existing.length > 0) {
+      await db.update(voiceJournalTable).set({ rawTranscript, messageCount: messages.length })
+        .where(and(eq(voiceJournalTable.pin, pin), eq(voiceJournalTable.sessionKey, sessionKey)));
+    } else {
+      await db.insert(voiceJournalTable).values({
+        pin, sessionKey, rawTranscript, messageCount: messages.length,
+        dominantMood: "neutral", moodProgression: "[]", avgEnergy: "normal",
+        navModesVisited: "[]", projectsMentioned: "[]", summary: "Session in progress…", keyTopics: "[]",
+      });
+    }
+    return res.json({ ok: true });
+  } catch { return res.json({ ok: false }); }
 });
 
 // ── Voice Session Journal ─────────────────────────────────────────────────────
