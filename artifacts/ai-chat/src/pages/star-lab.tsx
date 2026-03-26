@@ -13,7 +13,7 @@ import {
   Mail, UserPlus, Users, Settings2, AtSign, Building2, Briefcase, StickyNote, CheckCircle2, AlertCircle,
   Banknote, CreditCard, ShoppingBag, BarChart3, ArrowRight, FileSearch, Hammer, ClipboardList,
   Brain, MessageSquare, Activity, Target, Building, Mic, MicOff, ShieldAlert, Rocket,
-  LayoutDashboard, ArrowLeft, Clock, Award, Layers3, Share, Keyboard, CornerDownLeft
+  LayoutDashboard, ArrowLeft, Clock, Award, Layers3, Share, Keyboard, CornerDownLeft, Search
 } from "lucide-react";
 import { getApiBase } from "@/lib/api-base";
 import { AiArchContent } from "@/pages/ai-architecture";
@@ -12849,6 +12849,9 @@ export function StarLabPage() {
     ? (localStorage.getItem("sirius_display_name") || "").trim() || "Garry"
     : "Garry";
   const [projects, setProjects] = useState<Project[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(false);
+  const [projectsError, setProjectsError] = useState(false);
+  const [projectSearch, setProjectSearch] = useState("");
   const [activeProject, setActiveProject] = useState<Project | null>(null);
   const [navMode, setNavMode] = useState<NavMode>("dashboard");
   const [revenueInitialTab, setRevenueInitialTab] = useState<RevenueTab | undefined>();
@@ -12869,32 +12872,41 @@ export function StarLabPage() {
 
   const headers = useCallback(() => ({ "Content-Type": "application/json", "x-lab-pin": pin }), [pin]);
 
-  const loadProjects = useCallback(async () => {
-    const res = await fetch(`${base}lab/projects`, { headers: headers() });
-    if (!res.ok) return;
-    const fresh: Project[] = await res.json();
-    setProjects(fresh);
+  const loadProjects = useCallback(async (attempt = 0) => {
+    if (attempt === 0) { setProjectsLoading(true); setProjectsError(false); }
+    try {
+      const res = await fetch(`${base}lab/projects`, { headers: headers() });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const fresh: Project[] = await res.json();
+      setProjects(fresh);
+      setProjectsError(false);
+      setProjectsLoading(false);
 
-    // Check for newly completed funding analyses
-    for (const p of fresh) {
-      const prev = prevFundingStatus.current[p.id];
-      if (prev === "pending" && p.fundingStatus === "complete") {
-        const matches = (() => { try { return JSON.parse(p.fundingAnalysis || "{}").opportunities?.[0]?.matches?.length ?? 0; } catch { return 0; } })();
-        const alert: FundingAlert = { id: `${p.id}-${Date.now()}`, projectName: p.name, count: matches, timestamp: Date.now() };
-        setFundingAlerts(prev => [...prev, alert]);
-        // Also update active project if it's this one
-        setActiveProject(cur => cur?.id === p.id ? { ...cur, fundingStatus: p.fundingStatus, fundingAnalysis: p.fundingAnalysis, fundingAnalysedAt: p.fundingAnalysedAt } : cur);
-        // Auto-dismiss after 8s
-        setTimeout(() => setFundingAlerts(prev => prev.filter(a => a.id !== alert.id)), 8000);
+      // Check for newly completed funding / AI-arch analyses
+      for (const p of fresh) {
+        const prev = prevFundingStatus.current[p.id];
+        if (prev === "pending" && p.fundingStatus === "complete") {
+          const matches = (() => { try { return JSON.parse(p.fundingAnalysis || "{}").opportunities?.[0]?.matches?.length ?? 0; } catch { return 0; } })();
+          const alert: FundingAlert = { id: `${p.id}-${Date.now()}`, projectName: p.name, count: matches, timestamp: Date.now() };
+          setFundingAlerts(prev => [...prev, alert]);
+          setActiveProject(cur => cur?.id === p.id ? { ...cur, fundingStatus: p.fundingStatus, fundingAnalysis: p.fundingAnalysis, fundingAnalysedAt: p.fundingAnalysedAt } : cur);
+          setTimeout(() => setFundingAlerts(prev => prev.filter(a => a.id !== alert.id)), 8000);
+        }
+        prevFundingStatus.current[p.id] = p.fundingStatus;
+        const prevArch = (prevFundingStatus.current as any)[`arch-${p.id}`];
+        if (prevArch === "pending" && (p.aiArchLinked === "linked" || p.aiArchLinked === "not-applicable")) {
+          setActiveProject(cur => cur?.id === p.id ? { ...cur, aiArchLinked: p.aiArchLinked, aiArchInsights: p.aiArchInsights, aiArchSweepAt: p.aiArchSweepAt } : cur);
+        }
+        (prevFundingStatus.current as any)[`arch-${p.id}`] = p.aiArchLinked;
       }
-      prevFundingStatus.current[p.id] = p.fundingStatus;
-
-      // Check for newly completed AI Architecture analyses
-      const prevArch = (prevFundingStatus.current as any)[`arch-${p.id}`];
-      if (prevArch === "pending" && (p.aiArchLinked === "linked" || p.aiArchLinked === "not-applicable")) {
-        setActiveProject(cur => cur?.id === p.id ? { ...cur, aiArchLinked: p.aiArchLinked, aiArchInsights: p.aiArchInsights, aiArchSweepAt: p.aiArchSweepAt } : cur);
+    } catch {
+      if (attempt < 4) {
+        // Retry with back-off: 2s, 4s, 8s, 16s — handles server restart windows
+        setTimeout(() => loadProjects(attempt + 1), 2000 * Math.pow(2, attempt));
+      } else {
+        setProjectsError(true);
+        setProjectsLoading(false);
       }
-      (prevFundingStatus.current as any)[`arch-${p.id}`] = p.aiArchLinked;
     }
   }, [base, headers]);
 
@@ -13137,12 +13149,23 @@ export function StarLabPage() {
         {/* Projects list */}
         {navMode === "projects" && (
           <>
-            <div className="p-3">
+            <div className="px-3 pt-3 pb-2 flex flex-col gap-2">
               <button onClick={() => setCreating(true)}
                 className="w-full py-2 rounded-xl flex items-center justify-center gap-1.5 text-xs font-medium transition-all"
                 style={{ background: "hsl(193,100%,32%)", color: "white" }}>
                 <Plus className="w-3.5 h-3.5" /> New Project
               </button>
+              {/* Search */}
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3" style={{ color: "rgba(15,23,42,0.3)" }} />
+                <input
+                  value={projectSearch}
+                  onChange={e => setProjectSearch(e.target.value)}
+                  placeholder="Search projects…"
+                  className="w-full pl-7 pr-3 py-1.5 rounded-lg text-xs outline-none"
+                  style={{ background: "rgba(15,23,42,0.05)", border: "1px solid rgba(15,23,42,0.08)", color: "rgba(15,23,42,0.8)" }}
+                />
+              </div>
             </div>
 
             <div className="flex-1 overflow-y-auto px-2 pb-2">
@@ -13166,24 +13189,52 @@ export function StarLabPage() {
                 )}
               </AnimatePresence>
 
-              {projects.map(p => (
-                <div key={p.id} onClick={() => { loadProject(p.id); }}
-                  className="group flex items-center gap-2 rounded-xl px-2.5 py-2 mb-0.5 cursor-pointer transition-all"
-                  style={{ background: activeProject?.id === p.id ? "#E8EEF5" : "transparent", border: activeProject?.id === p.id ? "1px solid rgba(15,23,42,0.11)" : "1px solid transparent" }}>
-                  <FolderOpen className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "hsl(193,100%,45%)" }} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-slate-800 text-xs font-medium truncate">{p.name}</p>
-                    <p className="text-slate-300 text-xs truncate">{p.industry}</p>
-                  </div>
-                  <button onClick={e => { e.stopPropagation(); deleteProject(p.id); }}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                    <Trash2 className="w-3 h-3 text-red-400/50 hover:text-red-400" />
+              {/* Loading state */}
+              {projectsLoading && projects.length === 0 && (
+                <div className="flex items-center justify-center gap-2 py-8">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: "hsl(193,100%,45%)" }} />
+                  <span className="text-xs" style={{ color: "rgba(15,23,42,0.4)" }}>Loading projects…</span>
+                </div>
+              )}
+
+              {/* Error state */}
+              {projectsError && (
+                <div className="flex flex-col items-center gap-2 py-6 px-3">
+                  <p className="text-xs text-center" style={{ color: "rgba(15,23,42,0.4)" }}>Could not load projects</p>
+                  <button onClick={() => loadProjects(0)} className="text-xs px-3 py-1.5 rounded-lg font-medium transition-all"
+                    style={{ background: "hsl(193,100%,32%)", color: "white" }}>
+                    Retry
                   </button>
                 </div>
-              ))}
+              )}
 
-              {projects.length === 0 && !creating && (
-                <p className="text-slate-300 text-xs text-center py-6">No projects yet</p>
+              {/* Project list */}
+              {(() => {
+                const filtered = projectSearch.trim()
+                  ? projects.filter(p => p.name.toLowerCase().includes(projectSearch.toLowerCase()) || (p.industry || "").toLowerCase().includes(projectSearch.toLowerCase()))
+                  : projects;
+                return filtered.map(p => (
+                  <div key={p.id} onClick={() => { loadProject(p.id); }}
+                    className="group flex items-center gap-2 rounded-xl px-2.5 py-2 mb-0.5 cursor-pointer transition-all"
+                    style={{ background: activeProject?.id === p.id ? "#E8EEF5" : "transparent", border: activeProject?.id === p.id ? "1px solid rgba(15,23,42,0.11)" : "1px solid transparent" }}>
+                    <FolderOpen className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "hsl(193,100%,45%)" }} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-slate-800 text-xs font-medium truncate">{p.name}</p>
+                      <p className="text-xs truncate" style={{ color: "rgba(15,23,42,0.3)" }}>{p.industry}</p>
+                    </div>
+                    <button onClick={e => { e.stopPropagation(); deleteProject(p.id); }}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                      <Trash2 className="w-3 h-3 text-red-400/50 hover:text-red-400" />
+                    </button>
+                  </div>
+                ));
+              })()}
+
+              {!projectsLoading && !projectsError && projects.length === 0 && !creating && (
+                <p className="text-xs text-center py-6" style={{ color: "rgba(15,23,42,0.3)" }}>No projects yet</p>
+              )}
+              {!projectsLoading && projects.length > 0 && projectSearch && projects.filter(p => p.name.toLowerCase().includes(projectSearch.toLowerCase()) || (p.industry || "").toLowerCase().includes(projectSearch.toLowerCase())).length === 0 && (
+                <p className="text-xs text-center py-4" style={{ color: "rgba(15,23,42,0.3)" }}>No matches for "{projectSearch}"</p>
               )}
             </div>
           </>
@@ -13311,28 +13362,91 @@ export function StarLabPage() {
           activeProject
             ? <ProjectWorkspace project={activeProject} pin={pin} onUpdate={p => setActiveProject(p)} onBack={() => setActiveProject(null)} />
             : (
-              <div className="flex-1 flex items-center justify-center">
-                <div className="text-center max-w-md px-8">
-                  <Star className="w-12 h-12 mx-auto mb-4 text-slate-800/8" />
-                  <h2 className="text-slate-400 font-bold text-lg mb-2">Sirius Star Lab</h2>
-                  <p className="text-slate-800/15 text-sm leading-relaxed mb-6">Select a project from the sidebar, or create a new one. Each project has its own workspace — Brief, Research, Specs, Code, and Drawings — with a dedicated AI partner that knows the full context of your work.</p>
-                  <div className="flex gap-3 justify-center">
-                    {[
-                      { icon: Bot, label: "Bot Lab", action: () => setNavMode("botlab"), color: "hsl(280,70%,55%)" },
-                      { icon: Telescope, label: "Scout", action: () => setNavMode("scout"), color: "hsl(45,100%,45%)" },
-                    ].map(item => {
-                      const Icon = item.icon;
-                      return (
-                        <button key={item.label} onClick={item.action}
-                          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm transition-all"
-                          style={{ background: "#F1F5F9", color: "rgba(15,23,42,0.55)", border: "1px solid rgba(15,23,42,0.09)" }}>
-                          <Icon className="w-4 h-4" style={{ color: item.color }} />
-                          {item.label}
-                        </button>
-                      );
-                    })}
+              <div className="flex-1 flex flex-col min-h-0 overflow-hidden" style={{ background: "#F8FAFC" }}>
+                {/* Header */}
+                <div className="flex-shrink-0 px-6 py-4 border-b" style={{ borderColor: "rgba(15,23,42,0.07)", background: "#FFFFFF" }}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="text-slate-800 font-bold text-base">Innovation Portfolio</h2>
+                      <p className="text-xs mt-0.5" style={{ color: "rgba(15,23,42,0.4)" }}>
+                        {projectsLoading ? "Loading…" : `${projects.length} projects · Click any project to open its workspace`}
+                      </p>
+                    </div>
+                    <button onClick={() => setCreating(true)}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all"
+                      style={{ background: "hsl(193,100%,32%)", color: "white" }}>
+                      <Plus className="w-3.5 h-3.5" /> New Project
+                    </button>
                   </div>
                 </div>
+
+                {/* Loading / error */}
+                {projectsLoading && projects.length === 0 && (
+                  <div className="flex-1 flex items-center justify-center gap-2">
+                    <Loader2 className="w-5 h-5 animate-spin" style={{ color: "hsl(193,100%,45%)" }} />
+                    <span className="text-sm" style={{ color: "rgba(15,23,42,0.4)" }}>Loading your projects…</span>
+                  </div>
+                )}
+                {projectsError && (
+                  <div className="flex-1 flex flex-col items-center justify-center gap-3">
+                    <p className="text-sm" style={{ color: "rgba(15,23,42,0.45)" }}>Could not load projects — server may be restarting.</p>
+                    <button onClick={() => loadProjects(0)} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium"
+                      style={{ background: "hsl(193,100%,32%)", color: "white" }}>
+                      <RefreshCw className="w-3.5 h-3.5" /> Try again
+                    </button>
+                  </div>
+                )}
+
+                {/* Projects grid */}
+                {!projectsLoading && !projectsError && (
+                  <div className="flex-1 overflow-y-auto p-6">
+                    {(() => {
+                      const q = projectSearch.trim().toLowerCase();
+                      const filtered = q
+                        ? projects.filter(p => p.name.toLowerCase().includes(q) || (p.industry || "").toLowerCase().includes(q))
+                        : projects;
+                      if (filtered.length === 0 && projects.length > 0) return (
+                        <div className="flex items-center justify-center h-40">
+                          <p className="text-sm" style={{ color: "rgba(15,23,42,0.35)" }}>No projects match "{projectSearch}"</p>
+                        </div>
+                      );
+                      if (filtered.length === 0) return (
+                        <div className="flex flex-col items-center justify-center h-40 gap-3">
+                          <p className="text-sm" style={{ color: "rgba(15,23,42,0.35)" }}>No projects yet — create your first one above</p>
+                        </div>
+                      );
+                      return (
+                        <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))" }}>
+                          {filtered.map(p => (
+                            <button key={p.id} onClick={() => loadProject(p.id)}
+                              className="text-left rounded-2xl p-4 transition-all group hover:shadow-md"
+                              style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.08)" }}>
+                              <div className="flex items-start gap-3">
+                                <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                                  style={{ background: "rgba(0,212,255,0.08)" }}>
+                                  <FolderOpen className="w-4 h-4" style={{ color: "hsl(193,100%,40%)" }} />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-slate-800 font-semibold text-sm leading-tight truncate group-hover:text-cyan-600 transition-colors">{p.name}</p>
+                                  <p className="text-xs mt-0.5 truncate" style={{ color: "rgba(15,23,42,0.4)" }}>{p.industry || "General"}</p>
+                                  {p.launchStatus && (
+                                    <span className="inline-block mt-1.5 text-xs px-2 py-0.5 rounded-full font-medium"
+                                      style={{
+                                        background: p.launchStatus === "launched" ? "hsl(155,70%,90%)" : p.launchStatus === "launch-ready" ? "hsl(45,100%,90%)" : p.launchStatus === "building" ? "hsl(193,100%,90%)" : "rgba(15,23,42,0.06)",
+                                        color: p.launchStatus === "launched" ? "hsl(155,70%,35%)" : p.launchStatus === "launch-ready" ? "hsl(45,90%,35%)" : p.launchStatus === "building" ? "hsl(193,100%,30%)" : "rgba(15,23,42,0.4)",
+                                      }}>
+                                      {p.launchStatus === "launched" ? "Launched" : p.launchStatus === "launch-ready" ? "Launch Ready" : p.launchStatus === "building" ? "Building" : p.launchStatus === "cad-pending" ? "CAD Pending" : "Queued"}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
               </div>
             )
         )}
