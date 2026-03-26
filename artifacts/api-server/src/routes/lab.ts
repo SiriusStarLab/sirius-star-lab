@@ -3837,12 +3837,13 @@ const APP_AGENTS = [
 router.post("/lab/app-builder/sessions", authMiddleware, async (req: Request, res: Response) => {
   const { pin } = req.body as { pin: string };
   try {
+    // Show sessions created by Garry directly AND all auto-pipeline builds
     const sessions = await db
       .select({ id: appBuilderSessions.id, appName: appBuilderSessions.appName, status: appBuilderSessions.status, phase: appBuilderSessions.phase, createdAt: appBuilderSessions.createdAt, updatedAt: appBuilderSessions.updatedAt })
       .from(appBuilderSessions)
-      .where(eq(appBuilderSessions.pin, pin))
+      .where(or(eq(appBuilderSessions.pin, pin), eq(appBuilderSessions.pin, "auto")))
       .orderBy(desc(appBuilderSessions.updatedAt))
-      .limit(20);
+      .limit(50);
     res.json(sessions);
   } catch (err: any) { res.status(500).json({ error: err?.message }); }
 });
