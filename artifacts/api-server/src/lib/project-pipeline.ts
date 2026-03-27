@@ -9,7 +9,8 @@
  *     → launch-ready (CAD attached — project is surfaced to Garry / Sirius for launch)
  *     → launched  (confirmed launched to market)
  *
- * The pipeline ticks every 3 minutes. If a build is already running it does nothing.
+ * Builds chain immediately — as soon as one project finishes, the next starts with no delay.
+ * When the queue is empty, a 30-second idle check polls for new projects.
  * Bulk triggering is disabled — the scanner only queues projects; this manages them.
  */
 
@@ -18,7 +19,7 @@ import { db, labProjects, appBuilderSessions, cadFiles } from "@workspace/db";
 import { triggerAutoBuildForProject } from "./lab-auto-scan.js";
 import { openai } from "@workspace/integrations-openai-ai-server";
 
-const TICK_INTERVAL_MS = 3 * 60 * 1000; // 3 minutes
+const IDLE_CHECK_MS = 30 * 1000; // 30 seconds — how often to check when queue is empty
 
 let pipelineRunning = false;
 let tickTimer: ReturnType<typeof setTimeout> | null = null;
@@ -158,6 +159,8 @@ async function tick(): Promise<void> {
     return;
   }
 
+  let builtOne = false;
+
   try {
     // 0. Staleness guard — if a project has been stuck in "building" for >45 min
     //    (e.g. server crashed mid-build), reset it so the pipeline can continue.
@@ -273,10 +276,18 @@ Produce clear, numbered drawing requirements (dimensions, views, materials, tole
 
     console.log(`[Pipeline] ✅ "${next.name}" → ${nextStatus.toUpperCase()}`);
 
+    // Flag so we chain immediately into the next build
+    builtOne = true;
+
   } catch (err: any) {
     console.error("[Pipeline] Tick error:", err?.message);
   } finally {
     pipelineRunning = false;
+  }
+
+  // No pause between projects — chain immediately to the next queued item
+  if (builtOne) {
+    setImmediate(() => tick());
   }
 }
 
@@ -285,13 +296,13 @@ Produce clear, numbered drawing requirements (dimensions, views, materials, tole
 export function startProjectPipeline(): void {
   if (tickTimer) return; // already running
 
-  console.log("[Pipeline] Started — processing one project every 3 minutes");
+  console.log("[Pipeline] Started — builds chain immediately; idle check every 30 seconds");
 
   const schedule = () => {
     tickTimer = setTimeout(async () => {
       await tick();
       schedule();
-    }, TICK_INTERVAL_MS);
+    }, IDLE_CHECK_MS);
   };
 
   // First tick after 10 seconds (let the server warm up)
