@@ -3432,6 +3432,35 @@ const LAB_TOOLS: any[] = [
       parameters: { type: "object", properties: {}, required: [] },
     },
   },
+  {
+    type: "function" as const,
+    function: {
+      name: "detect_drawing_requirements",
+      description: "Analyse the project portfolio and identify which projects will require physical drawings — CAD engineering drawings, architectural drawings, mechanical drawings, or technical schematics. Flags hardware, physical products, construction, precision engineering, medical devices, and manufacturing projects. Use when Garry asks 'which projects need CAD?', 'which need drawings?', 'flag the physical products', 'which need an architect?', or 'identify engineering drawing requirements'.",
+      parameters: {
+        type: "object",
+        properties: {
+          limit: { type: "number", description: "How many projects to scan. Default 200. Use higher values for a thorough scan." },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "find_appbuilder_projects",
+      description: "Identify the top projects in the portfolio that are ideal candidates for the App Builder — purely digital/software products that can be built immediately without physical manufacturing, hardware, or regulatory approval, and that have a ready market. Use when Garry asks 'which projects can the app builder work on?', 'find me app-ready projects', 'what can we build now?', 'top 5 for app builder', or 'what software can we launch quickly?'. Returns ranked list with reasoning.",
+      parameters: {
+        type: "object",
+        properties: {
+          top_n: { type: "number", description: "How many top projects to return. Default 5." },
+          require_not_monetizable_yet: { type: "boolean", description: "If true, only include projects not yet generating revenue. Default false." },
+        },
+        required: [],
+      },
+    },
+  },
 ];
 
 async function executeLabTool(name: string, args: any, onProgress?: (event: Record<string, unknown>) => void): Promise<string> {
@@ -4699,6 +4728,136 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
         return lines.join("\n");
       }
 
+      case "detect_drawing_requirements": {
+        const scanLimit = args.limit || 200;
+        onProgress?.({ type: "status", message: `Scanning ${scanLimit} projects for drawing requirements…` });
+
+        const projects = await db.select({
+          id: labProjects.id, name: labProjects.name, industry: labProjects.industry,
+          phase: labProjects.phase, businessCase: labProjects.businessCase,
+        }).from(labProjects)
+          .where(and(ne(labProjects.status, "archived"), ne(labProjects.approvalStatus, "pending")))
+          .orderBy(desc(labProjects.updatedAt)).limit(scanLimit);
+
+        // Industry and keyword patterns that indicate physical drawing needs
+        const CAD_PATTERNS = [
+          /precision|cnc|machining|engineering|fabricat|manufactur|tooling|mould|casting|forging|welding|sheet metal/i,
+          /aerospace|avionics|defence|military|hydraulic|pneumatic|valve|sensor housing|component/i,
+          /medical device|implant|prosthetic|surgical|orthopaedic|diagnostic equipment/i,
+          /construction|architecture|structural|civil|building|infrastructure|bridge|foundation/i,
+          /hardware|electronic.*device|pcb|circuit|product.*design|physical product|wearable/i,
+          /vehicle|automotive|ev|battery pack|motor|drivetrain|chassis/i,
+          /robotics|robot|drone|uav|autonomous vehicle/i,
+          /furniture|interior design|fit-out|renovation/i,
+        ];
+
+        const ARCH_PATTERNS = [
+          /construction|building|property|real estate|architecture|interior|renovation|fit-out|commercial space/i,
+          /planning permission|listed building|structural survey/i,
+        ];
+
+        const needsCad: { id: number; name: string; industry: string; type: string; reason: string }[] = [];
+        const needsArch: { id: number; name: string; industry: string; type: string; reason: string }[] = [];
+
+        for (const p of projects) {
+          const text = `${p.name} ${p.industry} ${p.businessCase || ""}`;
+          const isCad = CAD_PATTERNS.some(rx => rx.test(text));
+          const isArch = ARCH_PATTERNS.some(rx => rx.test(text));
+          if (isArch) needsArch.push({ id: p.id, name: p.name, industry: p.industry, type: "Architectural Drawings", reason: "Physical construction or property project" });
+          else if (isCad) needsCad.push({ id: p.id, name: p.name, industry: p.industry, type: "CAD Engineering Drawings", reason: "Physical product, hardware, or precision manufacturing" });
+        }
+
+        const lines = [
+          `🔧 DRAWING REQUIREMENTS REPORT — ${projects.length} projects scanned`,
+          "",
+          `📐 REQUIRES CAD ENGINEERING DRAWINGS: ${needsCad.length} projects`,
+          ...needsCad.slice(0, 30).map(p => `  • #${p.id} "${p.name}" [${p.industry}] — ${p.reason}`),
+          needsCad.length > 30 ? `  … and ${needsCad.length - 30} more` : "",
+          "",
+          `🏛 REQUIRES ARCHITECTURAL DRAWINGS: ${needsArch.length} projects`,
+          ...needsArch.slice(0, 20).map(p => `  • #${p.id} "${p.name}" [${p.industry}] — ${p.reason}`),
+          needsArch.length > 20 ? `  … and ${needsArch.length - 20} more` : "",
+          "",
+          `✅ PURELY DIGITAL / SOFTWARE (no drawings needed): ${projects.length - needsCad.length - needsArch.length} projects`,
+          "",
+          `SUMMARY: Out of ${projects.length} approved projects — ${needsCad.length + needsArch.length} require physical drawings, ${projects.length - needsCad.length - needsArch.length} can proceed with software-only development.`,
+        ].filter(l => l !== undefined);
+
+        return lines.join("\n");
+      }
+
+      case "find_appbuilder_projects": {
+        const topN = args.top_n || 5;
+        onProgress?.({ type: "status", message: "Scanning portfolio for App Builder candidates…" });
+
+        const projects = await db.select({
+          id: labProjects.id, name: labProjects.name, industry: labProjects.industry,
+          phase: labProjects.phase, businessCase: labProjects.businessCase,
+          launchStatus: labProjects.launchStatus, status: labProjects.status,
+          approvalStatus: labProjects.approvalStatus,
+        }).from(labProjects)
+          .where(and(ne(labProjects.status, "archived"), ne(labProjects.approvalStatus, "pending")))
+          .orderBy(desc(labProjects.updatedAt)).limit(500);
+
+        // Software/digital indicators — good for app builder
+        const DIGITAL_INDICATORS = [
+          /saas|platform|dashboard|app|software|tool|portal|marketplace|api|automation|bot|ai|machine learning|analytics|crm|erp|cms|lms/i,
+          /subscription|b2b software|b2c app|mobile app|web app|browser extension|plugin/i,
+          /data.*management|workflow.*automation|digital.*transformation|cloud.*service/i,
+          /scheduling|booking|invoicing|compliance.*software|reporting.*tool|management.*software/i,
+        ];
+
+        // Physical / hardware / needs-regulatory-approval — NOT good for app builder
+        const PHYSICAL_INDICATORS = [
+          /cad|manufacturing|fabricat|hardware|device|sensor|wearable|medical device|implant|construction|building|architecture/i,
+          /regulatory.*approval|fda|ce.*mark|iso.*certification|clinical.*trial|planning.*permission/i,
+          /physical.*product|material|machining|cnc|3d.*print.*production|injection mould/i,
+        ];
+
+        // Score and rank projects
+        const scored: { id: number; name: string; industry: string; score: number; reasons: string[] }[] = [];
+        for (const p of projects) {
+          const text = `${p.name} ${p.industry} ${p.businessCase || ""}`;
+          const isDigital = DIGITAL_INDICATORS.some(rx => rx.test(text));
+          const isPhysical = PHYSICAL_INDICATORS.some(rx => rx.test(text));
+          if (!isDigital || isPhysical) continue;
+
+          const reasons: string[] = [];
+          let score = 50;
+          if (/saas/i.test(text)) { score += 20; reasons.push("SaaS model — recurring revenue potential"); }
+          if (/automation|bot|workflow/i.test(text)) { score += 15; reasons.push("Automation — fast to build and deploy"); }
+          if (/crm|erp|scheduling|invoicing|booking/i.test(text)) { score += 10; reasons.push("Established market with clear demand"); }
+          if (/ai|machine learning|analytics/i.test(text)) { score += 10; reasons.push("AI-powered — differentiator in market"); }
+          if (p.launchStatus === "launch-ready") { score += 25; reasons.push("Already built and launch-ready"); }
+          if (args.require_not_monetizable_yet && p.launchStatus === "launch-ready") continue;
+
+          scored.push({ id: p.id, name: p.name, industry: p.industry, score, reasons });
+        }
+
+        scored.sort((a, b) => b.score - a.score);
+        const top = scored.slice(0, topN);
+
+        if (top.length === 0) {
+          return "No strong app-builder candidates found in the current approved portfolio. Consider running the auto-scan to generate more software-focused projects.";
+        }
+
+        const lines = [
+          `🚀 TOP ${top.length} APP BUILDER CANDIDATES`,
+          `(From ${projects.length} approved projects — ${scored.length} qualify as purely digital)`,
+          "",
+          ...top.map((p, i) => [
+            `${i + 1}. "${p.name}" [#${p.id}]`,
+            `   Industry: ${p.industry}`,
+            `   Fit score: ${p.score}/100`,
+            `   Why: ${p.reasons.join(" | ")}`,
+            "",
+          ].join("\n")),
+          "These projects require no physical manufacturing or regulatory pre-approval — the App Builder can begin immediately.",
+        ];
+
+        return lines.join("\n");
+      }
+
       default:
         return `Unknown tool: ${name}`;
     }
@@ -4745,6 +4904,8 @@ const TOOL_META: Record<string, { label: string; color: string; icon: string }> 
   run_investment_rule: { label: "Running £10k investment rule", color: "hsl(25,90%,55%)", icon: "💷" },
   run_funding_analysis: { label: "Running funding analysis", color: "hsl(155,70%,45%)", icon: "💰" },
   run_platform_audit: { label: "Running full platform audit", color: "hsl(210,80%,55%)", icon: "🔬" },
+  detect_drawing_requirements: { label: "Scanning for drawing requirements", color: "hsl(280,70%,55%)", icon: "📐" },
+  find_appbuilder_projects: { label: "Finding App Builder candidates", color: "hsl(193,100%,40%)", icon: "🚀" },
 };
 
 // Detect whether a message is primarily an information/research query
