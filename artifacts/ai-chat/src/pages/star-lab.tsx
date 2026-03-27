@@ -11979,6 +11979,8 @@ function LabFloatingChat({ pin, navMode, activeProject, onNavigate, onOpenProjec
   const [unread, setUnread] = React.useState(false);
   const [voicePhase, setVoicePhase] = React.useState<"idle" | "listening" | "speaking">("idle");
   const [waveTick, setWaveTick] = React.useState(0);
+  const [floatTextInput, setFloatTextInput] = React.useState("");
+  const floatInputRef = React.useRef<HTMLInputElement>(null);
   const bottomRef = React.useRef<HTMLDivElement>(null);
   const recognitionRef = React.useRef<any>(null);
   const stoppedRef = React.useRef(false);
@@ -12308,30 +12310,69 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
             <div ref={bottomRef} />
           </div>
 
-          {/* Voice status bar */}
-          <div className="flex-shrink-0 flex items-center gap-2 px-3 py-2.5" style={{ background: "#fff", borderTop: "1px solid rgba(15,23,42,0.07)" }}>
-            {/* Mini waveform */}
-            <div className="flex items-center gap-0.5 h-6">
-              {Array.from({ length: 8 }, (_, i) => {
-                const active = voicePhase === "listening" || voicePhase === "speaking";
-                const h = active ? 3 + Math.abs(Math.sin(waveTick * 0.28 + i * 0.7)) * 14 : 2;
-                const bg = voicePhase === "listening" ? "hsl(0,75%,55%)" : voicePhase === "speaking" ? "hsl(193,100%,45%)" : "rgba(15,23,42,0.15)";
-                return <div key={i} style={{ width: 2, height: `${h}px`, background: bg, borderRadius: 2, transition: "height 0.09s ease" }} />;
-              })}
+          {/* Combined input bar: text field + voice button */}
+          <div className="flex-shrink-0" style={{ background: "#fff", borderTop: "1px solid rgba(15,23,42,0.07)" }}>
+            {/* Text input row */}
+            <div className="flex items-center gap-2 px-3 py-2">
+              <input
+                ref={floatInputRef}
+                value={floatTextInput}
+                onChange={e => setFloatTextInput(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === "Enter" && !e.shiftKey && floatTextInput.trim() && !streaming) {
+                    e.preventDefault();
+                    const txt = floatTextInput.trim();
+                    setFloatTextInput("");
+                    sendVoice(txt);
+                  }
+                }}
+                placeholder={streaming ? "Sirius is thinking…" : voicePhase === "listening" ? "Listening…" : voicePhase === "speaking" ? "Sirius speaking…" : "Type or speak…"}
+                disabled={streaming}
+                className="flex-1 text-xs rounded-xl px-3 py-2 outline-none transition-all"
+                style={{
+                  background: "hsl(210,20%,97%)",
+                  border: "1px solid rgba(15,23,42,0.1)",
+                  color: "rgba(15,23,42,0.85)",
+                  fontSize: 12,
+                }}
+              />
+              {/* Send button — only shown when there's text */}
+              {floatTextInput.trim() && !streaming && (
+                <button
+                  onClick={() => { const txt = floatTextInput.trim(); if (txt) { setFloatTextInput(""); sendVoice(txt); } }}
+                  className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-all active:scale-95"
+                  style={{ background: "hsl(193,100%,40%)" }}>
+                  <Send className="w-3.5 h-3.5 text-white" />
+                </button>
+              )}
+              {/* Mic button */}
+              <button
+                onClick={() => {
+                  if (voicePhase === "listening") { stopListeningNow(); }
+                  else if (voicePhase === "speaking") { window.speechSynthesis?.cancel(); setVoicePhase("idle"); setTimeout(() => startVoiceListening(t => sendVoice(t)), 300); }
+                  else if (!streaming) { startVoiceListening(t => sendVoice(t)); }
+                }}
+                className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-all active:scale-95"
+                style={{ background: voicePhase === "listening" ? "hsl(0,75%,45%)" : "rgba(15,23,42,0.08)", boxShadow: voicePhase === "listening" ? "0 0 8px hsl(0,75%,40%)" : "none", opacity: streaming && voicePhase !== "speaking" ? 0.4 : 1 }}>
+                {voicePhase === "listening" ? <MicOff className="w-3.5 h-3.5" style={{ color: "white" }} /> : <Mic className="w-3.5 h-3.5" style={{ color: voicePhase === "speaking" ? "hsl(193,100%,45%)" : "rgba(15,23,42,0.5)" }} />}
+              </button>
             </div>
-            <p className="flex-1 text-xs" style={{ color: voicePhase === "listening" ? "hsl(0,75%,50%)" : voicePhase === "speaking" ? "hsl(193,100%,35%)" : streaming ? "hsl(45,90%,50%)" : "rgba(15,23,42,0.35)" }}>
-              {voicePhase === "listening" ? "Listening…" : voicePhase === "speaking" ? "Sirius speaking…" : streaming ? "Thinking…" : "Voice only · Just speak"}
-            </p>
-            <button
-              onClick={() => {
-                if (voicePhase === "listening") { stopListeningNow(); }
-                else if (voicePhase === "speaking") { window.speechSynthesis?.cancel(); setVoicePhase("idle"); setTimeout(() => startVoiceListening(t => sendVoice(t)), 300); }
-                else if (!streaming) { startVoiceListening(t => sendVoice(t)); }
-              }}
-              className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-all active:scale-95"
-              style={{ background: voicePhase === "listening" ? "hsl(0,75%,45%)" : "hsl(193,100%,40%)", boxShadow: voicePhase === "listening" ? "0 0 8px hsl(0,75%,40%)" : "none", opacity: streaming && voicePhase !== "speaking" ? 0.4 : 1 }}>
-              {voicePhase === "listening" ? <MicOff className="w-3.5 h-3.5 text-white" /> : <Mic className="w-3.5 h-3.5 text-white" />}
-            </button>
+            {/* Voice status strip — only shown when voice is active */}
+            {(voicePhase !== "idle" || streaming) && (
+              <div className="flex items-center gap-2 px-3 pb-2">
+                <div className="flex items-center gap-0.5 h-4">
+                  {Array.from({ length: 6 }, (_, i) => {
+                    const active = voicePhase === "listening" || voicePhase === "speaking";
+                    const h = active ? 2 + Math.abs(Math.sin(waveTick * 0.28 + i * 0.7)) * 10 : 2;
+                    const bg = voicePhase === "listening" ? "hsl(0,75%,55%)" : voicePhase === "speaking" ? "hsl(193,100%,45%)" : "rgba(15,23,42,0.15)";
+                    return <div key={i} style={{ width: 2, height: `${h}px`, background: bg, borderRadius: 2, transition: "height 0.09s ease" }} />;
+                  })}
+                </div>
+                <p className="text-xs" style={{ color: voicePhase === "listening" ? "hsl(0,75%,50%)" : voicePhase === "speaking" ? "hsl(193,100%,35%)" : "hsl(45,90%,50%)", fontSize: 10 }}>
+                  {voicePhase === "listening" ? "Listening…" : voicePhase === "speaking" ? "Sirius speaking…" : "Thinking…"}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -12613,12 +12654,30 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
       const finalText = cleanedText || "No response — please try again.";
       setMessages(prev => [...prev, { role: "assistant", content: finalText, actions: actions.length > 0 ? [...actions] : undefined }]);
 
+      // In keyboard mode: fire navigation IMMEDIATELY — don't block on TTS
+      if (chatInputModeRef.current === "keyboard") {
+        const pendingBuild = pendingBuildRef.current;
+        const pendingNav = pendingNavRef.current;
+        pendingBuildRef.current = null;
+        pendingNavRef.current = null;
+        if (pendingBuild && onNavigateAndBuild) {
+          setTimeout(() => onNavigateAndBuild!(pendingBuild.section, pendingBuild.prompt), 100);
+        } else if (pendingBuild && onNavigate) {
+          setTimeout(() => onNavigate!(pendingBuild.section), 100);
+        } else if (pendingNav) {
+          setTimeout(() => {
+            if (onNavigate) onNavigate!(pendingNav.section);
+            if (pendingNav.projectId && onOpenProject) setTimeout(() => onOpenProject!(pendingNav.projectId!), 300);
+          }, 100);
+        }
+      }
+
       // Speak the response, then execute any buffered navigation, then restart listening
       setVoicePhase("speaking");
       const voiceText = finalText.replace(/[*#>`_~]/g, "").replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").slice(0, 500);
       speakText(voiceText, () => {
         setVoicePhase("idle");
-        // Flush buffered navigation AFTER speaking so the component doesn't unmount mid-response
+        // Flush buffered navigation AFTER speaking (voice mode only — keyboard already handled above)
         const pendingBuild = pendingBuildRef.current;
         const pendingNav = pendingNavRef.current;
         pendingBuildRef.current = null;
@@ -12663,13 +12722,60 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
     }
   };
 
+  const detectLabNavIntent = (text: string): NavMode | null => {
+    const t = text.toLowerCase();
+    const navMap: [string[], NavMode][] = [
+      [["dashboard", "home", "overview"], "dashboard"],
+      [["project", "portfolio", "innovations"], "projects"],
+      [["bot lab", "botlab", "automation bots", "bots"], "botlab"],
+      [["scout", "scan", "opportunities", "scanning"], "scout"],
+      [["intelligence feed", "feed", "market signals", "trends"], "feed"],
+      [["funding radar", "grants", "funding", "grant"], "grants"],
+      [["commerce", "e-commerce", "retail", "shop"], "commerce"],
+      [["outreach", "sales contacts", "partners"], "outreach"],
+      [["auto lab", "autolab", "pending approval"], "autolab"],
+      [["revenue", "sales plan", "unit economics", "commission"], "revenue"],
+      [["agency", "client delivery"], "agency"],
+      [["mission", "kpi", "objectives"], "mission"],
+      [["growth", "marketing", "growth engine"], "growth"],
+      [["brain", "strategic intelligence", "deep analysis"], "brain"],
+      [["deep research", "research"], "research"],
+      [["document", "docs", "upload"], "docs"],
+      [["lab chat", "labchat", "full conversation"], "labchat"],
+      [["app builder", "appbuilder", "build app"], "appbuilder"],
+      [["ai architecture", "ai arch", "architecture"], "ai-arch"],
+      [["command centre", "orchestrate", "orchestration", "full pipeline"], "orchestrate"],
+      [["system audit", "sysaudit", "platform audit", "audit", "health check", "platform health"], "sysaudit"],
+    ];
+    const goVerbs = ["go to", "take me to", "open", "show me", "navigate to", "switch to", "go"];
+    const hasGoVerb = goVerbs.some(v => t.includes(v));
+    if (!hasGoVerb) return null;
+    for (const [keywords, mode] of navMap) {
+      if (keywords.some(k => t.includes(k))) return mode;
+    }
+    return null;
+  };
+
   const submitTextMessage = () => {
     const text = textInput.trim();
     if (!text || streaming) return;
     setTextInput("");
     const userMsg: LabChatMsg = { role: "user", content: text };
-    const apiMessages = [...messagesRef.current, userMsg].map(m => ({ role: m.role, content: m.content }));
     setMessages(prev => [...prev, userMsg]);
+
+    // Client-side navigation shortcut — instant, no need to wait for Sirius
+    if (onNavigate) {
+      const navTarget = detectLabNavIntent(text);
+      if (navTarget) {
+        const navName = NAV_LABELS[navTarget] ?? navTarget;
+        setMessages(prev => [...prev, { role: "assistant", content: `Taking you to ${navName} now.` }]);
+        speakText(`Taking you to ${navName}.`);
+        setTimeout(() => onNavigate!(navTarget), 200);
+        return;
+      }
+    }
+
+    const apiMessages = [...messagesRef.current, userMsg].map(m => ({ role: m.role, content: m.content }));
     sendWithMessages(apiMessages);
   };
 
