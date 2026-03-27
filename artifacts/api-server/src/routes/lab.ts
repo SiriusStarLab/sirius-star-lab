@@ -309,33 +309,29 @@ async function streamChatResponse(
   systemPrompt: string,
   userMessage: string,
   history: { role: string; content: string }[] = [],
-  _model = "gpt-5.2"
+  _model = "gpt-4o"
 ): Promise<string> {
-  const inputMessages: any[] = [
+  const messages: any[] = [
+    { role: "system", content: systemPrompt },
     ...history.map(m => ({ role: m.role as "user" | "assistant", content: m.content })),
     { role: "user", content: userMessage },
   ];
 
   let fullContent = "";
 
-  const stream = await (openai as any).responses.create({
+  const stream = await openai.chat.completions.create({
     model: "gpt-4o",
-    tools: [{ type: "web_search_preview", search_context_size: "high" }],
-    instructions: systemPrompt,
-    input: inputMessages,
+    messages,
     stream: true,
+    max_tokens: 4000,
+    temperature: 0.7,
   });
 
-  for await (const event of stream) {
-    const eventType = (event as any).type as string;
-    if (eventType === "response.web_search_call.in_progress" || eventType === "response.web_search_call.searching") {
-      res.write(`data: ${JSON.stringify({ type: "searching" })}\n\n`);
-    } else if (eventType === "response.output_text.delta") {
-      const delta = (event as any).delta as string;
-      if (delta) {
-        fullContent += delta;
-        res.write(`data: ${JSON.stringify({ content: delta })}\n\n`);
-      }
+  for await (const chunk of stream) {
+    const delta = chunk.choices[0]?.delta?.content || "";
+    if (delta) {
+      fullContent += delta;
+      res.write(`data: ${JSON.stringify({ content: delta })}\n\n`);
     }
   }
 
@@ -349,27 +345,25 @@ async function streamWithSearch(
   userMessage: string,
   jsonMode = false
 ): Promise<string> {
-  const stream = await (openai as any).responses.create({
+  const stream = await openai.chat.completions.create({
     model: "gpt-4o",
-    tools: [{ type: "web_search_preview", search_context_size: "high" }],
-    instructions: systemPrompt,
-    input: [{ role: "user", content: userMessage }],
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userMessage },
+    ],
     stream: true,
-    ...(jsonMode ? { text: { format: { type: "json_object" } } } : {}),
+    max_tokens: 4000,
+    temperature: 0.7,
+    ...(jsonMode ? { response_format: { type: "json_object" as const } } : {}),
   });
 
   let fullContent = "";
 
-  for await (const event of stream) {
-    const eventType = (event as any).type as string;
-    if (eventType === "response.web_search_call.in_progress" || eventType === "response.web_search_call.searching") {
-      res.write(`data: ${JSON.stringify({ type: "searching" })}\n\n`);
-    } else if (eventType === "response.output_text.delta") {
-      const delta = (event as any).delta as string;
-      if (delta) {
-        fullContent += delta;
-        res.write(`data: ${JSON.stringify({ delta })}\n\n`);
-      }
+  for await (const chunk of stream) {
+    const delta = chunk.choices[0]?.delta?.content || "";
+    if (delta) {
+      fullContent += delta;
+      res.write(`data: ${JSON.stringify({ delta })}\n\n`);
     }
   }
 
@@ -759,29 +753,21 @@ CRITICAL EXECUTION RULES — READ CAREFULLY:
       { role: "user", content: message },
     ];
 
-    // Helper: run a non-streaming web search and return the text content
+    // Helper: generate research content using the AI's training knowledge
     async function doWebSearch(query: string): Promise<string> {
       try {
-        const result = await (openai as any).responses.create({
+        const result = await openai.chat.completions.create({
           model: "gpt-4o",
-          tools: [{ type: "web_search_preview", search_context_size: "high" }],
-          instructions: `You are a research assistant. Search the web and return comprehensive, factual results about: ${query}. Include relevant data, numbers, sources, and current information. Be thorough.`,
-          input: [{ role: "user", content: `Search for: ${query}` }],
+          messages: [
+            { role: "system", content: "You are a research assistant with deep knowledge across all domains. Provide comprehensive, factual, well-structured information. Include relevant data, market context, key players, and actionable insights. Be thorough and specific." },
+            { role: "user", content: `Research the following topic thoroughly and return comprehensive findings:\n\n${query}` },
+          ],
+          max_tokens: 1500,
+          temperature: 0.3,
         });
-        // Extract text from output items
-        const texts: string[] = [];
-        if (Array.isArray(result.output)) {
-          for (const item of result.output) {
-            if (item.type === "message" && Array.isArray(item.content)) {
-              for (const c of item.content) {
-                if (c.type === "output_text") texts.push(c.text);
-              }
-            }
-          }
-        }
-        return texts.join("\n\n") || "No results found.";
+        return result.choices[0]?.message?.content || "No results found.";
       } catch (e: any) {
-        return `Search failed: ${e.message}`;
+        return `Research failed: ${e.message}`;
       }
     }
 
@@ -1625,17 +1611,25 @@ Be brutally specific. Reference real things. No generic advice.`;
   res.setHeader("Cache-Control", "no-cache");
 
   try {
-    const response = await (openai as any).responses.create({
+    const response = await openai.chat.completions.create({
       model: "gpt-4o",
-      tools: [{ type: "web_search_preview", search_context_size: "high" }],
-      instructions: systemPrompt,
-      input: [{ role: "user", content: userPrompt }],
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      response_format: { type: "json_object" },
+      max_tokens: 2000,
+      temperature: 0.5,
     });
 
-    const raw = response.output_text || "[]";
+    const raw = response.choices[0]?.message?.content || "[]";
     const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
     let insights;
-    try { insights = JSON.parse(cleaned); } catch { insights = []; }
+    // The response may be a JSON object with an array inside, or directly an array
+    try {
+      const parsed = JSON.parse(cleaned);
+      insights = Array.isArray(parsed) ? parsed : (parsed.insights || parsed.items || parsed.results || Object.values(parsed)[0] || []);
+    } catch { insights = []; }
     res.json(insights);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -4778,50 +4772,30 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
       ];
 
       try {
-        const searchStream = await (openai as any).responses.create({
+        const chatMsgsForSearch: any[] = [
+          { role: "system", content: activeSystemPrompt + "\n\nIMPORTANT: Give a comprehensive, well-structured answer with specific details, data, context and evidence. Do not be brief — give full depth." },
+          ...inputMsgs,
+        ];
+
+        const searchStream = await openai.chat.completions.create({
           model: "gpt-4o",
-          tools: [{ type: "web_search_preview", search_context_size: "high" }],
-          instructions: activeSystemPrompt + "\n\nIMPORTANT: The user is asking for information. Search the web thoroughly and give a comprehensive, well-structured answer with specific details, dates, sources, and evidence. Do not be brief — give full depth.",
-          input: inputMsgs,
+          messages: chatMsgsForSearch,
           stream: true,
+          max_tokens: 3000,
+          temperature: 0.6,
         });
 
-        let searchResponse = "";
-        const sources: Array<{ url: string; title: string }> = [];
-
-        for await (const event of searchStream) {
-          const evType = (event as any).type as string;
-          if (evType === "response.web_search_call.searching" || evType === "response.web_search_call.in_progress") {
-            sendEvent({ type: "searching" });
-          } else if (evType === "response.output_text.delta") {
-            const delta = (event as any).delta as string;
-            if (delta) {
-              searchResponse += delta;
-              sendEvent({ type: "text", delta });
-            }
-          } else if (evType === "response.completed" || evType === "response.done") {
-            const outputItems: any[] = (event as any).response?.output ?? [];
-            for (const item of outputItems) {
-              if (item.type === "message") {
-                for (const part of item.content ?? []) {
-                  for (const ann of part.annotations ?? []) {
-                    if (ann.type === "url_citation" && ann.url && !sources.find(s => s.url === ann.url)) {
-                      sources.push({ url: ann.url, title: ann.title || ann.url });
-                    }
-                  }
-                }
-              }
-            }
-            if (sources.length > 0) sendEvent({ type: "sources", sources });
-          }
+        for await (const chunk of searchStream) {
+          const delta = chunk.choices[0]?.delta?.content || "";
+          if (delta) sendEvent({ type: "text", delta });
         }
 
         sendEvent({ type: "done" });
         res.end();
         return;
       } catch (searchErr: any) {
-        console.error("[Lab/chat] Web search failed, falling through to Chat Completions:", searchErr?.message);
-        sendEvent({ type: "thinking", text: "Web search unavailable — using knowledge base…" });
+        console.error("[Lab/chat] Search fallback failed, falling through:", searchErr?.message);
+        sendEvent({ type: "thinking", text: "Using knowledge base…" });
       }
     }
     // ── Tool-calling branch: Chat Completions with function tools ───────────────
@@ -5029,42 +5003,39 @@ router.post("/lab/deep-research", async (req, res): Promise<void> => {
       "Synthesising findings into structured report",
     ];
 
-    const stream = await (openai as any).responses.create({
+    const stream = await openai.chat.completions.create({
       model: "gpt-4o",
-      tools: [{ type: "web_search_preview", search_context_size: "high" }],
-      input: `You are a professional research analyst. Conduct thorough multi-source web research on the following topic and produce a comprehensive, well-structured report with clear sections, key findings, and actionable insights.
+      messages: [
+        { role: "system", content: "You are a professional research analyst and strategic intelligence expert. Produce comprehensive, well-structured research reports with specific data, market context, key players, and actionable insights. Be detailed and specific — this report is for a business owner making real decisions." },
+        { role: "user", content: `Conduct thorough research on the following topic and produce a comprehensive, well-structured report.
 
 RESEARCH TOPIC: ${query}
 
-Your report should include:
+Your report must include:
 1. Executive Summary (2-3 sentences)
-2. Key Findings (bullet points)
-3. Market/Industry Context (relevant data, size, trends)
+2. Key Findings (bullet points with specific data)
+3. Market/Industry Context (size, trends, growth rates)
 4. Key Players / Important Names (companies, people, organisations)
 5. Opportunities & Risks
-6. Actionable Recommendations
-7. Sources used
+6. Actionable Recommendations for a UK business owner
+7. Estimated costs, timelines, or revenue figures where relevant
 
-Be specific, cite real data where possible, and make the report genuinely useful for a business owner.`,
+Be specific, use real market knowledge, and make the report genuinely useful.` },
+      ],
       stream: true,
+      max_tokens: 3000,
+      temperature: 0.4,
     });
 
     let fullText = "";
-    const sources: string[] = [];
 
-    for await (const event of stream) {
-      if (event.type === "response.output_text.delta") {
-        fullText += event.delta || "";
-      }
-      if (event.type === "response.web_search_call.completed" || event.type === "response.output_item.added") {
-        const url = (event as any).url || (event as any).item?.url;
-        if (url && !sources.includes(url)) sources.push(url);
-      }
+    for await (const chunk of stream) {
+      fullText += chunk.choices[0]?.delta?.content || "";
     }
 
     if (!fullText) throw new Error("No research results returned");
 
-    res.json({ ok: true, report: fullText, sources: sources.slice(0, 10), steps });
+    res.json({ ok: true, report: fullText, sources: [], steps });
   } catch (err: any) {
     res.status(500).json({ error: "Research failed", detail: err?.message });
   }
@@ -6289,16 +6260,16 @@ async function searchDocsForAgent(agentId: string, techStack: string, appName: s
   const query = queries[agentId] || `${techStack} development ${new Date().getFullYear()}`;
 
   try {
-    const result = await (openai as any).responses.create({
+    const result = await openai.chat.completions.create({
       model: "gpt-4o",
-      tools: [{ type: "web_search_preview", search_context_size: "high" }],
-      input: `Search for: "${query}". Return a concise summary (3-5 bullet points) of the most current best practices and API patterns relevant to: ${agentId} development for a ${techStack} application.`,
-      max_output_tokens: 400,
+      messages: [
+        { role: "system", content: "You are a senior software architect. Return concise, accurate, current best practices." },
+        { role: "user", content: `Provide 3-5 bullet points of the most important current best practices and patterns for: ${agentId} development in a ${techStack} application. Be specific and practical. Topic: ${query}` },
+      ],
+      max_tokens: 400,
+      temperature: 0.2,
     });
-
-    const text = result.output?.find((o: any) => o.type === "message")?.content
-      ?.find((c: any) => c.type === "output_text")?.text || "";
-    return text;
+    return result.choices[0]?.message?.content || "";
   } catch {
     return "";
   }
