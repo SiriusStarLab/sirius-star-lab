@@ -7016,5 +7016,191 @@ router.post("/lab/settings/change-pin", authMiddleware, async (req: Request, res
   }
 });
 
+// ─── Quick Wins — AI analysis picking the top 5 lowest-investment, fastest-to-market projects ───
+
+router.post("/lab/projects/quick-wins", authMiddleware, async (req: Request, res: Response) => {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+
+  const send = (data: object) => {
+    try { res.write(`data: ${JSON.stringify(data)}\n\n`); } catch {}
+  };
+  const heartbeat = setInterval(() => { try { res.write(": heartbeat\n\n"); } catch {} }, 12000);
+
+  try {
+    // Fetch all active, non-archived projects
+    const allProjects = await db
+      .select({
+        id: labProjects.id,
+        name: labProjects.name,
+        industry: labProjects.industry,
+        phase: labProjects.phase,
+        status: labProjects.status,
+        brief: labProjects.brief,
+        research: labProjects.research,
+        specs: labProjects.specs,
+        costToBuild: labProjects.costToBuild,
+        profitMargin: labProjects.profitMargin,
+        businessCase: labProjects.businessCase,
+        goToMarket: labProjects.goToMarket,
+        investmentRequired: labProjects.investmentRequired,
+        industryProblem: labProjects.industryProblem,
+        uses: labProjects.uses,
+        autoCreated: labProjects.autoCreated,
+        approvalStatus: labProjects.approvalStatus,
+        aiArchInsights: labProjects.aiArchInsights,
+        salesPlan: labProjects.salesPlan,
+        createdAt: labProjects.createdAt,
+      })
+      .from(labProjects)
+      .where(and(
+        eq(labProjects.status, "active"),
+      ));
+
+    // Pre-filter: exclude assessed high-investment projects (they'll be archived soon anyway)
+    const eligible = allProjects.filter(p =>
+      p.approvalStatus !== "rejected" &&
+      (p.investmentRequired == null || p.investmentRequired <= 50000)
+    );
+
+    const totalEligible = eligible.length;
+    send({ type: "start", total: totalEligible });
+
+    if (totalEligible === 0) {
+      send({ type: "error", message: "No active projects found to analyse." });
+      return;
+    }
+
+    send({ type: "scanning", message: `Analysing ${totalEligible} projects across all industries…` });
+
+    // Score each project by data richness so we send the most information-dense ones to the AI
+    const scored = eligible.map(p => {
+      let score = 0;
+      if (p.brief?.trim()) score += 3;
+      if (p.businessCase?.trim()) score += 4;
+      if (p.goToMarket?.trim()) score += 4;
+      if (p.costToBuild?.trim()) score += 3;
+      if (p.profitMargin?.trim()) score += 3;
+      if (p.industryProblem?.trim()) score += 2;
+      if (p.uses?.trim()) score += 2;
+      if (p.investmentRequired != null && p.investmentRequired <= 5000) score += 5; // already assessed as low-cost
+      if (p.aiArchInsights && p.aiArchInsights !== "{}") score += 2;
+      return { p, score };
+    });
+    // Sort by richness descending, cap at 150 for AI context
+    const top = scored.sort((a, b) => b.score - a.score).slice(0, 150).map(s => s.p);
+
+    // Build compact project summaries — ~200 chars per project max to fit in 128k context
+    const projectSummaries = top.map((p, i) => {
+      const parts: string[] = [`P${i + 1}|${p.name}|ID:${p.id}|${p.industry}`];
+      const brief = p.brief?.trim().slice(0, 180) || "";
+      const biz = p.businessCase?.trim().slice(0, 150) || "";
+      const gtm = p.goToMarket?.trim().slice(0, 120) || "";
+      const cost = p.costToBuild?.trim().slice(0, 80) || "";
+      const margin = p.profitMargin?.trim().slice(0, 60) || "";
+      const invest = p.investmentRequired != null ? `£${p.investmentRequired.toLocaleString()}` : "";
+      if (brief) parts.push(`Brief: ${brief}`);
+      if (biz) parts.push(`BizCase: ${biz}`);
+      if (gtm) parts.push(`GTM: ${gtm}`);
+      if (cost) parts.push(`Cost: ${cost}`);
+      if (margin) parts.push(`Margin: ${margin}`);
+      if (invest) parts.push(`InvestAssessed: ${invest}`);
+      return parts.join(" | ");
+    }).join("\n");
+
+    send({ type: "scanning", message: "Running deep strategic analysis with Sirius intelligence…" });
+
+    const systemPrompt = `You are Sirius — a world-class strategic commercial intelligence AI for Strategic Innovation Dundee Ltd. Your owner Garry wants to know which of his current projects can make real money the fastest with the least investment. Your analysis must be ruthlessly practical, commercially sharp, and immediately actionable.
+
+Your output format is STRICT JSON lines — one JSON object per line, no extra text:
+
+First, emit this object:
+{ "type": "summary_start", "message": "Brief one-sentence framing of what you found across all the projects" }
+
+Then, for each of the TOP 5 picks, emit this object (one per line, rank 1 = best):
+{
+  "type": "pick",
+  "rank": 1,
+  "projectId": <id from the project list>,
+  "projectName": "<exact project name>",
+  "investmentBand": "£0–£500" | "£500–£2k" | "£2k–£5k" | "£5k–£10k",
+  "buildTime": "1–3 days" | "1 week" | "2 weeks" | "1 month",
+  "revenueStart": "Day 1" | "Week 1" | "Month 1" | "Month 2–3",
+  "monthlyRevenueEstimate": "£X–£Y/month within 90 days",
+  "whyWin": "2–3 sentences: exactly why this is a quick win — what problem it solves, who pays immediately, why it needs minimal investment, and what makes it go-to-market ready right now",
+  "immediateAction": "The single most important first step Garry should take this week to activate this project",
+  "riskNote": "The one realistic risk to watch",
+  "score": 92
+}
+
+Finally, emit:
+{ "type": "done", "headline": "Garry's #1 priority for the next 30 days in one punchy sentence" }
+
+Selection criteria — PRIORITISE projects that:
+1. Require £0–£5,000 total investment (or can be started for under £500)
+2. Can be launched within days or weeks, not months
+3. Have an immediately identifiable paying customer (B2B or B2C with existing demand)
+4. Can generate first revenue within 30 days of starting
+5. Leverage existing tech/tools/skills without bespoke hardware or regulatory approval
+6. Have high margin (digital products, SaaS, consulting, services, automation)
+
+DEPRIORITISE projects requiring physical manufacturing, regulatory approval, large capital, or long sales cycles.
+
+Be specific to the actual projects listed. Do NOT hallucinate features not mentioned. If a project is vague, say so in whyWin.`;
+
+    const userPrompt = `Portfolio contains ${totalEligible} active projects. I've sent you the ${top.length} most data-rich ones below (compact format: P[n]|Name|ID|Industry | Brief | BizCase | GTM | Cost | Margin | InvestAssessed).
+
+Analyse all of them, then pick the top 5 that need the least investment, can be built right away, launched immediately, and generate revenue from day one.\n\n${projectSummaries}`;
+
+    let buffer = "";
+    const stream = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      stream: true,
+      max_tokens: 3000,
+      temperature: 0.4,
+    });
+
+    for await (const chunk of stream) {
+      const delta = chunk.choices[0]?.delta?.content || "";
+      if (!delta) continue;
+      buffer += delta;
+
+      // Emit completed JSON lines as picks stream in
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        try {
+          const obj = JSON.parse(trimmed);
+          send(obj);
+        } catch {
+          // partial line — keep accumulating
+        }
+      }
+    }
+
+    // Flush any remaining buffer
+    if (buffer.trim()) {
+      try { send(JSON.parse(buffer.trim())); } catch {}
+    }
+
+    send({ type: "complete" });
+  } catch (err: any) {
+    console.error("[QuickWins] Error:", err?.message);
+    send({ type: "error", message: err?.message || "Analysis failed" });
+  } finally {
+    clearInterval(heartbeat);
+    res.end();
+  }
+});
+
 export default router;
 

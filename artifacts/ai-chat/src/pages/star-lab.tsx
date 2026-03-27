@@ -13310,6 +13310,70 @@ export function StarLabPage() {
   const [projectSearch, setProjectSearch] = useState("");
   const [showArchived, setShowArchived] = useState(false);
   const [unarchivingId, setUnarchivingId] = useState<number | null>(null);
+
+  // Quick Wins analysis
+  type QuickWinPick = {
+    rank: number; projectId: number; projectName: string;
+    investmentBand: string; buildTime: string; revenueStart: string;
+    monthlyRevenueEstimate: string; whyWin: string; immediateAction: string;
+    riskNote: string; score: number;
+  };
+  const [quickWinsOpen, setQuickWinsOpen] = useState(false);
+  const [quickWinsRunning, setQuickWinsRunning] = useState(false);
+  const [quickWinsTotal, setQuickWinsTotal] = useState(0);
+  const [quickWinsScanning, setQuickWinsScanning] = useState("");
+  const [quickWinsPicks, setQuickWinsPicks] = useState<QuickWinPick[]>([]);
+  const [quickWinsHeadline, setQuickWinsHeadline] = useState("");
+  const [quickWinsSummary, setQuickWinsSummary] = useState("");
+  const [quickWinsError, setQuickWinsError] = useState("");
+
+  const runQuickWins = async () => {
+    setQuickWinsOpen(true);
+    setQuickWinsRunning(true);
+    setQuickWinsPicks([]);
+    setQuickWinsHeadline("");
+    setQuickWinsSummary("");
+    setQuickWinsError("");
+    setQuickWinsScanning("Starting analysis…");
+    try {
+      const base = getApiBase();
+      const res = await fetch(`${base}lab/projects/quick-wins`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+      });
+      if (!res.body) throw new Error("No response body");
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let buf = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop() || "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const evt = JSON.parse(line.slice(6));
+            if (evt.type === "start") setQuickWinsTotal(evt.total);
+            else if (evt.type === "scanning") setQuickWinsScanning(evt.message);
+            else if (evt.type === "summary_start") setQuickWinsSummary(evt.message);
+            else if (evt.type === "pick") setQuickWinsPicks(prev => {
+              const exists = prev.find(p => p.rank === evt.rank);
+              if (exists) return prev;
+              return [...prev, evt as QuickWinPick].sort((a, b) => a.rank - b.rank);
+            });
+            else if (evt.type === "done") setQuickWinsHeadline(evt.headline || "");
+            else if (evt.type === "complete") setQuickWinsRunning(false);
+            else if (evt.type === "error") { setQuickWinsError(evt.message); setQuickWinsRunning(false); }
+          } catch {}
+        }
+      }
+    } catch (err: any) {
+      setQuickWinsError(err?.message || "Analysis failed");
+      setQuickWinsRunning(false);
+    }
+  };
   const [activeProject, setActiveProject] = useState<Project | null>(null);
   const [navMode, setNavMode] = useState<NavMode>("dashboard");
   const [revenueInitialTab, setRevenueInitialTab] = useState<RevenueTab | undefined>();
@@ -13614,6 +13678,11 @@ export function StarLabPage() {
                 style={{ background: "hsl(193,100%,32%)", color: "white" }}>
                 <Plus className="w-3.5 h-3.5" /> New Project
               </button>
+              <button onClick={runQuickWins}
+                className="w-full py-2 rounded-xl flex items-center justify-center gap-1.5 text-xs font-semibold transition-all hover:opacity-90"
+                style={{ background: "linear-gradient(135deg, hsl(45,100%,48%), hsl(35,100%,52%))", color: "white" }}>
+                <Zap className="w-3.5 h-3.5" /> Quick Wins Analysis
+              </button>
               {/* Search */}
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3" style={{ color: "rgba(15,23,42,0.3)" }} />
@@ -13893,7 +13962,215 @@ export function StarLabPage() {
           activeProject
             ? <ProjectWorkspace project={activeProject} pin={pin} onUpdate={p => setActiveProject(p)} onBack={() => setActiveProject(null)} />
             : (
-              <div className="flex-1 flex flex-col min-h-0 overflow-hidden" style={{ background: "#F8FAFC" }}>
+              <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative" style={{ background: "#F8FAFC" }}>
+
+                {/* ─── Quick Wins Overlay Panel ───────────────────────────────── */}
+                <AnimatePresence>
+                  {quickWinsOpen && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="absolute inset-0 z-50 flex flex-col"
+                      style={{ background: "rgba(15,23,42,0.6)", backdropFilter: "blur(4px)" }}
+                    >
+                      <motion.div
+                        initial={{ y: 40, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        exit={{ y: 40, opacity: 0 }}
+                        transition={{ type: "spring", damping: 28, stiffness: 320 }}
+                        className="flex-1 flex flex-col m-4 rounded-2xl overflow-hidden shadow-2xl"
+                        style={{ background: "#FFFFFF", maxHeight: "calc(100% - 32px)" }}
+                      >
+                        {/* Header */}
+                        <div className="flex-shrink-0 flex items-center justify-between px-6 py-4"
+                          style={{ background: "linear-gradient(135deg, hsl(45,100%,48%), hsl(35,100%,50%))" }}>
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "rgba(255,255,255,0.25)" }}>
+                              <Zap className="w-5 h-5 text-white" />
+                            </div>
+                            <div>
+                              <h2 className="font-bold text-white text-base leading-tight">Quick Wins Analysis</h2>
+                              <p className="text-xs text-white/75 mt-0.5">
+                                {quickWinsRunning
+                                  ? `Scanning ${quickWinsTotal} projects…`
+                                  : quickWinsPicks.length > 0
+                                    ? `Top ${quickWinsPicks.length} of ${quickWinsTotal} projects — lowest investment, fastest revenue`
+                                    : "Top 5 projects ready to build and sell immediately"}
+                              </p>
+                            </div>
+                          </div>
+                          <button onClick={() => setQuickWinsOpen(false)}
+                            className="w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:opacity-75"
+                            style={{ background: "rgba(255,255,255,0.2)" }}>
+                            <X className="w-4 h-4 text-white" />
+                          </button>
+                        </div>
+
+                        {/* Scanning state */}
+                        {quickWinsRunning && quickWinsPicks.length === 0 && (
+                          <div className="flex-1 flex flex-col items-center justify-center gap-4 p-8">
+                            <div className="relative w-16 h-16">
+                              <div className="absolute inset-0 rounded-full animate-ping" style={{ background: "hsla(45,100%,48%,0.2)" }} />
+                              <div className="relative w-16 h-16 rounded-full flex items-center justify-center" style={{ background: "hsla(45,100%,48%,0.12)" }}>
+                                <Zap className="w-8 h-8" style={{ color: "hsl(45,100%,42%)" }} />
+                              </div>
+                            </div>
+                            <div className="text-center">
+                              <p className="font-semibold text-slate-700">{quickWinsScanning}</p>
+                              <p className="text-xs mt-1" style={{ color: "rgba(15,23,42,0.4)" }}>Sirius is reading every project and scoring commercial potential…</p>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Error */}
+                        {quickWinsError && (
+                          <div className="flex-1 flex items-center justify-center p-8">
+                            <div className="text-center">
+                              <p className="text-sm font-medium text-red-500 mb-2">Analysis failed</p>
+                              <p className="text-xs" style={{ color: "rgba(15,23,42,0.45)" }}>{quickWinsError}</p>
+                              <button onClick={runQuickWins} className="mt-4 px-4 py-2 rounded-lg text-xs font-medium"
+                                style={{ background: "hsl(45,100%,48%)", color: "white" }}>Try again</button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Results */}
+                        {quickWinsPicks.length > 0 && (
+                          <div className="flex-1 overflow-y-auto p-5 space-y-4">
+                            {/* Summary & headline */}
+                            {quickWinsSummary && (
+                              <div className="px-4 py-3 rounded-xl text-sm" style={{ background: "hsla(45,100%,48%,0.08)", border: "1px solid hsla(45,100%,48%,0.2)", color: "hsl(35,80%,30%)" }}>
+                                {quickWinsSummary}
+                              </div>
+                            )}
+
+                            {/* Loading more picks indicator */}
+                            {quickWinsRunning && (
+                              <div className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs" style={{ background: "rgba(15,23,42,0.04)", color: "rgba(15,23,42,0.45)" }}>
+                                <Loader2 className="w-3 h-3 animate-spin" /> Ranking remaining projects…
+                              </div>
+                            )}
+
+                            {/* Pick cards */}
+                            {quickWinsPicks.map((pick, idx) => {
+                              const rankColors = [
+                                { bg: "hsl(45,100%,48%)", text: "white", border: "hsl(45,100%,48%)" },
+                                { bg: "hsl(220,13%,91%)", text: "hsl(220,13%,35%)", border: "hsl(220,13%,82%)" },
+                                { bg: "hsl(25,70%,55%)", text: "white", border: "hsl(25,70%,55%)" },
+                                { bg: "hsla(155,70%,45%,0.15)", text: "hsl(155,70%,32%)", border: "hsla(155,70%,45%,0.4)" },
+                                { bg: "hsla(193,100%,40%,0.12)", text: "hsl(193,100%,30%)", border: "hsla(193,100%,40%,0.35)" },
+                              ];
+                              const rc = rankColors[idx] || rankColors[4];
+                              const project = projects.find(p => p.id === pick.projectId);
+                              return (
+                                <motion.div
+                                  key={pick.rank}
+                                  initial={{ opacity: 0, y: 10 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  transition={{ delay: idx * 0.05 }}
+                                  className="rounded-2xl overflow-hidden"
+                                  style={{ border: "1px solid rgba(15,23,42,0.09)", background: "#FFFFFF", boxShadow: "0 1px 8px rgba(15,23,42,0.06)" }}
+                                >
+                                  {/* Card header */}
+                                  <div className="flex items-center gap-3 px-4 py-3" style={{ background: "rgba(15,23,42,0.025)" }}>
+                                    <div className="w-8 h-8 rounded-xl flex-shrink-0 flex items-center justify-center font-black text-sm"
+                                      style={{ background: rc.bg, color: rc.text }}>
+                                      #{pick.rank}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <h3 className="font-bold text-slate-800 text-sm truncate">{pick.projectName}</h3>
+                                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: "hsla(155,70%,45%,0.12)", color: "hsl(155,70%,32%)" }}>
+                                          {pick.investmentBand}
+                                        </span>
+                                        <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: "hsla(193,100%,40%,0.1)", color: "hsl(193,100%,30%)" }}>
+                                          Build: {pick.buildTime}
+                                        </span>
+                                        <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: "hsla(45,100%,48%,0.12)", color: "hsl(35,90%,30%)" }}>
+                                          Revenue: {pick.revenueStart}
+                                        </span>
+                                        {pick.score > 0 && (
+                                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full ml-auto" style={{ background: "rgba(15,23,42,0.05)", color: "rgba(15,23,42,0.5)" }}>
+                                            Score: {pick.score}/100
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                    {(project || pick.projectId) && (
+                                      <button
+                                        onClick={() => {
+                                          if (project) { setActiveProject(project); }
+                                          else { loadProject(pick.projectId); }
+                                          setQuickWinsOpen(false);
+                                        }}
+                                        className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:opacity-90"
+                                        style={{ background: "hsl(193,100%,32%)", color: "white" }}>
+                                        <ArrowRight className="w-3 h-3" /> Open
+                                      </button>
+                                    )}
+                                  </div>
+
+                                  {/* Card body */}
+                                  <div className="px-4 py-3 space-y-3">
+                                    <div>
+                                      <p className="text-xs font-semibold mb-1" style={{ color: "rgba(15,23,42,0.45)" }}>WHY THIS WINS</p>
+                                      <p className="text-sm leading-relaxed" style={{ color: "rgba(15,23,42,0.8)" }}>{pick.whyWin}</p>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                      <div className="rounded-xl p-3" style={{ background: "hsla(155,70%,45%,0.07)", border: "1px solid hsla(155,70%,45%,0.15)" }}>
+                                        <p className="text-[9px] font-bold uppercase tracking-wide mb-1" style={{ color: "hsl(155,70%,35%)" }}>Immediate Action</p>
+                                        <p className="text-xs leading-relaxed" style={{ color: "rgba(15,23,42,0.75)" }}>{pick.immediateAction}</p>
+                                      </div>
+                                      <div className="rounded-xl p-3" style={{ background: "hsla(25,100%,55%,0.07)", border: "1px solid hsla(25,100%,55%,0.15)" }}>
+                                        <p className="text-[9px] font-bold uppercase tracking-wide mb-1" style={{ color: "hsl(25,90%,38%)" }}>Risk to Watch</p>
+                                        <p className="text-xs leading-relaxed" style={{ color: "rgba(15,23,42,0.75)" }}>{pick.riskNote}</p>
+                                      </div>
+                                    </div>
+                                    {pick.monthlyRevenueEstimate && (
+                                      <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: "hsla(45,100%,48%,0.08)", border: "1px solid hsla(45,100%,48%,0.2)" }}>
+                                        <TrendingUp className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "hsl(35,90%,38%)" }} />
+                                        <span className="text-xs font-semibold" style={{ color: "hsl(35,90%,32%)" }}>{pick.monthlyRevenueEstimate}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </motion.div>
+                              );
+                            })}
+
+                            {/* Final headline */}
+                            {quickWinsHeadline && (
+                              <div className="rounded-2xl px-5 py-4 text-center"
+                                style={{ background: "linear-gradient(135deg, hsl(45,100%,48%), hsl(35,100%,50%))", boxShadow: "0 2px 16px hsla(45,100%,48%,0.35)" }}>
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-white/75 mb-1">SIRIUS PRIORITY VERDICT</p>
+                                <p className="font-bold text-white text-sm leading-snug">{quickWinsHeadline}</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Footer actions */}
+                        {!quickWinsRunning && quickWinsPicks.length > 0 && (
+                          <div className="flex-shrink-0 flex items-center justify-between px-5 py-3" style={{ borderTop: "1px solid rgba(15,23,42,0.08)" }}>
+                            <p className="text-xs" style={{ color: "rgba(15,23,42,0.4)" }}>Analysis based on all {quickWinsTotal} active projects</p>
+                            <div className="flex gap-2">
+                              <button onClick={runQuickWins} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                                style={{ background: "rgba(15,23,42,0.06)", color: "rgba(15,23,42,0.6)" }}>
+                                <RefreshCw className="w-3 h-3" /> Re-run
+                              </button>
+                              <button onClick={() => setQuickWinsOpen(false)} className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                                style={{ background: "hsl(193,100%,32%)", color: "white" }}>
+                                Done
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </motion.div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+                {/* ─────────────────────────────────────────────────────────── */}
+
                 {/* Header */}
                 <div className="flex-shrink-0 px-6 py-4 border-b" style={{ borderColor: "rgba(15,23,42,0.07)", background: "#FFFFFF" }}>
                   <div className="flex items-center justify-between">
