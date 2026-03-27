@@ -14,6 +14,7 @@ export const appBuilderSessions = pgTable("app_builder_sessions", {
   buildQueue: text("build_queue").default("[]"),
   thinkingLog: text("thinking_log").default("[]"),
   buildLog: text("build_log").default(""),
+  projectId: integer("project_id"),  // linked labProject — set when build is done
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

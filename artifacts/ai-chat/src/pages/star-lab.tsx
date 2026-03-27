@@ -4162,7 +4162,7 @@ const BUILDER_AGENTS: AgentStatus[] = [
 type SessionSummary = { id: number; appName: string; status: string; phase: number; updatedAt: string };
 type ArchitectMessage = { role: "user" | "assistant"; content: string; thinking?: string };
 
-function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed }: { pin: string; preloadPrompt?: string | null; onPreloadConsumed?: () => void }) {
+function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed, onViewProject }: { pin: string; preloadPrompt?: string | null; onPreloadConsumed?: () => void; onViewProject?: (id: number) => void }) {
   const API = getApiBase();
   const [phase, setPhase] = useState(1);
   const [prompt, setPrompt] = useState("");
@@ -4218,6 +4218,7 @@ function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed }: { pin: strin
   const [deployRunning, setDeployRunning] = useState(false);
   const [deployDone, setDeployDone] = useState<{ packageReady?: boolean; fileCount?: number; url?: string; appName: string } | null>(null);
   const deployRef = useRef<HTMLDivElement>(null);
+  const [builtProjectId, setBuiltProjectId] = useState<number | null>(null);
 
   // Checkpoints — per-agent file snapshots for rollback
   type BuildCheckpoint = {
@@ -4382,6 +4383,7 @@ function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed }: { pin: strin
       });
       const data = await res.json();
       if (data.id && !sessionId) setSessionId(data.id);
+      if (data.projectId) setBuiltProjectId(data.projectId);
     } catch {}
   }, [pin, sessionId, reqs, phase, plan, allFiles, bugs, architectMessages, buildQueue, thinkingLog, buildLog]);
 
@@ -4702,14 +4704,14 @@ function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed }: { pin: strin
 
   // Phase 5 (UI 6): Self-Debug
   const handleDebug = async () => {
-    if (bugs.length === 0) { setPhase(7); return; }
+    if (bugs.length === 0) { setPhase(7); saveSession({ phase: 7, status: "done" }); return; }
     setLoading(true); setDebugOutput(""); setError("");
 
     const res = await fetch(`${API}lab/app-builder/debug`, {
       method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
       body: JSON.stringify({ files: allFiles, bugs, appName: reqs?.appName, pin }),
     });
-    if (!res.body) { setLoading(false); setPhase(7); return; }
+    if (!res.body) { setLoading(false); setPhase(7); saveSession({ phase: 7, status: "done" }); return; }
     const reader = res.body.getReader();
     const dec = new TextDecoder();
     let buf = "";
@@ -5048,9 +5050,11 @@ function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed }: { pin: strin
 
   const addFigmaToProject = () => {
     if (!figmaResult) return;
-    setAllFiles(prev => ({ ...prev, [figmaResult!.filename]: figmaResult!.content }));
+    const merged = { ...allFiles, [figmaResult.filename]: figmaResult.content };
+    setAllFiles(merged);
     setActiveFile(figmaResult.filename);
     setPhase(7);
+    saveSession({ phase: 7, status: "done", files: merged });
   };
 
   // ── Share Session ──────────────────────────────────────────────────────────
@@ -6047,12 +6051,19 @@ function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed }: { pin: strin
               )}
 
               <div className="p-3 space-y-2" style={{ borderTop: "1px solid rgba(15,23,42,0.08)" }}>
+                {builtProjectId && (
+                  <button onClick={() => onViewProject?.(builtProjectId)}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-semibold text-xs transition-all hover:opacity-90"
+                    style={{ background: "hsl(155,70%,40%)", color: "white" }}>
+                    <FolderOpen className="w-3.5 h-3.5" /> View in Portfolio
+                  </button>
+                )}
                 <button onClick={handleDownload}
                   className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-semibold text-xs transition-all"
                   style={{ background: "hsl(193,100%,40%)", color: "white" }}>
                   <Download className="w-3.5 h-3.5" /> Download All
                 </button>
-                <button onClick={() => { setPhase(1); setPrompt(""); setReqs(null); setPlan([]); setAllFiles({}); setBugs([]); setTestOutput(""); setDebugOutput(""); setBuildLog(""); setActiveFile(null); setAgents(BUILDER_AGENTS.map(a => ({ ...a }))); }}
+                <button onClick={() => { setPhase(1); setPrompt(""); setReqs(null); setPlan([]); setAllFiles({}); setBugs([]); setTestOutput(""); setDebugOutput(""); setBuildLog(""); setActiveFile(null); setAgents(BUILDER_AGENTS.map(a => ({ ...a }))); setBuiltProjectId(null); }}
                   className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-xs transition-all"
                   style={{ background: "rgba(15,23,42,0.05)", color: "rgba(15,23,42,0.55)" }}>
                   <Plus className="w-3 h-3" /> New App
@@ -13872,6 +13883,7 @@ export function StarLabPage() {
             pin={pin}
             preloadPrompt={appBuilderPreload}
             onPreloadConsumed={() => setAppBuilderPreload(null)}
+            onViewProject={(id) => { loadProject(id); setNavMode("projects"); }}
           />
         )}
         {navMode === "ai-arch" && (

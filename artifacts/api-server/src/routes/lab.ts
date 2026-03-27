@@ -5406,7 +5406,7 @@ router.get("/lab/app-builder/sessions/:id", authMiddleware, async (req: Request,
 router.post("/lab/app-builder/sessions/save", authMiddleware, async (req: Request, res: Response) => {
   const { pin, sessionId, appName, status, phase, requirements, plan, files, bugs, architectLog, buildQueue, thinkingLog, buildLog } = req.body as {
     pin: string; sessionId?: number; appName?: string; status?: string; phase?: number;
-    requirements?: object; plan?: unknown[]; files?: object; bugs?: unknown[];
+    requirements?: Record<string, any>; plan?: unknown[]; files?: object; bugs?: unknown[];
     architectLog?: unknown[]; buildQueue?: unknown[]; thinkingLog?: unknown[]; buildLog?: string;
   };
   try {
@@ -5426,13 +5426,69 @@ router.post("/lab/app-builder/sessions/save", authMiddleware, async (req: Reques
       updatedAt: new Date(),
     };
 
+    let savedId: number;
     if (sessionId) {
       await db.update(appBuilderSessions).set(payload).where(eq(appBuilderSessions.id, sessionId));
-      res.json({ id: sessionId });
+      savedId = sessionId;
     } else {
       const result = await db.insert(appBuilderSessions).values(payload).returning({ id: appBuilderSessions.id });
-      res.json({ id: result[0].id });
+      savedId = result[0].id;
     }
+
+    // ── When a build is completed, auto-create a labProject so it appears in the portfolio ──
+    let projectId: number | undefined;
+    if (status === "done") {
+      // Check if this session already has a linked project
+      const [existing] = await db
+        .select({ projectId: appBuilderSessions.projectId })
+        .from(appBuilderSessions)
+        .where(eq(appBuilderSessions.id, savedId))
+        .limit(1);
+
+      if (existing?.projectId) {
+        projectId = existing.projectId;
+      } else {
+        // Derive a brief and industry from the session requirements
+        const reqs = requirements || {};
+        const brief = [
+          reqs.description || reqs.appDescription || "",
+          reqs.features?.length ? `Key features: ${(reqs.features as string[]).slice(0, 5).join(", ")}.` : "",
+          reqs.techStack ? `Tech stack: ${reqs.techStack}.` : "",
+          reqs.appType ? `Type: ${reqs.appType}.` : "",
+        ].filter(Boolean).join("\n\n") || `App Builder project: ${appName}`;
+
+        const techStack: string = reqs.techStack || "";
+        const industry =
+          techStack.toLowerCase().includes("react native") || techStack.toLowerCase().includes("expo") ? "Mobile Technology" :
+          techStack.toLowerCase().includes("python") || techStack.toLowerCase().includes("ml") || techStack.toLowerCase().includes("ai") ? "AI / Machine Learning" :
+          "Software / Technology";
+
+        const [newProject] = await db
+          .insert(labProjects)
+          .values({
+            name: appName || "Untitled App",
+            industry,
+            phase: "design",
+            status: "active",
+            approvalStatus: "approved",
+            brief,
+            autoCreated: "",
+          })
+          .returning({ id: labProjects.id });
+
+        projectId = newProject.id;
+
+        // Link the session back to the project
+        await db
+          .update(appBuilderSessions)
+          .set({ projectId })
+          .where(eq(appBuilderSessions.id, savedId));
+
+        console.log(`[AppBuilder] ✅ Build complete — created project #${projectId} "${appName}" in portfolio`);
+      }
+    }
+
+    res.json({ id: savedId, projectId });
   } catch (err: any) { res.status(500).json({ error: err?.message }); }
 });
 
