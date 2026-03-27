@@ -12081,8 +12081,16 @@ function LabFloatingChat({ pin, navMode, activeProject, onNavigate, onOpenProjec
       const navName = NAV_LABELS[navTarget] ?? navTarget;
       const reply = `Taking you to ${navName} now.`;
       setMessages(prev => [...prev, { role: "assistant", content: reply }]);
+      // Stop voice loop before navigating so it doesn't fire a second Sirius turn
+      stoppedRef.current = true;
+      stopListeningNow();
       setVoicePhase("speaking");
-      speakText(reply, () => { setVoicePhase("idle"); onNavigate(navTarget); });
+      speakText(reply, () => {
+        setVoicePhase("idle");
+        onNavigate(navTarget);
+        // Close the floating panel so the user can see the destination page
+        setTimeout(() => setOpen(false), 300);
+      });
       return;
     }
 
@@ -12160,11 +12168,21 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
               setThinkingText("");
             }
             if (evt.type === "navigate") {
-              if (evt.section) onNavigate(evt.section as NavMode);
-              if (evt.projectId && onOpenProject) setTimeout(() => onOpenProject!(evt.projectId), 300);
+              if (evt.section) {
+                stoppedRef.current = true;
+                stopListeningNow();
+                onNavigate(evt.section as NavMode);
+                if (evt.projectId && onOpenProject) setTimeout(() => onOpenProject!(evt.projectId), 300);
+                setTimeout(() => setOpen(false), 600);
+              }
             }
             if (evt.type === "navigate_and_build") {
-              if (evt.section) onNavigate(evt.section as NavMode);
+              if (evt.section) {
+                stoppedRef.current = true;
+                stopListeningNow();
+                onNavigate(evt.section as NavMode);
+                setTimeout(() => setOpen(false), 600);
+              }
             }
           } catch {}
         }
