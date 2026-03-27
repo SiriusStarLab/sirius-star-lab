@@ -72,6 +72,13 @@ export const labProjects = pgTable("lab_projects", {
   salesPlan: text("sales_plan").default(""),
   salesPlanGeneratedAt: timestamp("sales_plan_generated_at", { withTimezone: true }),
 
+  // Stripe payment link — generated when project goes live to market
+  stripeProductId: text("stripe_product_id").default(""),    // Stripe Product ID (prod_...)
+  stripePriceId: text("stripe_price_id").default(""),        // Stripe Price ID (price_...)
+  stripePaymentLink: text("stripe_payment_link").default(""), // Reusable Stripe payment link URL
+  sellPrice: integer("sell_price"),                          // Price in pence (GBP), null = not set
+  sellPriceType: text("sell_price_type").default(""),        // "one_time" | "monthly" | "yearly"
+
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });

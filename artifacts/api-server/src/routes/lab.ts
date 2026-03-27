@@ -11,6 +11,7 @@ import { runOrchestration, type OrchEvent } from "../lib/orchestrator.js";
 import { onCadFileAttached, getPipelineStatus, triggerBuildNow } from "../lib/project-pipeline.js";
 import { runInvestmentRule } from "../lib/investment-rule.js";
 import { recordPinFailure, clearPinRecord, securityLog } from "../middlewares/security.js";
+import { getUncachableStripeClient } from "../stripeClient.js";
 
 const router: IRouter = Router();
 
@@ -595,6 +596,11 @@ router.get("/lab/projects", authMiddleware, async (req: Request, res: Response) 
     investmentRequired: labProjects.investmentRequired,
     investmentAssessedAt: labProjects.investmentAssessedAt,
     launchStatus: labProjects.launchStatus,
+    stripePaymentLink: labProjects.stripePaymentLink,
+    stripeProductId: labProjects.stripeProductId,
+    stripePriceId: labProjects.stripePriceId,
+    sellPrice: labProjects.sellPrice,
+    sellPriceType: labProjects.sellPriceType,
   }).from(labProjects);
 
   const query = search
@@ -2617,6 +2623,87 @@ router.post("/lab/pipeline/launch/:id", authMiddleware, async (req: Request, res
     res.json({ ok: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Project Stripe Payment Link ────────────────────────────────────────────────
+// POST /api/lab/projects/:id/stripe-launch — creates a reusable Stripe payment link
+router.post("/lab/projects/:id/stripe-launch", authMiddleware, async (req: Request, res: Response) => {
+  const projectId = parseInt(req.params.id as string);
+  if (isNaN(projectId)) return res.status(400).json({ error: "Invalid project ID" });
+
+  const { sellPrice, sellPriceType } = req.body as { sellPrice: number; sellPriceType: string };
+
+  if (!sellPrice || sellPrice < 100) return res.status(400).json({ error: "Price must be at least £1" });
+  if (!["one_time", "monthly", "yearly"].includes(sellPriceType)) return res.status(400).json({ error: "Invalid price type" });
+
+  const [project] = await db.select({ id: labProjects.id, name: labProjects.name, industry: labProjects.industry, brief: labProjects.brief }).from(labProjects).where(eq(labProjects.id, projectId));
+  if (!project) return res.status(404).json({ error: "Project not found" });
+
+  try {
+    const stripe = getUncachableStripeClient();
+
+    // 1. Create Stripe Product
+    const product = await stripe.products.create({
+      name: project.name,
+      description: project.brief?.slice(0, 500) || `${project.name} — ${project.industry}`,
+      metadata: { labProjectId: String(projectId), type: "lab_project" },
+    });
+
+    // 2. Create Stripe Price
+    const isRecurring = sellPriceType === "monthly" || sellPriceType === "yearly";
+    const price = await stripe.prices.create({
+      product: product.id,
+      unit_amount: sellPrice, // already in pence
+      currency: "gbp",
+      ...(isRecurring ? {
+        recurring: { interval: sellPriceType === "monthly" ? "month" : "year" },
+      } : {}),
+    });
+
+    // 3. Create reusable Stripe Payment Link
+    const paymentLink = await stripe.paymentLinks.create({
+      line_items: [{ price: price.id, quantity: 1 }],
+      metadata: { labProjectId: String(projectId) },
+      ...(isRecurring ? {} : {}),
+    });
+
+    // 4. Store on project
+    await db.update(labProjects)
+      .set({
+        stripeProductId: product.id,
+        stripePriceId: price.id,
+        stripePaymentLink: paymentLink.url,
+        sellPrice,
+        sellPriceType,
+        updatedAt: new Date(),
+      })
+      .where(eq(labProjects.id, projectId));
+
+    return res.json({
+      paymentLink: paymentLink.url,
+      productId: product.id,
+      priceId: price.id,
+      sellPrice,
+      sellPriceType,
+    });
+  } catch (err: any) {
+    console.error("[Lab] Stripe payment link error:", err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/lab/projects/:id/stripe-launch — remove payment link (to re-price)
+router.delete("/lab/projects/:id/stripe-launch", authMiddleware, async (req: Request, res: Response) => {
+  const projectId = parseInt(req.params.id as string);
+  if (isNaN(projectId)) return res.status(400).json({ error: "Invalid project ID" });
+  try {
+    await db.update(labProjects)
+      .set({ stripeProductId: "", stripePriceId: "", stripePaymentLink: "", sellPrice: null, sellPriceType: "", updatedAt: new Date() })
+      .where(eq(labProjects.id, projectId));
+    return res.json({ ok: true });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
   }
 });
 

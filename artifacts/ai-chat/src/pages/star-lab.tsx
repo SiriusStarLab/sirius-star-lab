@@ -53,6 +53,8 @@ type Project = {
   aiArchLinked: string; aiArchInsights: string; aiArchSweepAt: string | null;
   salesPlan: string; salesPlanGeneratedAt: string | null;
   investmentRequired: number | null; investmentAssessedAt: string | null;
+  stripeProductId: string; stripePriceId: string; stripePaymentLink: string;
+  sellPrice: number | null; sellPriceType: string;
   messages?: Message[];
 };
 type Message = { id: number; projectId: number; role: string; content: string; createdAt: string };
@@ -3085,6 +3087,47 @@ function LaunchPanel({ project, pin, onUpdate }: { project: Project; pin: string
   const [error, setError] = useState("");
   const base = getApiBase();
 
+  // Payment link state
+  const [paymentLink, setPaymentLink] = useState(project.stripePaymentLink || "");
+  const [sellPrice, setSellPrice] = useState(project.sellPrice ? String(project.sellPrice / 100) : "");
+  const [sellPriceType, setSellPriceType] = useState(project.sellPriceType || "one_time");
+  const [paymentLinkLoading, setPaymentLinkLoading] = useState(false);
+  const [paymentLinkError, setPaymentLinkError] = useState("");
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  const generatePaymentLink = async () => {
+    const priceGbp = parseFloat(sellPrice);
+    if (isNaN(priceGbp) || priceGbp < 1) { setPaymentLinkError("Enter a price of at least £1"); return; }
+    setPaymentLinkLoading(true); setPaymentLinkError("");
+    try {
+      const res = await fetch(`${base}lab/projects/${project.id}/stripe-launch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+        body: JSON.stringify({ sellPrice: Math.round(priceGbp * 100), sellPriceType }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setPaymentLinkError(data.error || "Failed to create payment link"); return; }
+      setPaymentLink(data.paymentLink);
+      onUpdate({ ...project, stripePaymentLink: data.paymentLink, sellPrice: data.sellPrice, sellPriceType: data.sellPriceType, stripeProductId: data.productId, stripePriceId: data.priceId });
+    } catch (e: any) { setPaymentLinkError(e.message || "Network error"); }
+    setPaymentLinkLoading(false);
+  };
+
+  const removePaymentLink = async () => {
+    setPaymentLinkLoading(true);
+    try {
+      await fetch(`${base}lab/projects/${project.id}/stripe-launch`, { method: "DELETE", headers: { "x-lab-pin": pin } });
+      setPaymentLink(""); setSellPrice(""); setSellPriceType("one_time");
+      onUpdate({ ...project, stripePaymentLink: "", sellPrice: null, sellPriceType: "", stripeProductId: "", stripePriceId: "" });
+    } catch {}
+    setPaymentLinkLoading(false);
+  };
+
+  const copyLink = () => {
+    navigator.clipboard.writeText(paymentLink);
+    setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000);
+  };
+
   const hasPosts = Object.keys(posts).length > 0 && Object.values(posts).some(v => v && v.length > 0);
 
   const generatePosts = async () => {
@@ -3189,6 +3232,80 @@ function LaunchPanel({ project, pin, onUpdate }: { project: Project; pin: string
             </>
           )}
         </div>
+      </div>
+
+      {/* ── Go Live with Payments ────────────────────────────────── */}
+      <div className="flex-shrink-0 px-4 py-3 border-b" style={{ borderColor: "rgba(15,23,42,0.07)", background: paymentLink ? "hsl(155,60%,97%)" : "#F8FAFC" }}>
+        {paymentLink ? (
+          /* Payment link is live */
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "hsl(155,70%,42%)" }}>
+                <span className="text-white text-xs">£</span>
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-slate-700">Payment Link Live</p>
+                <p className="text-[10px] text-slate-400 truncate">
+                  {project.sellPriceType === "monthly" ? `£${(project.sellPrice! / 100).toFixed(2)}/month` : project.sellPriceType === "yearly" ? `£${(project.sellPrice! / 100).toFixed(2)}/year` : `£${(project.sellPrice! / 100).toFixed(2)} one-time`}
+                  {" · "}{paymentLink.replace("https://", "").slice(0, 30)}…
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              <button onClick={copyLink}
+                className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg transition-all"
+                style={{ background: linkCopied ? "hsl(155,70%,92%)" : "#F1F5F9", color: linkCopied ? "hsl(155,60%,35%)" : "rgba(15,23,42,0.6)", border: "1px solid rgba(15,23,42,0.09)" }}>
+                {linkCopied ? <><Check className="w-3 h-3" /> Copied!</> : <><Copy className="w-3 h-3" /> Copy Link</>}
+              </button>
+              <a href={paymentLink} target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg transition-all"
+                style={{ background: "hsl(155,70%,42%)", color: "white" }}>
+                <ExternalLink className="w-3 h-3" /> Open
+              </a>
+              <button onClick={removePaymentLink} disabled={paymentLinkLoading}
+                className="text-xs px-2 py-1.5 rounded-lg transition-all"
+                style={{ background: "rgba(15,23,42,0.05)", color: "rgba(15,23,42,0.4)", border: "1px solid rgba(15,23,42,0.09)" }}>
+                {paymentLinkLoading ? "…" : "Change"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* No payment link yet — show setup form */
+          <div>
+            <div className="flex items-center gap-2 mb-2.5">
+              <div className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0" style={{ background: "hsl(45,100%,92%)" }}>
+                <span className="text-sm">£</span>
+              </div>
+              <p className="text-xs font-semibold text-slate-700">Go Live with Payments</p>
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: "hsl(45,100%,92%)", color: "hsl(45,80%,35%)" }}>Real Stripe link</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center rounded-lg overflow-hidden" style={{ border: "1px solid rgba(15,23,42,0.12)", background: "white" }}>
+                <span className="px-2 text-xs text-slate-500 border-r" style={{ borderColor: "rgba(15,23,42,0.12)", lineHeight: "28px" }}>£</span>
+                <input
+                  type="number" min="1" step="0.01"
+                  value={sellPrice} onChange={e => setSellPrice(e.target.value)}
+                  placeholder="49.00"
+                  className="w-20 px-2 py-1.5 text-xs text-slate-800 outline-none bg-transparent"
+                />
+              </div>
+              <select value={sellPriceType} onChange={e => setSellPriceType(e.target.value)}
+                className="text-xs px-2 py-1.5 rounded-lg outline-none text-slate-700"
+                style={{ border: "1px solid rgba(15,23,42,0.12)", background: "white" }}>
+                <option value="one_time">One-time</option>
+                <option value="monthly">Per month</option>
+                <option value="yearly">Per year</option>
+              </select>
+              <button onClick={generatePaymentLink} disabled={paymentLinkLoading || !sellPrice}
+                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-all font-medium"
+                style={{ background: sellPrice ? "hsl(193,100%,35%)" : "#F1F5F9", color: sellPrice ? "white" : "rgba(15,23,42,0.35)", opacity: paymentLinkLoading ? 0.6 : 1 }}>
+                {paymentLinkLoading ? <><Loader2 className="w-3 h-3 animate-spin" /> Creating…</> : "Generate Stripe Link"}
+              </button>
+              {paymentLinkError && <span className="text-[10px]" style={{ color: "hsl(0,70%,55%)" }}>{paymentLinkError}</span>}
+            </div>
+            <p className="text-[10px] text-slate-300 mt-1.5">Creates a permanent, shareable Stripe checkout link. Share it anywhere — your site, email, social media.</p>
+          </div>
+        )}
       </div>
 
       <div className="flex flex-1 min-h-0 overflow-hidden">
