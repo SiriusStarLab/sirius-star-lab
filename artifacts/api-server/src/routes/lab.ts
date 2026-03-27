@@ -564,8 +564,46 @@ Everything we build serves the mission. The mission is the new species.`;
 });
 
 // Projects CRUD
+// Returns summary columns only — large text blobs (brief, research, fundingAnalysis,
+// aiArchInsights, salesPlan etc.) are excluded to keep the response small.
+// Full project data loads on demand via GET /lab/projects/:id.
 router.get("/lab/projects", authMiddleware, async (req: Request, res: Response) => {
-  const projects = await db.select().from(labProjects).orderBy(desc(labProjects.updatedAt));
+  const rows = await db.select({
+    id: labProjects.id,
+    name: labProjects.name,
+    industry: labProjects.industry,
+    phase: labProjects.phase,
+    status: labProjects.status,
+    costToBuild: labProjects.costToBuild,
+    profitMargin: labProjects.profitMargin,
+    businessCase: labProjects.businessCase,
+    goToMarket: labProjects.goToMarket,
+    renders: labProjects.renders,
+    updatedAt: labProjects.updatedAt,
+    createdAt: labProjects.createdAt,
+    autoCreated: labProjects.autoCreated,
+    autoScanId: labProjects.autoScanId,
+    approvalStatus: labProjects.approvalStatus,
+    fundingStatus: labProjects.fundingStatus,
+    fundingAnalysedAt: labProjects.fundingAnalysedAt,
+    aiArchLinked: labProjects.aiArchLinked,
+    aiArchSweepAt: labProjects.aiArchSweepAt,
+    salesPlanGeneratedAt: labProjects.salesPlanGeneratedAt,
+    investmentRequired: labProjects.investmentRequired,
+    investmentAssessedAt: labProjects.investmentAssessedAt,
+    launchStatus: labProjects.launchStatus,
+  }).from(labProjects).orderBy(desc(labProjects.updatedAt));
+
+  // Stub empty strings for large text fields — the full data loads when a project is opened
+  const projects = rows.map(r => ({
+    ...r,
+    brief: "", research: "", specs: "", code: "", drawingNotes: "", cadUrl: "",
+    materials: "", workflows: "", industryProblem: "", uses: "", brochure: "", pitch: "",
+    socialPosts: "{}", launchPlatforms: "[]",
+    fundingAnalysis: "", fundingApplications: "{}",
+    aiArchInsights: "", salesPlan: "",
+  }));
+
   res.json(projects);
 });
 

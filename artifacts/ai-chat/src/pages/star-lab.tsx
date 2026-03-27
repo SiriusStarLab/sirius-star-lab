@@ -13466,19 +13466,32 @@ export function StarLabPage() {
       setProjectsLoading(false);
 
       // Check for newly completed funding / AI-arch analyses
+      // Note: the list endpoint returns summary columns only — large fields (fundingAnalysis,
+      // aiArchInsights) are empty stubs. When a status change is detected, we do a full
+      // loadProject reload to get the real data rather than reading from the list.
       for (const p of fresh) {
         const prev = prevFundingStatus.current[p.id];
         if (prev === "pending" && p.fundingStatus === "complete") {
-          const matches = (() => { try { return JSON.parse(p.fundingAnalysis || "{}").opportunities?.[0]?.matches?.length ?? 0; } catch { return 0; } })();
-          const alert: FundingAlert = { id: `${p.id}-${Date.now()}`, projectName: p.name, count: matches, timestamp: Date.now() };
-          setFundingAlerts(prev => [...prev, alert]);
-          setActiveProject(cur => cur?.id === p.id ? { ...cur, fundingStatus: p.fundingStatus, fundingAnalysis: p.fundingAnalysis, fundingAnalysedAt: p.fundingAnalysedAt } : cur);
-          setTimeout(() => setFundingAlerts(prev => prev.filter(a => a.id !== alert.id)), 8000);
+          // Reload the full project to get the real fundingAnalysis data
+          const fullRes = await fetch(`${base}lab/projects/${p.id}`, { headers: headers() });
+          if (fullRes.ok) {
+            const fullProject = await fullRes.json();
+            const matches = (() => { try { return JSON.parse(fullProject.fundingAnalysis || "{}").opportunities?.[0]?.matches?.length ?? 0; } catch { return 0; } })();
+            const alert: FundingAlert = { id: `${p.id}-${Date.now()}`, projectName: p.name, count: matches, timestamp: Date.now() };
+            setFundingAlerts(prev => [...prev, alert]);
+            setActiveProject(cur => cur?.id === p.id ? { ...cur, ...fullProject } : cur);
+            setTimeout(() => setFundingAlerts(prev => prev.filter(a => a.id !== alert.id)), 8000);
+          }
         }
         prevFundingStatus.current[p.id] = p.fundingStatus;
         const prevArch = (prevFundingStatus.current as any)[`arch-${p.id}`];
         if (prevArch === "pending" && (p.aiArchLinked === "linked" || p.aiArchLinked === "not-applicable")) {
-          setActiveProject(cur => cur?.id === p.id ? { ...cur, aiArchLinked: p.aiArchLinked, aiArchInsights: p.aiArchInsights, aiArchSweepAt: p.aiArchSweepAt } : cur);
+          // Reload the full project to get the real aiArchInsights data
+          const fullRes = await fetch(`${base}lab/projects/${p.id}`, { headers: headers() });
+          if (fullRes.ok) {
+            const fullProject = await fullRes.json();
+            setActiveProject(cur => cur?.id === p.id ? { ...cur, ...fullProject } : cur);
+          }
         }
         (prevFundingStatus.current as any)[`arch-${p.id}`] = p.aiArchLinked;
       }
