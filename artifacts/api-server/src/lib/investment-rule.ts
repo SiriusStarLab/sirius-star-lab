@@ -38,6 +38,8 @@ export async function runInvestmentRule(forceReassess = false): Promise<Investme
     .where(
       and(
         ne(labProjects.status, "archived"),
+        // Only assess projects Garry has approved — never auto-archive before he's seen them
+        ne(labProjects.approvalStatus, "pending"),
         or(
           // Not yet assessed
           isNull(labProjects.investmentAssessedAt),
@@ -48,21 +50,15 @@ export async function runInvestmentRule(forceReassess = false): Promise<Investme
     );
 
   for (const project of projects) {
-    const textToAnalyse = [project.businessCase, project.costToBuild]
-      .filter(Boolean)
-      .join("\n\n")
-      .slice(0, 2000);
+    // Only assess based on costToBuild — the field set by build agents with the ACTUAL software
+    // build cost. businessCase contains market opportunity / VC funding figures, not build costs.
+    // If costToBuild is not yet set, skip silently (don't stamp assessedAt — re-check after build)
+    const textToAnalyse = (project.costToBuild ?? "").trim();
 
-    if (!textToAnalyse || textToAnalyse.trim().length < 30) {
-      // No financial content to assess
+    if (!textToAnalyse || textToAnalyse.length < 20) {
+      // Build agents haven't filled in costToBuild yet — skip without stamping assessedAt
       result.details.push({ id: project.id, name: project.name, amount: null, action: "no-data" });
       result.skipped++;
-
-      // Still stamp assessedAt so we don't keep re-visiting empty projects
-      await db
-        .update(labProjects)
-        .set({ investmentAssessedAt: new Date() })
-        .where(eq(labProjects.id, project.id));
       continue;
     }
 

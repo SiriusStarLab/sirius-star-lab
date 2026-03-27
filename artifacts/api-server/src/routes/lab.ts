@@ -5493,6 +5493,25 @@ router.post("/lab/app-builder/sessions/save", authMiddleware, async (req: Reques
           .set({ projectId })
           .where(eq(appBuilderSessions.id, savedId));
 
+        // Save generated code to the project's Code tab
+        const fileEntries = files ? Object.entries(files as Record<string, string>) : [];
+        if (fileEntries.length > 0) {
+          const topFiles = fileEntries.sort((a, b) => b[1].length - a[1].length).slice(0, 15);
+          const codeSummary = [
+            `// Built by Sirius App Builder — ${fileEntries.length} files generated`,
+            `// App: ${appName} · ${new Date().toISOString().slice(0, 10)}`,
+            "",
+            ...topFiles.map(([filename, content]) => [
+              `${"=".repeat(60)}`,
+              `// FILE: ${filename}`,
+              `${"=".repeat(60)}`,
+              content.slice(0, 1400),
+              content.length > 1400 ? `\n// ... (${content.length - 1400} more chars) ...` : "",
+            ].join("\n")),
+          ].join("\n\n");
+          await db.update(labProjects).set({ code: codeSummary }).where(eq(labProjects.id, projectId));
+        }
+
         console.log(`[AppBuilder] ✅ Build complete — created project #${projectId} "${appName}" in portfolio`);
       }
     }
@@ -7208,6 +7227,54 @@ Analyse all of them, then pick the top 5 that need the least investment, can be 
   } finally {
     clearInterval(heartbeat);
     res.end();
+  }
+});
+
+// ── Code backfill — copies session files → labProjects.code for all linked sessions ──
+router.post("/lab/backfill-code", authMiddleware, async (_req: Request, res: Response) => {
+  try {
+    const sessions = await db
+      .select({
+        sessionId: appBuilderSessions.id,
+        projectId: appBuilderSessions.projectId,
+        files: appBuilderSessions.files,
+        appName: appBuilderSessions.appName,
+      })
+      .from(appBuilderSessions)
+      .innerJoin(labProjects, eq(labProjects.id, appBuilderSessions.projectId as any))
+      .where(eq(appBuilderSessions.status, "complete"))
+      .limit(300);
+
+    let updated = 0;
+    for (const s of sessions) {
+      if (!s.projectId || !s.files) continue;
+      try {
+        const fileMap: Record<string, string> = JSON.parse(s.files);
+        const fileEntries = Object.entries(fileMap);
+        if (fileEntries.length === 0) continue;
+        const topFiles = fileEntries.sort((a, b) => b[1].length - a[1].length).slice(0, 15);
+        const codeSummary = [
+          `// Auto-built by Sirius App Builder — ${fileEntries.length} files generated`,
+          `// App: ${s.appName} · Session #${s.sessionId}`,
+          "",
+          ...topFiles.map(([filename, content]) => [
+            `${"=".repeat(60)}`,
+            `// FILE: ${filename}`,
+            `${"=".repeat(60)}`,
+            content.slice(0, 1400),
+            content.length > 1400 ? `\n// ... (${content.length - 1400} more chars) ...` : "",
+          ].join("\n")),
+        ].join("\n\n");
+        await db.update(labProjects)
+          .set({ code: codeSummary, updatedAt: new Date() })
+          .where(eq(labProjects.id, s.projectId));
+        updated++;
+      } catch { /* skip malformed session */ }
+    }
+    console.log(`[Backfill] Code saved for ${updated}/${sessions.length} projects`);
+    res.json({ ok: true, updated, checked: sessions.length });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
   }
 });
 
