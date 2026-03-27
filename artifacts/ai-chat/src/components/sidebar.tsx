@@ -48,9 +48,10 @@ interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
   forceOpenPricing?: "plus" | "pro" | null;
+  onNewSession?: () => void;
 }
 
-export function Sidebar({ isOpen, onClose, forceOpenPricing }: SidebarProps) {
+export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession }: SidebarProps) {
   const [location, setLocation] = useLocation();
   const labPendingCount = useLabPendingCount();
   const queryClient = useQueryClient();
@@ -140,7 +141,7 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing }: SidebarProps) {
 
       <div className="px-4 pb-2 space-y-2">
         <button
-          onClick={() => { setLocation("/"); onClose(); }}
+          onClick={() => { if (onNewSession) { onNewSession(); } else { setLocation("/"); } onClose(); }}
           className="w-full flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200"
           style={{
             background: "hsl(193 100% 52% / 0.08)",

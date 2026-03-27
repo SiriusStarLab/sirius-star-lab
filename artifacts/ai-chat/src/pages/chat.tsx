@@ -73,7 +73,7 @@ export function ChatPage() {
     query: { enabled: !!conversationId } as any,
   });
 
-  const { messages, setInitialMessages, sendMessage, isTyping, stopStream } =
+  const { messages, setInitialMessages, sendMessage, isTyping, stopStream, clearMessages } =
     useChat(conversationId);
 
   useEffect(() => {
@@ -155,7 +155,16 @@ export function ChatPage() {
     <div className="flex h-screen w-full bg-background overflow-hidden relative">
       <div className="scan-line" />
 
-      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} forceOpenPricing={upgradeParam} />
+      <Sidebar
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
+        forceOpenPricing={upgradeParam}
+        onNewSession={() => {
+          clearMessages();
+          setLocation("/");
+          setIsSidebarOpen(false);
+        }}
+      />
 
       <div className="flex-1 flex flex-col h-full relative z-10 w-full min-w-0">
 

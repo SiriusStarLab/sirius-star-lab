@@ -225,11 +225,19 @@ export function useChat(conversationId?: number) {
     return () => stopStream();
   }, [stopStream]);
 
+  const clearMessages = useCallback(() => {
+    stopStream();
+    PENDING_BRIDGE.messages = [];
+    PENDING_BRIDGE.convId = null;
+    setMessages([]);
+  }, [stopStream]);
+
   return {
     messages,
     setInitialMessages,
     sendMessage,
     isTyping,
-    stopStream
+    stopStream,
+    clearMessages,
   };
 }
