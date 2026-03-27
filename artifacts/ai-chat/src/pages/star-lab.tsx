@@ -1624,7 +1624,7 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack }: { project: Project
               if (d.content) {
                 result += d.content;
                 const fieldMap: Record<string, string> = {
-                  materials: "materials", workflows: "workflows",
+                  specs: "specs", materials: "materials", workflows: "workflows",
                   market: "industryProblem", brochure: "brochure",
                   pitch: "pitch", cost: "costToBuild", economics: "costToBuild",
                   businessCase: "businessCase", goToMarket: "goToMarket",

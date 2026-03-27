@@ -1400,6 +1400,141 @@ Structure:
 [Clear, direct recommendation: Build / Build with partner / License / Pass. Exact next steps with timeline]`,
     },
 
+    specs: {
+      system: `You are a world-class technical specifications writer with deep expertise in both mechanical/hardware engineering and software/digital product development. You write specifications that are precise, complete, and immediately actionable. For physical products you always include real dimensions with tolerances and real material designations. For digital products you always include architecture, performance numbers, and compliance standards. You never use vague placeholders — you estimate realistic values from context where the user hasn't supplied them, clearly marking them as "estimated".`,
+      user: `Write complete technical specifications for the following project. TODAY is ${TODAY()}.
+
+${ctx}
+
+CRITICAL FIRST STEP: Determine whether this is a PHYSICAL/HARDWARE/MECHANICAL product or a DIGITAL/SOFTWARE/SERVICE product based on the project name, industry, and brief above.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+IF PHYSICAL / HARDWARE / MECHANICAL / MANUFACTURING:
+(applies to: machined parts, fabricated structures, injection-moulded components, hydraulic/pneumatic devices, electronic hardware, medical devices, industrial equipment, consumer hardware, energy systems, construction components, marine/aerospace/defence hardware)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+## Technical Specifications — [Product Name]
+*Type: Physical/Manufactured Product*
+
+### Overview
+[What it is, its primary function, key performance requirement, intended application/environment]
+
+### Physical Dimensions
+Provide ACTUAL values — not placeholders. Estimate from engineering context if not specified; label estimates as *(est.)*.
+
+| Feature | Nominal Dimension | Tolerance | Notes |
+|---|---|---|---|
+| Overall length | X mm | ±X mm | |
+| Overall width / diameter | X mm | ±X mm | |
+| Overall height / wall thickness | X mm | ±X mm | |
+| Bore / port diameter (if applicable) | X mm | H7 / ±X mm | |
+| Thread (if applicable) | M__ × __ | 6H/6g | ISO 965 |
+| Key functional feature | X mm | ±X mm | [describe what this controls] |
+[Add all relevant features for this specific product]
+
+### Operating Parameters
+- Maximum operating pressure: [X bar] (if applicable)
+- Temperature range: [min°C to max°C]
+- Maximum load / force / torque: [value with units]
+- Flow rate: [X L/min] (if applicable)
+- Speed / RPM: [value] (if applicable)
+- IP / NEMA rating: [e.g. IP67] (if applicable)
+- Service life target: [X hours / cycles / years]
+
+### Material Specification
+- Primary material: [Full standard designation — e.g. EN 10025-2 S275JR structural steel / 6061-T6 aluminium alloy (BS EN 573-3) / 316L stainless steel (ASTM A276) / PA66-GF30 nylon]
+- Secondary/sealing materials: [e.g. NBR O-rings to BS 1806, PTFE tape to BS EN 751-2]
+- Surface treatment: [e.g. hot-dip galvanised to ISO 1461 / hard anodised to BS EN ISO 7599 / zinc-nickel plated to ISO 4042]
+- Hardness requirement: [e.g. 28–32 HRC after heat treatment to BS EN ISO 18265]
+
+### Weight & Mass Properties
+- Target weight: [X kg *(est.)*]
+- Mass moment of inertia: [if relevant]
+
+### Manufacturing Method
+- Primary process: [e.g. CNC turning & milling / investment casting / injection moulding / laser-cut & fabricated / additive manufacturing (SLS/DMLS)]
+- Secondary processes: [grinding, EDM, broaching, welding, etc. as applicable]
+- Critical manufacturing constraints: [thin walls, deep holes, tight tolerance features, orientation requirements]
+- Surface finish: [e.g. Ra 0.8 μm on sealing faces — ISO 1302; Ra 3.2 μm general machined surfaces]
+
+### Thread & Fastener Specifications
+| Feature | Designation | Class | Depth / Engagement | Standard |
+|---|---|---|---|---|
+[e.g. Inlet port | G 1/2" BSP | ISO 228-1 | 12 mm | ISO 228-1 |]
+[e.g. Fixing holes | M8 × 1.25 | 6H | 20 mm | ISO 965-1 |]
+
+### Fit & Interface Requirements
+| Interface | Feature | Fit / Tolerance | Mating Part |
+|---|---|---|---|
+[e.g. Shaft/bore | Ø25 mm | H7/p6 interference | Motor shaft |]
+[e.g. Seal face | Flat ±0.05 mm | — | O-ring groove |]
+
+### Applicable Standards & Certifications
+[List every applicable standard: ISO / BS EN / ASME / API / ATEX / PED / CE / UKCA / FDA / AS9100 / ISO 13485. State the edition/year. State whether design compliance, manufacturing compliance, or third-party certification is required.]
+
+### Quality & Inspection Requirements
+- Dimensional inspection method: [CMM / surface plate / go/no-go gauges — specify]
+- Critical-to-quality (CTQ) dimensions: [list which dimensions from the table above are CTQ]
+- Non-destructive testing: [MT / PT / UT / RT — specify which joints/areas, acceptance standard]
+- Pressure/leak testing: [test pressure, medium, duration, acceptance criteria]
+- First article inspection: [required? To what standard? PPAP / AS9102?]
+- Certificates required: [material test certificate / certificate of conformance / ATEX/CE declaration]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+IF DIGITAL / SOFTWARE / SERVICE / AI PRODUCT:
+(applies to: SaaS platforms, mobile apps, APIs, AI services, data products, consulting tools, web platforms, marketplaces, automation services)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+## Technical Specifications — [Product Name]
+*Type: Digital/Software Product*
+
+### System Architecture
+[Technology stack (frontend, backend, database, AI/ML layer, messaging/queues). Deployment architecture (cloud provider, containerisation, serverless vs dedicated). Key components and how they interact. Diagram description.]
+
+### Performance Requirements
+| Parameter | Requirement | Test Condition | Measurement Method |
+|---|---|---|---|
+| API response time (p95) | < X ms | X concurrent users | Load test |
+| System availability (SLA) | X % uptime | Monthly | Monitoring |
+| Throughput | X requests/sec | Peak load | Stress test |
+| AI inference latency | < X ms | Standard query | End-to-end timing |
+[Add all relevant metrics for this product]
+
+### API & Integration Specifications
+- API style: [REST / GraphQL / gRPC / WebSocket]
+- Authentication: [OAuth 2.0 / JWT / API keys — specify token lifetime, refresh strategy]
+- Rate limiting: [X req/min per user / X req/min per IP]
+- Data formats: [JSON / XML / Protobuf — schema location]
+- Key third-party integrations: [list APIs, SDKs, data feeds]
+- Webhook support: [events, payload format, retry policy]
+
+### Data Architecture
+- Data model: [core entities and relationships]
+- Storage: [relational DB, vector DB, object storage, cache — technology choices with justification]
+- Data retention: [policy for each data type]
+- Backup: [RPO / RTO targets]
+
+### Security Requirements
+- Encryption at rest: [AES-256 / database-level / field-level]
+- Encryption in transit: [TLS 1.3 minimum]
+- Authentication: [MFA, SSO, session management]
+- Authorisation: [RBAC / ABAC model]
+- Compliance: [GDPR / CCPA / SOC 2 / ISO 27001 / HIPAA — state which and what evidence is required]
+- Penetration testing: [frequency, scope, standard — OWASP WSTG]
+
+### Scalability & Reliability
+- Horizontal scaling: [stateless services / auto-scaling group / Kubernetes]
+- Database scaling: [read replicas, sharding strategy, connection pooling]
+- Caching strategy: [Redis / CDN — what is cached, TTL]
+- Failure modes: [circuit breaker, graceful degradation, fallback behaviour]
+
+### Applicable Standards & Regulations
+[ISO 27001, GDPR, WCAG 2.1 AA accessibility, PCI-DSS (if payments), HIPAA (if health data), OWASP Top 10, SOC 2 Type II, etc.]
+
+### Platform & Infrastructure Requirements
+[Cloud provider(s), region requirements (data sovereignty), runtime (Node.js/Python/Go version), CI/CD toolchain, monitoring/alerting stack]`,
+    },
+
     drawings: {
       system: `You are a principal mechanical design engineer with 20 years of experience producing engineering drawings for precision industries. You are fluent in international drawing standards: BS 8888, ISO 128, ISO 2768, ASME Y14.5 (GD&T), and industry-specific standards including API 6A/17D (oil & gas), AS9100/NADCAP (aerospace), ISO 13485/FDA 21 CFR Part 820 (medical), ISO 80079/ATEX (hydrogen & hazardous areas). You produce complete, unambiguous drawing packages that a CAD engineer can act on immediately without further clarification. You always specify the applicable standard alongside every tolerance, finish, and callout.`,
       user: `Produce a complete, professional engineering drawing specification package for the following project:
@@ -1576,7 +1711,7 @@ Structure:
     materials: "materials", workflows: "workflows",
     brochure: "brochure", pitch: "pitch",
     businessCase: "businessCase", goToMarket: "goToMarket",
-    drawings: "drawingNotes",
+    drawings: "drawingNotes", specs: "specs",
   };
   const dbField = dbFieldMap[resolvedSection] || resolvedSection;
 
@@ -2761,7 +2896,7 @@ router.post("/lab/projects/:id/complete-all", authMiddleware, async (req: Reques
   const SECTIONS: { key: string; label: string; field: keyof typeof project; prompt: string }[] = [
     { key: "brief", label: "Brief", field: "brief", prompt: `Write a comprehensive project brief for: "${project.name}" in the ${project.industry} industry. Include: executive summary, problem being solved, proposed solution, key objectives, success criteria, scope, constraints, and assumptions. Be thorough — this is the foundation of the entire project.` },
     { key: "research", label: "Research", field: "research", prompt: `Conduct deep research for: "${project.name}" in ${project.industry}. Search for: current market landscape, key competitors with funding and traction, technology approaches used, regulatory environment, customer pain points with evidence, recent news and developments, pricing benchmarks, and market size estimates. Use web search. Cite sources.` },
-    { key: "specs", label: "Technical Specs", field: "specs", prompt: `Write complete technical specifications for: "${project.name}" in ${project.industry}. Include: system architecture, performance requirements with numbers, interface specifications, reliability/availability targets, security requirements, scalability requirements, applicable standards (ISO, IEC, FDA, etc.), and any hardware/material specifications. Be precise with units and values.` },
+    { key: "specs", label: "Technical Specs", field: "specs", prompt: `Write complete technical specifications for: "${project.name}" in ${project.industry}. First determine if this is a PHYSICAL/HARDWARE/MECHANICAL product or a DIGITAL/SOFTWARE/SERVICE product. For PHYSICAL products: include a full dimensions table with actual values and tolerances (not placeholders), operating parameters (pressure/temp/load), material designations to ISO/BS EN/ASTM standards, manufacturing method, thread/fastener specs, fit and interface requirements, surface finish (Ra values), and applicable standards. Mark any estimated values as *(est.)*. For DIGITAL products: include system architecture, performance requirements (response times, uptime SLA, throughput), API and integration specs, data and security requirements (GDPR, SOC2, etc.), scalability approach, and applicable standards. Be precise with real numbers and real standard designations throughout.` },
     { key: "materials", label: "Materials / BOM", field: "materials", prompt: `Create a complete Bill of Materials (BOM) for: "${project.name}". Format as a table: Qty | Component | Specification | Supplier | Unit Cost (£) | Lead Time. Then write a materials selection rationale explaining why each key material or component was chosen. Include at least 10–15 line items.` },
     { key: "workflows", label: "Workflows", field: "workflows", prompt: `Design complete manufacturing and deployment workflows for: "${project.name}". Include: step-by-step production/deployment process, quality checkpoints at each stage, who does what, tooling/equipment required at each step, estimated time per step, and key risks at each stage.` },
     { key: "industryProblem", label: "Market & Uses", field: "industryProblem", prompt: `Write a full market analysis for: "${project.name}" in ${project.industry}. Include: the specific problem being solved (with evidence), target customer segments with profiles, use cases across different sectors, market size (TAM/SAM/SOM with sources), competitive landscape, positioning strategy, and why this product wins.` },
