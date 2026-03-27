@@ -13272,6 +13272,7 @@ export function StarLabPage() {
   const [newIndustry, setNewIndustry] = useState("General");
   const [fundingAlerts, setFundingAlerts] = useState<FundingAlert[]>([]);
   const prevFundingStatus = useRef<Record<number, string>>({});
+  const [changePinOpen, setChangePinOpen] = useState(false);
   const base = getApiBase();
 
   useEffect(() => {
@@ -13650,17 +13651,30 @@ export function StarLabPage() {
           </>
         )}
 
-        {/* Voice widget — bottom of sidebar, owner only */}
+        {/* Voice widget + settings — bottom of sidebar, owner only */}
         {!isGuest && (
-          <div className="mt-auto p-2 border-t flex-shrink-0" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
-            <StarLabVoiceWidget
-              navMode={navMode}
-              onNavigate={(mode) => setNavMode(mode as NavMode)}
-              onOpenProject={id => { loadProject(id); setNavMode("projects"); }}
-              activeProject={activeProject}
-              projects={projects}
-              pin={pin}
-            />
+          <div className="mt-auto border-t flex-shrink-0" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
+            <div className="p-2">
+              <StarLabVoiceWidget
+                navMode={navMode}
+                onNavigate={(mode) => setNavMode(mode as NavMode)}
+                onOpenProject={id => { loadProject(id); setNavMode("projects"); }}
+                activeProject={activeProject}
+                projects={projects}
+                pin={pin}
+              />
+            </div>
+            <div className="px-3 pb-3">
+              <button
+                onClick={() => setChangePinOpen(true)}
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-all"
+                style={{ color: "rgba(15,23,42,0.35)", background: "transparent" }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(15,23,42,0.05)"; (e.currentTarget as HTMLElement).style.color = "rgba(15,23,42,0.6)"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = "rgba(15,23,42,0.35)"; }}>
+                <Settings2 className="w-3 h-3 flex-shrink-0" />
+                <span>Change PIN</span>
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -13877,6 +13891,129 @@ export function StarLabPage() {
           setNavMode("projects");
         }}
       />
+
+      {/* Change PIN modal */}
+      {changePinOpen && (
+        <ChangePinModal
+          pin={pin}
+          apiBase={base}
+          onClose={() => setChangePinOpen(false)}
+          onSuccess={(newPin) => {
+            setPin(newPin);
+            sessionStorage.setItem("lab_pin", newPin);
+            setChangePinOpen(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function ChangePinModal({ pin, apiBase, onClose, onSuccess }: {
+  pin: string;
+  apiBase: string;
+  onClose: () => void;
+  onSuccess: (newPin: string) => void;
+}) {
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    if (next !== confirm) { setError("New PINs do not match."); return; }
+    if (!/^\d{4,8}$/.test(next)) { setError("PIN must be 4–8 digits."); return; }
+    setLoading(true);
+    try {
+      const res = await fetch(`${apiBase}lab/settings/change-pin`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+        body: JSON.stringify({ currentPin: current, newPin: next, confirmPin: confirm }),
+      });
+      const data = await res.json();
+      if (data.error) { setError(data.error); return; }
+      setDone(true);
+      setTimeout(() => onSuccess(next), 1200);
+    } catch {
+      setError("Request failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center" style={{ background: "rgba(0,0,0,0.35)", backdropFilter: "blur(4px)" }}>
+      <div className="rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4" style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.1)" }}>
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: "hsla(193,100%,40%,0.1)" }}>
+              <Lock className="w-4 h-4" style={{ color: "hsl(193,100%,35%)" }} />
+            </div>
+            <div>
+              <p className="text-slate-800 font-bold text-sm">Change PIN</p>
+              <p className="text-slate-400 text-xs">Owner access · 4–8 digits</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {done ? (
+          <div className="flex flex-col items-center py-4 gap-3">
+            <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: "hsla(155,70%,45%,0.12)" }}>
+              <CheckCircle2 className="w-6 h-6" style={{ color: "hsl(155,70%,42%)" }} />
+            </div>
+            <p className="text-slate-700 font-semibold text-sm">PIN updated successfully</p>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+            {[
+              { label: "Current PIN", value: current, set: setCurrent, placeholder: "Enter current PIN" },
+              { label: "New PIN", value: next, set: setNext, placeholder: "4–8 digits" },
+              { label: "Confirm new PIN", value: confirm, set: setConfirm, placeholder: "Repeat new PIN" },
+            ].map(({ label, value, set, placeholder }) => (
+              <div key={label}>
+                <label className="block text-xs font-medium mb-1" style={{ color: "rgba(15,23,42,0.55)" }}>{label}</label>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  pattern="\d*"
+                  maxLength={8}
+                  value={value}
+                  onChange={e => set(e.target.value.replace(/\D/g, ""))}
+                  placeholder={placeholder}
+                  required
+                  className="w-full px-3 py-2 rounded-xl text-sm outline-none tracking-widest"
+                  style={{ background: "rgba(15,23,42,0.04)", border: "1px solid rgba(15,23,42,0.1)", color: "rgba(15,23,42,0.85)" }}
+                />
+              </div>
+            ))}
+
+            {error && (
+              <div className="text-xs px-3 py-2 rounded-lg" style={{ background: "hsla(0,70%,55%,0.08)", color: "hsl(0,70%,45%)", border: "1px solid hsla(0,70%,55%,0.15)" }}>
+                {error}
+              </div>
+            )}
+
+            <div className="flex gap-2 mt-1">
+              <button type="button" onClick={onClose} className="flex-1 py-2 rounded-xl text-sm font-medium transition-colors"
+                style={{ background: "rgba(15,23,42,0.06)", color: "rgba(15,23,42,0.55)" }}>
+                Cancel
+              </button>
+              <button type="submit" disabled={loading} className="flex-1 py-2 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2"
+                style={{ background: "hsl(193,100%,32%)", color: "#FFFFFF", opacity: loading ? 0.7 : 1 }}>
+                {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                {loading ? "Saving…" : "Update PIN"}
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
     </div>
   );
 }

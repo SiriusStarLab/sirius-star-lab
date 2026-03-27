@@ -13,7 +13,7 @@ import { recordPinFailure, clearPinRecord, securityLog } from "../middlewares/se
 
 const router: IRouter = Router();
 
-const LAB_PIN = process.env.STAR_LAB_PIN || "2025";
+let LAB_PIN = process.env.STAR_LAB_PIN || "2025";
 const GUEST_PIN = process.env.STAR_LAB_GUEST_PIN || "";
 
 type AccessRole = "owner" | "guest";
@@ -23,6 +23,14 @@ function getPinRole(pin: string): AccessRole | null {
   if (GUEST_PIN && pin === GUEST_PIN) return "guest";
   return null;
 }
+
+// Load PIN from DB on startup (overrides env var if a custom PIN has been set)
+(async () => {
+  try {
+    const rows = await db.select().from(siriusConfig).where(eq(siriusConfig.key, "lab_pin")).limit(1);
+    if (rows.length > 0 && rows[0].value) { LAB_PIN = rows[0].value; }
+  } catch {}
+})();
 
 const TODAY = () => new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
@@ -6894,6 +6902,37 @@ Return ONLY this JSON:
       await db.update(labProjects).set({ aiArchLinked: "error" }).where(eq(labProjects.id, projectId));
     }
   })();
+});
+
+// ─── Change PIN ───────────────────────────────────────────────────────────────
+router.post("/lab/settings/change-pin", authMiddleware, async (req: Request, res: Response) => {
+  const { currentPin, newPin, confirmPin } = req.body as { currentPin: string; newPin: string; confirmPin: string };
+
+  if (!currentPin || currentPin !== LAB_PIN) {
+    return res.status(401).json({ error: "Current PIN is incorrect." });
+  }
+  if (!newPin || !/^\d{4,8}$/.test(newPin)) {
+    return res.status(400).json({ error: "New PIN must be 4–8 digits." });
+  }
+  if (newPin !== confirmPin) {
+    return res.status(400).json({ error: "PINs do not match." });
+  }
+  if (newPin === currentPin) {
+    return res.status(400).json({ error: "New PIN must be different from your current PIN." });
+  }
+
+  try {
+    await db.insert(siriusConfig)
+      .values({ key: "lab_pin", value: newPin })
+      .onConflictDoUpdate({ target: siriusConfig.key, set: { value: newPin, updatedAt: new Date() } });
+
+    LAB_PIN = newPin;
+    console.log("[Security] Owner PIN updated successfully.");
+    res.json({ ok: true });
+  } catch (err: any) {
+    console.error("[Security] PIN change failed:", err?.message);
+    res.status(500).json({ error: "Failed to save new PIN. Please try again." });
+  }
 });
 
 export default router;
