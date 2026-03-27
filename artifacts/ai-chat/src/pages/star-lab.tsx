@@ -3260,6 +3260,8 @@ function BotLabPanel({ pin }: { pin: string }) {
   const [streaming, setStreaming] = useState(false);
   const [output, setOutput] = useState("");
   const [copied, setCopied] = useState(false);
+  const [savingProject, setSavingProject] = useState(false);
+  const [savedProject, setSavedProject] = useState<{ id: number; name: string } | null>(null);
   const base = getApiBase();
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -3300,6 +3302,34 @@ function BotLabPanel({ pin }: { pin: string }) {
   };
 
   const copyOutput = () => { navigator.clipboard.writeText(output); setCopied(true); setTimeout(() => setCopied(false), 2000); };
+
+  const saveAsProject = async () => {
+    setSavingProject(true);
+    setSavedProject(null);
+    try {
+      // Extract a project name from the description (first ~6 words)
+      const words = description.trim().split(/\s+/);
+      const shortName = words.slice(0, 6).join(" ");
+      const projectName = `Bot: ${shortName}${words.length > 6 ? "…" : ""}`;
+
+      const res = await fetch(`${base}lab/projects`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+        body: JSON.stringify({
+          name: projectName,
+          industry: industry || "General",
+          brief: `## Bot Description\n${description}\n\n## Platforms\n${platforms || "Not specified"}\n\n## Full Bot Architecture\n\n${output}`,
+          phase: "design",
+          status: "active",
+        }),
+      });
+      if (res.ok) {
+        const proj = await res.json();
+        setSavedProject({ id: proj.id, name: proj.name });
+      }
+    } catch {}
+    setSavingProject(false);
+  };
 
   return (
     <div className="flex-1 flex min-h-0">
@@ -3370,10 +3400,10 @@ function BotLabPanel({ pin }: { pin: string }) {
       <div className="flex-1 flex flex-col min-h-0 p-5 overflow-y-auto">
         {output ? (
           <>
-            <div className="flex items-center justify-between mb-4 flex-shrink-0">
+            <div className="flex items-center justify-between mb-4 flex-shrink-0 gap-2 flex-wrap">
               <span className="text-slate-400 text-xs">Bot Architecture</span>
-              <div className="flex gap-2">
-                <button onClick={() => { setOutput(""); setDescription(""); }}
+              <div className="flex gap-2 flex-wrap">
+                <button onClick={() => { setOutput(""); setDescription(""); setSavedProject(null); }}
                   className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg transition-all"
                   style={{ background: "#F1F5F9", color: "rgba(15,23,42,0.45)" }}>
                   <RotateCcw className="w-3 h-3" /> New
@@ -3383,6 +3413,19 @@ function BotLabPanel({ pin }: { pin: string }) {
                   style={{ background: copied ? "hsl(155,70%,40%)" : "#F1F5F9", color: copied ? "white" : "rgba(15,23,42,0.45)" }}>
                   <Copy className="w-3 h-3" /> {copied ? "Copied!" : "Copy all"}
                 </button>
+                {savedProject ? (
+                  <span className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg"
+                    style={{ background: "hsl(155,70%,40%)", color: "white" }}>
+                    ✓ Saved as "{savedProject.name}"
+                  </span>
+                ) : (
+                  <button onClick={saveAsProject} disabled={savingProject}
+                    className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg transition-all"
+                    style={{ background: "hsl(280,70%,50%)", color: "white", opacity: savingProject ? 0.6 : 1 }}>
+                    {savingProject ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+                    {savingProject ? "Saving…" : "Save as Project"}
+                  </button>
+                )}
               </div>
             </div>
             <div className="rounded-2xl p-5" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.07)" }}>
@@ -14820,7 +14863,7 @@ export function StarLabPage() {
     const narrate: Partial<Record<NavMode, string>> = {
       dashboard:   "Dashboard. You're at command centre. What do you want to focus on today?",
       projects:    "Projects. Your innovation portfolio is here. Which project do you want to work on?",
-      botlab:      "Bot Lab. Your AI automation suite. Do you want to build a new bot, or review what's running?",
+      botlab:      "Bot Lab. I can design any automation for you right now — just describe what you want to automate and I'll build the full architecture. What task or workflow do you want to turn into a bot?",
       scout:       "Scout. I'm scanning for market opportunities. Want me to brief you on what I've found?",
       feed:        "Intelligence Feed. I'm tracking market signals for you. Shall I highlight the most important ones?",
       grants:      "Funding Radar. I have grant matches ready. Want me to walk you through the best opportunities?",

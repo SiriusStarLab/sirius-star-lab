@@ -4087,6 +4087,22 @@ const LAB_TOOLS: any[] = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "design_bot",
+      description: "Design a complete automation bot architecture from a description. Use when Garry describes any task, workflow, or process he wants to automate — via voice or text. This calls the Bot Lab engine and returns a full bot design including code, APIs, triggers, costs, and deployment steps. Use this instead of navigating to Bot Lab — Sirius can design it right here in the conversation. Examples: 'design a bot that monitors competitor prices', 'build me an invoice processing automation', 'make a lead enrichment bot', 'automate my support emails'. After designing, offer to save it as a project.",
+      parameters: {
+        type: "object",
+        properties: {
+          description: { type: "string", description: "Detailed description of what the bot should do — inputs, outputs, triggers, any integrations mentioned" },
+          industry: { type: "string", description: "Industry sector for the bot. Default 'General'. Examples: Healthcare, Finance, E-commerce, Oil & Gas, Legal, Manufacturing." },
+          platforms: { type: "string", description: "Platforms or systems the bot will integrate with, e.g. 'Gmail, Xero, Slack'. Leave empty if not specified." },
+        },
+        required: ["description"],
+      },
+    },
+  },
 ];
 
 async function executeLabTool(name: string, args: any, onProgress?: (event: Record<string, unknown>) => void): Promise<string> {
@@ -5577,6 +5593,27 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
         return lines.join("\n");
       }
 
+      case "design_bot": {
+        const { description, industry, platforms } = args;
+        onProgress?.({ type: "status", message: `Designing bot: ${description.slice(0, 60)}…` });
+
+        const botPrompt = BOT_DESIGN_PROMPT();
+        const userMsg = `Design a complete automation bot with the following requirements:\n\nDescription: ${description}\nIndustry: ${industry || "General"}\nPlatforms/integrations: ${platforms || "Not specified"}\n\nProvide the complete bot architecture including code, APIs, triggers, scheduling, cost estimate, and deployment steps.`;
+
+        const response = await openai.chat.completions.create({
+          model: "gpt-4o",
+          messages: [
+            { role: "system", content: botPrompt },
+            { role: "user", content: userMsg },
+          ],
+          max_tokens: 2500,
+          temperature: 0.3,
+        });
+
+        const design = response.choices[0]?.message?.content || "Could not generate bot design.";
+        return `BOT DESIGN COMPLETE:\n\n${design}\n\n---\nWould you like me to save this as a project in Star Lab so you can build it out further?`;
+      }
+
       default:
         return `Unknown tool: ${name}`;
     }
@@ -5626,6 +5663,7 @@ const TOOL_META: Record<string, { label: string; color: string; icon: string }> 
   run_portfolio_cull: { label: "Portfolio scored & ranked", color: "hsl(0,72%,51%)", icon: "🏆" },
   detect_drawing_requirements: { label: "Scanning for drawing requirements", color: "hsl(280,70%,55%)", icon: "📐" },
   find_appbuilder_projects: { label: "Finding App Builder candidates", color: "hsl(193,100%,40%)", icon: "🚀" },
+  design_bot: { label: "Designing bot architecture", color: "hsl(280,70%,55%)", icon: "🤖" },
 };
 
 // Detect whether a message is primarily an information/research query
@@ -7727,7 +7765,14 @@ Rules for voice:
 - Navigate by including <<NAVIGATE:sectionid>> at the END of your response (section ids: dashboard, projects, labchat, appbuilder, botlab, autolab, scout, feed, grants, commerce, revenue, agency, growth, brain, research, docs, mission, outreach)
 - Strip all markdown from your response.
 - MEMORY: Reference session history naturally when it adds value, never as performance.
-- EMOTIONAL INTELLIGENCE: ${emotionGuidance || "Read the conversation naturally and respond in kind."}`;
+- EMOTIONAL INTELLIGENCE: ${emotionGuidance || "Read the conversation naturally and respond in kind."}
+
+## CRITICAL — BOT LAB FACTS (do not hallucinate):
+- Bot Lab is a BOT DESIGN TOOL ONLY. It has no list of "running bots", no existing bot inventory, no "top 20 bots", no bots to "open" or "review". There is no NHS bot, no pre-built bot collection.
+- Bot Lab = type a description → click Design → get a bot architecture. That's all it does.
+- If Garry says "show me the bots" or "what bots are running" — be honest: "Bot Lab is a design tool. There's no list of running bots. I can design any bot you describe right now from voice. What do you want to automate?"
+- If Garry wants to design a bot, use the design_bot tool directly — no need to navigate to Bot Lab. You can design it right here.
+- NEVER pretend to "open a bot", "navigate to an NHS bot", or list bots that don't exist.`;
 
   // Voice gets ALL tools — Sirius must be able to execute any task from voice
   const VOICE_TOOLS = LAB_TOOLS.filter(t => [
@@ -7736,6 +7781,8 @@ Rules for voice:
     "build_now", "get_pipeline_status", "create_project", "query_projects",
     "list_projects", "approve_project", "reject_project", "get_pending_approvals",
     "update_project_phase", "run_market_scan", "get_scan_history",
+    // Bot design
+    "design_bot",
     // Navigation & intelligence
     "navigate_to", "system_check",
     // Brain & memory
