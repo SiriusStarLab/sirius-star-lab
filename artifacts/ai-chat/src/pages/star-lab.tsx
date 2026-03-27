@@ -4247,6 +4247,57 @@ function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed, onViewProject 
   // ── App Builder top-level view: "pipeline" (default) or "build" (manual wizard) ──
   const [appBuilderView, setAppBuilderView] = useState<"pipeline" | "build">("pipeline");
 
+  // Reset all build state and switch to the Phase 1 wizard
+  const startNewBuild = () => {
+    setAppBuilderView("build");
+    setPhase(1);
+    setPrompt("");
+    setReqs(null);
+    setPlan([]);
+    setError("");
+    setLoading(false);
+    setSessionId(null);
+    setAllFiles({});
+    setBugs([]);
+    setBuildLog("");
+    setAgents(BUILDER_AGENTS.map(a => ({ ...a })));
+    setScaffoldLog([]);
+    setScaffoldRunning(false);
+    setScaffoldDone(false);
+    setScaffoldStats(null);
+    setBrowserLog([]);
+    setDeployLogs([]);
+    setDeployRunning(false);
+    setDeployDone(null);
+    setCheckpoints([]);
+    setActiveCheckpoint(null);
+    setDocSearches([]);
+    setLearnSuggestions([]);
+    setLearnSummary(null);
+    setLearnRunning(false);
+    setLearnDone(false);
+    setArchitectMessages([]);
+    setPipelineActive(false);
+    setPipelineStep("");
+    setBuiltProjectId(null);
+    setRefinementPass(0);
+  };
+
+  // Parse fetch response safely — surfaces a readable error instead of a JSON SyntaxError
+  // when the server returns HTML (e.g. 502 proxy page) or plain-text error bodies.
+  const safeJson = async (res: Response) => {
+    if (!res.ok) {
+      let msg = `Server error (${res.status})`;
+      try { const j = await res.json(); msg = j.error || msg; } catch { try { const t = await res.text(); if (t) msg = t.slice(0, 120); } catch {} }
+      throw new Error(msg);
+    }
+    try {
+      return await res.json();
+    } catch {
+      throw new Error(`Invalid response from server (${res.status}) — please try again.`);
+    }
+  };
+
   // Pipeline control view state
   type PipelineProject = { id: number; name: string; industry: string; updatedAt: string };
   type PipelineStatus = {
@@ -4487,7 +4538,7 @@ function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed, onViewProject 
         method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
         body: JSON.stringify({ prompt, pin }),
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (data.error) throw new Error(data.error);
       setReqs(data);
       setPhase(2);
@@ -4505,7 +4556,7 @@ function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed, onViewProject 
         method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
         body: JSON.stringify({ requirements: reqs, pin }),
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (data.error) throw new Error(data.error);
       const tasks = (data.tasks || []).map((t: BuildTask) => ({ ...t, status: "pending" }));
       setPlan(tasks);
@@ -4532,7 +4583,7 @@ function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed, onViewProject 
         method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
         body: JSON.stringify({ prompt, pin }),
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (data.error) throw new Error(data.error);
       interpretedReqs = data;
       setReqs(data);
@@ -4553,7 +4604,7 @@ function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed, onViewProject 
         method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
         body: JSON.stringify({ requirements: interpretedReqs, pin }),
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (data.error) throw new Error(data.error);
       builtPlan = (data.tasks || []).map((t: BuildTask) => ({ ...t, status: "pending" }));
       setPlan(builtPlan);
@@ -4592,60 +4643,69 @@ function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed, onViewProject 
     setLearnDone(false);
     const collectedFiles: Record<string, string> = {};
 
-    const res = await fetch(`${API}lab/build-app`, {
-      method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
-      body: JSON.stringify({ appName: activeReqs.appName, description: activeReqs.summary, appType: activeReqs.appType, techStack: activeReqs.techStack, features: activeReqs.coreFeatures, pin }),
-    });
-    if (!res.body) { setError("No stream"); return; }
-    const reader = res.body.getReader();
-    const dec = new TextDecoder();
-    let buf = "";
+    try {
+      const res = await fetch(`${API}lab/build-app`, {
+        method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+        body: JSON.stringify({ appName: activeReqs.appName, description: activeReqs.summary, appType: activeReqs.appType, techStack: activeReqs.techStack, features: activeReqs.coreFeatures, pin }),
+      });
+      if (!res.body) { setError("Build stream unavailable — please try again."); return; }
+      if (!res.ok) { setError(`Build failed (${res.status}) — please try again.`); return; }
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let buf = "";
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buf += dec.decode(value, { stream: true });
-      const lines = buf.split("\n");
-      buf = lines.pop() || "";
-      for (const line of lines) {
-        if (!line.startsWith("data: ")) continue;
-        try {
-          const evt = JSON.parse(line.slice(6));
-          if (evt.type === "doc_search_start") {
-            setDocSearches(prev => [...prev.filter(d => d.agentId !== evt.agentId), { agentId: evt.agentId, query: evt.query, done: false, snippet: "" }]);
-            setBuildLog(prev => prev + `🔍 Searching live docs: "${evt.query}"\n`);
-            scrollToBottom();
-          } else if (evt.type === "doc_search_done") {
-            setDocSearches(prev => prev.map(d => d.agentId === evt.agentId ? { ...d, done: true, snippet: evt.snippet || "" } : d));
-          } else if (evt.type === "checkpoint") {
-            setCheckpoints(prev => [...prev, {
-              id: evt.id, index: evt.index, agentId: evt.agentId, agentName: evt.agentName,
-              agentEmoji: evt.agentEmoji, timestamp: evt.timestamp, fileCount: evt.fileCount,
-              newFiles: evt.newFiles || [], files: evt.files || {},
-            }]);
-            setBuildLog(prev => prev + `\n✅ Checkpoint ${evt.index} saved — ${evt.fileCount} files\n`);
-          } else if (evt.type === "agent_start") {
-            setAgents(prev => prev.map(a => a.id === evt.agentId ? { ...a, status: "running" } : a));
-            setBuildLog(prev => prev + `\n[${evt.emoji} ${evt.name}] Starting...\n`);
-            scrollToBottom();
-          } else if (evt.type === "agent_delta") {
-            setAgents(prev => prev.map(a => a.id === evt.agentId ? { ...a, output: a.output + evt.content } : a));
-            setBuildLog(prev => prev + evt.content);
-            scrollToBottom();
-          } else if (evt.type === "file") {
-            collectedFiles[evt.filename] = evt.content;
-            setAllFiles({ ...collectedFiles });
-            setAgents(prev => prev.map(a => a.id === evt.agentId ? { ...a, files: [...a.files, evt.filename] } : a));
-          } else if (evt.type === "agent_done") {
-            setAgents(prev => prev.map(a => a.id === evt.agentId ? { ...a, status: "done" } : a));
-          } else if (evt.type === "agent_error") {
-            setAgents(prev => prev.map(a => a.id === evt.agentId ? { ...a, status: "error" } : a));
-          } else if (evt.type === "done") {
-            if (evt.files) { Object.assign(collectedFiles, evt.files); setAllFiles({ ...collectedFiles }); }
-          }
-        } catch {}
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop() || "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const evt = JSON.parse(line.slice(6));
+            if (evt.type === "doc_search_start") {
+              setDocSearches(prev => [...prev.filter(d => d.agentId !== evt.agentId), { agentId: evt.agentId, query: evt.query, done: false, snippet: "" }]);
+              setBuildLog(prev => prev + `🔍 Searching live docs: "${evt.query}"\n`);
+              scrollToBottom();
+            } else if (evt.type === "doc_search_done") {
+              setDocSearches(prev => prev.map(d => d.agentId === evt.agentId ? { ...d, done: true, snippet: evt.snippet || "" } : d));
+            } else if (evt.type === "checkpoint") {
+              setCheckpoints(prev => [...prev, {
+                id: evt.id, index: evt.index, agentId: evt.agentId, agentName: evt.agentName,
+                agentEmoji: evt.agentEmoji, timestamp: evt.timestamp, fileCount: evt.fileCount,
+                newFiles: evt.newFiles || [], files: evt.files || {},
+              }]);
+              setBuildLog(prev => prev + `\n✅ Checkpoint ${evt.index} saved — ${evt.fileCount} files\n`);
+            } else if (evt.type === "agent_start") {
+              setAgents(prev => prev.map(a => a.id === evt.agentId ? { ...a, status: "running" } : a));
+              setBuildLog(prev => prev + `\n[${evt.emoji} ${evt.name}] Starting...\n`);
+              scrollToBottom();
+            } else if (evt.type === "agent_delta") {
+              setAgents(prev => prev.map(a => a.id === evt.agentId ? { ...a, output: a.output + evt.content } : a));
+              setBuildLog(prev => prev + evt.content);
+              scrollToBottom();
+            } else if (evt.type === "file") {
+              collectedFiles[evt.filename] = evt.content;
+              setAllFiles({ ...collectedFiles });
+              setAgents(prev => prev.map(a => a.id === evt.agentId ? { ...a, files: [...a.files, evt.filename] } : a));
+            } else if (evt.type === "agent_done") {
+              setAgents(prev => prev.map(a => a.id === evt.agentId ? { ...a, status: "done" } : a));
+            } else if (evt.type === "agent_error") {
+              setAgents(prev => prev.map(a => a.id === evt.agentId ? { ...a, status: "error" } : a));
+            } else if (evt.type === "error") {
+              setError(evt.error || "Build encountered an error. Please try again.");
+            } else if (evt.type === "done") {
+              if (evt.files) { Object.assign(collectedFiles, evt.files); setAllFiles({ ...collectedFiles }); }
+            }
+          } catch {}
+        }
       }
+    } catch (e: any) {
+      setError(e.message || "Build failed — please try again.");
+      return;
     }
+
     if (Object.keys(collectedFiles).length > 0) {
       setAllFiles({ ...collectedFiles });
       setPhase(5);
@@ -5130,7 +5190,7 @@ function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed, onViewProject 
                 style={{ background: appBuilderView === "pipeline" ? "white" : "transparent", color: appBuilderView === "pipeline" ? "hsl(193,100%,35%)" : "rgba(15,23,42,0.45)", boxShadow: appBuilderView === "pipeline" ? "0 1px 4px rgba(0,0,0,0.1)" : "none" }}>
                 ⚙️ Pipeline
               </button>
-              <button onClick={() => setAppBuilderView("build")}
+              <button onClick={startNewBuild}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
                 style={{ background: appBuilderView === "build" ? "white" : "transparent", color: appBuilderView === "build" ? "hsl(155,70%,35%)" : "rgba(15,23,42,0.45)", boxShadow: appBuilderView === "build" ? "0 1px 4px rgba(0,0,0,0.1)" : "none" }}>
                 🏗️ New Build
