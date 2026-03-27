@@ -12014,19 +12014,28 @@ function LabFloatingChat({ pin, navMode, activeProject, onNavigate, onOpenProjec
     rec.start();
   }, []);
 
-  // Greet on first open — speak aloud then listen
+  // Greet on first open — speak aloud then listen. On re-open with history, just restart listening.
   React.useEffect(() => {
-    if (open && messages.length === 0) {
+    if (open) {
       stoppedRef.current = false;
-      const page = NAV_LABELS[navMode] ?? navMode;
-      const proj = activeProject ? ` You have "${activeProject.name}" open.` : "";
-      const greeting = `I'm here. You're on ${page}.${proj} What do you need?`;
-      setMessages([{ role: "assistant", content: greeting }]);
-      setVoicePhase("speaking");
-      speakText(greeting, () => {
-        setVoicePhase("idle");
-        if (!stoppedRef.current) startVoiceListening(text => sendVoice(text));
-      });
+      if (messages.length === 0) {
+        const page = NAV_LABELS[navMode] ?? navMode;
+        const proj = activeProject ? ` You have "${activeProject.name}" open.` : "";
+        const greeting = `I'm here. You're on ${page}.${proj} What do you need?`;
+        setMessages([{ role: "assistant", content: greeting }]);
+        setVoicePhase("speaking");
+        speakText(greeting, () => {
+          setVoicePhase("idle");
+          if (!stoppedRef.current) startVoiceListening(text => sendVoice(text));
+        });
+      } else {
+        // Re-opened with existing messages — just restart listening without greeting
+        if (!streaming && voicePhase === "idle") {
+          setTimeout(() => {
+            if (!stoppedRef.current) startVoiceListening(text => sendVoice(text));
+          }, 300);
+        }
+      }
     }
     if (!open) { stoppedRef.current = true; stopListeningNow(); window.speechSynthesis?.cancel(); }
   }, [open]);
@@ -12070,28 +12079,79 @@ function LabFloatingChat({ pin, navMode, activeProject, onNavigate, onOpenProjec
     return null;
   };
 
+  // Extract project search query from navigation intent text
+  const extractProjectQuery = (text: string): string | null => {
+    const t = text.toLowerCase();
+    const goVerbs = ["take me to", "go to", "open", "show me", "navigate to", "find", "pull up", "load"];
+    const hasGoVerb = goVerbs.some(v => t.includes(v));
+    if (!hasGoVerb) return null;
+    // Strip go verbs to get the project name
+    let query = text;
+    for (const v of goVerbs) {
+      const idx = t.indexOf(v);
+      if (idx !== -1) { query = text.slice(idx + v.length).trim(); break; }
+    }
+    // Remove common filler words
+    query = query.replace(/^(the|a|an|that|my|our)\s+/i, "").replace(/\s+project\s*$/i, "").trim();
+    return query.length > 3 ? query : null;
+  };
+
   const sendVoice = async (text: string) => {
     if (!text || streaming) return;
+    // Always stop any existing voice recognition before sending so sessions don't collide
+    stopListeningNow();
     const newMsg = { role: "user" as const, content: text };
     setMessages(prev => [...prev, newMsg]);
 
-    // Navigation intent shortcut
+    // Navigation intent shortcut — sections first
     const navTarget = detectNavIntent(text);
     if (navTarget) {
       const navName = NAV_LABELS[navTarget] ?? navTarget;
       const reply = `Taking you to ${navName} now.`;
       setMessages(prev => [...prev, { role: "assistant", content: reply }]);
-      // Stop voice loop before navigating so it doesn't fire a second Sirius turn
       stoppedRef.current = true;
       stopListeningNow();
       setVoicePhase("speaking");
       speakText(reply, () => {
         setVoicePhase("idle");
         onNavigate(navTarget);
-        // Close the floating panel so the user can see the destination page
         setTimeout(() => setOpen(false), 300);
       });
       return;
+    }
+
+    // Project search shortcut — search by name then navigate directly
+    const projQuery = extractProjectQuery(text);
+    if (projQuery && onOpenProject) {
+      setMessages(prev => [...prev, { role: "assistant", content: `Searching for "${projQuery}"…` }]);
+      setStreaming(true);
+      try {
+        const res = await fetch(`${base}lab/projects?search=${encodeURIComponent(projQuery)}&limit=1`, {
+          headers: { "x-lab-pin": pin }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const projects = Array.isArray(data) ? data : (data.projects ?? []);
+          if (projects.length > 0) {
+            const found = projects[0];
+            const reply = `Opening "${found.name}" now.`;
+            setMessages(prev => [...prev.slice(0, -1), { role: "assistant", content: reply }]);
+            stoppedRef.current = true;
+            stopListeningNow();
+            setStreaming(false);
+            setVoicePhase("speaking");
+            speakText(reply, () => {
+              setVoicePhase("idle");
+              onNavigate("projects");
+              setTimeout(() => { onOpenProject!(found.id); setOpen(false); }, 300);
+            });
+            return;
+          }
+        }
+      } catch {}
+      setStreaming(false);
+      // Not found — fall through to Sirius AI
+      setMessages(prev => prev.slice(0, -1)); // remove "Searching…" bubble
     }
 
     const page = NAV_LABELS[navMode] ?? navMode;

@@ -568,7 +568,10 @@ Everything we build serves the mission. The mission is the new species.`;
 // aiArchInsights, salesPlan etc.) are excluded to keep the response small.
 // Full project data loads on demand via GET /lab/projects/:id.
 router.get("/lab/projects", authMiddleware, async (req: Request, res: Response) => {
-  const rows = await db.select({
+  const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
+  const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
+
+  const baseQuery = db.select({
     id: labProjects.id,
     name: labProjects.name,
     industry: labProjects.industry,
@@ -592,7 +595,14 @@ router.get("/lab/projects", authMiddleware, async (req: Request, res: Response) 
     investmentRequired: labProjects.investmentRequired,
     investmentAssessedAt: labProjects.investmentAssessedAt,
     launchStatus: labProjects.launchStatus,
-  }).from(labProjects).orderBy(desc(labProjects.updatedAt));
+  }).from(labProjects);
+
+  const query = search
+    ? baseQuery.where(like(labProjects.name, `%${search}%`)).orderBy(desc(labProjects.updatedAt))
+    : baseQuery.orderBy(desc(labProjects.updatedAt));
+
+  const allRows = await query;
+  const rows = limit ? allRows.slice(0, limit) : allRows;
 
   // Stub empty strings for large text fields — the full data loads when a project is opened
   const projects = rows.map(r => ({
