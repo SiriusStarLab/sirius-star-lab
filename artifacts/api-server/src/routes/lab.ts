@@ -2606,6 +2606,11 @@ router.post("/lab/projects/:id/complete-all", authMiddleware, async (req: Reques
   const updates: Record<string, string> = {};
   let completed = 0;
 
+  const systemCtx = LAB_SYSTEM_PROMPT() +
+    `\n\n## PROJECT: ${project.name} (${project.industry})\n` +
+    (project.brief ? `Brief: ${project.brief.slice(0, 800)}\n` : "") +
+    (project.businessCase ? `Business Case: ${project.businessCase.slice(0, 400)}\n` : "");
+
   for (const section of SECTIONS) {
     if (project[section.field]) {
       res.write(`data: ${JSON.stringify({ type: "skip", section: section.key, label: section.label, message: "Already written — skipping" })}\n\n`);
@@ -2616,33 +2621,33 @@ router.post("/lab/projects/:id/complete-all", authMiddleware, async (req: Reques
     res.write(`data: ${JSON.stringify({ type: "start", section: section.key, label: section.label, total: SECTIONS.length, completed })}\n\n`);
 
     try {
-      const stream = await (openai as any).responses.create({
+      const stream = await openai.chat.completions.create({
         model: "gpt-4o",
-        tools: [{ type: "web_search_preview", search_context_size: "high" }],
-        instructions: LAB_SYSTEM_PROMPT() + `\n\n## PROJECT: ${project.name} (${project.industry})\n${project.brief ? `Brief: ${project.brief.slice(0, 500)}` : ""}`,
-        input: [{ role: "user", content: section.prompt }],
+        max_tokens: 2000,
         stream: true,
+        messages: [
+          { role: "system", content: systemCtx },
+          { role: "user", content: section.prompt },
+        ],
       });
 
       let content = "";
-      for await (const event of stream) {
-        const eventType = (event as any).type as string;
-        if (eventType === "response.web_search_call.in_progress") {
-          res.write(`data: ${JSON.stringify({ type: "searching", section: section.key })}\n\n`);
-        } else if (eventType === "response.output_text.delta") {
-          const delta = (event as any).delta as string;
-          if (delta) {
-            content += delta;
-            res.write(`data: ${JSON.stringify({ type: "chunk", section: section.key, delta })}\n\n`);
-          }
+      for await (const chunk of stream) {
+        const delta = chunk.choices[0]?.delta?.content;
+        if (delta) {
+          content += delta;
+          res.write(`data: ${JSON.stringify({ type: "chunk", section: section.key, delta })}\n\n`);
         }
       }
 
-      updates[section.field] = content;
-      await db.update(labProjects).set({ [section.field]: content, updatedAt: new Date() }).where(eq(labProjects.id, projectId));
+      if (content.trim()) {
+        updates[section.field] = content;
+        await db.update(labProjects).set({ [section.field]: content, updatedAt: new Date() }).where(eq(labProjects.id, projectId));
+      }
       completed++;
       res.write(`data: ${JSON.stringify({ type: "done", section: section.key, label: section.label, completed, total: SECTIONS.length })}\n\n`);
     } catch (err: any) {
+      console.error(`[CompleteAll] Section "${section.key}" failed for project #${projectId}:`, err?.message);
       res.write(`data: ${JSON.stringify({ type: "error", section: section.key, error: err.message })}\n\n`);
       completed++;
     }
