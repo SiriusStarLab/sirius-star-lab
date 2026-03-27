@@ -14,7 +14,7 @@
  * Bulk triggering is disabled — the scanner only queues projects; this manages them.
  */
 
-import { eq, isNull, or, and, asc, sql } from "drizzle-orm";
+import { eq, isNull, or, and, asc, ne, sql } from "drizzle-orm";
 import { db, labProjects, appBuilderSessions, cadFiles } from "@workspace/db";
 import { triggerAutoBuildForProject } from "./lab-auto-scan.js";
 import { openai } from "@workspace/integrations-openai-ai-server";
@@ -51,7 +51,12 @@ export async function getPipelineStatus() {
   const [building] = await db
     .select({ id: labProjects.id, name: labProjects.name })
     .from(labProjects)
-    .where(eq(labProjects.launchStatus, "building"))
+    .where(
+      and(
+        eq(labProjects.launchStatus, "building"),
+        ne(labProjects.status, "archived"),
+      ),
+    )
     .limit(1);
 
   const cadPendingList = await db
@@ -162,14 +167,35 @@ async function tick(): Promise<void> {
   let builtOne = false;
 
   try {
-    // 0. Staleness guard — if a project has been stuck in "building" for >45 min
-    //    (e.g. server crashed mid-build), reset it so the pipeline can continue.
+    // 0a. Archived-while-building guard — if a project was archived while its build was
+    //     in progress, the investment-rule sets launchStatus='' now, but older records
+    //     may still be stuck as "building". Set them to "cad-pending" so they're
+    //     marked as processed and the pipeline can move on to the next active project.
+    const archivedBuilding = await db
+      .update(labProjects)
+      .set({ launchStatus: "cad-pending", updatedAt: new Date() })
+      .where(
+        and(
+          eq(labProjects.launchStatus, "building"),
+          eq(labProjects.status, "archived"),
+        ),
+      )
+      .returning({ id: labProjects.id, name: labProjects.name });
+    if (archivedBuilding.length > 0) {
+      for (const p of archivedBuilding) {
+        console.log(`[Pipeline] ⚠ Cleared archived-while-building: "${p.name}" → cad-pending (was blocking queue)`);
+      }
+    }
+
+    // 0b. Staleness guard — if an active project has been stuck in "building" for >45 min
+    //     (e.g. server crashed mid-build), reset it so the pipeline can continue.
     const staleReset = await db
       .update(labProjects)
       .set({ launchStatus: "cad-pending", updatedAt: new Date() })
       .where(
         and(
           eq(labProjects.launchStatus, "building"),
+          ne(labProjects.status, "archived"),
           sql`${labProjects.updatedAt} < NOW() - INTERVAL '45 minutes'`,
         ),
       )
@@ -180,11 +206,16 @@ async function tick(): Promise<void> {
       }
     }
 
-    // 1. Is anything currently building? If so, wait.
+    // 1. Is anything currently building? (Only count non-archived projects.) If so, wait.
     const [activelyBuilding] = await db
       .select({ id: labProjects.id, name: labProjects.name })
       .from(labProjects)
-      .where(eq(labProjects.launchStatus, "building"))
+      .where(
+        and(
+          eq(labProjects.launchStatus, "building"),
+          ne(labProjects.status, "archived"),
+        ),
+      )
       .limit(1);
 
     if (activelyBuilding) {
@@ -192,13 +223,14 @@ async function tick(): Promise<void> {
       return;
     }
 
-    // 2. Pick the next queued project (oldest first, must have a brief)
+    // 2. Pick the next queued project (oldest first, must have a brief, must be active/not archived)
     const [next] = await db
       .select()
       .from(labProjects)
       .where(
         and(
           or(isNull(labProjects.launchStatus), eq(labProjects.launchStatus, "")),
+          ne(labProjects.status, "archived"),
         ),
       )
       .orderBy(asc(labProjects.createdAt))

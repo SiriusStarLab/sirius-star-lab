@@ -96,17 +96,32 @@ export async function runInvestmentRule(forceReassess = false): Promise<Investme
       result.assessed++;
 
       if (amount !== null && amount > THRESHOLD) {
-        // Archive the project
+        // Archive the project.
+        // IMPORTANT: if the project is currently mid-build (launch_status = 'building'),
+        // also reset launch_status to '' so the pipeline is not left waiting forever.
+        const [current] = await db
+          .select({ launchStatus: labProjects.launchStatus })
+          .from(labProjects)
+          .where(eq(labProjects.id, project.id))
+          .limit(1);
+
+        const wasBuilding = current?.launchStatus === "building";
+
         await db
           .update(labProjects)
           .set({
             investmentRequired: amount,
             investmentAssessedAt: new Date(),
             status: "archived",
+            // If it was mid-build, clear launchStatus so the pipeline can move on
+            ...(wasBuilding ? { launchStatus: "" } : {}),
             updatedAt: new Date(),
           })
           .where(eq(labProjects.id, project.id));
 
+        if (wasBuilding) {
+          console.log(`[Investment Rule] Archived "${project.name}" — was building, launchStatus reset to unblock pipeline`);
+        }
         console.log(`[Investment Rule] Archived "${project.name}" — investment £${amount.toLocaleString()} > £${THRESHOLD.toLocaleString()}`);
         result.archived++;
         result.details.push({ id: project.id, name: project.name, amount, action: "archived" });
