@@ -140,38 +140,48 @@ router.post("/learn/quiz", async (req: Request, res: Response) => {
 ${source}
 Difficulty: ${difficulty || "Medium"}
 
-Return ONLY a valid JSON array, no other text:
-[
-  {
-    "question": "The question text",
-    "options": ["Option A", "Option B", "Option C", "Option D"],
-    "correct": 0,
-    "explanation": "Why this answer is correct, and what's wrong with the others."
-  }
-]
+Return a JSON object with this exact structure:
+{
+  "questions": [
+    {
+      "question": "The question text",
+      "options": ["Option A", "Option B", "Option C", "Option D"],
+      "correct": 0,
+      "explanation": "Why this answer is correct, and what is wrong with the others."
+    }
+  ]
+}
 
 Rules:
-- "correct" is the zero-based index of the correct option (0-3)
+- "correct" is the zero-based index of the correct option (0–3)
+- Always return exactly ${count || 8} questions — never fewer
 - Questions should test genuine understanding, not just memorisation
 - Explanations should be educational and specific
 - Vary question styles: definition, application, comparison, scenario-based
-- Make wrong answers plausible (not obviously wrong)`;
+- Make wrong answers plausible (not obviously wrong)
+- If the topic is broad (e.g. "engineering", "science", "history"), pick a diverse spread of subtopics within it`;
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_tokens: 3000,
+      max_tokens: 4000,
     });
 
     const raw = response.choices[0]?.message?.content || "{}";
     let parsed: any;
     try {
       const obj = JSON.parse(raw);
-      const arr = Array.isArray(obj) ? obj : (obj.questions || obj.quiz || Object.values(obj)[0]);
-      parsed = Array.isArray(arr) ? arr : [];
+      const arr = Array.isArray(obj)
+        ? obj
+        : obj.questions || obj.quiz || obj.items || (Object.values(obj).find(Array.isArray) as any[]);
+      parsed = Array.isArray(arr) && arr.length > 0 ? arr : null;
     } catch {
-      parsed = [];
+      parsed = null;
+    }
+
+    if (!parsed) {
+      return res.status(500).json({ error: "Failed to parse quiz — please try again" });
     }
 
     res.json({ questions: parsed });

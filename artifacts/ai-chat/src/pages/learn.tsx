@@ -408,6 +408,7 @@ function QuizPanel() {
   const [score, setScore] = useState(0);
   const [done, setDone] = useState(false);
   const [wrongAnswers, setWrongAnswers] = useState<number[]>([]);
+  const [genError, setGenError] = useState<string | null>(null);
   const base = getApiBase();
 
   const generate = async () => {
@@ -415,18 +416,24 @@ function QuizPanel() {
     const source = inputMode === "topic" ? topic : content;
     if (!source.trim()) return;
     setLoading(true); setQuestions([]); setCurrentQ(0); setSelected(null);
-    setRevealed(false); setScore(0); setDone(false); setWrongAnswers([]);
+    setRevealed(false); setScore(0); setDone(false); setWrongAnswers([]); setGenError(null);
     try {
       const res = await fetch(`${base}learn/quiz`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ topic: inputMode === "topic" ? topic : "", content: inputMode === "content" ? content : "", difficulty, count }),
       });
-      if (res.ok) {
-        const d = await res.json();
-        setQuestions(d.questions || []);
+      const d = await res.json();
+      if (!res.ok) {
+        setGenError(d.error || "Quiz generation failed — please try again");
+      } else if (!d.questions || d.questions.length === 0) {
+        setGenError("No questions returned — try a more specific topic");
+      } else {
+        setQuestions(d.questions);
       }
-    } catch {}
+    } catch (err: any) {
+      setGenError("Connection error — please try again");
+    }
     setLoading(false);
   };
 
@@ -594,12 +601,28 @@ function QuizPanel() {
 
         {!loading && questions.length === 0 && (
           <div className="text-center space-y-3 max-w-sm">
-            <div className="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center"
-              style={{ background: "hsl(260 70% 55% / 0.1)" }}>
-              <BrainCircuit className="w-7 h-7" style={{ color: "hsl(260 70% 55%)" }} />
-            </div>
-            <p className="text-sm font-medium text-gray-600">Ready to test yourself?</p>
-            <p className="text-xs text-gray-400 leading-relaxed">Enter a topic or paste some text, pick your difficulty, and Sirius will build a quiz with instant feedback and explanations for every answer.</p>
+            {genError ? (
+              <>
+                <div className="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center"
+                  style={{ background: "hsl(0 70% 55% / 0.1)" }}>
+                  <BrainCircuit className="w-7 h-7" style={{ color: "hsl(0 70% 55%)" }} />
+                </div>
+                <p className="text-sm font-medium text-red-600">{genError}</p>
+                <button
+                  onClick={generate}
+                  className="text-xs underline text-gray-400 hover:text-gray-600"
+                >Try again</button>
+              </>
+            ) : (
+              <>
+                <div className="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center"
+                  style={{ background: "hsl(260 70% 55% / 0.1)" }}>
+                  <BrainCircuit className="w-7 h-7" style={{ color: "hsl(260 70% 55%)" }} />
+                </div>
+                <p className="text-sm font-medium text-gray-600">Ready to test yourself?</p>
+                <p className="text-xs text-gray-400 leading-relaxed">Enter a topic or paste some text, pick your difficulty, and Sirius will build a quiz with instant feedback and explanations for every answer.</p>
+              </>
+            )}
           </div>
         )}
 
