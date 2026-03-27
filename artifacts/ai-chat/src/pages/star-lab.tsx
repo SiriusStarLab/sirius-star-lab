@@ -4245,15 +4245,19 @@ function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed }: { pin: strin
   const [appBuilderView, setAppBuilderView] = useState<"pipeline" | "build">("pipeline");
 
   // Pipeline control view state
+  type PipelineProject = { id: number; name: string; industry: string; updatedAt: string };
   type PipelineStatus = {
     currentlyBuilding: { id: number; name: string } | null;
     queued: number;
+    queuedList: PipelineProject[];
     cadPending: number;
-    launchReady: Array<{ id: number; name: string; industry: string; updatedAt: string }>;
+    cadPendingList: PipelineProject[];
+    launchReady: PipelineProject[];
     launched: number;
   };
   const [pipelineStatus, setPipelineStatus] = useState<PipelineStatus | null>(null);
   const [pipelineLoading, setPipelineLoading] = useState(false);
+  const [pipelineTileOpen, setPipelineTileOpen] = useState<"queued" | "cad-pending" | "launch-ready" | null>(null);
 
   const fetchPipelineStatus = useCallback(() => {
     setPipelineLoading(true);
@@ -5217,38 +5221,67 @@ function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed }: { pin: strin
               </div>
             </div>
 
-            {/* Stats row */}
-            <div className="grid grid-cols-3 gap-3 mb-4">
-              {[
-                { label: "Queued", value: pipelineStatus?.queued ?? "—", color: "hsl(193,100%,40%)", bg: "hsla(193,100%,40%,0.08)", icon: "📋" },
-                { label: "Awaiting CAD", value: pipelineStatus?.cadPending ?? "—", color: "hsl(25,100%,55%)", bg: "hsla(25,100%,55%,0.08)", icon: "📐" },
-                { label: "Launch-Ready", value: pipelineStatus?.launchReady?.length ?? "—", color: "hsl(155,70%,35%)", bg: "hsla(155,70%,45%,0.08)", icon: "🚀" },
-              ].map(s => (
-                <div key={s.label} className="rounded-xl p-4 text-center" style={{ background: s.bg, border: `1px solid ${s.color}22` }}>
-                  <div className="text-2xl font-bold mb-1" style={{ color: s.color }}>{s.value}</div>
-                  <div className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: s.color }}>{s.icon} {s.label}</div>
-                </div>
-              ))}
-            </div>
-
-            {/* Launch-ready projects */}
-            {(pipelineStatus?.launchReady?.length ?? 0) > 0 && (
-              <div className="rounded-2xl overflow-hidden mb-4" style={{ border: "1px solid rgba(15,23,42,0.08)" }}>
-                <div className="px-4 py-2.5" style={{ background: "hsla(155,70%,45%,0.08)", borderBottom: "1px solid rgba(15,23,42,0.06)" }}>
-                  <span className="text-xs font-bold uppercase tracking-wider" style={{ color: "hsl(155,70%,35%)" }}>🚀 Launch-Ready Projects</span>
-                </div>
-                {pipelineStatus!.launchReady.map(p => (
-                  <div key={p.id} className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid rgba(15,23,42,0.04)" }}>
-                    <div className="flex items-center gap-3 min-w-0">
-                      <span className="text-xs font-mono px-2 py-0.5 rounded-lg" style={{ background: "rgba(15,23,42,0.06)", color: "rgba(15,23,42,0.5)" }}>#{p.id}</span>
-                      <span className="text-sm font-medium truncate" style={{ color: "rgba(15,23,42,0.85)" }}>{p.name}</span>
-                      <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: "hsla(193,100%,40%,0.1)", color: "hsl(193,100%,35%)" }}>{p.industry}</span>
-                    </div>
-                    <span className="text-[10px] flex-shrink-0" style={{ color: "rgba(15,23,42,0.4)" }}>{new Date(p.updatedAt).toLocaleDateString()}</span>
+            {/* Stats row — clickable tiles */}
+            {(() => {
+              const tiles = [
+                { key: "queued" as const,       label: "Queued",       value: pipelineStatus?.queued ?? "—",              color: "hsl(193,100%,40%)", bg: "hsla(193,100%,40%,0.08)", icon: "📋", list: pipelineStatus?.queuedList ?? [] },
+                { key: "cad-pending" as const,  label: "Awaiting CAD", value: pipelineStatus?.cadPending ?? "—",           color: "hsl(25,100%,55%)",  bg: "hsla(25,100%,55%,0.08)",  icon: "📐", list: pipelineStatus?.cadPendingList ?? [] },
+                { key: "launch-ready" as const, label: "Launch-Ready", value: pipelineStatus?.launchReady?.length ?? "—", color: "hsl(155,70%,35%)",  bg: "hsla(155,70%,45%,0.08)", icon: "🚀", list: pipelineStatus?.launchReady ?? [] },
+              ];
+              const expandedTile = tiles.find(t => t.key === pipelineTileOpen);
+              return (
+                <>
+                  <div className="grid grid-cols-3 gap-3 mb-3">
+                    {tiles.map(s => {
+                      const isOpen = pipelineTileOpen === s.key;
+                      return (
+                        <button
+                          key={s.label}
+                          onClick={() => setPipelineTileOpen(isOpen ? null : s.key)}
+                          className="rounded-xl p-4 text-center transition-all"
+                          style={{
+                            background: s.bg,
+                            border: `1px solid ${isOpen ? s.color + "88" : s.color + "22"}`,
+                            cursor: "pointer",
+                            boxShadow: isOpen ? `0 0 0 2px ${s.color}33` : "none",
+                            transform: isOpen ? "translateY(-1px)" : "none",
+                          }}>
+                          <div className="text-2xl font-bold mb-1" style={{ color: s.color }}>{s.value}</div>
+                          <div className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: s.color }}>{s.icon} {s.label}</div>
+                          <div className="text-[9px] mt-1 opacity-60" style={{ color: s.color }}>{isOpen ? "▲ hide" : "▼ view all"}</div>
+                        </button>
+                      );
+                    })}
                   </div>
-                ))}
-              </div>
-            )}
+
+                  {/* Drill-down panel */}
+                  {expandedTile && (
+                    <div className="rounded-2xl overflow-hidden mb-4" style={{ border: `1px solid ${expandedTile.color}33` }}>
+                      <div className="px-4 py-2.5 flex items-center justify-between" style={{ background: expandedTile.bg, borderBottom: "1px solid rgba(15,23,42,0.06)" }}>
+                        <span className="text-xs font-bold uppercase tracking-wider" style={{ color: expandedTile.color }}>{expandedTile.icon} {expandedTile.label} Projects</span>
+                        <span className="text-xs font-mono px-2 py-0.5 rounded-full" style={{ background: "rgba(15,23,42,0.08)", color: "rgba(15,23,42,0.5)" }}>{expandedTile.list.length} total</span>
+                      </div>
+                      {expandedTile.list.length === 0 ? (
+                        <div className="px-4 py-6 text-center text-xs" style={{ color: "rgba(15,23,42,0.4)" }}>No projects in this category</div>
+                      ) : (
+                        <div className="max-h-56 overflow-y-auto">
+                          {expandedTile.list.map((p, i) => (
+                            <div key={p.id} className="flex items-center justify-between px-4 py-3" style={{ borderBottom: i < expandedTile.list.length - 1 ? "1px solid rgba(15,23,42,0.05)" : "none" }}>
+                              <div className="flex items-center gap-3 min-w-0">
+                                <span className="text-xs font-mono px-2 py-0.5 rounded-lg flex-shrink-0" style={{ background: "rgba(15,23,42,0.06)", color: "rgba(15,23,42,0.5)" }}>#{p.id}</span>
+                                <span className="text-sm font-medium truncate" style={{ color: "rgba(15,23,42,0.85)" }}>{p.name}</span>
+                                {p.industry && <span className="text-xs px-2 py-0.5 rounded-full flex-shrink-0 hidden sm:inline-block" style={{ background: "hsla(193,100%,40%,0.08)", color: "hsl(193,100%,35%)" }}>{p.industry}</span>}
+                              </div>
+                              <span className="text-[10px] flex-shrink-0 ml-2" style={{ color: "rgba(15,23,42,0.35)" }}>{new Date(p.updatedAt).toLocaleDateString()}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
 
             {/* Generated Code access */}
             <div className="rounded-xl p-4 mb-3 flex items-center justify-between gap-3" style={{ background: "rgba(15,23,42,0.03)", border: "1px solid rgba(15,23,42,0.07)" }}>

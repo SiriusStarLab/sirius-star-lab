@@ -53,14 +53,14 @@ export async function getPipelineStatus() {
     .where(eq(labProjects.launchStatus, "building"))
     .limit(1);
 
-  const [cadPending] = await db
-    .select({ count: labProjects.id })
+  const cadPendingList = await db
+    .select({ id: labProjects.id, name: labProjects.name, industry: labProjects.industry, updatedAt: labProjects.updatedAt })
     .from(labProjects)
     .where(eq(labProjects.launchStatus, "cad-pending"))
-    .limit(1);
+    .limit(50);
 
   const queued = await db
-    .select({ id: labProjects.id })
+    .select({ id: labProjects.id, name: labProjects.name, industry: labProjects.industry, updatedAt: labProjects.updatedAt })
     .from(labProjects)
     .where(
       or(
@@ -84,7 +84,9 @@ export async function getPipelineStatus() {
   return {
     currentlyBuilding: building ?? null,
     queued: queued.length,
-    cadPending: cadPending ? 1 : 0,
+    queuedList: queued,
+    cadPending: cadPendingList.length,
+    cadPendingList,
     launchReady,
     launched: launched.length,
   };
