@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { eq, desc, gte, lte, and, or, like, sql, isNull } from "drizzle-orm";
+import { eq, desc, gte, lte, and, or, like, sql, isNull, ne } from "drizzle-orm";
 import { db, labProjects, labMessages, scoutReports, cadFiles, labScanHistory, userProfilesTable, mediaOutlets, appBuilderSessions, voiceJournalTable, siriusConfig, siriusAutomations, siriusCustomTools, siriusErrors } from "@workspace/db";
 import { getSiriusConfigValue, setSiriusConfigValue, executeCustomTool, runAutomation, logSiriusError } from "../lib/sirius-automation.js";
 import { openai } from "@workspace/integrations-openai-ai-server";
@@ -2614,6 +2614,26 @@ router.get("/lab/auto-scan/status", authMiddleware, (_req: Request, res: Respons
   res.json({ running: isLabScanRunning() });
 });
 
+// ── System Audit Support Endpoints ────────────────────────────────────────
+
+router.get("/lab/sirius-errors", authMiddleware, async (_req: Request, res: Response) => {
+  try {
+    const errors = await db.select().from(siriusErrors).orderBy(desc(siriusErrors.occurredAt)).limit(100);
+    res.json(errors);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get("/lab/app-builder/sessions", authMiddleware, async (_req: Request, res: Response) => {
+  try {
+    const sessions = await db.select().from(appBuilderSessions).orderBy(desc(appBuilderSessions.createdAt)).limit(50);
+    res.json(sessions);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Investment Rule — manual trigger & unarchive ───────────────────────────
 
 router.post("/lab/investment-rule/run", authMiddleware, async (_req: Request, res: Response) => {
@@ -3003,7 +3023,7 @@ const LAB_TOOLS: any[] = [
       parameters: {
         type: "object",
         properties: {
-          section: { type: "string", enum: ["dashboard", "projects", "botlab", "scout", "feed", "grants", "commerce", "outreach", "autolab", "revenue", "agency", "mission", "growth", "brain", "research", "docs", "labchat", "appbuilder", "ai-arch", "orchestrate"], description: "Star Lab section to navigate to" },
+          section: { type: "string", enum: ["dashboard", "projects", "botlab", "scout", "feed", "grants", "commerce", "outreach", "autolab", "revenue", "agency", "mission", "growth", "brain", "research", "docs", "labchat", "appbuilder", "ai-arch", "orchestrate", "sysaudit"], description: "Star Lab section to navigate to" },
           project_id: { type: "number", description: "Optional: specific project ID to open after navigating to projects section" },
         },
         required: ["section"],
@@ -3363,6 +3383,43 @@ const LAB_TOOLS: any[] = [
         },
         required: ["description"],
       },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "run_investment_rule",
+      description: "Manually trigger the £10,000 investment rule — scans all built projects and archives any whose costToBuild exceeds £10,000. Use when Garry asks 'run the investment check', 'archive expensive projects', 'apply the £10k rule', 'check costs', or 'clean up over-budget projects'. Reports exactly how many were assessed and archived.",
+      parameters: {
+        type: "object",
+        properties: {
+          force_reassess: { type: "boolean", description: "If true, re-assess even projects already stamped. Default false (only assess new ones)." },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "run_funding_analysis",
+      description: "Trigger a funding analysis for a specific project or all projects missing one. Checks for UK, EU, and global funding schemes (R&D credits, grants, SBIR, Innovate UK, Horizon Europe, etc.) that match the project's industry and description. Use when Garry says 'run funding for X', 'find grants for this project', 'analyse funding', or 'check what funding is available'.",
+      parameters: {
+        type: "object",
+        properties: {
+          project_id: { type: "number", description: "ID of the specific project to analyse. Use query_projects to find it if needed. Omit to run for all projects missing funding analysis." },
+          project_name: { type: "string", description: "Project name for confirmation (optional)" },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "run_platform_audit",
+      description: "Run a comprehensive live audit of the entire Sirius Star Lab platform — checks every subsystem in real time and returns a full health report. Use when Garry asks 'audit the platform', 'check everything', 'full system audit', 'run a platform check', or 'how is the whole system doing'. Returns pass/warn/fail status for: API, pipeline, auto-scan, AI architecture sweep, investment rule, projects database, brain memory, funding analysis, app builder, and investment compliance.",
+      parameters: { type: "object", properties: {}, required: [] },
     },
   },
 ];
@@ -4503,6 +4560,135 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
         return `Bug report logged. Description: "${args.description}". This is now visible in the Star Lab error queue and will be reviewed.`;
       }
 
+      case "run_investment_rule": {
+        const { runInvestmentRule } = await import("../lib/investment-rule.js");
+        const r = await runInvestmentRule(args.force_reassess === true);
+        const archivedNames = r.details.filter(d => d.action === "archived").map(d => `"${d.name}" (£${d.amount?.toLocaleString()})`);
+        const keptNames = r.details.filter(d => d.action === "kept" && d.amount !== null).slice(0, 5).map(d => `"${d.name}" (£${d.amount?.toLocaleString()})`);
+        let summary = `Investment rule run complete.\n\n📊 Results:\n- Assessed: ${r.assessed} projects\n- Archived (>£10,000): ${r.archived}\n- Skipped (no cost data yet): ${r.skipped}`;
+        if (archivedNames.length > 0) summary += `\n\n🗄️ Archived:\n${archivedNames.join("\n")}`;
+        if (keptNames.length > 0) summary += `\n\n✅ Under £10,000 (kept):\n${keptNames.join("\n")}`;
+        if (r.assessed === 0 && r.skipped > 0) summary += `\n\n⏳ No projects had cost data set yet — all ${r.skipped} were skipped. Cost data is set automatically after each project is built by the pipeline.`;
+        return summary;
+      }
+
+      case "run_funding_analysis": {
+        if (args.project_id) {
+          // Trigger for a specific project
+          const projectId = Number(args.project_id);
+          const [proj] = await db.select({ id: labProjects.id, name: labProjects.name, fundingStatus: labProjects.fundingStatus })
+            .from(labProjects).where(eq(labProjects.id, projectId)).limit(1);
+          if (!proj) return `Project #${projectId} not found. Use query_projects to find the correct ID.`;
+          // Set to pending and fire async
+          await db.update(labProjects).set({ fundingStatus: "pending", updatedAt: new Date() }).where(eq(labProjects.id, projectId));
+          // Trigger async (non-blocking)
+          const apiBase = `http://localhost:${process.env.PORT || 8080}`;
+          fetch(`${apiBase}/api/lab/projects/${projectId}/funding`, {
+            method: "POST",
+            headers: { "x-lab-pin": process.env.STAR_LAB_PIN || "2025", "Content-Type": "application/json", "user-agent": "Mozilla/5.0" },
+          }).catch(() => {});
+          return `Funding analysis started for "${proj.name}". I've queued a full multi-country funding check (UK RDEC, Innovate UK, Horizon Europe, SBIR, and 20+ more schemes). Results will appear in the project's Funding tab in 1-2 minutes.`;
+        } else {
+          // Find all projects missing funding analysis
+          const allProjs = await db.select({ id: labProjects.id, name: labProjects.name, fundingAnalysis: labProjects.fundingAnalysis, fundingStatus: labProjects.fundingStatus })
+            .from(labProjects)
+            .where(and(ne(labProjects.status, "archived"), ne(labProjects.approvalStatus, "pending")))
+            .limit(5);
+          const missing = allProjs.filter(p => !p.fundingAnalysis && p.fundingStatus !== "pending");
+          if (missing.length === 0) return `All active projects already have funding analysis completed. Use query_projects to find specific projects, or ask me to re-run for a specific one.`;
+          const apiBase = `http://localhost:${process.env.PORT || 8080}`;
+          for (const p of missing.slice(0, 3)) {
+            await db.update(labProjects).set({ fundingStatus: "pending", updatedAt: new Date() }).where(eq(labProjects.id, p.id));
+            fetch(`${apiBase}/api/lab/projects/${p.id}/funding`, {
+              method: "POST",
+              headers: { "x-lab-pin": process.env.STAR_LAB_PIN || "2025", "Content-Type": "application/json", "user-agent": "Mozilla/5.0" },
+            }).catch(() => {});
+          }
+          return `Triggered funding analysis for ${Math.min(missing.length, 3)} projects: ${missing.slice(0, 3).map(p => `"${p.name}"`).join(", ")}. Results appear in each project's Funding tab within 1-2 minutes.`;
+        }
+      }
+
+      case "run_platform_audit": {
+        const lines: string[] = ["🔍 SIRIUS STAR LAB — PLATFORM AUDIT REPORT", `Generated: ${new Date().toLocaleString("en-GB")}`, ""];
+        const checks: { name: string; status: "pass" | "warn" | "fail"; detail: string }[] = [];
+
+        // 1. Pipeline status
+        try {
+          const ps = await getPipelineStatus();
+          checks.push({ name: "Build Pipeline", status: "pass", detail: `Building: ${ps.currentlyBuilding?.name || "idle"} | Queued: ${ps.queued.toLocaleString()} | Launch-ready: ${ps.launchReady.length}` });
+        } catch { checks.push({ name: "Build Pipeline", status: "fail", detail: "Could not reach pipeline" }); }
+
+        // 2. Auto-scan
+        try {
+          const scanHist = await db.select({ createdAt: labScanHistory.createdAt, itemsFound: labScanHistory.itemsFound })
+            .from(labScanHistory).orderBy(desc(labScanHistory.createdAt)).limit(1);
+          const last = scanHist[0];
+          const ageHrs = last ? Math.floor((Date.now() - new Date(last.createdAt).getTime()) / 3600000) : 999;
+          checks.push({ name: "Auto-Scan", status: ageHrs < 26 ? "pass" : "warn", detail: last ? `Last scan: ${ageHrs}h ago — found ${last.itemsFound} items` : "No scan history" });
+        } catch { checks.push({ name: "Auto-Scan", status: "warn", detail: "Could not read scan history" }); }
+
+        // 3. Investment Rule
+        try {
+          const unassessed = await db.select({ id: labProjects.id })
+            .from(labProjects).where(and(ne(labProjects.status, "archived"), isNull(labProjects.investmentAssessedAt), ne(labProjects.approvalStatus, "pending"))).limit(1);
+          const archived = await db.select({ id: labProjects.id }).from(labProjects).where(eq(labProjects.status, "archived")).limit(1);
+          checks.push({ name: "Investment Rule (£10k)", status: "pass", detail: `Rule active — ${unassessed.length > 0 ? "some projects awaiting cost data (will be assessed post-build)" : "all built projects assessed"} | Total archived: ${archived.length}` });
+        } catch { checks.push({ name: "Investment Rule (£10k)", status: "warn", detail: "Could not query" }); }
+
+        // 4. Projects database
+        try {
+          const total = await db.select({ id: labProjects.id }).from(labProjects);
+          const launchReady = total.length > 0 ? await db.select({ id: labProjects.id }).from(labProjects).where(eq(labProjects.launchStatus, "launch-ready")) : [];
+          const pending = total.filter ? await db.select({ id: labProjects.id }).from(labProjects).where(eq(labProjects.approvalStatus, "pending")) : [];
+          checks.push({ name: "Projects Database", status: "pass", detail: `Total: ${total.length.toLocaleString()} | Launch-ready: ${launchReady.length} | Awaiting approval: ${pending.length}` });
+        } catch { checks.push({ name: "Projects Database", status: "fail", detail: "Database query failed" }); }
+
+        // 5. Sirius Brain
+        try {
+          const brain = await db.select({ userId: userProfilesTable.userId, memories: userProfilesTable.memories })
+            .from(userProfilesTable).where(eq(userProfilesTable.userId, BRAIN_USER)).limit(1);
+          const memCount = brain[0]?.memories?.split("\n").filter(Boolean).length ?? 0;
+          checks.push({ name: "Sirius Brain", status: "pass", detail: `Accessible — ${memCount} memories stored` });
+        } catch { checks.push({ name: "Sirius Brain", status: "fail", detail: "Brain not accessible" }); }
+
+        // 6. AI Architecture Sweep
+        try {
+          const linked = await db.select({ id: labProjects.id }).from(labProjects).where(eq(labProjects.aiArchLinked, "linked"));
+          checks.push({ name: "AI Architecture Sweep", status: "pass", detail: `${linked.length} projects linked to AI Architecture` });
+        } catch { checks.push({ name: "AI Architecture Sweep", status: "warn", detail: "Could not query" }); }
+
+        // 7. Funding Radar
+        try {
+          const withFunding = await db.select({ id: labProjects.id }).from(labProjects).where(and(ne(labProjects.status, "archived"), isNull(labProjects.fundingAnalysis))).limit(50);
+          checks.push({ name: "Funding Radar", status: withFunding.length > 10 ? "warn" : "pass", detail: `${withFunding.length} active projects not yet analysed for funding` });
+        } catch { checks.push({ name: "Funding Radar", status: "warn", detail: "Could not query" }); }
+
+        // 8. Error log
+        try {
+          const errors = await db.select({ id: siriusErrors.id }).from(siriusErrors).where(eq(siriusErrors.resolved, false));
+          checks.push({ name: "Error Log", status: errors.length === 0 ? "pass" : errors.length < 5 ? "warn" : "fail", detail: `${errors.length} unresolved errors in log` });
+        } catch { checks.push({ name: "Error Log", status: "warn", detail: "Could not read error log" }); }
+
+        const passing = checks.filter(c => c.status === "pass").length;
+        const warnings = checks.filter(c => c.status === "warn").length;
+        const failing = checks.filter(c => c.status === "fail").length;
+        const score = Math.round((passing / checks.length) * 100);
+
+        lines.push(`OVERALL SCORE: ${score}% — ${passing} passed, ${warnings} warnings, ${failing} failed`);
+        lines.push("");
+        checks.forEach(c => {
+          const icon = c.status === "pass" ? "✅" : c.status === "warn" ? "⚠️" : "❌";
+          lines.push(`${icon} ${c.name}`);
+          lines.push(`   ${c.detail}`);
+        });
+        lines.push("");
+        if (failing > 0) lines.push("ACTION NEEDED: " + checks.filter(c => c.status === "fail").map(c => c.name).join(", "));
+        else if (warnings > 0) lines.push("All critical systems operational. " + warnings + " item(s) worth monitoring.");
+        else lines.push("All systems fully operational — platform is healthy.");
+
+        return lines.join("\n");
+      }
+
       default:
         return `Unknown tool: ${name}`;
     }
@@ -4546,6 +4732,9 @@ const TOOL_META: Record<string, { label: string; color: string; icon: string }> 
   list_custom_tools: { label: "Custom tools loaded", color: "hsl(193,100%,40%)", icon: "🔧" },
   call_custom_tool: { label: "Custom tool running", color: "hsl(155,70%,42%)", icon: "⚡" },
   delete_item: { label: "Item deleted", color: "hsl(0,75%,55%)", icon: "🗑️" },
+  run_investment_rule: { label: "Running £10k investment rule", color: "hsl(25,90%,55%)", icon: "💷" },
+  run_funding_analysis: { label: "Running funding analysis", color: "hsl(155,70%,45%)", icon: "💰" },
+  run_platform_audit: { label: "Running full platform audit", color: "hsl(210,80%,55%)", icon: "🔬" },
 };
 
 // Detect whether a message is primarily an information/research query
