@@ -207,7 +207,7 @@ const SECTIONS: Section[] = [
       },
       {
         title: "Access",
-        body: "Click Star Lab in the sidebar and enter your PIN. The default PIN is 2025. You can change this by setting the STAR_LAB_PIN environment variable.",
+        body: "Click Star Lab in the sidebar and enter your PIN to access your private intelligence workspace.",
       },
     ],
   },
