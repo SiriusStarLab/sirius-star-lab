@@ -1,4 +1,4 @@
-import { pgTable, serial, text, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -37,6 +37,10 @@ export const labProjects = pgTable("lab_projects", {
 
   // Renders — JSON array of { url: string, label: string, type: "2d"|"3d"|"photo" }
   renders: text("renders").default("[]"),
+
+  // Investment rule — extracted from businessCase/costToBuild, used for auto-archiving
+  investmentRequired: integer("investment_required"),  // GBP, null = not yet assessed
+  investmentAssessedAt: timestamp("investment_assessed_at", { withTimezone: true }),
 
   // Autonomous lab — set when project was auto-created by the daily scanner
   autoCreated: text("auto_created").default(""),   // "" | "auto"

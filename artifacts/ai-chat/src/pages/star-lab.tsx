@@ -13,7 +13,8 @@ import {
   Mail, UserPlus, Users, Settings2, AtSign, Building2, Briefcase, StickyNote, CheckCircle2, AlertCircle,
   Banknote, CreditCard, ShoppingBag, BarChart3, ArrowRight, FileSearch, Hammer, ClipboardList,
   Brain, MessageSquare, Activity, Target, Building, Mic, MicOff, ShieldAlert, Rocket,
-  LayoutDashboard, ArrowLeft, Clock, Award, Layers3, Share, Keyboard, CornerDownLeft, Search
+  LayoutDashboard, ArrowLeft, Clock, Award, Layers3, Share, Keyboard, CornerDownLeft, Search,
+  Archive
 } from "lucide-react";
 import { getApiBase } from "@/lib/api-base";
 import { AiArchContent } from "@/pages/ai-architecture";
@@ -51,6 +52,7 @@ type Project = {
   socialPosts: string; launchPlatforms: string; launchStatus: string;
   aiArchLinked: string; aiArchInsights: string; aiArchSweepAt: string | null;
   salesPlan: string; salesPlanGeneratedAt: string | null;
+  investmentRequired: number | null; investmentAssessedAt: string | null;
   messages?: Message[];
 };
 type Message = { id: number; projectId: number; role: string; content: string; createdAt: string };
@@ -13295,6 +13297,8 @@ export function StarLabPage() {
   const [projectsLoading, setProjectsLoading] = useState(false);
   const [projectsError, setProjectsError] = useState(false);
   const [projectSearch, setProjectSearch] = useState("");
+  const [showArchived, setShowArchived] = useState(false);
+  const [unarchivingId, setUnarchivingId] = useState<number | null>(null);
   const [activeProject, setActiveProject] = useState<Project | null>(null);
   const [navMode, setNavMode] = useState<NavMode>("dashboard");
   const [revenueInitialTab, setRevenueInitialTab] = useState<RevenueTab | undefined>();
@@ -13610,6 +13614,19 @@ export function StarLabPage() {
                   style={{ background: "rgba(15,23,42,0.05)", border: "1px solid rgba(15,23,42,0.08)", color: "rgba(15,23,42,0.8)" }}
                 />
               </div>
+              {/* Archive toggle */}
+              {(() => {
+                const archivedCount = projects.filter(p => p.status === "archived").length;
+                return archivedCount > 0 ? (
+                  <button
+                    onClick={() => setShowArchived(v => !v)}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all w-full"
+                    style={{ background: showArchived ? "hsla(25,100%,55%,0.1)" : "rgba(15,23,42,0.05)", color: showArchived ? "hsl(25,100%,42%)" : "rgba(15,23,42,0.45)", border: `1px solid ${showArchived ? "hsla(25,100%,55%,0.25)" : "rgba(15,23,42,0.08)"}` }}>
+                    <Archive className="w-3 h-3 flex-shrink-0" />
+                    <span>{showArchived ? "Hide archived" : `Show archived (${archivedCount})`}</span>
+                  </button>
+                ) : null;
+              })()}
             </div>
 
             <div className="flex-1 overflow-y-auto px-2 pb-2">
@@ -13654,32 +13671,73 @@ export function StarLabPage() {
 
               {/* Project list */}
               {(() => {
+                const pool = showArchived
+                  ? projects.filter(p => p.status === "archived")
+                  : projects.filter(p => p.status !== "archived");
                 const filtered = projectSearch.trim()
-                  ? projects.filter(p => p.name.toLowerCase().includes(projectSearch.toLowerCase()) || (p.industry || "").toLowerCase().includes(projectSearch.toLowerCase()))
-                  : projects;
-                return filtered.map(p => (
-                  <div key={p.id} onClick={() => { loadProject(p.id); }}
-                    className="group flex items-center gap-2 rounded-xl px-2.5 py-2 mb-0.5 cursor-pointer transition-all"
-                    style={{ background: activeProject?.id === p.id ? "#E8EEF5" : "transparent", border: activeProject?.id === p.id ? "1px solid rgba(15,23,42,0.11)" : "1px solid transparent" }}>
-                    <FolderOpen className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "hsl(193,100%,45%)" }} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-slate-800 text-xs font-medium truncate">{p.name}</p>
-                      <p className="text-xs truncate" style={{ color: "rgba(15,23,42,0.3)" }}>{p.industry}</p>
-                    </div>
-                    <button onClick={e => { e.stopPropagation(); deleteProject(p.id); }}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                      <Trash2 className="w-3 h-3 text-red-400/50 hover:text-red-400" />
-                    </button>
-                  </div>
-                ));
-              })()}
+                  ? pool.filter(p => p.name.toLowerCase().includes(projectSearch.toLowerCase()) || (p.industry || "").toLowerCase().includes(projectSearch.toLowerCase()))
+                  : pool;
 
-              {!projectsLoading && !projectsError && projects.length === 0 && !creating && (
-                <p className="text-xs text-center py-6" style={{ color: "rgba(15,23,42,0.3)" }}>No projects yet</p>
-              )}
-              {!projectsLoading && projects.length > 0 && projectSearch && projects.filter(p => p.name.toLowerCase().includes(projectSearch.toLowerCase()) || (p.industry || "").toLowerCase().includes(projectSearch.toLowerCase())).length === 0 && (
-                <p className="text-xs text-center py-4" style={{ color: "rgba(15,23,42,0.3)" }}>No matches for "{projectSearch}"</p>
-              )}
+                if (filtered.length === 0 && !projectsLoading && !projectsError && !creating) {
+                  return (
+                    <p className="text-xs text-center py-6" style={{ color: "rgba(15,23,42,0.3)" }}>
+                      {showArchived ? "No archived projects" : projectSearch ? `No matches for "${projectSearch}"` : "No projects yet"}
+                    </p>
+                  );
+                }
+
+                return filtered.map(p => {
+                  const isArchived = p.status === "archived";
+                  return (
+                    <div key={p.id} onClick={() => { if (!isArchived) loadProject(p.id); }}
+                      className="group flex items-center gap-2 rounded-xl px-2.5 py-2 mb-0.5 transition-all"
+                      style={{
+                        background: isArchived ? "rgba(15,23,42,0.02)" : activeProject?.id === p.id ? "#E8EEF5" : "transparent",
+                        border: isArchived ? "1px solid rgba(15,23,42,0.06)" : activeProject?.id === p.id ? "1px solid rgba(15,23,42,0.11)" : "1px solid transparent",
+                        cursor: isArchived ? "default" : "pointer",
+                        opacity: isArchived ? 0.75 : 1,
+                      }}>
+                      {isArchived
+                        ? <Archive className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "hsl(25,100%,55%)" }} />
+                        : <FolderOpen className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "hsl(193,100%,45%)" }} />}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium truncate" style={{ color: isArchived ? "rgba(15,23,42,0.5)" : "rgba(15,23,42,0.85)" }}>{p.name}</p>
+                        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                          <span className="text-xs truncate" style={{ color: "rgba(15,23,42,0.3)" }}>{p.industry}</span>
+                          {isArchived && p.investmentRequired && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-md font-medium flex-shrink-0"
+                              style={{ background: "hsla(25,100%,55%,0.1)", color: "hsl(25,100%,42%)" }}>
+                              £{p.investmentRequired.toLocaleString()}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        {isArchived ? (
+                          <button
+                            onClick={e => {
+                              e.stopPropagation();
+                              setUnarchivingId(p.id);
+                              fetch(`${base}lab/projects/${p.id}/unarchive`, { method: "POST", headers: headers() })
+                                .then(() => loadProjects())
+                                .finally(() => setUnarchivingId(null));
+                            }}
+                            title="Restore to active"
+                            className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] px-1.5 py-0.5 rounded-md font-medium"
+                            style={{ background: "hsla(155,70%,45%,0.12)", color: "hsl(155,70%,35%)" }}>
+                            {unarchivingId === p.id ? <Loader2 className="w-3 h-3 animate-spin" /> : "Restore"}
+                          </button>
+                        ) : (
+                          <button onClick={e => { e.stopPropagation(); deleteProject(p.id); }}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Trash2 className="w-3 h-3 text-red-400/50 hover:text-red-400" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
             </div>
           </>
         )}

@@ -9,6 +9,7 @@ import { runLabAutoScan, isLabScanRunning } from "../lib/lab-auto-scan.js";
 import { runAiArchSweep, getAiArchSweepStatus } from "../lib/ai-arch-sweep.js";
 import { runOrchestration, type OrchEvent } from "../lib/orchestrator.js";
 import { onCadFileAttached, getPipelineStatus, triggerBuildNow } from "../lib/project-pipeline.js";
+import { runInvestmentRule } from "../lib/investment-rule.js";
 import { recordPinFailure, clearPinRecord, securityLog } from "../middlewares/security.js";
 
 const router: IRouter = Router();
@@ -2579,6 +2580,25 @@ router.post("/lab/pipeline/launch/:id", authMiddleware, async (req: Request, res
 
 router.get("/lab/auto-scan/status", authMiddleware, (_req: Request, res: Response) => {
   res.json({ running: isLabScanRunning() });
+});
+
+// ── Investment Rule — manual trigger & unarchive ───────────────────────────
+
+router.post("/lab/investment-rule/run", authMiddleware, async (_req: Request, res: Response) => {
+  try {
+    const result = await runInvestmentRule(false);
+    res.json({ ok: true, ...result });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/lab/projects/:id/unarchive", authMiddleware, async (req: Request, res: Response) => {
+  const projectId = parseInt(req.params.id as string);
+  const [project] = await db.select({ id: labProjects.id, name: labProjects.name }).from(labProjects).where(eq(labProjects.id, projectId));
+  if (!project) { res.status(404).json({ error: "Project not found" }); return; }
+  await db.update(labProjects).set({ status: "active", updatedAt: new Date() }).where(eq(labProjects.id, projectId));
+  res.json({ ok: true, message: `"${project.name}" restored to active` });
 });
 
 // ── Complete All Sections ──────────────────────────────────────────────────
