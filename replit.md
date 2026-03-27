@@ -78,6 +78,28 @@ React + Vite frontend served at `/`. A full AI partnership platform — not a to
 - Widget gracefully hides when Spotify is not active or unavailable
 - Note: Requires Spotify Premium + app registered in development mode on Spotify dashboard
 
+### `artifacts/fitstack-crm` — FitStack CRM (Live Product)
+React + Vite marketing landing page + Stripe checkout for FitStack CRM, a subscription CRM for UK personal trainers.
+- URL: `/fitstack-crm/`
+- Pricing: £29/month or £249/year
+- Full landing page: hero, features, pricing, testimonials, FAQ, footer
+- Stripe checkout flow via `POST /api/fitstack/checkout` → redirect to Stripe hosted page
+- Success page at `/fitstack-crm/success?session_id=XXX` verifies payment via `GET /api/fitstack/verify`
+- Backend routes: `artifacts/api-server/src/routes/fitstack.ts`
+- Images: `artifacts/fitstack-crm/public/images/` (hero-abstract.png, dashboard-mockup.png)
+
+### ElevenLabs Voice (NOT YET SET UP)
+- ElevenLabs Replit OAuth connector was dismissed — user did not complete OAuth
+- To add real voice: get an API key from elevenlabs.io, store it as ELEVENLABS_API_KEY secret, then wire it into the `speakText` function in `artifacts/ai-chat/src/pages/star-lab.tsx`
+- Current TTS: browser `speechSynthesis` only (fallback)
+- Do NOT attempt `proposeIntegration` for ElevenLabs again — ask for API key directly and store as secret
+
+### Portfolio Cull Tool (Sirius Tool)
+- `run_portfolio_cull` tool added to Sirius — scores all approved projects against commercial criteria
+- Scoring: Pure software (+25), Revenue projections (+20), Confidence 8-9/10 (+15), £1M+ Y1 market (+10), Low dev cost (+10), AI arch linked (+10), Launch-ready (+5), Recurring revenue (+5)
+- Default: keep top 20, show preview first, confirm=true to actually archive
+- TOOL_META entry added; case handler in executeLabTool switch
+
 ### OpenAI Integration
 Uses `@workspace/integrations-openai-ai-server` and `@workspace/integrations-openai-ai-react`.
 API routes in `artifacts/api-server/src/routes/openai/index.ts`.
