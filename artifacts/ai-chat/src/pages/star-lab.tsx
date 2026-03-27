@@ -1554,6 +1554,7 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack }: { project: Project
   const [loadingInsights, setLoadingInsights] = useState(false);
   const [insightsLoaded, setInsightsLoaded] = useState(false);
   const [expandedInsight, setExpandedInsight] = useState<number | null>(null);
+  const [genVersion, setGenVersion] = useState(0);
   const base = getApiBase();
 
   const headers = useCallback(() => ({ "Content-Type": "application/json", "x-lab-pin": pin }), [pin]);
@@ -1620,7 +1621,13 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack }: { project: Project
               const d = JSON.parse(line.slice(6));
               if (d.content) {
                 result += d.content;
-                const fieldMap: Record<string, string> = { materials: "materials", workflows: "workflows", market: "industryProblem", brochure: "brochure", pitch: "pitch", cost: "costToBuild", economics: "costToBuild" };
+                const fieldMap: Record<string, string> = {
+                  materials: "materials", workflows: "workflows",
+                  market: "industryProblem", brochure: "brochure",
+                  pitch: "pitch", cost: "costToBuild", economics: "costToBuild",
+                  businessCase: "businessCase", goToMarket: "goToMarket",
+                  drawings: "drawingNotes",
+                };
                 const field = fieldMap[section];
                 if (field) onUpdate({ ...project, [field]: result });
               }
@@ -1630,6 +1637,7 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack }: { project: Project
       }
     } catch {}
     setGenerating(false);
+    setGenVersion(v => v + 1);
     loadCompleteness();
   };
 
@@ -2013,7 +2021,7 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack }: { project: Project
               )}
               {activeTab === "market" ? (
                 <div className="flex-1 flex flex-col min-h-0">
-                  <textarea key={`${project.id}-market`} defaultValue={project.industryProblem}
+                  <textarea key={`${project.id}-market-${genVersion}`} defaultValue={project.industryProblem}
                     onBlur={e => saveField("industryProblem", e.target.value)}
                     placeholder="Industry problem analysis, market sizing, competitor landscape, use cases..."
                     className="flex-1 p-4 resize-none outline-none leading-relaxed"
@@ -2021,7 +2029,7 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack }: { project: Project
                 </div>
               ) : activeTab === "economics" ? (
                 <div className="flex-1 flex flex-col min-h-0">
-                  <textarea key={`${project.id}-economics`} defaultValue={project.costToBuild}
+                  <textarea key={`${project.id}-economics-${genVersion}`} defaultValue={project.costToBuild}
                     onBlur={e => saveField("costToBuild", e.target.value)}
                     placeholder="Cost to build breakdown, BOM, manufacturing costs, pricing strategy, profit margin analysis..."
                     className="flex-1 p-4 resize-none outline-none leading-relaxed"
@@ -2029,7 +2037,7 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack }: { project: Project
                 </div>
               ) : activeTab === "drawings" ? (
                 <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
-                  <textarea key={`${project.id}-drawings`} defaultValue={project.drawingNotes}
+                  <textarea key={`${project.id}-drawings-${genVersion}`} defaultValue={project.drawingNotes}
                     onBlur={e => saveField("drawingNotes", e.target.value)}
                     placeholder="Drawing notes: views required, dimension callouts, tolerances, assembly details, revision history..."
                     style={{ background: "transparent", color: "rgba(15,23,42,0.8)", fontSize: "0.83rem", lineHeight: "1.7", padding: "16px", resize: "none", outline: "none", minHeight: "140px", flexShrink: 0 }} />
@@ -2038,7 +2046,7 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack }: { project: Project
                   </div>
                 </div>
               ) : (
-                <textarea key={`${project.id}-${activeTab}`} defaultValue={getTabContent(activeTab)}
+                <textarea key={`${project.id}-${activeTab}-${genVersion}`} defaultValue={getTabContent(activeTab)}
                   onBlur={e => saveField(getTabField(activeTab), e.target.value)}
                   placeholder={tab.placeholder}
                   className="flex-1 p-4 resize-none outline-none leading-relaxed"
@@ -6704,6 +6712,27 @@ function DashboardPanel({ projects, pin, onNavigate, onOpenProject }: {
   // Pending funding analyses
   const pendingFunding = projects.filter(p => p.fundingStatus === "pending").length;
 
+  // Live pipeline status — polls every 30 seconds
+  const [pipelineStatus, setPipelineStatus] = useState<{
+    currentlyBuilding: { id: number; name: string } | null;
+    queued: number;
+    launchReady: { id: number; name: string; industry: string }[];
+    cadPending: number;
+  } | null>(null);
+  const base = getApiBase();
+
+  useEffect(() => {
+    const fetchPipeline = async () => {
+      try {
+        const res = await fetch(`${base}lab/pipeline/status`, { headers: { "x-lab-pin": pin } });
+        if (res.ok) setPipelineStatus(await res.json());
+      } catch {}
+    };
+    fetchPipeline();
+    const iv = setInterval(fetchPipeline, 30_000);
+    return () => clearInterval(iv);
+  }, []);
+
   const STATS = [
     { label: "Projects",         value: projects.length,     color: "hsl(193,100%,40%)", icon: FolderOpen,       action: () => onNavigate("projects") },
     { label: "Active",           value: activeProjects.length, color: "hsl(155,70%,45%)", icon: Activity,        action: () => onNavigate("projects") },
@@ -6893,6 +6922,74 @@ function DashboardPanel({ projects, pin, onNavigate, onOpenProject }: {
             </div>
           </div>
         </div>
+
+        {/* Live Pipeline Status — what Sirius is building right now */}
+        {pipelineStatus && (
+          <div className="rounded-2xl overflow-hidden" style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.07)", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+            <div className="flex items-center justify-between px-5 py-3.5" style={{ borderBottom: "1px solid rgba(15,23,42,0.06)", background: "hsla(193,100%,40%,0.03)" }}>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: pipelineStatus.currentlyBuilding ? "hsl(155,70%,55%)" : "rgba(15,23,42,0.2)" }} />
+                <span className="text-slate-800 font-semibold text-sm">Autonomous Build Pipeline</span>
+                {pipelineStatus.currentlyBuilding && (
+                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ background: "hsla(155,70%,42%,0.12)", color: "hsl(155,70%,38%)" }}>LIVE</span>
+                )}
+              </div>
+              <button onClick={() => onNavigate("autolab")} className="text-xs transition-opacity hover:opacity-75" style={{ color: "hsl(193,100%,45%)" }}>
+                View Lab →
+              </button>
+            </div>
+            <div className="px-5 py-4">
+              <div className="grid grid-cols-3 gap-4 mb-4">
+                <div className="rounded-xl p-3 text-center" style={{ background: "hsla(155,70%,42%,0.06)", border: "1px solid hsla(155,70%,42%,0.15)" }}>
+                  <p className="text-lg font-bold" style={{ color: "hsl(155,70%,38%)" }}>{pipelineStatus.queued.toLocaleString()}</p>
+                  <p className="text-xs mt-0.5" style={{ color: "rgba(15,23,42,0.5)" }}>Queued to build</p>
+                </div>
+                <div className="rounded-xl p-3 text-center" style={{ background: "hsla(193,100%,40%,0.06)", border: "1px solid hsla(193,100%,40%,0.15)" }}>
+                  <p className="text-lg font-bold" style={{ color: "hsl(193,100%,38%)" }}>{pipelineStatus.currentlyBuilding ? 1 : 0}</p>
+                  <p className="text-xs mt-0.5" style={{ color: "rgba(15,23,42,0.5)" }}>Building now</p>
+                </div>
+                <div className="rounded-xl p-3 text-center" style={{ background: "hsla(155,70%,45%,0.06)", border: "1px solid hsla(155,70%,45%,0.15)" }}>
+                  <p className="text-lg font-bold" style={{ color: "hsl(155,70%,38%)" }}>{pipelineStatus.launchReady?.length ?? 0}</p>
+                  <p className="text-xs mt-0.5" style={{ color: "rgba(15,23,42,0.5)" }}>Launch-ready</p>
+                </div>
+              </div>
+              {pipelineStatus.currentlyBuilding ? (
+                <div className="flex items-center gap-3 p-3 rounded-xl" style={{ background: "hsla(155,70%,42%,0.06)", border: "1px solid hsla(155,70%,42%,0.12)" }}>
+                  <div className="flex-shrink-0">
+                    <Loader2 className="w-4 h-4 animate-spin" style={{ color: "hsl(155,70%,45%)" }} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-slate-500 mb-0.5">Currently building</p>
+                    <p className="text-sm font-semibold text-slate-800 truncate">{pipelineStatus.currentlyBuilding.name}</p>
+                  </div>
+                  <span className="text-xs px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: "hsla(155,70%,42%,0.15)", color: "hsl(155,70%,38%)" }}>AI Agents Active</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3 p-3 rounded-xl" style={{ background: "rgba(15,23,42,0.03)", border: "1px solid rgba(15,23,42,0.07)" }}>
+                  <Activity className="w-4 h-4 flex-shrink-0" style={{ color: "rgba(15,23,42,0.3)" }} />
+                  <p className="text-sm text-slate-400">Pipeline idle — {pipelineStatus.queued.toLocaleString()} projects queued</p>
+                </div>
+              )}
+              {(pipelineStatus.launchReady?.length ?? 0) > 0 && (
+                <div className="mt-3">
+                  <p className="text-xs font-medium text-slate-400 mb-2">Ready to launch</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {pipelineStatus.launchReady.slice(0, 6).map(p => (
+                      <span key={p.id} className="text-xs px-2 py-1 rounded-lg" style={{ background: "hsla(193,100%,40%,0.08)", color: "hsl(193,100%,35%)", border: "1px solid hsla(193,100%,40%,0.15)" }}>
+                        {p.name.length > 28 ? p.name.slice(0, 28) + "…" : p.name}
+                      </span>
+                    ))}
+                    {(pipelineStatus.launchReady?.length ?? 0) > 6 && (
+                      <span className="text-xs px-2 py-1 rounded-lg" style={{ background: "rgba(15,23,42,0.05)", color: "rgba(15,23,42,0.5)" }}>
+                        +{(pipelineStatus.launchReady?.length ?? 0) - 6} more
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Quick Actions */}
         <div>
