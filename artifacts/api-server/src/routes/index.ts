@@ -11,6 +11,7 @@ import learnRouter from "./learn";
 import revenueRouter from "./revenue";
 import agencyRouter from "./agency";
 import publicRouter from "./public";
+import fitstackRouter from "./fitstack";
 
 const router: IRouter = Router();
 
@@ -26,5 +27,6 @@ router.use(outreachRouter);
 router.use(learnRouter);
 router.use(revenueRouter);
 router.use(agencyRouter);
+router.use("/fitstack", fitstackRouter);
 
 export default router;

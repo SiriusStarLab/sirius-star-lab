@@ -3435,6 +3435,21 @@ const LAB_TOOLS: any[] = [
   {
     type: "function" as const,
     function: {
+      name: "run_portfolio_cull",
+      description: "Score and rank every project in the portfolio against strict commercial criteria, then identify the top N to keep and the rest to archive. Returns the ranked shortlist with scores and reasoning BEFORE archiving anything — Garry must confirm before any archiving happens. Use when Garry says 'cull the portfolio', 'cut to the best 20', 'rank everything', 'focus on the top projects', 'remove the weak ones', or 'trim the portfolio'. A second call with confirm=true executes the archiving.",
+      parameters: {
+        type: "object",
+        properties: {
+          keep_top: { type: "number", description: "How many projects to keep. Default 20." },
+          confirm: { type: "boolean", description: "If true, actually archive the projects outside the top N. If false (default), just show the ranking and what would be archived — no changes made." },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
       name: "detect_drawing_requirements",
       description: "Analyse the project portfolio and identify which projects will require physical drawings — CAD engineering drawings, architectural drawings, mechanical drawings, or technical schematics. Flags hardware, physical products, construction, precision engineering, medical devices, and manufacturing projects. Use when Garry asks 'which projects need CAD?', 'which need drawings?', 'flag the physical products', 'which need an architect?', or 'identify engineering drawing requirements'.",
       parameters: {
@@ -4728,6 +4743,99 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
         return lines.join("\n");
       }
 
+      case "run_portfolio_cull": {
+        const keepTop = args.keep_top || 20;
+        const confirm = !!args.confirm;
+        onProgress?.({ type: "status", message: `Scoring all approved projects — finding the top ${keepTop}…` });
+
+        const allProjects = await db.select({
+          id: labProjects.id, name: labProjects.name, industry: labProjects.industry,
+          businessCase: labProjects.businessCase, costToBuild: labProjects.costToBuild,
+          launchStatus: labProjects.launchStatus, aiArchLinked: labProjects.aiArchLinked,
+          fundingStatus: labProjects.fundingStatus, profitMargin: labProjects.profitMargin,
+          status: labProjects.status,
+        }).from(labProjects)
+          .where(and(ne(labProjects.status, "archived"), ne(labProjects.approvalStatus, "pending")))
+          .orderBy(desc(labProjects.updatedAt));
+
+        // Scoring rubric — max 100 points
+        const scored = allProjects.map(p => {
+          let score = 0;
+          const reasons: string[] = [];
+          const text = `${p.name} ${p.industry} ${p.businessCase || ""}`.toLowerCase();
+
+          // +25: Purely digital / SaaS (no physical/hardware requirements)
+          const isDigital = /saas|platform|software|app|dashboard|automation|bot|analytics|crm|portal|management.*tool|online.*tool|digital/.test(text);
+          const isPhysical = /hardware|manufactur|cad|device|construction|architecture|medical.*device|implant|wearable.*sensor|physical.*product/.test(text);
+          if (isDigital && !isPhysical) { score += 25; reasons.push("Pure software/SaaS"); }
+          else if (isPhysical) { score -= 10; reasons.push("Physical product (higher barrier)"); }
+
+          // +20: Strong business case with revenue projections
+          const hasRevProj = /£[\d,.]+[mk]?\s*(revenue|arr|year|annually)|revenue.*£[\d,.]+/i.test(p.businessCase || "");
+          if (hasRevProj) { score += 20; reasons.push("Detailed revenue projections"); }
+          else if (p.businessCase && p.businessCase.length > 200) { score += 10; reasons.push("Business case documented"); }
+
+          // +15: High confidence score (8+ mentioned in business case)
+          if (/confidence[^.]{0,30}[89][\./]10|confidence[^.]{0,30}9/.test(p.businessCase || "")) { score += 15; reasons.push("High confidence score (8-9/10)"); }
+
+          // +10: Large market (£1M+ Year 1 or £5M+ Year 3)
+          if (/£[1-9]\d*[mk]\b.*year.{0,10}1|year.{0,10}1.*£[1-9]\d*[mk]\b/i.test(p.businessCase || "")) { score += 10; reasons.push("£1M+ Year 1 revenue potential"); }
+
+          // +10: Low development cost (< £200k)
+          if (/£[0-9]{1,2}[,\d]*k?\b.*(develop|build|cost|invest)/i.test(p.businessCase || "") && !/£[3-9]\d{2}[k,]/i.test(p.businessCase || "")) { score += 10; reasons.push("Low development cost"); }
+
+          // +10: AI architecture linked
+          if (p.aiArchLinked === "linked") { score += 10; reasons.push("AI architecture designed"); }
+
+          // +5: Already launch-ready
+          if (p.launchStatus === "launch-ready") { score += 5; reasons.push("Launch-ready"); }
+
+          // +5: Recurring revenue / subscription model
+          if (/subscription|monthly.*fee|per.*month|recurring|saas.*model|£\d+\/month/.test(text)) { score += 5; reasons.push("Subscription/recurring revenue model"); }
+
+          return { id: p.id, name: p.name, industry: p.industry, score: Math.max(0, score), reasons };
+        });
+
+        scored.sort((a, b) => b.score - a.score);
+        const keepers = scored.slice(0, keepTop);
+        const toLose = scored.slice(keepTop);
+
+        if (confirm) {
+          // Actually archive the bottom projects
+          if (toLose.length === 0) return "Nothing to archive — all projects are in the top group.";
+          const idsToArchive = toLose.map(p => p.id);
+          // Batch archive in chunks to avoid query size limits
+          const chunkSize = 50;
+          let archived = 0;
+          for (let i = 0; i < idsToArchive.length; i += chunkSize) {
+            const chunk = idsToArchive.slice(i, i + chunkSize);
+            await db.update(labProjects)
+              .set({ status: "archived" })
+              .where(and(
+                ne(labProjects.status, "archived"),
+                sql`${labProjects.id} = ANY(${chunk})`
+              ));
+            archived += chunk.length;
+          }
+          return `✅ PORTFOLIO CULLED — ${archived} projects archived. ${keepers.length} projects remain in your focused portfolio.\n\nYour top ${keepers.length}:\n${keepers.slice(0, 10).map((p, i) => `${i + 1}. "${p.name}" — score ${p.score}/100`).join("\n")}`;
+        }
+
+        // Preview only — no changes
+        const lines = [
+          `📊 PORTFOLIO CULL PREVIEW — ${allProjects.length} projects scored`,
+          `Keeping top ${keepTop} | Would archive ${toLose.length}`,
+          "",
+          `🏆 TOP ${keepTop} TO KEEP:`,
+          ...keepers.map((p, i) => `${String(i + 1).padStart(2)}. [${p.score}/100] "${p.name}" (${p.industry})\n      ${p.reasons.join(" · ")}`),
+          "",
+          `🗑 WOULD ARCHIVE: ${toLose.length} projects`,
+          `   Lowest scorers: ${toLose.slice(-5).map(p => `"${p.name}" (${p.score}pts)`).join(", ")}`,
+          "",
+          `To execute this cull and archive the bottom ${toLose.length} projects, say "confirm the portfolio cull" or "yes, archive them".`,
+        ];
+        return lines.join("\n");
+      }
+
       case "detect_drawing_requirements": {
         const scanLimit = args.limit || 200;
         onProgress?.({ type: "status", message: `Scanning ${scanLimit} projects for drawing requirements…` });
@@ -4904,6 +5012,7 @@ const TOOL_META: Record<string, { label: string; color: string; icon: string }> 
   run_investment_rule: { label: "Running £10k investment rule", color: "hsl(25,90%,55%)", icon: "💷" },
   run_funding_analysis: { label: "Running funding analysis", color: "hsl(155,70%,45%)", icon: "💰" },
   run_platform_audit: { label: "Running full platform audit", color: "hsl(210,80%,55%)", icon: "🔬" },
+  run_portfolio_cull: { label: "Portfolio scored & ranked", color: "hsl(0,72%,51%)", icon: "🏆" },
   detect_drawing_requirements: { label: "Scanning for drawing requirements", color: "hsl(280,70%,55%)", icon: "📐" },
   find_appbuilder_projects: { label: "Finding App Builder candidates", color: "hsl(193,100%,40%)", icon: "🚀" },
 };
