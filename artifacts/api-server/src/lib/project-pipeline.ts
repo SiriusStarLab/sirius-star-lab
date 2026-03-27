@@ -16,7 +16,7 @@
 
 import { eq, isNull, or, and, asc, ne, sql } from "drizzle-orm";
 import { db, labProjects, appBuilderSessions, cadFiles } from "@workspace/db";
-import { triggerAutoBuildForProject } from "./lab-auto-scan.js";
+import { triggerAutoBuildForProject, isSoftwareBuildable } from "./lab-auto-scan.js";
 import { openai } from "@workspace/integrations-openai-ai-server";
 
 const IDLE_CHECK_MS = 30 * 1000; // 30 seconds — how often to check when queue is empty
@@ -292,14 +292,21 @@ Produce clear, numbered drawing requirements (dimensions, views, materials, tole
       }
     }
 
-    // 6. Check if CAD files already exist for this project
-    const existingCad = await db
-      .select({ id: cadFiles.id })
-      .from(cadFiles)
-      .where(eq(cadFiles.projectId, next.id))
-      .limit(1);
-
-    const nextStatus = existingCad.length > 0 ? "launch-ready" : "cad-pending";
+    // 6. Determine next status:
+    //    - Software/digital products (SaaS, bots, apps, etc.) skip CAD and go straight to launch-ready
+    //    - Physical/hardware products wait for CAD files to be uploaded
+    const isDigital = isSoftwareBuildable(next.name, next.brief || "");
+    let nextStatus: string;
+    if (isDigital) {
+      nextStatus = "launch-ready";
+    } else {
+      const existingCad = await db
+        .select({ id: cadFiles.id })
+        .from(cadFiles)
+        .where(eq(cadFiles.projectId, next.id))
+        .limit(1);
+      nextStatus = existingCad.length > 0 ? "launch-ready" : "cad-pending";
+    }
 
     await db
       .update(labProjects)

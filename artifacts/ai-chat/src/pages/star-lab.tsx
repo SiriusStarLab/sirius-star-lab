@@ -4322,6 +4322,16 @@ function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed, onViewProject 
       .finally(() => setPipelineLoading(false));
   }, [API, pin]);
 
+  const handleLaunchProject = useCallback(async (id: number) => {
+    try {
+      await fetch(`${API}lab/pipeline/launch/${id}`, {
+        method: "POST",
+        headers: { "x-lab-pin": pin },
+      });
+      fetchPipelineStatus();
+    } catch {}
+  }, [API, pin, fetchPipelineStatus]);
+
   useEffect(() => {
     if (appBuilderView !== "pipeline") return;
     fetchPipelineStatus();
@@ -4709,7 +4719,8 @@ function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed, onViewProject 
     if (Object.keys(collectedFiles).length > 0) {
       setAllFiles({ ...collectedFiles });
       setPhase(5);
-      saveSession({ phase: 5, status: "testing", files: collectedFiles });
+      // status "done" triggers lab project creation in sessions/save so it appears in Portfolio
+      saveSession({ phase: 5, status: "done", files: collectedFiles });
       if (buildQueue.length > 0) {
         const [, ...rest] = buildQueue;
         setBuildQueue(rest);
@@ -5332,13 +5343,28 @@ function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed, onViewProject 
                       ) : (
                         <div className="max-h-56 overflow-y-auto">
                           {expandedTile.list.map((p, i) => (
-                            <div key={p.id} className="flex items-center justify-between px-4 py-3" style={{ borderBottom: i < expandedTile.list.length - 1 ? "1px solid rgba(15,23,42,0.05)" : "none" }}>
-                              <div className="flex items-center gap-3 min-w-0">
-                                <span className="text-xs font-mono px-2 py-0.5 rounded-lg flex-shrink-0" style={{ background: "rgba(15,23,42,0.06)", color: "rgba(15,23,42,0.5)" }}>#{p.id}</span>
+                            <div key={p.id} className="flex items-center justify-between px-4 py-3 gap-2" style={{ borderBottom: i < expandedTile.list.length - 1 ? "1px solid rgba(15,23,42,0.05)" : "none" }}>
+                              <div className="flex items-center gap-2 min-w-0 flex-1">
+                                <span className="text-xs font-mono px-1.5 py-0.5 rounded-lg flex-shrink-0" style={{ background: "rgba(15,23,42,0.06)", color: "rgba(15,23,42,0.5)" }}>#{p.id}</span>
                                 <span className="text-sm font-medium truncate" style={{ color: "rgba(15,23,42,0.85)" }}>{p.name}</span>
-                                {p.industry && <span className="text-xs px-2 py-0.5 rounded-full flex-shrink-0 hidden sm:inline-block" style={{ background: "hsla(193,100%,40%,0.08)", color: "hsl(193,100%,35%)" }}>{p.industry}</span>}
                               </div>
-                              <span className="text-[10px] flex-shrink-0 ml-2" style={{ color: "rgba(15,23,42,0.35)" }}>{new Date(p.updatedAt).toLocaleDateString()}</span>
+                              <div className="flex items-center gap-1.5 flex-shrink-0">
+                                <span className="text-[10px]" style={{ color: "rgba(15,23,42,0.35)" }}>{new Date(p.updatedAt).toLocaleDateString()}</span>
+                                {expandedTile.key === "launch-ready" && (
+                                  <button
+                                    onClick={() => handleLaunchProject(p.id)}
+                                    className="text-[10px] font-semibold px-2 py-1 rounded-lg transition-all hover:opacity-80"
+                                    style={{ background: "hsl(155,70%,40%)", color: "white" }}>
+                                    🚀 Launch
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => onViewProject?.(p.id)}
+                                  className="text-[10px] font-semibold px-2 py-1 rounded-lg transition-all hover:opacity-80"
+                                  style={{ background: "rgba(15,23,42,0.06)", color: "rgba(15,23,42,0.6)", border: "1px solid rgba(15,23,42,0.1)" }}>
+                                  View →
+                                </button>
+                              </div>
                             </div>
                           ))}
                         </div>

@@ -293,7 +293,7 @@ const SOFTWARE_KEYWORDS = [
   "crm", "erp", "marketplace", "plugin", "extension", "chatbot", "workflow",
 ];
 
-function isSoftwareBuildable(name: string, brief: string): boolean {
+export function isSoftwareBuildable(name: string, brief: string): boolean {
   const text = `${name} ${brief}`.toLowerCase();
   return SOFTWARE_KEYWORDS.some(kw => text.includes(kw));
 }
@@ -517,17 +517,42 @@ Respond ONLY with valid JSON: { "tasks": [{ "id": "T001", "agent": "Architect Ag
       }
     }
 
-    // Mark session complete
+    // Mark session complete and link back to the lab project
     await db.update(appBuilderSessions).set({
       status: "complete",
       phase: 7,
       files: JSON.stringify(allFiles),
       buildLog,
+      projectId,
       updatedAt: new Date(),
     }).where(eq(appBuilderSessions.id, session.id));
 
     const totalFiles = Object.keys(allFiles).length;
     console.log(`[Auto-Build] ✅ "${name}" build complete — ${totalFiles} files · session #${session.id}`);
+
+    // Save code summary to labProjects.code so the Code tab shows the built output
+    try {
+      const topFiles = Object.entries(allFiles)
+        .sort((a, b) => b[1].length - a[1].length)
+        .slice(0, 15);
+      const codeSummary = [
+        `// Auto-built by Sirius App Builder — ${totalFiles} files generated`,
+        `// Session #${session.id} · ${new Date().toISOString().slice(0, 10)}`,
+        "",
+        ...topFiles.map(([filename, content]) => [
+          `${"=".repeat(60)}`,
+          `// FILE: ${filename}`,
+          `${"=".repeat(60)}`,
+          content.slice(0, 1200),
+          content.length > 1200 ? `\n// ... (${content.length - 1200} more chars) ...` : "",
+        ].join("\n")),
+      ].join("\n\n");
+      await db.update(labProjects)
+        .set({ code: codeSummary, updatedAt: new Date() })
+        .where(eq(labProjects.id, projectId));
+    } catch (codeErr: any) {
+      console.error(`[Auto-Build] Could not save code to project:`, codeErr?.message);
+    }
 
   } catch (err: any) {
     console.error(`[Auto-Build] ✗ Failed for "${name}":`, err?.message);
