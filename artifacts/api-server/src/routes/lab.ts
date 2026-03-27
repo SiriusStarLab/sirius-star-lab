@@ -7738,43 +7738,70 @@ Be specific to the actual projects listed. Do NOT hallucinate features not menti
 
 Analyse all of them, then pick the top 5 that need the least investment, can be built right away, launched immediately, and generate revenue from day one.\n\n${projectSummaries}`;
 
-    let buffer = "";
-    const stream = await openai.chat.completions.create({
+    // Collect the full response (non-streaming) for robust JSON extraction
+    send({ type: "scanning", message: "Sirius intelligence is ranking your portfolio…" });
+
+    const completion = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
-      stream: true,
+      stream: false,
       max_tokens: 3000,
       temperature: 0.4,
     });
 
-    for await (const chunk of stream) {
-      const delta = chunk.choices[0]?.delta?.content || "";
-      if (!delta) continue;
-      buffer += delta;
+    const fullText = completion.choices[0]?.message?.content || "";
 
-      // Emit completed JSON lines as picks stream in
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
+    // Strip markdown code fences if the model wrapped its output
+    const cleaned = fullText
+      .replace(/```json\s*/gi, "")
+      .replace(/```\s*/g, "");
 
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-        try {
-          const obj = JSON.parse(trimmed);
-          send(obj);
-        } catch {
-          // partial line — keep accumulating
+    // Robustly extract all complete JSON objects using bracket depth tracking
+    // This handles: multi-line JSON, prose before/after, any formatting quirks
+    const extractedObjects: object[] = [];
+    let depth = 0;
+    let start = -1;
+    for (let i = 0; i < cleaned.length; i++) {
+      const ch = cleaned[i];
+      if (ch === "{") {
+        if (depth === 0) start = i;
+        depth++;
+      } else if (ch === "}") {
+        depth--;
+        if (depth === 0 && start !== -1) {
+          const candidate = cleaned.slice(start, i + 1);
+          try {
+            extractedObjects.push(JSON.parse(candidate));
+          } catch {}
+          start = -1;
         }
       }
     }
 
-    // Flush any remaining buffer
-    if (buffer.trim()) {
-      try { send(JSON.parse(buffer.trim())); } catch {}
+    if (extractedObjects.length === 0) {
+      // Fallback: try parsing the whole cleaned text as one object / JSON array
+      try {
+        const parsed = JSON.parse(cleaned.trim());
+        const arr = Array.isArray(parsed) ? parsed : [parsed];
+        arr.forEach(o => extractedObjects.push(o));
+      } catch {
+        console.error("[QuickWins] Could not extract any JSON from response. Raw:", fullText.slice(0, 500));
+        send({ type: "error", message: "Sirius returned an unexpected format — please try again" });
+        return;
+      }
     }
+
+    // Emit each extracted object to the frontend
+    for (const obj of extractedObjects) {
+      send(obj);
+    }
+
+    // Ensure we always send complete
+    const hasDone = extractedObjects.some((o: any) => o.type === "done");
+    if (!hasDone) send({ type: "done", headline: "Quick Wins analysis complete" });
 
     send({ type: "complete" });
   } catch (err: any) {
