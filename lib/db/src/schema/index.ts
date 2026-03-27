@@ -37,3 +37,4 @@ export * from "./sirius_config";
 export * from "./sirius_automations";
 export * from "./sirius_custom_tools";
 export * from "./sirius_errors";
+export * from "./tech_docs";

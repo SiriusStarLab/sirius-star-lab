@@ -1101,6 +1101,17 @@ function ChatPanel({ project, pin, mode, onUpdate }: { project: Project; pin: st
                 <Download className="w-3 h-3" style={{ color: "rgba(15,23,42,0.4)" }} />
               </button>
             )}
+            {mode !== "bot" && !project.brief && !project.specs && (
+              <button
+                onClick={() => send("Concept: " + project.name + " — " + (project.industry || "product") + ". Design this from scratch: research the market, write a full product brief, generate detailed technical specs with real materials for the application, create the bill of materials, manufacturing workflows, and business case. Start now.")}
+                disabled={streaming}
+                title="Full concept-to-product design flow"
+                className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs transition-all whitespace-nowrap"
+                style={{ background: "hsl(280,70%,25%)", color: "hsl(280,70%,75%)", border: "1px solid hsl(280,70%,30%)" }}>
+                <Sparkles className="w-3 h-3" />
+                Design from Concept
+              </button>
+            )}
             {mode !== "bot" && (
               <button onClick={() => setShowCompleteAll(true)} title="Complete all sections" className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs transition-all whitespace-nowrap"
                 style={{ background: "hsl(193,100%,20%)", color: "hsl(193,100%,65%)", border: "1px solid hsl(193,100%,25%)" }}>
@@ -1373,6 +1384,289 @@ const INSIGHT_PRIORITY_STYLE: Record<string, { bg: string; text: string; label: 
   medium: { bg: "hsl(45,70%,22%)", text: "hsl(45,90%,60%)", label: "Medium" },
   low: { bg: "hsl(193,60%,18%)", text: "hsl(193,90%,55%)", label: "Low" },
 };
+
+type TechDocRecord = {
+  id: number;
+  projectId: number;
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+  objectPath: string;
+  docType: string;
+  description: string;
+  analysisStatus: string;
+  analysisContent: string;
+  uploadedAt: string;
+};
+
+const DOC_TYPES = [
+  { value: "drawing", label: "Technical Drawing" },
+  { value: "spec", label: "Specification Sheet" },
+  { value: "datasheet", label: "Material Datasheet" },
+  { value: "photo", label: "Product Photo / Render" },
+  { value: "concept", label: "Concept Sketch" },
+  { value: "other", label: "Other Document" },
+];
+
+function TechDocsPanel({ project, pin }: { project: Project; pin: string }) {
+  const [docs, setDocs] = useState<TechDocRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const [analyzing, setAnalyzing] = useState<number | null>(null);
+  const [expandedDoc, setExpandedDoc] = useState<number | null>(null);
+  const [selectedDocType, setSelectedDocType] = useState("drawing");
+  const [streamText, setStreamText] = useState<Record<number, string>>({});
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const base = getApiBase();
+  const hdrs = useCallback(() => ({ "x-lab-pin": pin }), [pin]);
+
+  const loadDocs = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${base}lab/projects/${project.id}/tech-docs`, { headers: hdrs() });
+      if (res.ok) setDocs(await res.json());
+    } catch {}
+    setLoading(false);
+  }, [base, project.id, hdrs]);
+
+  useEffect(() => { loadDocs(); }, [project.id]);
+
+  const formatSize = (bytes: number) => {
+    if (!bytes) return "—";
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const docTypeColor = (t: string) => {
+    const m: Record<string, string> = { drawing: "#0077b6", spec: "#2d6a4f", datasheet: "#e63946", photo: "#f77f00", concept: "#7b2d8b", other: "rgba(15,23,42,0.45)" };
+    return m[t] || "rgba(15,23,42,0.45)";
+  };
+
+  const docTypeIcon = (t: string) => {
+    const m: Record<string, string> = { drawing: "📐", spec: "📋", datasheet: "📄", photo: "🖼️", concept: "💡", other: "📎" };
+    return m[t] || "📎";
+  };
+
+  const isAnalysable = (doc: TechDocRecord) => {
+    return /^image\//i.test(doc.mimeType) || /\.(jpg|jpeg|png|gif|webp|bmp|pdf)$/i.test(doc.fileName);
+  };
+
+  const uploadFile = async (file: File) => {
+    setUploading(true);
+    try {
+      const urlRes = await fetch(`${base}lab/projects/${project.id}/tech-docs/upload-url`, {
+        method: "POST",
+        headers: { ...hdrs(), "Content-Type": "application/json" },
+      });
+      if (!urlRes.ok) throw new Error("Could not get upload URL");
+      const { uploadURL, objectPath } = await urlRes.json();
+
+      await fetch(uploadURL, {
+        method: "PUT",
+        headers: { "Content-Type": file.type || "application/octet-stream" },
+        body: file,
+      });
+
+      await fetch(`${base}lab/projects/${project.id}/tech-docs`, {
+        method: "POST",
+        headers: { ...hdrs(), "Content-Type": "application/json" },
+        body: JSON.stringify({ fileName: file.name, fileSize: file.size, mimeType: file.type || "", objectPath, docType: selectedDocType }),
+      });
+
+      await loadDocs();
+    } catch (err) { console.error("Tech doc upload error:", err); }
+    setUploading(false);
+  };
+
+  const analyzeDoc = async (doc: TechDocRecord) => {
+    setAnalyzing(doc.id);
+    setStreamText(prev => ({ ...prev, [doc.id]: "" }));
+    setExpandedDoc(doc.id);
+    try {
+      const res = await fetch(`${base}lab/projects/${project.id}/tech-docs/${doc.id}/analyze`, {
+        method: "POST",
+        headers: { ...hdrs(), "Content-Type": "application/json" },
+      });
+      if (!res.body) throw new Error("No response body");
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop() || "";
+        for (const line of lines) {
+          if (!line.startsWith("data:")) continue;
+          try {
+            const ev = JSON.parse(line.slice(5).trim());
+            if (ev.type === "chunk" && ev.delta) {
+              setStreamText(prev => ({ ...prev, [doc.id]: (prev[doc.id] || "") + ev.delta }));
+            } else if (ev.type === "complete") {
+              await loadDocs();
+            }
+          } catch {}
+        }
+      }
+    } catch (err) { console.error("Analysis error:", err); }
+    setAnalyzing(null);
+  };
+
+  const downloadDoc = async (doc: TechDocRecord) => {
+    try {
+      const res = await fetch(`${base}lab/projects/${project.id}/tech-docs/${doc.id}/download-url`, { headers: hdrs() });
+      if (!res.ok) throw new Error();
+      const { url, fileName } = await res.json();
+      const a = document.createElement("a");
+      a.href = url; a.download = fileName;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    } catch {}
+  };
+
+  const deleteDoc = async (id: number) => {
+    await fetch(`${base}lab/projects/${project.id}/tech-docs/${id}`, { method: "DELETE", headers: hdrs() });
+    setDocs(prev => prev.filter(d => d.id !== id));
+    setExpandedDoc(prev => prev === id ? null : prev);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) uploadFile(file);
+  };
+
+  return (
+    <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: "14px" }}>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div>
+          <p style={{ color: "rgba(15,23,42,0.67)", fontSize: "0.8rem", fontWeight: 600, marginBottom: "1px" }}>Technical Documents</p>
+          <p style={{ color: "rgba(15,23,42,0.5)", fontSize: "0.68rem" }}>
+            {docs.length === 0 ? "Upload drawings, specs, datasheets, and photos for Sirius to analyse" : `${docs.length} document${docs.length !== 1 ? "s" : ""} — Sirius can analyse images and PDFs`}
+          </p>
+        </div>
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
+          style={{ display: "flex", alignItems: "center", gap: "6px", padding: "7px 14px", borderRadius: "10px", background: "hsl(193,100%,32%)", color: "white", fontSize: "0.75rem", fontWeight: 600, border: "none", cursor: uploading ? "not-allowed" : "pointer", opacity: uploading ? 0.6 : 1, flexShrink: 0 }}>
+          {uploading ? <Loader2 size={12} style={{ animation: "spin 1s linear infinite" }} /> : <Upload size={12} />}
+          {uploading ? "Uploading…" : "Upload"}
+        </button>
+      </div>
+
+      {/* Doc type selector */}
+      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+        {DOC_TYPES.map(dt => (
+          <button key={dt.value} onClick={() => setSelectedDocType(dt.value)}
+            style={{ padding: "4px 10px", borderRadius: "20px", fontSize: "0.68rem", fontWeight: 600, border: `1.5px solid ${selectedDocType === dt.value ? docTypeColor(dt.value) : "rgba(15,23,42,0.1)"}`, background: selectedDocType === dt.value ? `${docTypeColor(dt.value)}12` : "transparent", color: selectedDocType === dt.value ? docTypeColor(dt.value) : "rgba(15,23,42,0.5)", cursor: "pointer" }}>
+            {dt.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Drop zone */}
+      <div
+        onDragOver={e => { e.preventDefault(); setDragging(true); }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={handleDrop}
+        onClick={() => !uploading && fileInputRef.current?.click()}
+        style={{ border: `2px dashed ${dragging ? "hsl(193,100%,50%)" : "rgba(15,23,42,0.1)"}`, borderRadius: "12px", padding: "18px", textAlign: "center", cursor: uploading ? "not-allowed" : "pointer", background: dragging ? "rgba(0,180,216,0.05)" : "transparent", transition: "all 0.2s" }}>
+        <Upload size={16} style={{ color: "rgba(15,23,42,0.45)", margin: "0 auto 6px" }} />
+        <p style={{ color: "rgba(15,23,42,0.6)", fontSize: "0.75rem" }}>Drag & drop a document here, or click to browse</p>
+        <p style={{ color: "rgba(15,23,42,0.45)", fontSize: "0.65rem", marginTop: "3px" }}>PNG · JPG · PDF · WebP — images analysed with full GPT-4o vision</p>
+      </div>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv"
+        style={{ display: "none" }}
+        onChange={e => { const f = e.target.files?.[0]; if (f) uploadFile(f); e.target.value = ""; }}
+      />
+
+      {/* Document list */}
+      {loading ? (
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", justifyContent: "center", padding: "12px", color: "rgba(15,23,42,0.45)", fontSize: "0.75rem" }}>
+          <Loader2 size={12} style={{ animation: "spin 1s linear infinite" }} /> Loading…
+        </div>
+      ) : docs.length === 0 ? null : (
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          {docs.map(doc => {
+            const isExpanded = expandedDoc === doc.id;
+            const isAnalysing = analyzing === doc.id;
+            const hasAnalysis = doc.analysisStatus === "complete" || (streamText[doc.id] && streamText[doc.id].length > 0);
+            const analysisText = streamText[doc.id] || doc.analysisContent || "";
+            const canAnalyse = isAnalysable(doc) && !isAnalysing && analyzing === null;
+            const color = docTypeColor(doc.docType);
+
+            return (
+              <div key={doc.id} style={{ borderRadius: "12px", background: "#F8FAFC", border: `1px solid ${isExpanded ? color + "30" : "rgba(15,23,42,0.07)"}`, overflow: "hidden", transition: "border-color 0.2s" }}>
+                {/* Doc row */}
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px" }}>
+                  <div style={{ width: "36px", height: "36px", borderRadius: "8px", background: `${color}15`, border: `1px solid ${color}25`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.1rem", flexShrink: 0 }}>
+                    {docTypeIcon(doc.docType)}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ color: "rgba(15,23,42,0.85)", fontSize: "0.78rem", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{doc.fileName}</p>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <span style={{ color: color, fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em" }}>{DOC_TYPES.find(dt => dt.value === doc.docType)?.label || doc.docType}</span>
+                      <span style={{ color: "rgba(15,23,42,0.4)", fontSize: "0.65rem" }}>{formatSize(doc.fileSize)} · {new Date(doc.uploadedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span>
+                      {doc.analysisStatus === "complete" && <span style={{ color: "#2d6a4f", fontSize: "0.6rem", fontWeight: 700 }}>✓ Analysed</span>}
+                      {doc.analysisStatus === "pending" && <span style={{ color: "#f77f00", fontSize: "0.6rem", fontWeight: 700 }}>⟳ Analysing…</span>}
+                    </div>
+                  </div>
+                  {/* Action buttons */}
+                  {canAnalyse && (
+                    <button onClick={() => analyzeDoc(doc)} title="Analyse with Sirius"
+                      style={{ display: "flex", alignItems: "center", gap: "4px", padding: "5px 10px", borderRadius: "8px", background: "hsl(193,100%,32%)", color: "white", border: "none", cursor: "pointer", fontSize: "0.68rem", fontWeight: 700, flexShrink: 0 }}>
+                      <span>🔍</span> Analyse
+                    </button>
+                  )}
+                  {isAnalysing && (
+                    <div style={{ display: "flex", alignItems: "center", gap: "5px", padding: "5px 10px", borderRadius: "8px", background: "rgba(0,180,216,0.1)", color: "hsl(193,100%,32%)", fontSize: "0.68rem", fontWeight: 700 }}>
+                      <Loader2 size={10} style={{ animation: "spin 1s linear infinite" }} /> Analysing…
+                    </div>
+                  )}
+                  {hasAnalysis && (
+                    <button onClick={() => setExpandedDoc(isExpanded ? null : doc.id)}
+                      style={{ padding: "5px 9px", borderRadius: "8px", background: isExpanded ? `${color}15` : "transparent", border: `1px solid ${color}30`, color: color, cursor: "pointer", fontSize: "0.68rem", fontWeight: 700, flexShrink: 0 }}>
+                      {isExpanded ? "▲ Hide" : "▼ Analysis"}
+                    </button>
+                  )}
+                  <button onClick={() => downloadDoc(doc)} title="Download"
+                    style={{ padding: "6px", borderRadius: "6px", background: "transparent", border: "none", cursor: "pointer", color: "hsl(193,100%,55%)", display: "flex", alignItems: "center" }}>
+                    <Download size={13} />
+                  </button>
+                  <button onClick={() => deleteDoc(doc.id)} title="Delete"
+                    style={{ padding: "6px", borderRadius: "6px", background: "transparent", border: "none", cursor: "pointer", color: "rgba(255,90,90,0.55)", display: "flex", alignItems: "center" }}>
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+
+                {/* Analysis panel */}
+                {isExpanded && analysisText && (
+                  <div style={{ borderTop: `1px solid ${color}20`, padding: "14px 16px", background: "white" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "10px" }}>
+                      <span style={{ fontSize: "0.7rem", fontWeight: 800, color: color, textTransform: "uppercase", letterSpacing: "0.05em" }}>Sirius Analysis</span>
+                      {isAnalysing && <Loader2 size={10} style={{ animation: "spin 1s linear infinite", color }} />}
+                    </div>
+                    <div style={{ fontSize: "0.78rem", color: "rgba(15,23,42,0.8)", lineHeight: "1.7", whiteSpace: "pre-wrap", fontFamily: "inherit" }}>
+                      {analysisText}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 type CadFileRecord = {
   id: number;
@@ -2088,6 +2382,9 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack }: { project: Project
                     onBlur={e => saveField("drawingNotes", e.target.value)}
                     placeholder="Drawing notes: views required, dimension callouts, tolerances, assembly details, revision history..."
                     style={{ background: "transparent", color: "rgba(15,23,42,0.8)", fontSize: "0.83rem", lineHeight: "1.7", padding: "16px", resize: "none", outline: "none", minHeight: "140px", flexShrink: 0 }} />
+                  <div style={{ borderTop: "1px solid rgba(15,23,42,0.07)" }}>
+                    <TechDocsPanel project={project} pin={pin} />
+                  </div>
                   <div style={{ borderTop: "1px solid rgba(15,23,42,0.07)" }}>
                     <CadFilesPanel project={project} pin={pin} />
                   </div>

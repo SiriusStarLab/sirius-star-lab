@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { eq, desc, gte, lte, and, or, like, sql, isNull, ne } from "drizzle-orm";
-import { db, labProjects, labMessages, scoutReports, cadFiles, labScanHistory, userProfilesTable, mediaOutlets, appBuilderSessions, voiceJournalTable, siriusConfig, siriusAutomations, siriusCustomTools, siriusErrors } from "@workspace/db";
+import { db, labProjects, labMessages, scoutReports, cadFiles, techDocs, labScanHistory, userProfilesTable, mediaOutlets, appBuilderSessions, voiceJournalTable, siriusConfig, siriusAutomations, siriusCustomTools, siriusErrors } from "@workspace/db";
 import { getSiriusConfigValue, setSiriusConfigValue, executeCustomTool, runAutomation, logSiriusError } from "../lib/sirius-automation.js";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { generateImageBuffer } from "@workspace/integrations-openai-ai-server/image";
@@ -797,6 +797,24 @@ CRITICAL EXECUTION RULES — READ CAREFULLY:
 
 6. NEVER REFUSE WITHOUT TRYING. If you are uncertain whether you can do something, try it. Call search_web to get information, call save_to_project to save it. Only say you cannot do something if there is a genuine technical impossibility.
 
+7. CONCEPT-TO-PRODUCT FLOW. When Garry shares a concept description or says anything like "design this", "I have an idea for", "concept:", "design from scratch", "build this product", or "research and design": immediately execute the full concept-to-product sequence without asking for permission or confirmation:
+   a. search_web → research the concept (market, competitors, technical feasibility, regulations)
+   b. save_to_project (field: "research") → save comprehensive research
+   c. save_to_project (field: "brief") → write a professional product brief from the concept
+   d. save_to_project (field: "specs") → generate full technical specifications
+   e. save_to_project (field: "materials") → materials selection for the described conditions
+   f. save_to_project (field: "workflows") → manufacturing/development workflows
+   g. save_to_project (field: "businessCase") → business case
+   h. generate_render → create a visual of the concept
+   Complete all steps in sequence without stopping. Report progress as you go.
+
+8. MATERIALS INTELLIGENCE. For any materials question or materials generation task, your knowledge covers:
+   - Extreme temperature materials: Inconel superalloys (625, 718, 825), Hastelloy (X, C-276), titanium Ti-6Al-4V, ceramics (SiC, Si₃N₄, Al₂O₃), PEEK, CMCs
+   - Subsea/marine: Super duplex SS (SAF 2507), 6Mo stainless (254 SMO), titanium Gr2/Gr5, Inconel 625, Viton/Aflas seals, cathodic protection
+   - Aerospace: 7075-T651, 2024-T3, CFRP (Toray T700/T800), Ti-6Al-4V ELI, Inconel 718, 15-5PH, 17-4PH
+   - Oil & gas sour service: NACE MR0175 / ISO 15156 compliant duplex SS, Inconel 825, API 6A materials
+   - Always cite real grade designations, standards (ISO/ASTM/BS EN/AMS/API/DNV), and real suppliers
+
 - Today: ${TODAY()}.`;
 
   sseHeaders(res);
@@ -1114,34 +1132,102 @@ Cost to Build: ${project.costToBuild || "Not yet calculated"}`;
 
   const prompts: Record<string, { system: string; user: string }> = {
     materials: {
-      system: `You are a world-class materials engineer and procurement specialist. Today is ${TODAY()}. You always recommend real, commercially available materials with real suppliers, real part numbers, and accurate pricing. You reference applicable standards (ISO, ASTM, BS EN, RoHS, REACH). You search for current material pricing.`,
-      user: `Based on this project, produce a complete materials specification:
+      system: `You are a world-class materials scientist and procurement engineer with 30 years of experience selecting materials for extreme and demanding applications. Today is ${TODAY()}. You have deep expertise in:
+
+EXTREME TEMPERATURE MATERIALS:
+- HIGH TEMPERATURE (300°C–1600°C+): Nickel superalloys (Inconel 625, 718, 825, Waspaloy, Hastelloy X, C-276, C-22), cobalt alloys (Stellite 6, Haynes 25), refractory metals (molybdenum, tungsten, niobium), oxide-dispersion strengthened (ODS) alloys, silicon carbide (SiC), silicon nitride (Si₃N₄), zirconia ceramics, alumina (Al₂O₃), ceramic matrix composites (CMC), MAX phase ceramics, PEEK (continuous use up to 260°C), PPS, PI (polyimide)
+- CRYOGENIC (-196°C to -269°C): Austenitic 316L SS (ASTM A182 F316L), aluminium alloys (5083-H321, 6061-T6), 9% nickel steel (ASTM A553 Type 1), Invar 36 (FeNi36), PTFE, PCTFE, cryogenic epoxy systems
+
+SUBSEA AND MARINE ENVIRONMENTS:
+- Seawater corrosion: Super duplex stainless steel (SAF 2507 / UNS S32750, SAF 2205 / UNS S31803), 6Mo stainless (254 SMO / UNS S31254, Alloy 926), titanium Grade 2 and Grade 5 (Ti-6Al-4V ELI), Inconel 625, copper-nickel (70/30 CuNi to ASTM B111), HDPE (cathodic protection compatibility), GRP/GRE pipe (ISO 14692)
+- Subsea pressure vessels: API 6A, API 17D, DNV-ST-F101, ASME BPVC Section VIII Div 1/2, PD 5500
+- Sealing materials: Viton (FKM) to SAE AS28775, Aflas (TFEP) for H₂S/HPHT, HNBR for sour service, PTFE lip seals
+- Cathodic protection: Al-Zn-In anodes (DNV RP-B401), ICCP systems
+
+AEROSPACE MATERIALS:
+- Primary structure: Al 7075-T651 (AMS 2770), Al 2024-T3 (AMS 2770), CFRP (Toray T700/T800, Hexcel IM7), Ti-6Al-4V ELI (AMS 4930), 15-5PH (H925, AMS 5659), 17-4PH (H900, AMS 5643), steel 300M (AMS 6257)
+- Engine hot section: Inconel 718 (AMS 5664), Inconel 738, René 80, Waspaloy (AMS 5704), DS/SC castings (CMSX-4, MAR-M247)
+- Fasteners: A286 (AMS 5731), MP35N, titanium 6Al-4V (NAS/MS fastener systems), Hi-Lok, Eddie-bolt
+- Certifications: AS9100, NADCAP (heat treatment, NDT, welding, coatings), FAA 8110, EASA CS-25, DO-160
+
+OIL & GAS / SOUR SERVICE / HPHT:
+- Sour service (H₂S): NACE MR0175 / ISO 15156 compliant materials — duplex SS (22Cr, 25Cr), Inconel 825, carbon steel with SMYS limits, EFC 16
+- HPHT: API 6A PR1/PR2/PR3, Inconel 718, Super duplex, controlled hardness (<22 HRC per NACE MR0175)
+- Pipe grades: API 5L X65, X70, X80 linepipe; ASTM A333 Gr 6 (low-temp); DSS ASTM A928
+
+ROBOTICS & ADVANCED MANUFACTURING:
+- Lightweight structural: Al-SiC MMC, Ti-6Al-4V (AM: DMLS/EBM), short-fibre CFRP, PEEK-CF
+- Wear-resistant coatings: WC-Co HVOF, chromium carbide, DLC, TiN, TiAlN PVD coatings
+- Flexible/compliant components: Nitinol (shape memory), silicone elastomers (Dow SYLGARD), TPU-CF
+
+You always recommend real, commercially available materials with:
+- Full material designation to the relevant standard
+- Real suppliers (Carpenter Technology, Haynes International, Allegheny Technologies, Sandvik, Special Metals, etc.)
+- Accurate pricing based on current market knowledge
+- Direct comparison to alternative materials with trade-offs
+- Processing/fabrication considerations for the chosen material`,
+      user: `Based on this project, produce a complete materials specification. Search the web for current material pricing and availability.
 
 ${ctx}
 
-Output a structured materials list covering:
-## Materials Specification
+## Materials Specification — [Project Name]
 
-### Primary Structural Materials
-[For each material: Name | Grade/specification | Supplier | Approx unit cost | Why chosen | Standard]
+### Application Environment Assessment
+[Critical environment factors: temperature range, pressure, corrosion medium (seawater, H₂S, HF acid, etc.), fatigue loading, UV/radiation, regulatory constraints — these drive material selection]
 
-### Secondary / Functional Materials
-[Same format]
+### Primary Structural / Functional Material
+| Property | Selection | Reasoning |
+|---|---|---|
+| **Material** | [Full designation — e.g. Inconel 625 to ASTM B443 Gr 1] | [Why this specific grade] |
+| **Standard** | [ISO / ASTM / BS EN / AMS / API] | [Compliance requirement] |
+| **Condition** | [Heat treatment / temper — e.g. solution annealed] | [Effect on properties] |
+| **Key Properties** | [UTS, Ys, elongation, hardness, corrosion rate] | [Critical for this application] |
+| **Primary Supplier** | [Real company — Haynes, Carpenter, Sandvik, etc.] | [Why preferred] |
+| **Approx. Price** | [£/kg or £/m² or £/unit] | [Volume dependent] |
+| **Pros** | [Specific advantages for this application] | — |
+| **Cons** | [Limitations / risks] | — |
 
-### Surface Finish / Coatings
-[Treatment, specification, supplier]
+### Secondary / Sealing / Functional Materials
+[For each: same table format — material, standard, supplier, price, pros/cons]
+
+### Surface Protection & Coatings
+| Surface | Treatment | Process | Standard | Thickness | Supplier/Applicator |
+|---|---|---|---|---|---|
+[Each surface that needs protection: e.g. sealing faces, bore, OD, fastener holes]
 
 ### Fasteners & Hardware
-[Types, grades, quantities estimate]
+| Item | Specification | Grade | Qty (est.) | Supplier | Unit Cost |
+|---|---|---|---|---|---|
+[All fasteners, seals, bearings, inserts, springs used]
 
-### Key Suppliers
-[Real company names, what they supply, lead time estimate]
+### Alternative Materials Comparison
+| Material | Advantage | Disadvantage | Cost vs Primary | Use Case |
+|---|---|---|---|---|
+[At least 3 credible alternatives with honest trade-offs]
 
-### Material Cost Estimate
-[Breakdown and total per unit]
+### Complete Bill of Materials (BOM)
+| Qty | Component | Material / Part No. | Supplier | Unit Cost (£) | Total (£) | Lead Time |
+|---|---|---|---|---|---|---|
+[Every item required for one complete unit]
+
+### Material Cost Summary
+| Category | Unit Cost (£) | Notes |
+|---|---|---|
+| Raw material | | |
+| Surface treatments | | |
+| Fasteners & hardware | | |
+| Seals & consumables | | |
+| **Total material cost per unit** | | |
 
 ### Sustainability & Compliance
-[RoHS, REACH, recyclability, certifications required]`,
+- RoHS status: [exempt / compliant / restricted substances list]
+- REACH compliance: [SVHC substances present?]
+- Recyclability: [end-of-life route]
+- Material traceability: [certificates required — 3.1 cert / CoC / mill cert]
+- Environmental restriction: [any restricted materials in target markets]
+
+### Supply Chain Risk Assessment
+[Key risks: single-source materials, long lead times, price volatility, export controls (ITAR/EAR). Recommended safety stock.]`,
     },
 
     workflows: {
@@ -2822,6 +2908,174 @@ router.get("/lab/projects/:id/cad-files/:fileId/download-url", authMiddleware, a
     return res.json({ url: signedUrl, fileName: record.fileName });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Technical Documents (drawings, specs, datasheets, photos) ────────────────
+
+// Request presigned upload URL
+router.post("/lab/projects/:id/tech-docs/upload-url", authMiddleware, async (_req: Request, res: Response) => {
+  try {
+    const uploadURL = await storage.getObjectEntityUploadURL();
+    const objectPath = storage.normalizeObjectEntityPath(uploadURL);
+    return res.json({ uploadURL, objectPath });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Register an uploaded document
+router.post("/lab/projects/:id/tech-docs", authMiddleware, async (req: Request, res: Response) => {
+  const projectId = parseInt(req.params.id as string);
+  const { fileName, fileSize, mimeType, objectPath, docType, description } = req.body;
+  if (!fileName || !objectPath) return res.status(400).json({ error: "fileName and objectPath are required" });
+  try {
+    const [doc] = await db.insert(techDocs).values({
+      projectId, fileName, fileSize: fileSize || 0, mimeType: mimeType || "",
+      objectPath, docType: docType || "other", description: description || "",
+      analysisStatus: "", analysisContent: "",
+    }).returning();
+    return res.json(doc);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// List documents for a project
+router.get("/lab/projects/:id/tech-docs", authMiddleware, async (req: Request, res: Response) => {
+  const projectId = parseInt(req.params.id as string);
+  try {
+    const docs = await db.select().from(techDocs)
+      .where(eq(techDocs.projectId, projectId))
+      .orderBy(desc(techDocs.uploadedAt));
+    return res.json(docs);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete a document
+router.delete("/lab/projects/:id/tech-docs/:docId", authMiddleware, async (req: Request, res: Response) => {
+  const docId = parseInt(req.params.docId as string);
+  try {
+    await db.delete(techDocs).where(eq(techDocs.id, docId));
+    return res.json({ success: true });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Get presigned download URL
+router.get("/lab/projects/:id/tech-docs/:docId/download-url", authMiddleware, async (req: Request, res: Response) => {
+  const docId = parseInt(req.params.docId as string);
+  try {
+    const [doc] = await db.select().from(techDocs).where(eq(techDocs.id, docId));
+    if (!doc) return res.status(404).json({ error: "Document not found" });
+    const signedUrl = await storage.getObjectEntityDownloadURL(doc.objectPath, 3600);
+    return res.json({ url: signedUrl, fileName: doc.fileName });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Analyse a document with GPT-4o vision (streaming SSE)
+router.post("/lab/projects/:id/tech-docs/:docId/analyze", authMiddleware, async (req: Request, res: Response) => {
+  const projectId = parseInt(req.params.id as string);
+  const docId = parseInt(req.params.docId as string);
+
+  sseHeaders(res);
+  const send = (d: object) => { try { res.write(`data: ${JSON.stringify(d)}\n\n`); } catch {} };
+
+  try {
+    const [project] = await db.select().from(labProjects).where(eq(labProjects.id, projectId));
+    const [doc] = await db.select().from(techDocs).where(eq(techDocs.id, docId));
+    if (!project || !doc) { send({ type: "error", message: "Not found" }); res.end(); return; }
+
+    // Mark as pending
+    await db.update(techDocs).set({ analysisStatus: "pending", analysisContent: "" }).where(eq(techDocs.id, docId));
+    send({ type: "start", message: "Sirius is analysing your document…" });
+
+    // Get presigned URL to fetch the file
+    const signedUrl = await storage.getObjectEntityDownloadURL(doc.objectPath, 900);
+    const isImage = /^image\//i.test(doc.mimeType) || /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(doc.fileName);
+    const isPdf = doc.mimeType === "application/pdf" || /\.pdf$/i.test(doc.fileName);
+
+    const projectCtx = `Project: ${project.name} | Industry: ${project.industry}${(project.manufacturingProcess || "") ? ` | Manufacturing Process: ${project.manufacturingProcess}` : ""}
+${project.brief ? `Brief: ${project.brief.slice(0, 400)}` : ""}
+${project.specs ? `Existing Specs: ${project.specs.slice(0, 400)}` : ""}`;
+
+    const systemPrompt = `You are Sirius — a world-class engineering intelligence partner specialising in materials science, mechanical design, manufacturing processes, and product development. You have deep expertise in:
+- Extreme environment materials: superalloys (Inconel, Hastelloy, Waspaloy), titanium alloys (Ti-6Al-4V, Ti-5553), super duplex stainless steels, PEEK, ceramics, CMCs
+- Subsea engineering: DNV standards, API 17D, cathodic protection, seawater corrosion, pressure vessel design
+- Aerospace: AS9100, NADCAP, fatigue/fracture mechanics, damage tolerance, airworthiness
+- Oil & gas: API 6A, ATEX/IECEx, high-pressure/high-temperature (HPHT), sour service (NACE MR0175)
+- Robotics and automation: collaborative robots, pick-and-place systems, force control, end-effectors
+- Advanced manufacturing: DMLS/SLM, CMC layup, superplastic forming, friction stir welding
+- International standards: ISO, BS EN, ASME, API, ASTM, DIN, MIL-SPEC, DEF STAN
+
+When you analyse a technical document, you:
+1. Identify exactly what the document shows
+2. Extract all technical data you can see (dimensions, materials, tolerances, processes)
+3. Identify improvement opportunities (better materials, tighter tolerances, simpler manufacturing, cost reductions)
+4. Flag any safety, compliance, or standards issues
+5. Suggest specific alternative materials or processes for the conditions described
+6. Be precise — cite actual material grades, standards numbers, tolerances in real units`;
+
+    let userContent: any[];
+
+    if (isImage) {
+      userContent = [
+        {
+          type: "text",
+          text: `Please analyse this technical document uploaded for the following project:\n\n${projectCtx}\n\nDocument: ${doc.fileName} (${doc.docType})\n${doc.description ? `Description: ${doc.description}` : ""}\n\nProvide a thorough engineering analysis covering:\n## Document Analysis — ${doc.fileName}\n\n### What I Can See\n[Describe exactly what the document shows — drawing views, components, layout, any visible text/dimensions]\n\n### Technical Data Extracted\n[List all dimensions, tolerances, materials, part numbers, standards, notes you can read from the document]\n\n### Engineering Assessment\n[Evaluate the design: structural adequacy, manufacturing feasibility, compliance with standards, any design concerns]\n\n### Material Improvements\n[Specific alternative materials that would improve performance for the application — include exact grade designations, standards references, and why they're better]\n\n### Design Optimisation Opportunities\n[Specific design changes: geometry improvements, tolerance rationalisation, weight reduction, cost reduction, easier manufacturing]\n\n### Manufacturing Process Recommendations\n[If not already specified: which manufacturing process suits this best, and why — be specific about machine types, operations, surface finishes]\n\n### Compliance & Standards Gaps\n[Any missing standards callouts, certifications needed, safety considerations]\n\n### Immediate Actions\n[The 3 most impactful things to change or improve, ranked by priority]`,
+        },
+        { type: "image_url", image_url: { url: signedUrl, detail: "high" } },
+      ];
+    } else if (isPdf) {
+      // For PDFs: fetch the file and try to send as base64 image, or fall back to text-only prompt
+      send({ type: "chunk", delta: "**Note:** PDF analysis uses text extraction — for best results with engineering drawings, upload as a high-resolution PNG or JPG image.\n\n" });
+      userContent = [
+        {
+          type: "text",
+          text: `Analyse this technical document for the following project:\n\n${projectCtx}\n\nDocument: ${doc.fileName} (PDF, ${doc.docType})\n${doc.description ? `Description: ${doc.description}` : ""}\n\nBased on the project context and document description, provide a comprehensive engineering analysis covering materials selection for the application, manufacturing process recommendations, applicable standards, and design best practices. Focus on:\n\n## Engineering Analysis — ${doc.fileName}\n\n### Document Purpose\n[Based on the filename and context, what this document likely contains]\n\n### Materials for This Application\n[Based on the project/industry, recommend specific materials with grades and standards]\n\n### Manufacturing Recommendations\n[Process, tolerances, surface finish requirements appropriate for this application]\n\n### Standards & Compliance\n[Applicable standards for this industry and product type]\n\n### Improvement Suggestions\n[Specific improvements to explore based on current best practices]\n\n### Immediate Actions\n[Priority recommendations]`,
+        },
+      ];
+    } else {
+      send({ type: "error", message: `Unsupported file type. Please upload an image (JPG/PNG) or PDF.` });
+      res.end(); return;
+    }
+
+    const stream = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userContent },
+      ],
+      stream: true,
+      max_tokens: 3000,
+    });
+
+    let fullAnalysis = "";
+    for await (const chunk of stream) {
+      const delta = chunk.choices[0]?.delta?.content || "";
+      if (delta) {
+        fullAnalysis += delta;
+        send({ type: "chunk", delta });
+      }
+    }
+
+    // Save the analysis result
+    await db.update(techDocs)
+      .set({ analysisStatus: "complete", analysisContent: fullAnalysis })
+      .where(eq(techDocs.id, docId));
+
+    send({ type: "complete" });
+  } catch (err: any) {
+    console.error("[TechDocs] Analysis error:", err?.message);
+    await db.update(techDocs).set({ analysisStatus: "error" }).where(eq(techDocs.id, docId));
+    send({ type: "error", message: err?.message || "Analysis failed" });
+  } finally {
+    res.end();
   }
 });
 
