@@ -3335,146 +3335,158 @@ function LaunchPanel({ project, pin, onUpdate }: { project: Project; pin: string
 }
 
 function ScoutPanel({ pin }: { pin: string }) {
-  const [query, setQuery] = useState("");
+  const [chatInput, setChatInput] = useState("");
   const [industries, setIndustries] = useState<string[]>([]);
   const [focus, setFocus] = useState("full");
   const [streaming, setStreaming] = useState(false);
   const [searching, setSearching] = useState(false);
   const [output, setOutput] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const [reports, setReports] = useState<ScoutReport[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
   const base = getApiBase();
   const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [output]);
 
   const loadReports = useCallback(async () => {
-    const res = await fetch(`${base}lab/scout/reports`, { headers: { "x-lab-pin": pin } });
-    if (res.ok) setReports(await res.json());
+    try {
+      const res = await fetch(`${base}lab/scout/reports`, { headers: { "x-lab-pin": pin } });
+      if (res.ok) setReports(await res.json());
+    } catch {}
   }, [base, pin]);
 
   useEffect(() => { loadReports(); }, [loadReports]);
 
-  const run = async () => {
-    setStreaming(true); setSearching(false); setOutput(""); let result = "";
+  const run = async (overrideQuery?: string) => {
+    const q = overrideQuery ?? chatInput;
+    if (!q.trim() && industries.length === 0) return;
+    if (streaming) return;
+    setStreaming(true); setSearching(false); setOutput(""); setError(null);
+    let result = "";
     try {
       const res = await fetch(`${base}lab/scout`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-lab-pin": pin },
-        body: JSON.stringify({ query, industries, focus }),
+        body: JSON.stringify({ query: q, industries, focus }),
       });
-      const reader = res.body!.getReader(); const decoder = new TextDecoder();
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `Server error ${res.status}`);
+      }
+      if (!res.body) throw new Error("No response stream received");
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
       while (true) {
-        const { done, value } = await reader.read(); if (done) break;
+        const { done, value } = await reader.read();
+        if (done) break;
         for (const line of decoder.decode(value).split("\n")) {
           if (line.startsWith("data: ")) {
             try {
               const d = JSON.parse(line.slice(6));
-              if (d.type === "searching") { setSearching(true); }
+              if (d.type === "searching") setSearching(true);
               if (d.content) { setSearching(false); result += d.content; setOutput(result); }
-            } catch {}
+              if (d.error) throw new Error(d.error);
+            } catch (parseErr: any) {
+              if (parseErr.message && !parseErr.message.includes("JSON")) throw parseErr;
+            }
           }
         }
       }
-    } catch {}
+      if (!result) setError("Scout returned no results — try a more specific query");
+    } catch (err: any) {
+      setError(err.message || "Scout failed — please try again");
+    }
     setStreaming(false); setSearching(false);
     loadReports();
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); run(); }
+  };
+
   const toggleIndustry = (ind: string) => setIndustries(prev => prev.includes(ind) ? prev.filter(i => i !== ind) : [...prev, ind]);
-  const focusMode = SCOUT_MODES.find(m => m.id === focus)!;
+  const focusMode = SCOUT_MODES.find(m => m.id === focus) ?? SCOUT_MODES[0];
 
   return (
     <div className="flex-1 flex min-h-0">
-      {/* Config */}
-      <div className="w-80 border-r flex-shrink-0 flex flex-col overflow-y-auto"
+      {/* Left sidebar — filters + history */}
+      <div className="w-64 border-r flex-shrink-0 flex flex-col overflow-y-auto"
         style={{ borderColor: "rgba(15,23,42,0.07)", background: "#F5F7FF" }}>
-        <div className="p-5">
-          <div className="flex items-center gap-3 mb-5">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center"
+        <div className="p-4">
+          <div className="flex items-center gap-2.5 mb-4">
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center"
               style={{ background: `linear-gradient(135deg, ${focusMode.color}, hsl(226,70%,50%))` }}>
-              <Telescope className="w-4 h-4 text-slate-800" />
+              <Telescope className="w-3.5 h-3.5 text-white" />
             </div>
             <div>
-              <h2 className="text-slate-800 font-bold text-sm">Opportunity Scout</h2>
-              <p className="text-slate-400 text-xs">Find what's worth building</p>
+              <h2 className="text-slate-800 font-bold text-xs">Opportunity Scout</h2>
+              <p className="text-slate-400 text-[10px]">Find what's worth building</p>
             </div>
           </div>
 
-          {/* Mode selector */}
-          <div className="space-y-1.5 mb-4">
-            <label className="text-slate-400 text-xs mb-2 block">Scan type</label>
+          {/* Scan type */}
+          <p className="text-slate-400 text-[10px] uppercase tracking-wider mb-2 font-medium">Scan type</p>
+          <div className="space-y-1 mb-4">
             {SCOUT_MODES.map(m => {
               const Icon = m.icon;
               return (
                 <button key={m.id} onClick={() => setFocus(m.id)}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-left"
+                  className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-all text-left"
                   style={{
                     background: focus === m.id ? "#E8EEF5" : "transparent",
                     border: focus === m.id ? `1px solid ${m.color}40` : "1px solid transparent"
                   }}>
-                  <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0"
+                  <div className="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0"
                     style={{ background: focus === m.id ? m.color : "#F1F5F9" }}>
-                    <Icon className="w-3 h-3 text-slate-800" />
+                    <Icon className="w-2.5 h-2.5" style={{ color: focus === m.id ? "white" : "rgba(15,23,42,0.4)" }} />
                   </div>
-                  <div>
-                    <p className="text-slate-800 text-xs font-medium">{m.label}</p>
-                    <p className="text-slate-400 text-xs">{m.desc}</p>
-                  </div>
+                  <p className="text-slate-700 text-xs font-medium">{m.label}</p>
                 </button>
               );
             })}
           </div>
 
-          <div className="space-y-3">
-            <div>
-              <label className="text-slate-400 text-xs mb-1.5 block">Specific focus (optional)</label>
-              <textarea value={query} onChange={e => setQuery(e.target.value)} rows={2}
-                onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); if (!streaming) run(); } }}
-                placeholder="e.g. 'automation bots for accountants' or 'gaps in veterinary software'..."
-                className="w-full px-3 py-2 rounded-xl text-slate-800 text-xs placeholder-slate-400 resize-none outline-none"
-                style={{ background: "#F8FAFC", border: "1px solid rgba(15,23,42,0.09)" }} />
+          {/* Industry filters */}
+          <button onClick={() => setShowFilters(f => !f)}
+            className="flex items-center gap-1.5 text-slate-400 text-[10px] uppercase tracking-wider font-medium mb-2 w-full hover:text-slate-500 transition-colors">
+            <ChevronDown className={`w-3 h-3 transition-transform ${showFilters ? "rotate-180" : ""}`} />
+            Industries {industries.length > 0 && <span className="ml-auto bg-blue-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">{industries.length}</span>}
+          </button>
+          {showFilters && (
+            <div className="flex flex-wrap gap-1 mb-4">
+              {INDUSTRIES.slice(0, 16).map(ind => (
+                <button key={ind} onClick={() => toggleIndustry(ind)}
+                  className="text-[10px] px-2 py-0.5 rounded-full transition-all"
+                  style={{
+                    background: industries.includes(ind) ? focusMode.color : "#F1F5F9",
+                    color: industries.includes(ind) ? "white" : "rgba(15,23,42,0.45)",
+                    border: industries.includes(ind) ? "none" : "1px solid rgba(15,23,42,0.09)"
+                  }}>
+                  {ind}
+                </button>
+              ))}
             </div>
+          )}
 
-            <div>
-              <label className="text-slate-400 text-xs mb-2 block">Target industries (optional)</label>
-              <div className="flex flex-wrap gap-1">
-                {INDUSTRIES.slice(0, 16).map(ind => (
-                  <button key={ind} onClick={() => toggleIndustry(ind)}
-                    className="text-xs px-2 py-0.5 rounded-full transition-all"
-                    style={{
-                      background: industries.includes(ind) ? focusMode.color : "#F1F5F9",
-                      color: industries.includes(ind) ? "white" : "rgba(15,23,42,0.45)",
-                      border: industries.includes(ind) ? "none" : "1px solid rgba(15,23,42,0.09)"
-                    }}>
-                    {ind}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <button onClick={run} disabled={streaming}
-              className="w-full py-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-all"
-              style={{ background: focusMode.color, color: "white", opacity: streaming ? 0.5 : 1 }}>
-              {streaming ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Scouting...</> : <><Telescope className="w-3.5 h-3.5" /> Run Scout</>}
-            </button>
-          </div>
-
+          {/* History */}
           {reports.length > 0 && (
-            <div className="mt-5">
+            <div className="mt-2">
               <button onClick={() => setShowHistory(!showHistory)}
-                className="flex items-center gap-2 text-slate-400 text-xs w-full hover:text-slate-500 transition-colors">
-                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showHistory ? "rotate-180" : ""}`} />
+                className="flex items-center gap-1.5 text-slate-400 text-[10px] uppercase tracking-wider font-medium w-full hover:text-slate-500 transition-colors">
+                <ChevronDown className={`w-3 h-3 transition-transform ${showHistory ? "rotate-180" : ""}`} />
                 History ({reports.length})
               </button>
               {showHistory && (
                 <div className="mt-2 space-y-1">
                   {reports.map(r => (
                     <button key={r.id} onClick={() => setOutput(r.opportunity)}
-                      className="w-full text-left px-3 py-2 rounded-xl transition-all hover:bg-slate-900/5"
+                      className="w-full text-left px-2.5 py-2 rounded-lg transition-all hover:bg-slate-900/5"
                       style={{ border: "1px solid rgba(15,23,42,0.06)" }}>
-                      <p className="text-slate-500 text-xs font-medium truncate">{r.title}</p>
-                      <p className="text-slate-300 text-xs">{new Date(r.createdAt).toLocaleDateString("en-GB")}</p>
+                      <p className="text-slate-500 text-[10px] font-medium truncate">{r.title}</p>
+                      <p className="text-slate-300 text-[10px]">{new Date(r.createdAt).toLocaleDateString("en-GB")}</p>
                     </button>
                   ))}
                 </div>
@@ -3484,44 +3496,97 @@ function ScoutPanel({ pin }: { pin: string }) {
         </div>
       </div>
 
-      {/* Results */}
-      <div className="flex-1 flex flex-col min-h-0 overflow-y-auto p-5">
-        {searching && !output && (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="flex flex-col items-center gap-3">
-              <Globe className="w-8 h-8 animate-pulse" style={{ color: "hsl(193,100%,55%)" }} />
-              <p className="text-xs font-medium" style={{ color: "hsl(193,100%,55%)" }}>Searching the web…</p>
-            </div>
-          </div>
-        )}
-        {output ? (
-          <>
-            <div className="flex items-center justify-between mb-4 flex-shrink-0">
-              <div className="flex items-center gap-2">
-                <span className="text-slate-400 text-xs">{focusMode.label} results</span>
-                {searching && <span className="flex items-center gap-1 text-xs" style={{ color: "hsl(193,100%,55%)" }}><Globe className="w-3 h-3 animate-pulse" /> Searching…</span>}
+      {/* Main area — results + chat input */}
+      <div className="flex-1 flex flex-col min-h-0" style={{ background: "#F8FAFC" }}>
+        {/* Results scroll area */}
+        <div className="flex-1 overflow-y-auto p-5">
+          {searching && !output && (
+            <div className="flex-1 flex items-center justify-center min-h-[200px]">
+              <div className="flex flex-col items-center gap-3">
+                <Globe className="w-8 h-8 animate-pulse" style={{ color: "hsl(193,100%,55%)" }} />
+                <p className="text-xs font-medium" style={{ color: "hsl(193,100%,55%)" }}>Scouting the web…</p>
               </div>
-              <button onClick={() => setOutput("")}
-                className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg"
-                style={{ background: "#F1F5F9", color: "rgba(15,23,42,0.45)" }}>
-                <RotateCcw className="w-3 h-3" /> Clear
-              </button>
             </div>
-            <div className="rounded-2xl p-5 leading-relaxed"
-              style={{ background: "#F8FAFC", border: "1px solid rgba(15,23,42,0.07)" }}>
-              <LabMarkdown content={output} streaming={streaming} />
+          )}
+
+          {error && !streaming && (
+            <div className="mb-4 px-4 py-3 rounded-xl flex items-start gap-2.5"
+              style={{ background: "hsl(0,70%,96%)", border: "1px solid hsl(0,70%,88%)" }}>
+              <span className="text-red-400 text-sm mt-0.5">⚠</span>
+              <div>
+                <p className="text-red-700 text-xs font-medium">{error}</p>
+                <button onClick={() => run()} className="text-red-400 text-[10px] underline mt-1">Try again</button>
+              </div>
             </div>
-            <div ref={bottomRef} />
-          </>
-        ) : !searching ? (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center max-w-sm">
-              <Telescope className="w-10 h-10 mx-auto mb-3 text-slate-200" />
-              <p className="text-slate-400 text-sm font-medium mb-2">Ready to Scout</p>
-              <p className="text-slate-300 text-xs leading-relaxed">Choose a scan type, optionally add a focus or industries, then run. The Scout searches across social media, forums, market data, patent databases, and product reviews to find real, evidence-based opportunities.</p>
+          )}
+
+          {output ? (
+            <>
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-slate-400 text-xs">{focusMode.label} results</span>
+                <button onClick={() => { setOutput(""); setError(null); }}
+                  className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg"
+                  style={{ background: "#F1F5F9", color: "rgba(15,23,42,0.45)" }}>
+                  <RotateCcw className="w-3 h-3" /> New scout
+                </button>
+              </div>
+              <div className="rounded-2xl p-5 leading-relaxed"
+                style={{ background: "white", border: "1px solid rgba(15,23,42,0.07)" }}>
+                <LabMarkdown content={output} streaming={streaming} />
+              </div>
+            </>
+          ) : !searching && !error ? (
+            <div className="flex items-center justify-center min-h-[200px]">
+              <div className="text-center max-w-sm">
+                <Telescope className="w-10 h-10 mx-auto mb-3 text-slate-200" />
+                <p className="text-slate-400 text-sm font-medium mb-2">What should I scout for?</p>
+                <p className="text-slate-300 text-xs leading-relaxed">Type what you're looking for below — automation opportunities, market gaps, broken products to improve, or trend-driven plays. I'll search across forums, reviews, job boards, and market data.</p>
+                <div className="flex flex-wrap gap-1.5 justify-center mt-4">
+                  {["automation bots for accountants", "gaps in vet software", "UK manufacturing pain points", "AI in precision engineering"].map(s => (
+                    <button key={s} onClick={() => { setChatInput(s); run(s); }}
+                      className="text-[10px] px-2.5 py-1 rounded-full transition-all"
+                      style={{ background: "#F1F5F9", color: "rgba(15,23,42,0.5)", border: "1px solid rgba(15,23,42,0.09)" }}>
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
+          ) : null}
+          <div ref={bottomRef} />
+        </div>
+
+        {/* Chat input bar at the bottom */}
+        <div className="flex-shrink-0 px-4 pb-4 pt-2"
+          style={{ borderTop: "1px solid rgba(15,23,42,0.07)", background: "white" }}>
+          <div className="flex items-end gap-2 rounded-xl px-3 py-2.5"
+            style={{ background: "#F8FAFC", border: "1px solid rgba(15,23,42,0.09)" }}>
+            <textarea
+              ref={inputRef}
+              value={chatInput}
+              onChange={e => setChatInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={streaming}
+              placeholder="What opportunities should I scout for? e.g. 'automation gaps in legal firms'"
+              rows={1}
+              className="flex-1 resize-none bg-transparent outline-none text-slate-800 text-xs placeholder-slate-400 leading-relaxed"
+              style={{ maxHeight: 120 }}
+            />
+            <button
+              onClick={() => run()}
+              disabled={streaming || (!chatInput.trim() && industries.length === 0)}
+              className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-all"
+              style={{
+                background: (streaming || (!chatInput.trim() && industries.length === 0)) ? "#F1F5F9" : focusMode.color,
+                color: (streaming || (!chatInput.trim() && industries.length === 0)) ? "rgba(15,23,42,0.25)" : "white",
+              }}>
+              {streaming
+                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                : <Send className="w-3.5 h-3.5" />}
+            </button>
           </div>
-        ) : null}
+          <p className="text-slate-300 text-[10px] mt-1.5 text-center">Shift+Enter for new line · Enter to scout</p>
+        </div>
       </div>
     </div>
   );
