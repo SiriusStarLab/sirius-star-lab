@@ -39,6 +39,7 @@ const SCOUT_MODES = [
 
 type Project = {
   id: number; name: string; industry: string; phase: string; status: string;
+  manufacturingProcess: string;
   brief: string; research: string; specs: string; code: string;
   drawingNotes: string; cadUrl: string; materials: string;
   workflows: string; industryProblem: string; uses: string;
@@ -702,7 +703,7 @@ const ALL_TABS = [
   { id: "overview", label: "Overview", icon: Layers, field: null, phase: "all", placeholder: "", generated: false },
   { id: "brief", label: "Brief", icon: FileText, field: "brief", phase: "design", placeholder: "Product concept, problem solved, target market, key objectives...", generated: false },
   { id: "research", label: "Research", icon: BookOpen, field: "research", phase: "design", placeholder: "Market research, competitor analysis, regulatory requirements, material options...", generated: false },
-  { id: "specs", label: "Specs", icon: Ruler, field: "specs", phase: "design", placeholder: "Technical specifications: dimensions, tolerances, performance requirements, standards...", generated: false },
+  { id: "specs", label: "Specs", icon: Ruler, field: "specs", phase: "design", placeholder: "Technical specifications: dimensions, tolerances, performance requirements, standards...", generated: true },
   { id: "materials", label: "Materials", icon: Package, field: "materials", phase: "design", placeholder: "Materials list with specifications, suppliers, part numbers, costs...", generated: true },
   { id: "code", label: "Code", icon: Code, field: "code", phase: "design", placeholder: "Production-ready code...", generated: false },
   { id: "drawings", label: "Drawings", icon: Layers, field: "drawingNotes", phase: "design", placeholder: "CAD drawing instructions: views, dimensions, callouts, assembly details...", generated: true },
@@ -1673,6 +1674,26 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack }: { project: Project
   const phaseConfig = PHASE_CONFIG[phase] || PHASE_CONFIG.design;
   const tab = ALL_TABS.find(t => t.id === activeTab);
   const isCode = activeTab === "code";
+
+  const MFG_PROCESSES = [
+    { group: "— Not Applicable —", options: [""] },
+    { group: "Machining", options: ["CNC Turning", "CNC Milling (3-Axis)", "CNC Milling (4/5-Axis)", "Mill-Turn Combined", "Wire EDM", "Sinker EDM", "Cylindrical Grinding", "Surface Grinding"] },
+    { group: "Sheet & Plate", options: ["Laser Cutting", "Sheet Metal Fabrication (Laser + Press Brake + Weld)", "Waterjet Cutting", "Plasma Cutting", "Stamping / Blanking", "Roll Forming", "Tube Bending"] },
+    { group: "Fabrication & Welding", options: ["Welded Fabrication (MIG/TIG)", "Structural Steelwork", "Pressure Vessel / Coded Welding"] },
+    { group: "Casting", options: ["Investment Casting / Lost-Wax", "Die Casting (Aluminium/Zinc)", "Sand Casting", "Gravity Die Casting"] },
+    { group: "Moulding", options: ["Injection Moulding", "Blow Moulding", "Vacuum Forming", "Rotational Moulding"] },
+    { group: "Additive / 3D Printing", options: ["3D Printing — FDM", "3D Printing — SLS / MJF (Nylon)", "3D Printing — DMLS / SLM (Metal)", "3D Printing — SLA / DLP (Resin)"] },
+    { group: "Composite & Specialist", options: ["Composite / GRP Layup", "CFRP / Carbon Fibre", "Forging (Open-Die)", "Forging (Closed-Die)", "Aluminium Extrusion"] },
+    { group: "Electronics", options: ["PCB Design & Manufacture", "Electronics Assembly (SMT)", "Embedded Systems"] },
+  ];
+
+  const saveProcess = async (proc: string) => {
+    onUpdate({ ...project, manufacturingProcess: proc });
+    await fetch(`${base}lab/projects/${project.id}`, {
+      method: "PUT", headers: headers(),
+      body: JSON.stringify({ manufacturingProcess: proc }),
+    });
+  };
   const renders: Render[] = (() => { try { return JSON.parse(project.renders || "[]"); } catch { return []; } })();
 
   const PHASE_TABS = [
@@ -2008,11 +2029,35 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack }: { project: Project
 
           {activeTab !== "overview" && activeTab !== "renders" && activeTab !== "funding" && activeTab !== "sales-plan" && activeTab !== "ai-arch" && activeTab !== "launch" && tab && (
             <div className="flex flex-col h-full">
+              {["specs", "drawings", "workflows"].includes(activeTab) && (
+                <div className="px-4 py-2 border-b flex items-center gap-2 flex-shrink-0" style={{ borderColor: "rgba(15,23,42,0.07)", background: "#F8FAFC" }}>
+                  <Cpu className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "hsl(193,100%,35%)" }} />
+                  <span className="text-xs font-medium" style={{ color: "rgba(15,23,42,0.5)", flexShrink: 0 }}>Manufacturing Process</span>
+                  <select
+                    value={project.manufacturingProcess || ""}
+                    onChange={e => saveProcess(e.target.value)}
+                    className="flex-1 text-xs rounded-md border px-2 py-1 outline-none cursor-pointer"
+                    style={{ borderColor: "rgba(15,23,42,0.12)", color: project.manufacturingProcess ? "rgba(15,23,42,0.8)" : "rgba(15,23,42,0.35)", background: "white", maxWidth: "280px" }}>
+                    <option value="">Not applicable — digital / software</option>
+                    {MFG_PROCESSES.filter(g => g.group !== "— Not Applicable —").map(grp => (
+                      <optgroup key={grp.group} label={grp.group}>
+                        {grp.options.map(o => <option key={o} value={o}>{o}</option>)}
+                      </optgroup>
+                    ))}
+                  </select>
+                  {project.manufacturingProcess && (
+                    <span className="text-xs px-2 py-0.5 rounded-full flex-shrink-0"
+                      style={{ background: "hsl(193,100%,92%)", color: "hsl(193,100%,28%)" }}>
+                      Process set
+                    </span>
+                  )}
+                </div>
+              )}
               {tab.generated && (
                 <div className="px-4 py-2 border-b flex items-center justify-between flex-shrink-0"
                   style={{ borderColor: "rgba(15,23,42,0.07)" }}>
                   <span className="text-slate-400 text-xs">
-                    {activeTab === "market" ? "Market analysis + use cases" : activeTab === "economics" ? "Cost to build + profit margins" : activeTab === "drawings" ? "Engineering drawing package · standards-aware" : tab.label}
+                    {activeTab === "market" ? "Market analysis + use cases" : activeTab === "economics" ? "Cost to build + profit margins" : activeTab === "drawings" ? "Engineering drawing package · standards-aware" : activeTab === "specs" ? (project.manufacturingProcess ? `Specs for ${project.manufacturingProcess}` : "Technical specifications") : activeTab === "workflows" ? (project.manufacturingProcess ? `Factory workflow for ${project.manufacturingProcess}` : "Manufacturing / deployment workflow") : tab.label}
                   </span>
                   <button onClick={() => generateSection(activeTab)} disabled={generating}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all"

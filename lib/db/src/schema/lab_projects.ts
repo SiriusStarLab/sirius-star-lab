@@ -11,6 +11,10 @@ export const labProjects = pgTable("lab_projects", {
   phase: text("phase").notNull().default("design"),
   status: text("status").notNull().default("active"),
 
+  // Manufacturing / engineering process — e.g. "CNC Milling 3-Axis", "Injection Moulding"
+  // Empty string = not applicable (digital/software project)
+  manufacturingProcess: text("manufacturing_process").default(""),
+
   // Design phase fields
   brief: text("brief").default(""),
   research: text("research").default(""),

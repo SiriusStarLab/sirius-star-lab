@@ -650,13 +650,14 @@ router.put("/lab/projects/:id", authMiddleware, async (req: Request, res: Respon
   const id = parseInt(req.params.id as string);
   const {
     name, industry, phase, status,
+    manufacturingProcess,
     brief, research, specs, code, drawingNotes, cadUrl, materials,
     workflows, industryProblem, uses,
     brochure, pitch, costToBuild, profitMargin,
     businessCase, goToMarket, renders
   } = req.body;
   const updatePayload: Record<string, any> = { updatedAt: new Date() };
-  const fields = { name, industry, phase, status, brief, research, specs, code, drawingNotes, cadUrl, materials, workflows, industryProblem, uses, brochure, pitch, costToBuild, profitMargin, businessCase, goToMarket, renders };
+  const fields = { name, industry, phase, status, manufacturingProcess, brief, research, specs, code, drawingNotes, cadUrl, materials, workflows, industryProblem, uses, brochure, pitch, costToBuild, profitMargin, businessCase, goToMarket, renders };
   for (const [k, v] of Object.entries(fields)) { if (v !== undefined) (updatePayload as any)[k] = v; }
   const [updated] = await db.update(labProjects).set(updatePayload).where(eq(labProjects.id, id)).returning();
   res.json(updated);
@@ -690,6 +691,7 @@ router.get("/lab/projects/:id/messages", authMiddleware, async (req: Request, re
 // Lab AI Chat — gpt-5.2 with full project context
 // Writable project fields accessible by the in-project chat
 const PROJECT_WRITABLE_FIELDS: Record<string, { label: string; dbCol: string }> = {
+  manufacturingProcess: { label: "Manufacturing Process", dbCol: "manufacturing_process" },
   brief:          { label: "Brief",          dbCol: "brief" },
   research:       { label: "Research",       dbCol: "research" },
   specs:          { label: "Specs",          dbCol: "specs" },
@@ -766,7 +768,7 @@ router.post("/lab/projects/:id/chat", authMiddleware, async (req: Request, res: 
   await db.insert(labMessages).values({ projectId, role: "user", content: message });
 
   const projectContext = `## PROJECT: ${project.name.toUpperCase()}
-Industry: ${project.industry} | Phase: ${project.phase || "design"} | Current focus: ${tab || "general"}
+Industry: ${project.industry} | Phase: ${project.phase || "design"} | Current focus: ${tab || "general"}${(project.manufacturingProcess || "") ? ` | Manufacturing Process: ${project.manufacturingProcess}` : ""}
 
 SECTION STATUS:
 ${Object.entries(PROJECT_WRITABLE_FIELDS).map(([key, { label }]) => {
@@ -1101,7 +1103,7 @@ router.post("/lab/projects/:id/generate", authMiddleware, async (req: Request, r
 
   const ctx = `
 Project: ${project.name}
-Industry: ${project.industry}
+Industry: ${project.industry}${(project.manufacturingProcess || "") ? `\nManufacturing Process: ${project.manufacturingProcess}` : ""}
 Brief: ${project.brief || "Not yet written"}
 Research: ${project.research?.slice(0, 800) || "Not yet written"}
 Technical Specs: ${project.specs?.slice(0, 800) || "Not yet written"}
@@ -1143,37 +1145,170 @@ Output a structured materials list covering:
     },
 
     workflows: {
-      system: `You are a manufacturing and operations engineer with expertise across all production methods. Today is ${TODAY()}.`,
-      user: `Produce a complete manufacturing and deployment workflow for this project:
+      system: `You are a senior manufacturing and operations engineer with 25 years of experience across precision machining, fabrication, casting, moulding, additive manufacturing, and software/digital product deployment. You write workflows that are specific, sequenced, and immediately executable. For physical/engineering products you produce complete factory operation sheets — not generic bullet points. For digital products you produce detailed development and deployment pipelines. You always include actual machine parameters, tooling specifications, cycle times, and quality standards where relevant.`,
+      user: `Produce a complete workflow for this project. Today is ${TODAY()}.
 
 ${ctx}
 
-Include:
-## Manufacturing / Deployment Workflow
+CRITICAL: First determine if this is a PHYSICAL/MANUFACTURING project or a DIGITAL/SOFTWARE project.
 
-### Phase 1: Pre-Production
-[Requirements review, supplier qualification, tooling, certifications needed]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+IF PHYSICAL / MANUFACTURING (machined part, casting, fabrication, moulding, additive, etc.):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-### Phase 2: Production Steps
-[Numbered sequence of exact manufacturing or development steps with time estimates]
+Produce a FULL FACTORY WORKFLOW including:
 
-### Phase 3: Quality Control
-[Inspection points, test methods, acceptance criteria, standards]
+## Factory Workflow — [Product Name]
+Manufacturing Process: [state the process from context, or recommend the best process if not specified]
 
-### Phase 4: Assembly
-[Assembly sequence, tooling, jigs, fixtures]
+---
 
-### Phase 5: Testing & Validation
-[Performance tests, compliance tests, user acceptance testing]
+### Phase 0 — Design & Pre-Production
 
-### Phase 6: Packaging & Delivery
-[Packaging spec, labelling requirements, shipping considerations]
+**Design Freeze Checklist**
+- [ ] Engineering drawing package complete (BS 8888 / ASME Y14.5)
+- [ ] Material certificates sourced and approved
+- [ ] Tooling and fixtures designed and ordered
+- [ ] First Article Inspection (FAI) plan written
+- [ ] Lead times confirmed from suppliers
 
-### Timeline
-[Gantt-style timeline from design freeze to first shipment]
+**Tooling & Fixtures Required**
+| Item | Description | Supplier | Lead Time | Cost (£) |
+|---|---|---|---|---|
+[List all jigs, fixtures, cutting tools, gauges, holding devices needed]
+
+**Machine(s) Required**
+[Specific machine type(s), axis configuration, minimum working envelope, spindle power, required options (e.g. coolant through spindle, probing)]
+
+---
+
+### Phase 1 — Raw Material Preparation
+
+| Step | Operation | Detail | Time |
+|---|---|---|---|
+| 1.1 | Goods in inspection | [check certificate, dimensions, hardness] | [X mins] |
+| 1.2 | Material marking | [marking method, datum faces] | [X mins] |
+| 1.3 | Pre-machining / sawing | [cut to near-net-size if required] | [X mins] |
+[Add all steps specific to this project]
+
+---
+
+### Phase 2 — Primary Manufacturing Operations
+
+For each operation, specify:
+
+| Op No. | Operation | Machine / Tool | Speed (RPM) | Feed (mm/rev or mm/min) | Depth of Cut (mm) | Est. Cycle Time | Setup Time |
+|---|---|---|---|---|---|---|---|
+[Complete operation sequence for the specific manufacturing process:]
+
+IF CNC TURNING: Face → Centre drill → Rough turn OD → Semi-finish turn → Turn undercuts/grooves → Thread turn → Cutoff / parting
+IF CNC MILLING: Datum face → Rough mill → Semi-finish mill → Finish mill → Drill cycle → Tap cycle → Profile/contour → Clean up
+IF SHEET METAL: Laser/plasma cut profile → Deburr → Bend sequence (brake order) → Weld assembly → Grind welds → Stress relieve if needed
+IF CASTING: Pattern/die prep → Melt/pour → Shake-out → Fettling → Shot blast → Initial inspection → Machining allowance cleanup
+IF INJECTION MOULDING: Mould temp setpoint → Barrel temps → Injection speed/pressure → Hold pressure/time → Cooling time → Ejection
+IF ADDITIVE / 3D PRINT: File prep (orientation, supports) → Machine setup (material load, bed level) → Print → Support removal → Post-process (cure, anneal, HIP, machining)
+[Use the appropriate sequence for the stated manufacturing process]
+
+---
+
+### Phase 3 — Secondary Operations
+
+| Step | Operation | Detail | Time |
+|---|---|---|---|
+[Heat treatment, surface treatment, coating, sub-assembly, press fits, thread inserts, etc.]
+
+---
+
+### Phase 4 — Quality Inspection
+
+**In-Process Checks (during machining)**
+| Feature | Check Method | Tool/Gauge | Frequency | Accept/Reject Criteria |
+|---|---|---|---|---|
+[Key dimensions, surface finish, threads — what to check at machine, how often]
+
+**Final Inspection (off machine)**
+| Feature | Nominal | Tolerance | Measurement Method | Standard |
+|---|---|---|---|---|
+[Complete dimensional inspection plan — match to drawing CTQ features]
+
+**Special Tests**
+- Pressure/leak test: [test pressure, medium, duration, acceptance if applicable]
+- Functional test: [what is tested, how, pass criteria]
+- NDT: [MT/PT/UT/RT if required — specify areas, acceptance standard]
+
+**Certificates to Raise**
+- [ ] Dimensional inspection report
+- [ ] Material certificate (supplied by mill)
+- [ ] Certificate of Conformance (CoC)
+- [ ] ATEX/CE/other certification documentation [if applicable]
+
+---
+
+### Phase 5 — Assembly (if applicable)
+
+| Step | Operation | Torque (Nm) / Procedure | Tool Required |
+|---|---|---|---|
+[Assembly sequence in correct order — fastener torque values, locking compounds, press fits, interference assembly procedures]
+
+---
+
+### Phase 6 — Packaging & Despatch
+
+- Cleaning method: [solvent wipe / oil coating / nitrogen bag — specify]
+- Preservation: [VCI bag / desiccant / rust inhibitor — specify]
+- Packaging: [box spec, foam/packing material, weight/dimensions]
+- Labelling: [part number, revision, batch/serial number, material cert reference]
+- Transport: [courier/freight method, any special handling — fragile, COSHH, pressure vessel]
+
+---
+
+### Cycle Time & Capacity Summary
+
+| Operation Phase | Setup Time | Per-Part Cycle Time | Notes |
+|---|---|---|---|
+[Summarise each phase. Calculate total per-part time. Estimate capacity per shift.]
+
+**Estimated cost per part at different volumes:**
+| Volume | Material | Labour (£/hr × hours) | Overhead | Total Unit Cost |
+|---|---|---|---|---|
+| 1 (prototype) | £ | £ | £ | £ |
+| 10 units | £ | £ | £ | £ |
+| 100 units | £ | £ | £ | £ |
+
+---
+
+### Continuous Improvement Notes
+[Top 3 opportunities to reduce cycle time, improve yield, or reduce scrap at volume]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+IF DIGITAL / SOFTWARE / SERVICE:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+## Development & Deployment Workflow — [Product Name]
+
+### Phase 1 — Foundations (Week 1-2)
+[Repository setup, CI/CD pipeline, environment configuration, team onboarding]
+
+### Phase 2 — Core Development (Weeks 3-8)
+[Sprint breakdown with specific feature delivery per sprint. Include: feature name, acceptance criteria, estimated story points, dependencies]
+
+### Phase 3 — Integration & Testing (Weeks 9-11)
+[Integration testing, load testing, security scan, UAT. Specific tools: Jest/Playwright/k6/OWASP ZAP etc.]
+
+### Phase 4 — Staging & Pre-Production
+[Staging environment checklist, data migration plan, rollback procedure]
+
+### Phase 5 — Production Release
+[Blue/green or canary deployment strategy, monitoring setup, on-call runbook, rollback triggers]
+
+### Phase 6 — Post-Launch Operations
+[SLA monitoring, on-call rota, update/patch cadence, customer support workflow]
+
+### CI/CD Pipeline
+[Tool chain: source control → build → test → scan → stage → deploy. Specific tools and gate criteria at each step]
 
 ### Key Risks & Mitigations
-[Top 5 risks with mitigation strategies]`,
+[Top 5 risks with probability, impact, and specific mitigation]`,
     },
 
     brochure: {
@@ -2898,7 +3033,7 @@ router.post("/lab/projects/:id/complete-all", authMiddleware, async (req: Reques
     { key: "research", label: "Research", field: "research", prompt: `Conduct deep research for: "${project.name}" in ${project.industry}. Search for: current market landscape, key competitors with funding and traction, technology approaches used, regulatory environment, customer pain points with evidence, recent news and developments, pricing benchmarks, and market size estimates. Use web search. Cite sources.` },
     { key: "specs", label: "Technical Specs", field: "specs", prompt: `Write complete technical specifications for: "${project.name}" in ${project.industry}. First determine if this is a PHYSICAL/HARDWARE/MECHANICAL product or a DIGITAL/SOFTWARE/SERVICE product. For PHYSICAL products: include a full dimensions table with actual values and tolerances (not placeholders), operating parameters (pressure/temp/load), material designations to ISO/BS EN/ASTM standards, manufacturing method, thread/fastener specs, fit and interface requirements, surface finish (Ra values), and applicable standards. Mark any estimated values as *(est.)*. For DIGITAL products: include system architecture, performance requirements (response times, uptime SLA, throughput), API and integration specs, data and security requirements (GDPR, SOC2, etc.), scalability approach, and applicable standards. Be precise with real numbers and real standard designations throughout.` },
     { key: "materials", label: "Materials / BOM", field: "materials", prompt: `Create a complete Bill of Materials (BOM) for: "${project.name}". Format as a table: Qty | Component | Specification | Supplier | Unit Cost (£) | Lead Time. Then write a materials selection rationale explaining why each key material or component was chosen. Include at least 10–15 line items.` },
-    { key: "workflows", label: "Workflows", field: "workflows", prompt: `Design complete manufacturing and deployment workflows for: "${project.name}". Include: step-by-step production/deployment process, quality checkpoints at each stage, who does what, tooling/equipment required at each step, estimated time per step, and key risks at each stage.` },
+    { key: "workflows", label: "Workflows", field: "workflows", prompt: `Design a complete workflow for: "${project.name}" in ${project.industry}.${(project.manufacturingProcess || "") ? ` Manufacturing process: ${project.manufacturingProcess}.` : ""} First determine if this is a PHYSICAL/MANUFACTURING project or a DIGITAL/SOFTWARE project. For PHYSICAL: produce a full factory workflow including tooling and fixtures required, machine specifications, raw material preparation steps, complete numbered machining/manufacturing operation sequence with actual machine parameters (speeds, feeds, depth of cut, cycle times), in-process quality checks with measurement methods and accept/reject criteria, final inspection plan, secondary operations (heat treatment, surface finishing, coatings), assembly sequence (with torque values if applicable), packaging and despatch requirements, and unit cost estimate at different volumes. For DIGITAL: produce a sprint-based development workflow with CI/CD pipeline, testing requirements, staging and production deployment process, and post-launch operations runbook.` },
     { key: "industryProblem", label: "Market & Uses", field: "industryProblem", prompt: `Write a full market analysis for: "${project.name}" in ${project.industry}. Include: the specific problem being solved (with evidence), target customer segments with profiles, use cases across different sectors, market size (TAM/SAM/SOM with sources), competitive landscape, positioning strategy, and why this product wins.` },
     { key: "businessCase", label: "Business Case", field: "businessCase", prompt: `Write a compelling business case for: "${project.name}". Include: investment required, expected revenue model, 3-year financial projections, payback period, ROI, strategic rationale, risks and mitigations, alternative options considered, and why this is the best use of capital. Include real numbers.` },
     { key: "brochure", label: "Brochure", field: "brochure", prompt: `Write complete product brochure copy for: "${project.name}". Include: headline, value proposition, key benefits (not features), technical highlights, use cases, customer testimonial placeholder, specifications summary, and call to action. Tone: professional but compelling. Suitable for PDF/print.` },
