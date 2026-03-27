@@ -5307,6 +5307,22 @@ router.post("/lab/projects/:id/media-match", authMiddleware, async (req: Request
   res.json(sorted.slice(0, 12));
 });
 
+// ─── JSON repair utility — closes truncated JSON caused by token limit cutoffs ──
+function repairJson(raw: string): string {
+  const s = raw.trim();
+  if (!s) return "{}";
+  try { JSON.parse(s); return s; } catch {}
+  let result = s;
+  const openBraces = (result.match(/{/g) || []).length - (result.match(/}/g) || []).length;
+  const openBrackets = (result.match(/\[/g) || []).length - (result.match(/\]/g) || []).length;
+  if (result.endsWith(",")) result = result.slice(0, -1);
+  const inString = (result.match(/(?<!\\)"/g) || []).length % 2 !== 0;
+  if (inString) result += '"';
+  for (let i = 0; i < openBrackets; i++) result += "]";
+  for (let i = 0; i < openBraces; i++) result += "}";
+  return result;
+}
+
 // ─── App Builder — 6-Phase Autonomous Agent System ────────────────────────────
 const APP_AGENTS = [
   { id: "architect",   name: "Architect Agent",   emoji: "🏛️", color: "hsl(45,90%,55%)",   role: "system design" },
@@ -5652,16 +5668,16 @@ Respond ONLY with valid JSON (no markdown, no explanation) in this exact format:
   ]
 }`
       }],
-      max_tokens: 1200,
+      max_tokens: 3000,
     });
 
     const raw = result.choices[0]?.message?.content || "{}";
     const clean = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-    const parsed = JSON.parse(clean);
+    const parsed = JSON.parse(repairJson(clean));
     res.json(parsed);
   } catch (err: any) {
     console.error("[AppBuilder/interpret]", err?.message);
-    res.status(500).json({ error: err?.message });
+    res.status(500).json({ error: "Requirements analysis failed — please try again with a shorter description." });
   }
 });
 
@@ -5856,16 +5872,16 @@ Generate an ordered build plan. Respond ONLY with valid JSON (no markdown):
 Create tasks for: Architect Agent, Frontend Agent, Backend Agent, Database Agent, Integration Agent, Test Agent, Debug Agent.
 Each agent should have 1-2 tasks. List concrete output files for each.`
       }],
-      max_tokens: 1200,
+      max_tokens: 2500,
     });
 
     const raw = result.choices[0]?.message?.content || "{}";
     const clean = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-    const parsed = JSON.parse(clean);
+    const parsed = JSON.parse(repairJson(clean));
     res.json(parsed);
   } catch (err: any) {
     console.error("[AppBuilder/plan]", err?.message);
-    res.status(500).json({ error: err?.message });
+    res.status(500).json({ error: "Build plan generation failed — please try again." });
   }
 });
 
