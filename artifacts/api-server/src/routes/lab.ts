@@ -5623,61 +5623,26 @@ router.post("/lab/app-builder/interpret", authMiddleware, async (req: Request, r
   try {
     const result = await openai.chat.completions.create({
       model: "gpt-4o",
-      messages: [{
-        role: "user",
-        content: `You are an expert software architect. A user wants to build an app. Perform deep NLP analysis to extract structured requirements, identified entities, and recommend technology stacks.
-
-User's description: "${prompt}"
-
-Respond ONLY with valid JSON (no markdown, no explanation) in this exact format:
-{
-  "appName": "short app name",
-  "summary": "one sentence describing what this app does",
-  "appType": "one of: Web App, SaaS Platform, REST API, AI-Powered Bot, Mobile App, Browser Extension, CLI Tool, Dashboard",
-  "techStack": "primary recommended tech stack e.g. React + Node.js + PostgreSQL",
-  "coreFeatures": ["feature 1", "feature 2", "feature 3", "feature 4", "feature 5"],
-  "targetUsers": "who will use this",
-  "keyPages": ["page or screen 1", "page or screen 2", "page or screen 3"],
-  "estimatedComplexity": "Simple | Medium | Complex",
-  "estimatedBuildTime": "e.g. 2-3 hours of agent time",
-  "entities": [
-    { "type": "Business Model", "value": "e.g. Subscription / SaaS / Marketplace", "icon": "💼" },
-    { "type": "Domain", "value": "e.g. Pet Care / Healthcare / FinTech", "icon": "🏷️" },
-    { "type": "Architecture", "value": "e.g. Multi-tenant SaaS / Monolith / Microservices", "icon": "🏗️" },
-    { "type": "Auth", "value": "e.g. JWT + OAuth2 / Magic Link / SAML", "icon": "🔐" },
-    { "type": "Payments", "value": "e.g. Stripe Subscriptions / None / Marketplace", "icon": "💳" },
-    { "type": "Database", "value": "e.g. PostgreSQL with relational schema", "icon": "🗄️" },
-    { "type": "Integrations", "value": "e.g. Stripe, SendGrid, Twilio, OpenAI", "icon": "🔗" },
-    { "type": "Deployment", "value": "e.g. Docker + Railway / Vercel / AWS", "icon": "🚀" }
-  ],
-  "stackAlternatives": [
-    { "name": "Full-Stack TypeScript", "stack": "Next.js 14 + Prisma + PostgreSQL + Tailwind", "icon": "⚡", "pros": "One language, SSR, excellent DX" },
-    { "name": "React + Python", "stack": "React + FastAPI + SQLAlchemy + PostgreSQL", "icon": "🐍", "pros": "Great for ML/AI features, high performance API" },
-    { "name": "Vue + Node", "stack": "Vue 3 + Express + Drizzle ORM + PostgreSQL", "icon": "💚", "pros": "Gentle learning curve, flexible architecture" }
-  ],
-  "folderStructure": [
-    "src/",
-    "src/components/",
-    "src/pages/",
-    "src/api/",
-    "src/db/",
-    "src/lib/",
-    "src/hooks/",
-    "public/",
-    "tests/"
-  ]
-}`
-      }],
-      max_tokens: 3000,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content: `You are an expert software architect. Respond ONLY with a valid JSON object — no markdown, no explanation, no code fences. The JSON must include these exact keys: appName, summary, appType, techStack, coreFeatures (array of 5 strings), targetUsers, keyPages (array of 3 strings), estimatedComplexity (Simple|Medium|Complex), estimatedBuildTime, entities (array of 8 objects each with type/value/icon), stackAlternatives (array of 3 objects each with name/stack/icon/pros), folderStructure (array of 9 strings).`
+        },
+        {
+          role: "user",
+          content: `Analyse this app idea and return the full JSON requirements object: "${prompt}"`
+        }
+      ],
+      max_tokens: 4096,
     });
 
     const raw = result.choices[0]?.message?.content || "{}";
-    const clean = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-    const parsed = JSON.parse(repairJson(clean));
+    const parsed = JSON.parse(raw);
     res.json(parsed);
   } catch (err: any) {
     console.error("[AppBuilder/interpret]", err?.message);
-    res.status(500).json({ error: "Requirements analysis failed — please try again with a shorter description." });
+    res.status(500).json({ error: "Requirements analysis failed. Please try again." });
   }
 });
 
@@ -5843,45 +5808,26 @@ router.post("/lab/app-builder/plan", authMiddleware, async (req: Request, res: R
   try {
     const result = await openai.chat.completions.create({
       model: "gpt-4o",
-      messages: [{
-        role: "user",
-        content: `You are a senior software architect. Create a detailed build plan for this application:
-
-App: ${requirements.appName}
-Type: ${requirements.appType}
-Stack: ${requirements.techStack}
-Features: ${(requirements.coreFeatures || []).join(", ")}
-Complexity: ${requirements.estimatedComplexity}
-
-Generate an ordered build plan. Respond ONLY with valid JSON (no markdown):
-{
-  "tasks": [
-    {
-      "id": "T001",
-      "agent": "Architect Agent",
-      "emoji": "🏛️",
-      "title": "task title",
-      "description": "what this agent will do",
-      "outputs": ["file1.ts", "file2.json"],
-      "estimatedTime": "~30 seconds",
-      "dependsOn": []
-    }
-  ]
-}
-
-Create tasks for: Architect Agent, Frontend Agent, Backend Agent, Database Agent, Integration Agent, Test Agent, Debug Agent.
-Each agent should have 1-2 tasks. List concrete output files for each.`
-      }],
-      max_tokens: 2500,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content: `You are a senior software architect. Respond ONLY with a valid JSON object containing a single key "tasks" — an array of task objects. Each task must have: id (T001, T002...), agent (agent name string), emoji (single emoji), title (short string), description (one sentence), outputs (array of filename strings), estimatedTime (string like "~30 seconds"), dependsOn (array of task id strings or empty array). No markdown, no explanation.`
+        },
+        {
+          role: "user",
+          content: `Create a detailed build plan for: ${requirements.appName} (${requirements.appType}, ${requirements.techStack}). Features: ${(requirements.coreFeatures || []).join(", ")}. Complexity: ${requirements.estimatedComplexity}. Include tasks for: Architect Agent, Frontend Agent, Backend Agent, Database Agent, Integration Agent, Test Agent, Debug Agent. Each agent gets 1-2 tasks with realistic output filenames.`
+        }
+      ],
+      max_tokens: 3000,
     });
 
     const raw = result.choices[0]?.message?.content || "{}";
-    const clean = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-    const parsed = JSON.parse(repairJson(clean));
+    const parsed = JSON.parse(raw);
     res.json(parsed);
   } catch (err: any) {
     console.error("[AppBuilder/plan]", err?.message);
-    res.status(500).json({ error: "Build plan generation failed — please try again." });
+    res.status(500).json({ error: "Build plan generation failed. Please try again." });
   }
 });
 
