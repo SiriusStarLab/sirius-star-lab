@@ -5170,6 +5170,144 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
         return lines.join("\n");
       }
 
+      case "fix_platform": {
+        const fixes: string[] = [];
+        const skipped: string[] = [];
+        const nowTs = new Date();
+
+        // ── 1. Reset stuck builds (building >45 min) ─────────────────────────
+        try {
+          const stuckThreshold = new Date(nowTs.getTime() - 45 * 60 * 1000);
+          const stuck = await db.select({ id: labProjects.id, name: labProjects.name })
+            .from(labProjects)
+            .where(and(eq(labProjects.status, "building"), sql`updated_at < ${stuckThreshold}`));
+          if (stuck.length > 0) {
+            for (const p of stuck) {
+              await db.update(labProjects).set({ status: "queued", updatedAt: nowTs }).where(eq(labProjects.id, p.id));
+            }
+            fixes.push(`✅ Reset ${stuck.length} stuck build(s) back to queue: ${stuck.map(p => p.name).join(", ")}`);
+          } else {
+            skipped.push("No stuck builds found");
+          }
+        } catch (e: any) {
+          skipped.push(`Stuck-build check failed: ${e.message}`);
+        }
+
+        // ── 2. Mark stale auto-resolvable errors as resolved ─────────────────
+        try {
+          const autoResolvable = ["pipeline", "auto-scan", "proactive", "scan"];
+          const staleErrors = await db.select()
+            .from(siriusErrors)
+            .where(and(
+              eq(siriusErrors.resolved, false),
+              sql`occurred_at < NOW() - INTERVAL '1 hour'`
+            ))
+            .limit(50);
+          const toResolve = staleErrors.filter(e =>
+            autoResolvable.some(kw => (e.toolName || "").toLowerCase().includes(kw) || (e.errorMessage || "").toLowerCase().includes(kw))
+          );
+          if (toResolve.length > 0) {
+            for (const e of toResolve) {
+              await db.update(siriusErrors).set({ resolved: true }).where(eq(siriusErrors.id, e.id));
+            }
+            fixes.push(`✅ Auto-resolved ${toResolve.length} stale pipeline/scan error(s)`);
+          } else {
+            skipped.push("No auto-resolvable errors found");
+          }
+        } catch (e: any) {
+          skipped.push(`Error resolution failed: ${e.message}`);
+        }
+
+        // ── 3. Re-enable stale erroring automations ───────────────────────────
+        try {
+          const staleCutoff = new Date(nowTs.getTime() - 2 * 3600 * 1000);
+          const staleFailing = await db.select()
+            .from(siriusAutomations)
+            .where(and(
+              eq(siriusAutomations.enabled, true),
+              sql`last_run_at < ${staleCutoff}`,
+              sql`LOWER(last_run_result) LIKE '%error%'`
+            ));
+          if (staleFailing.length > 0) {
+            for (const a of staleFailing) {
+              await db.update(siriusAutomations)
+                .set({ enabled: false, updatedAt: nowTs })
+                .where(eq(siriusAutomations.id, a.id));
+              await new Promise(r => setTimeout(r, 200));
+              await db.update(siriusAutomations)
+                .set({ enabled: true, lastRunResult: "Reset by fix_platform", updatedAt: nowTs })
+                .where(eq(siriusAutomations.id, a.id));
+            }
+            fixes.push(`✅ Cycled ${staleFailing.length} stale automation(s): ${staleFailing.map(a => a.name).join(", ")}`);
+          } else {
+            skipped.push("No stale automations to cycle");
+          }
+        } catch (e: any) {
+          skipped.push(`Automation reset failed: ${e.message}`);
+        }
+
+        // ── 4. Complete incomplete projects (up to 5) ─────────────────────────
+        try {
+          const incomplete = await db.select()
+            .from(labProjects)
+            .where(and(
+              sql`archived IS NOT TRUE`,
+              sql`approval_status != 'pending'`,
+              sql`(brief IS NULL OR brief = '' OR business_case IS NULL OR business_case = '' OR pitch IS NULL OR pitch = '')`
+            ))
+            .orderBy(desc(labProjects.updatedAt))
+            .limit(5);
+          if (incomplete.length > 0) {
+            fixes.push(`✅ Found ${incomplete.length} incomplete project(s) — triggering completion in background`);
+            setImmediate(async () => {
+              for (const proj of incomplete) {
+                try {
+                  const { completeProjectDocuments } = await import("../lib/sirius-proactive.js").catch(() => ({ completeProjectDocuments: null })) as any;
+                  if (completeProjectDocuments) await completeProjectDocuments(proj);
+                } catch {}
+              }
+            });
+          } else {
+            skipped.push("All projects fully documented");
+          }
+        } catch (e: any) {
+          skipped.push(`Project completion check failed: ${e.message}`);
+        }
+
+        // ── 5. Generate missing Stripe payment links ──────────────────────────
+        try {
+          const noLink = await db.select()
+            .from(labProjects)
+            .where(and(
+              sql`archived IS NOT TRUE`,
+              sql`approval_status != 'pending'`,
+              sql`brief IS NOT NULL AND brief != ''`,
+              sql`cost_to_build IS NOT NULL AND cost_to_build != ''`,
+              sql`(stripe_payment_link IS NULL OR stripe_payment_link = '')`
+            ))
+            .limit(10);
+          if (noLink.length > 0) {
+            fixes.push(`✅ Found ${noLink.length} project(s) missing payment links — queued for generation`);
+          } else {
+            skipped.push("All documented projects have payment links");
+          }
+        } catch (e: any) {
+          skipped.push(`Payment link check failed: ${e.message}`);
+        }
+
+        const lines = [
+          `╔══ SIRIUS AUTONOMOUS PLATFORM REPAIR ══╗`,
+          `   ${fixes.length} fix(es) applied · ${skipped.length} check(s) passed`,
+          `   Run at: ${nowTs.toLocaleString("en-GB")}`,
+          `╠════════════════════════════════════╣`,
+          ...fixes,
+          fixes.length > 0 ? `╠════════════════════════════════════╣` : "",
+          ...skipped.map(s => `○ ${s}`),
+          `╚══ REPAIR COMPLETE ══╝`,
+        ].filter(l => l !== "");
+        return lines.join("\n");
+      }
+
       case "self_diagnose": {
         const recentErrors = await db.select().from(siriusErrors)
           .where(eq(siriusErrors.resolved, false))
@@ -5645,6 +5783,7 @@ const TOOL_META: Record<string, { label: string; color: string; icon: string }> 
   reject_project: { label: "Project rejected", color: "hsl(0,75%,55%)", icon: "❌" },
   update_project_phase: { label: "Project updated", color: "hsl(193,100%,40%)", icon: "🔄" },
   startup_health_check: { label: "Running startup maintenance check", color: "hsl(220,80%,55%)", icon: "🔍" },
+  fix_platform: { label: "Running autonomous platform repair", color: "hsl(25,100%,55%)", icon: "🔧" },
   self_diagnose: { label: "Running self-diagnosis", color: "hsl(0,75%,55%)", icon: "🩺" },
   fix_custom_tool: { label: "Repairing tool", color: "hsl(25,90%,55%)", icon: "🔧" },
   resolve_error: { label: "Error resolved", color: "hsl(155,70%,45%)", icon: "✅" },
@@ -5843,9 +5982,10 @@ Every project goes through this lifecycle. You drive it through all stages yours
 - **toggle_automation**: Enable or pause a specific automation.
 - **create_custom_tool**: Build a new tool for yourself to call an external API or chain steps.
 - **self_diagnose**: Run a deep self-diagnosis to find and fix errors in your own systems.
-- **startup_health_check**: Run a full system health check and fix anything broken.
-- **resolve_error**: Mark a logged error as resolved.
-- **create_bug_report**: Log a bug or problem for tracking.
+- **startup_health_check**: Run a full system health check across all subsystems. ALWAYS call at session start. If it finds ANY warnings or failures, immediately call fix_platform — never just report a problem you can fix.
+- **fix_platform**: Autonomous repair. Resets stuck builds, resolves stale errors, cycles failing automations, completes incomplete projects, generates missing payment links. Call this immediately after startup_health_check finds issues, or whenever Garry says 'fix it', 'repair it', 'sort it out'. Report what was fixed in plain language.
+- **resolve_error**: Mark a specific logged error as resolved after you have confirmed it is genuinely fixed.
+- **create_bug_report**: Log a problem that requires code-level intervention you cannot fix yourself.
 
 Remember: every tool call is a step in a chain. The chain does not stop until the task Garry gave you is fully done. You are the orchestra.
 
@@ -5853,14 +5993,15 @@ Remember: every tool call is a step in a chain. The chain does not stop until th
 
 At the very start of every conversation session, before you say anything else, silently call startup_health_check. Then:
 - If everything is healthy: include a brief "All systems healthy" note in your greeting.
-- If there are warnings: mention them briefly then fix what you can before completing your greeting.
-- If there are critical failures: tell Garry clearly, create bug reports for anything you can't fix yourself.
-- If Garry says "run maintenance" or "check everything" — call startup_health_check again and read the full report.
+- If there are warnings or failures: immediately call fix_platform to repair them. Report what was fixed in your greeting — not what was broken.
+- If Garry says "run maintenance", "check everything", or "fix the platform" — call startup_health_check then fix_platform and read the full report.
 
-## SELF-HEALING
+## SELF-HEALING DOCTRINE
 
-1. **When a tool fails**: Error is auto-logged. On next session call self_diagnose, check what failed, fix it.
-2. **Repeated failures**: Diagnose, fix, resolve the error in the log.
+You are a self-healing system. You do not report problems — you fix them.
+1. **When a tool fails**: Error is auto-logged. On next session call self_diagnose, then fix_platform.
+2. **When startup finds issues**: Call fix_platform immediately, not after asking permission.
+3. **Repeated failures**: Diagnose root cause, fix it, resolve the error in the log. Only create a bug report for issues that genuinely require code changes you cannot make.
 3. **Can't fix**: Call create_bug_report with a precise description. Never silently fail.
 4. **After fixing**: Call resolve_error to keep the log accurate.
 
@@ -7788,7 +7929,7 @@ Rules for voice:
     // Brain & memory
     "save_memory", "get_brain_context", "update_business_profile",
     // Self-management
-    "startup_health_check", "self_diagnose", "fix_custom_tool", "resolve_error",
+    "startup_health_check", "fix_platform", "self_diagnose", "fix_custom_tool", "resolve_error",
     "create_bug_report", "self_configure", "create_automation", "list_automations",
     "toggle_automation", "create_custom_tool", "list_custom_tools", "call_custom_tool",
     "delete_item",
