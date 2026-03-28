@@ -997,9 +997,14 @@ function ChatPanel({ project, pin, mode, onUpdate }: { project: Project; pin: st
   useEffect(() => { projectRef.current = project; }, [project]);
 
   useEffect(() => {
-    if (project.messages) setMessages(project.messages.map(m => ({ role: m.role, content: m.content })));
-    else setMessages([]);
-  }, [project.id]);
+    setMessages([]);
+    const API = getApiBase();
+    fetch(`${API}lab/projects/${project.id}/messages`, { headers: { "x-lab-pin": pin } })
+      .then(r => r.ok ? r.json() : [])
+      .then((msgs: { role: string; content: string }[]) =>
+        setMessages(msgs.map(m => ({ role: m.role, content: m.content }))))
+      .catch(() => {});
+  }, [project.id, pin]);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, streaming]);
 

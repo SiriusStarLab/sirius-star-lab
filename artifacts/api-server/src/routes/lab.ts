@@ -1793,7 +1793,7 @@ List all GD&T callouts required:
 |---|---|---|---|---|
 | A | First issue | [date] | | |
 
-### 11. CAD File Instructions for newdimensionscad.com
+### 11. CAD Operator Instructions
 [Direct instructions to the CAD operator in plain language: what to model first, what to check against spec, which view to prioritise, any known complexities to plan for, file format to deliver (STEP, DWG, DXF, PDF) and any layer/naming convention required]`,
     },
 
@@ -3760,7 +3760,7 @@ const LAB_TOOLS: any[] = [
     type: "function" as const,
     function: {
       name: "generate_cad_notes",
-      description: "Generate complete engineering drawing specifications and CAD instructions for a physical/engineering project. Produces a full drawing notes package (geometry, tolerances, surface finish, materials, standards, GD&T callouts, and direct instructions for the CAD operator at newdimensionscad.com) and saves it to the project. Use for any precision engineering, manufacturing, medical device, aerospace, oil & gas, or hydrogen project that needs physical drawings. Always call this as part of the completion chain for engineering products.",
+      description: "Generate complete engineering drawing specifications and CAD instructions for a physical/engineering project. Produces a full drawing notes package (geometry, tolerances, surface finish, materials, standards, GD&T callouts, and direct instructions for the CAD operator) and saves it to the project. Use for any precision engineering, manufacturing, medical device, aerospace, oil & gas, or hydrogen project that needs physical drawings. Always call this as part of the completion chain for engineering products.",
       parameters: {
         type: "object",
         properties: {
@@ -4384,7 +4384,7 @@ async function executeLabTool(name: string, args: any, onProgress?: (event: Reco
               field: "drawingNotes", label: "CAD Drawing Notes",
               current: project.drawingNotes || "",
               systemPrompt: "You are a principal mechanical design engineer. Produce complete engineering drawing specifications that a CAD engineer can act on immediately. Apply the correct standards for the industry. You understand BS 8888, ISO 128, ASME Y14.5 GD&T, API 6A/17D, AS9100, ISO 13485.",
-              userPrompt: `Engineering drawing specifications for "${name}" (${industry}). Cover: (1) component overview and function, (2) key geometry and dimensions with tolerances to IT grade, (3) surface finish Ra values, (4) material callout, (5) GD&T callouts (flatness, roundness, concentricity, position), (6) applicable standards, (7) special requirements (heat treatment, coating, sterilisation, traceability marking), (8) required drawing views (front, section, detail), (9) direct instructions for CAD operator at newdimensionscad.com — file format STEP + DWG + PDF, layer naming, known complexities to watch for, (10) inspection and acceptance criteria.\n\n${ctx}`,
+              userPrompt: `Engineering drawing specifications for "${name}" (${industry}). Cover: (1) component overview and function, (2) key geometry and dimensions with tolerances to IT grade, (3) surface finish Ra values, (4) material callout, (5) GD&T callouts (flatness, roundness, concentricity, position), (6) applicable standards, (7) special requirements (heat treatment, coating, sterilisation, traceability marking), (8) required drawing views (front, section, detail), (9) direct instructions for the CAD operator — file format STEP + DWG + PDF, layer naming, known complexities to watch for, (10) inspection and acceptance criteria.\n\n${ctx}`,
               tokens: 1000,
             },
           ] : []),
@@ -4429,7 +4429,7 @@ async function executeLabTool(name: string, args: any, onProgress?: (event: Reco
           if (hadDrawingNotes) {
             // Engineering project with CAD — mark as cad-pending, not building yet
             await db.update(labProjects).set({ launchStatus: "cad-pending" } as any).where(eq(labProjects.id, projectId));
-            buildMsg = " CAD drawing package sent to newdimensionscad.com — status: cad-pending.";
+            buildMsg = " CAD drawing package generated — status: cad-pending, ready for CAD operator.";
           } else {
             const buildResult = await triggerBuildNow(projectId);
             buildMsg = buildResult.ok
@@ -4843,7 +4843,7 @@ Produce a full drawing notes package covering:
 6. Applicable standards (ISO, BS, ASME, API, AS9100, ISO 13485 etc.)
 7. Any special requirements (heat treatment, coating, sterilisation, traceability)
 8. Drawing views needed (front, section A-A, detail X)
-9. Direct CAD operator instructions for newdimensionscad.com (what to model first, file format: STEP + DWG + PDF, layer naming conventions, any known complexities)
+9. Direct CAD operator instructions (what to model first, file format: STEP + DWG + PDF, layer naming conventions, any known complexities)
 10. Inspection and acceptance criteria
 
 Be specific and technically complete. This goes directly to the CAD engineer.`;
@@ -4882,7 +4882,7 @@ Be specific and technically complete. This goes directly to the CAD engineer.`;
         return [
           `╔══ CAD NOTES GENERATED: "${proj.name}" ══╗`,
           ``,
-          cadNotes ? `📐 Drawing Notes: Complete engineering drawing specification ready for newdimensionscad.com` : ``,
+          cadNotes ? `📐 Drawing Notes: Complete engineering drawing specification — ready for CAD operator` : ``,
           `🔧 Materials: Specification saved — grade, supplier, certs`,
           `💷 Cost Analysis: Unit cost breakdown at 1/10/100/1000 units saved`,
           cadNotes ? `📋 Status: cad-pending — drawing package ready for CAD operator` : ``,
@@ -5881,7 +5881,7 @@ When Garry gives you ANY task — big or small — your job is to complete it, i
 
    **For engineering/physical products:**
    - start_app_build → (gets project ID) → complete_project (generates docs + CAD drawing notes + materials spec + cost analysis → sets status: cad-pending) → launch_project → navigate_to projects → report done
-   - The CAD drawing notes are generated automatically and the project enters cad-pending status, meaning the drawing package is ready for the CAD operator at newdimensionscad.com
+   - The CAD drawing notes are generated automatically and the project enters cad-pending status, meaning the drawing package is ready for the CAD operator
    - If the project already has CAD drawings uploaded, continue to launch_project
 
    You do NOT stop and ask after each step. You keep running until the project is launched.
