@@ -141,8 +141,11 @@ export async function triggerBuildNow(projectId: number): Promise<{ ok: boolean;
         if (notes) await db.update(labProjects).set({ drawingNotes: notes, updatedAt: new Date() }).where(eq(labProjects.id, projectId));
       } catch { /* non-critical */ }
 
+      // Drawing notes (generated above or already present) = drawing package complete → launch-ready
+      const freshProject = await db.select({ drawingNotes: labProjects.drawingNotes }).from(labProjects).where(eq(labProjects.id, projectId)).limit(1).then(r => r[0]);
+      const hasNotes = !!(freshProject?.drawingNotes?.trim());
       const existingCad = await db.select({ id: cadFiles.id }).from(cadFiles).where(eq(cadFiles.projectId, projectId)).limit(1);
-      const nextStatus = existingCad.length > 0 ? "launch-ready" : "cad-pending";
+      const nextStatus = (existingCad.length > 0 || hasNotes) ? "launch-ready" : "cad-pending";
       await db.update(labProjects).set({ launchStatus: nextStatus, updatedAt: new Date() }).where(eq(labProjects.id, projectId));
       console.log(`[Pipeline] ✅ "${project.name}" → ${nextStatus.toUpperCase()} (Sirius-triggered)`);
     } catch (err: any) {
@@ -293,19 +296,20 @@ Produce clear, numbered drawing requirements (dimensions, views, materials, tole
     }
 
     // 6. Determine next status:
-    //    - Software/digital products (SaaS, bots, apps, etc.) skip CAD and go straight to launch-ready
-    //    - Physical/hardware products wait for CAD files to be uploaded
+    //    - Software/digital products go straight to launch-ready
+    //    - Physical products: launch-ready if drawing notes OR physical CAD files exist; cad-pending only if neither
     const isDigital = isSoftwareBuildable(next.name, next.brief || "");
     let nextStatus: string;
     if (isDigital) {
       nextStatus = "launch-ready";
     } else {
+      const hasDrawingNotes = !!(next.drawingNotes?.trim());
       const existingCad = await db
         .select({ id: cadFiles.id })
         .from(cadFiles)
         .where(eq(cadFiles.projectId, next.id))
         .limit(1);
-      nextStatus = existingCad.length > 0 ? "launch-ready" : "cad-pending";
+      nextStatus = (existingCad.length > 0 || hasDrawingNotes) ? "launch-ready" : "cad-pending";
     }
 
     await db
@@ -327,6 +331,40 @@ Produce clear, numbered drawing requirements (dimensions, views, materials, tole
   // No pause between projects — chain immediately to the next queued item
   if (builtOne) {
     setImmediate(() => tick());
+  }
+}
+
+// ── One-time migration: unblock cad-pending projects that have drawing notes ──
+
+export async function advanceCadPendingWithNotes(): Promise<void> {
+  try {
+    const stuck = await db
+      .select({ id: labProjects.id, name: labProjects.name, drawingNotes: labProjects.drawingNotes })
+      .from(labProjects)
+      .where(
+        and(
+          eq(labProjects.launchStatus, "cad-pending"),
+          ne(labProjects.status, "archived"),
+        )
+      );
+
+    const toAdvance = stuck.filter(p => p.drawingNotes && p.drawingNotes.trim().length > 20);
+
+    if (toAdvance.length === 0) return;
+
+    await db
+      .update(labProjects)
+      .set({ launchStatus: "launch-ready", updatedAt: new Date() })
+      .where(
+        and(
+          eq(labProjects.launchStatus, "cad-pending"),
+          ne(labProjects.status, "archived"),
+        )
+      );
+
+    console.log(`[Pipeline] ✅ Migration: advanced ${toAdvance.length} cad-pending → launch-ready (drawing notes already present)`);
+  } catch (err: any) {
+    console.error("[Pipeline] Migration advanceCadPendingWithNotes failed:", err?.message);
   }
 }
 

@@ -4427,9 +4427,9 @@ async function executeLabTool(name: string, args: any, onProgress?: (event: Reco
         let buildMsg = "";
         if (!project.launchStatus || project.launchStatus === "") {
           if (hadDrawingNotes) {
-            // Engineering project with CAD — mark as cad-pending, not building yet
-            await db.update(labProjects).set({ launchStatus: "cad-pending" } as any).where(eq(labProjects.id, projectId));
-            buildMsg = " CAD drawing package generated — status: cad-pending, ready for CAD operator.";
+            // Drawing notes ARE the drawing package — mark as launch-ready
+            await db.update(labProjects).set({ launchStatus: "launch-ready" } as any).where(eq(labProjects.id, projectId));
+            buildMsg = " Drawing package complete — project is now launch-ready.";
           } else {
             const buildResult = await triggerBuildNow(projectId);
             buildMsg = buildResult.ok
@@ -4872,7 +4872,8 @@ Be specific and technically complete. This goes directly to the CAD engineer.`;
         const updates: Record<string, any> = { materials, costToBuild, updatedAt: new Date() };
         if (cadNotes) {
           updates.drawingNotes = cadNotes;
-          updates.launchStatus = "cad-pending";
+          // Drawing notes ARE the drawing package — advance to launch-ready
+          updates.launchStatus = "launch-ready";
         }
 
         await db.update(labProjects).set(updates as any).where(eq(labProjects.id, projId));
@@ -4882,10 +4883,10 @@ Be specific and technically complete. This goes directly to the CAD engineer.`;
         return [
           `╔══ CAD NOTES GENERATED: "${proj.name}" ══╗`,
           ``,
-          cadNotes ? `📐 Drawing Notes: Complete engineering drawing specification — ready for CAD operator` : ``,
+          cadNotes ? `📐 Drawing Notes: Complete engineering drawing specification generated` : ``,
           `🔧 Materials: Specification saved — grade, supplier, certs`,
           `💷 Cost Analysis: Unit cost breakdown at 1/10/100/1000 units saved`,
-          cadNotes ? `📋 Status: cad-pending — drawing package ready for CAD operator` : ``,
+          cadNotes ? `✅ Status: launch-ready — drawing package complete` : ``,
           ``,
           `Navigate to Projects → #${projId} → Drawings tab to review.`,
         ].filter(Boolean).join("\n");

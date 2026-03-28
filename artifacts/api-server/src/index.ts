@@ -2,7 +2,7 @@ import app from "./app";
 import { startScheduledSweeps } from "./routes/intelligence-sweep.js";
 import { startLabAutoScanner } from "./lib/lab-auto-scan.js";
 import { startAiArchSweep } from "./lib/ai-arch-sweep.js";
-import { startProjectPipeline } from "./lib/project-pipeline.js";
+import { startProjectPipeline, advanceCadPendingWithNotes } from "./lib/project-pipeline.js";
 import { tickAutomations } from "./lib/sirius-automation.js";
 import { runInvestmentRule } from "./lib/investment-rule.js";
 import { startProactiveEngine } from "./lib/sirius-proactive.js";
@@ -22,6 +22,8 @@ app.listen(port, () => {
   startLabAutoScanner(24);
   startAiArchSweep(24);
   startProjectPipeline();
+  // Unblock any cad-pending projects that already have drawing notes
+  advanceCadPendingWithNotes().catch(e => console.error("[Pipeline] Migration failed:", e));
   // Investment rule — auto-archive projects over £10,000 investment
   const runRule = () => runInvestmentRule().catch(e => console.error("[Investment Rule] Error:", e));
   setTimeout(runRule, 30_000); // first run 30s after boot
