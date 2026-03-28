@@ -1977,8 +1977,7 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack, allProjects, onNavig
   };
 
   const openCad = () => {
-    const url = `https://www.newdimensionscad.com?project=${encodeURIComponent(project.name)}&specs=${encodeURIComponent((project.specs || "").slice(0, 500))}&notes=${encodeURIComponent((project.drawingNotes || "").slice(0, 500))}`;
-    window.open(url, "_blank");
+    setActiveTab("drawings");
   };
 
   const phase = (project.phase || "design") as keyof typeof PHASE_CONFIG;
@@ -2124,7 +2123,7 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack, allProjects, onNavig
           <button onClick={openCad}
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs transition-all"
             style={{ background: "#E8EEF5", color: "hsl(193,100%,60%)", border: "1px solid rgba(15,23,42,0.09)" }}>
-            <ExternalLink className="w-3 h-3" /> CAD
+            <Cpu className="w-3 h-3" /> Drawings
           </button>
         </div>
       </div>
