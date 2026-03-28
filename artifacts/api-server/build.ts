@@ -29,7 +29,6 @@ const allowlist = [
   "passport",
   "passport-local",
   "pg",
-  "stripe",
   "uuid",
   "ws",
   "xlsx",
@@ -54,6 +53,9 @@ async function buildAll() {
       !(pkg.dependencies?.[dep]?.startsWith("workspace:")),
   );
 
+  // Build to CJS with `conditions: ["require"]` so esbuild picks the CJS
+  // entry point for dual-format packages (e.g. openai, stripe) instead of
+  // bundling their ESM code — which caused the fileURLToPath crash in prod.
   await esbuild({
     entryPoints: [path.resolve(__dirname, "src/index.ts")],
     platform: "node",
@@ -63,6 +65,7 @@ async function buildAll() {
     define: {
       "process.env.NODE_ENV": '"production"',
     },
+    conditions: ["require", "node", "default"],
     minify: true,
     external: externals,
     logLevel: "info",
