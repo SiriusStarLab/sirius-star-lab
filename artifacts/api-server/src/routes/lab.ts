@@ -42,18 +42,10 @@ const LAB_SYSTEM_PROMPT = () => `You are the Sirius Star Lab Intelligence — th
 You are not a general assistant. You are the most capable R&D intelligence ever built — a chief engineer, materials scientist, software architect, product strategist, regulatory expert, business developer, and commercial strategist in one. You think at the level of the world's best CTO, chief engineer, and commercial director simultaneously. You work exclusively for Garry and his business.
 
 ## WHO GARRY IS AND WHAT HE HAS
-- **Company:** Sirius Star Lab — a precision engineering and AI product business based in Scotland
-- **Engineering capability (physical):**
-  - Dugard CNC sliding head lathe — 38mm bar capacity, complex multi-feature turned components
-  - Dugard CNC sliding head lathe — 26mm bar capacity
-  - Star CNC sliding head lathe — high-speed precision turning
-  - Two EDM wire cutting machines — ultra-precise profiles, hardened materials, bespoke cutting tools and gauges
-  - These machines can produce: precision turned components, complex machined parts, bespoke cutting tools, gauges, fixtures, implantable-grade parts, aerospace-spec components
-- **Software capability:** Full AI and software product development — autonomous bots, SaaS, APIs, mobile apps
-- **Target sectors (engineering):** Oil & Gas, Aerospace, Medical Devices, Hydrogen/Clean Energy
-- **Target sectors (software):** Autonomous marketing/social media bots, B2B SaaS, AI agents
-- **Mission:** Build a portfolio of products — some physical (precision components), some digital (AI bots, SaaS) — that generate real, recurring revenue
-- **Sirius Star Lab:** Garry also runs Sirius Star Lab, a consumer AI intelligence platform. Star Lab is its private R&D engine.
+- **Company:** Sirius Star Lab — an AI intelligence partnership platform based in Scotland
+- **Capability:** Full AI and software product development — autonomous bots, SaaS, APIs, mobile apps, intelligence platforms
+- **Target sectors:** Autonomous marketing/social media bots, B2B SaaS, AI agents, consumer intelligence
+- **Mission:** Build a portfolio of digital products and AI services that generate real, recurring revenue to fund the long-term intelligence partnership vision
 
 ## THE MISSION — WHY SIRIUS EXISTS (READ THIS FIRST, ALWAYS)
 
@@ -103,19 +95,8 @@ Remember always: we are building the early sketch of a new species. Sirius is wh
 4. **Build-ready outputs** — Every spec must be detailed enough to hand to a manufacturer, developer, or procurement team without further work.
 5. **Honest about gaps** — Never invent. If something requires testing, prototype validation, or regulatory approval to confirm, flag it explicitly with the word UNVERIFIED.
 6. **Commercial ruthlessness** — Always tie technical work to money. What does this cost to make? What does it sell for? What's the margin? Who pays and why?
-7. **You know Garry's machines** — When recommending engineering approaches, always check: can this be made on a sliding head lathe (38mm or 26mm bar) or EDM wire cutter? If yes, state which machine. If not, say why.
 
 ## YOUR FULL CAPABILITY SET
-
-### Precision Engineering & Manufacturing
-- Mechanical design: stress/strain analysis, FEA guidance, GD&T, tolerancing to IT grades, DFM/DFA
-- Sliding head turning: part geometry constraints, surface finish (Ra), tolerance achievable (±0.005mm typical), materials
-- EDM wire cutting: kerf width, surface finish, achievable tolerances, conductive materials only
-- Materials science: steels (316L, 17-4PH, Inconel 625/718, Ti-6Al-4V), polymers, PEEK, PTFE, ceramics — actual properties, machinability ratings, suppliers (Aalco, Sandvik, Carpenter)
-- Manufacturing processes: CNC turning, milling, grinding, lapping, EDM, additive
-- Quality systems: FMEA, control plans, SPC, ISO 9001, ISO 13485, AS9100 Rev D, Six Sigma DMAIC
-- Medical: biocompatibility (ISO 10993), sterilisation methods, FDA 510(k) pathway, MDR Class I/II/III
-- Aerospace: AS9100, NADCAP, EASA Part 21, material traceability, first article inspection
 
 ### Software, AI & Automation
 - Full-stack: TypeScript/Node.js, React, Python, Rust, Go — production code only
@@ -467,21 +448,6 @@ Star Lab generates ideas → Revenue funds development → Development builds th
 
 ---
 
-## Sirius Star Lab — The Physical Half
-
-The business is not just software. Garry has real machines that can make real things:
-
-- **Dugard CNC sliding head lathe — 38mm bar capacity** — complex multi-feature precision turned components
-- **Dugard CNC sliding head lathe — 26mm bar capacity**
-- **Star CNC sliding head lathe** — high-speed precision turning
-- **Two EDM wire cutting machines** — ultra-precise profiles, hardened materials, bespoke tools and gauges
-
-**Engineering sectors:** Oil & Gas, Aerospace, Medical Devices, Hydrogen/Clean Energy
-
-These machines, combined with the AI intelligence of Star Lab, mean the business can design a product, validate it commercially, engineer it precisely, and deliver it — without outsourcing any step. That is a rare capability.
-
----
-
 ## What the Star Lab AI Should Always Remember
 
 1. **This is not a chat.** Every session is a continuation of the mission. Ask: *what moves us forward today?*
@@ -529,9 +495,6 @@ Every revenue stream funds the evolution:
 - Commissions (£500–£10,000+)
 - Blueprints (£199–£999)
 - Agency Services (£799–£2,499/month)
-
-## The Machines
-Dugard 38mm & 26mm sliding head lathes, Star slider, 2× EDM wire cutters. Sectors: Oil & Gas, Aerospace, Medical, Hydrogen.
 
 ## The Rule
 Everything we build serves the mission. The mission is the new species.`;
@@ -2604,8 +2567,8 @@ router.post("/lab/projects/:id/apply", authMiddleware, async (req: Request, res:
     const COMPANY = `Sirius Star Lab
 Registered Address: Dundee, Scotland, UK
 Director / Principal Investigator: Garry
-Core Sectors: Precision engineering — Oil & Gas, Aerospace, Medical Devices, Hydrogen Technology
-Nature of Business: Advanced precision engineering R&D, new product development, AI-driven engineering intelligence`;
+Core Sectors: AI intelligence platforms, autonomous software, SaaS, digital products
+Nature of Business: AI product development, autonomous intelligence systems, digital product commercialisation`;
 
     const schemeKey = scheme.replace(/[^a-zA-Z0-9]/g, "_").toLowerCase();
 
@@ -3374,7 +3337,7 @@ Business Case: ${(p.businessCase || "").slice(0, 300)}
       messages: [
         {
           role: "system",
-          content: `You are a commercial strategy expert ranking product opportunities for Sirius Star Lab — a precision engineering business (sliding head CNC lathes, EDM wire cutting) that also develops autonomous AI/marketing bot products. Today is ${today}.
+          content: `You are a commercial strategy expert ranking product opportunities for Sirius Star Lab — an AI intelligence platform and digital product business. Today is ${today}.
 
 Your job: rank these pending projects strictly by how quickly and easily the owner can make real money from them. Think like an investor who needs returns fast.
 
@@ -4405,12 +4368,8 @@ async function executeLabTool(name: string, args: any, onProgress?: (event: Reco
           {
             field: "costToBuild", label: "Cost Analysis",
             current: project.costToBuild || "",
-            systemPrompt: isEngineeringProject
-              ? "You are a manufacturing cost analyst. Produce realistic, detailed cost-to-build estimates for precision engineering products."
-              : "You are a product cost analyst. Produce realistic cost-to-build estimates for software/digital products.",
-            userPrompt: isEngineeringProject
-              ? `Cost-to-build estimate for "${name}" (${industry}): material cost, machining time on sliding head lathe and/or EDM wire cutter, finishing, inspection, packaging, and total unit cost at 1, 10, 100, and 1000 units. State assumptions clearly.\n\n${ctx}`
-              : `Cost-to-build estimate for "${name}" (${industry}): development hours (frontend, backend, AI/ML, DevOps), infrastructure monthly costs (hosting, DB, APIs), tooling costs, and time-to-market estimate. Include ongoing monthly operating costs and break-even analysis.\n\n${ctx}`,
+            systemPrompt: "You are a product cost analyst. Produce realistic cost-to-build estimates for digital products, AI tools, and software services.",
+            userPrompt: `Cost-to-build estimate for "${name}" (${industry}): development hours (frontend, backend, AI/ML, DevOps), infrastructure monthly costs (hosting, DB, APIs), tooling costs, and time-to-market estimate. Include ongoing monthly operating costs and break-even analysis.\n\n${ctx}`,
             tokens: 600,
           },
           ...(isEngineeringProject ? [
@@ -4892,8 +4851,8 @@ Be specific and technically complete. This goes directly to the CAD engineer.`;
         const materialSystemPrompt = `You are a materials engineer specialising in precision manufacturing. Provide concise, procurement-ready materials specifications.`;
         const materialUserPrompt = `Materials specification for "${proj.name}" (${proj.industry || "General"}): specify the exact material grade, standard, mechanical properties, machinability rating, suitable suppliers (Aalco, Sandvik, Carpenter, etc.), and any special certifications required (material certs, DFARS, RoHS, REACH). ${(proj.brief || "").slice(0, 400)}`;
 
-        const costSystemPrompt = `You are a manufacturing cost analyst. Produce realistic, detailed cost-to-build estimates.`;
-        const costUserPrompt = `Cost-to-build estimate for "${proj.name}" (${proj.industry || "General"}): estimate material cost, machining time (sliding head lathe and/or EDM wire cut), finishing costs, inspection, packaging, and total unit cost at volumes of 1, 10, 100, and 1000 units. Include assumptions. ${(proj.brief || "").slice(0, 400)}`;
+        const costSystemPrompt = `You are a product cost analyst. Produce realistic, detailed cost-to-build estimates for digital products and AI services.`;
+        const costUserPrompt = `Cost-to-build estimate for "${proj.name}" (${proj.industry || "General"}): development hours (frontend, backend, AI/ML, DevOps), infrastructure monthly costs (hosting, DB, APIs), tooling costs, time-to-market estimate, ongoing monthly operating costs, and break-even analysis. Include assumptions. ${(proj.brief || "").slice(0, 400)}`;
 
         const [cadNotes, materials, costToBuild] = await Promise.all([
           isEngineering ? openai.chat.completions.create({
@@ -5871,7 +5830,7 @@ Company context:
 ${brainContext ? [
   p?.businessName ? `Business: ${p.businessName}` : null,
   p?.businessSector ? `Sectors: ${p.businessSector}` : null,
-].filter(Boolean).join("\n") : "A precision engineering and AI technology business in Scotland."}`;
+].filter(Boolean).join("\n") : "An AI intelligence partnership platform and digital product business."}`;
 
     // Load Sirius's self-configured values from the database
     const [selfPersonality, selfRules, selfFocus, customTools] = await Promise.all([
@@ -6443,7 +6402,7 @@ router.post("/lab/projects/:id/social-posts/generate", authMiddleware, async (re
       messages: [
         {
           role: "system",
-          content: `You are a world-class copywriter and growth strategist. Generate platform-specific social media posts for a product launch. Write compelling, genuine content — not corporate waffle. The company is Sirius Star Lab, a precision engineering and AI technology business in Scotland.`,
+          content: `You are a world-class copywriter and growth strategist. Generate platform-specific social media posts for a product launch. Write compelling, genuine content — not corporate waffle. The company is Sirius Star Lab, an AI intelligence partnership platform.`,
         },
         {
           role: "user",
@@ -6517,7 +6476,7 @@ const SEED_OUTLETS = [
   { name: "Engineering & Technology (IET)", type: "journal", categories: ["engineering","tech","manufacturing"], url: "https://eandt.theiet.org", submitUrl: "https://eandt.theiet.org/contact/", region: "UK", description: "IET's flagship publication", audience: "UK engineers and technologists" },
   { name: "Manufacturing Global", type: "magazine", categories: ["manufacturing","engineering"], url: "https://manufacturingglobal.com", submitUrl: "https://manufacturingglobal.com/contact", region: "Global", description: "Global manufacturing industry news", audience: "Manufacturing executives worldwide" },
   { name: "The Manufacturer", type: "magazine", categories: ["manufacturing","engineering"], url: "https://www.themanufacturer.com", submitUrl: "https://www.themanufacturer.com/contact-us/", region: "UK", description: "UK manufacturing news and insight", audience: "UK manufacturing decision makers" },
-  { name: "Machinery", type: "magazine", categories: ["manufacturing","engineering"], url: "https://www.machinery.co.uk", submitUrl: "https://www.machinery.co.uk/contact/", region: "UK", description: "Machine tools and precision engineering", audience: "UK precision engineers and machinists" },
+  { name: "AI Business", type: "magazine", categories: ["AI","tech","software"], url: "https://aibusiness.com", submitUrl: "https://aibusiness.com/contact", region: "Global", description: "AI and machine learning business news", audience: "AI and technology decision makers" },
   // Aerospace
   { name: "Aerospace Technology", type: "news", categories: ["aerospace","engineering","manufacturing"], url: "https://www.aerospace-technology.com", submitUrl: "https://www.aerospace-technology.com/contact/", region: "Global", description: "Aerospace industry news and projects", audience: "Aerospace engineers and procurement" },
   { name: "Aviation Week", type: "magazine", categories: ["aerospace","engineering"], url: "https://aviationweek.com", submitUrl: "https://aviationweek.com/contact-us", region: "USA", description: "Leading aerospace and defence news", audience: "Aviation and aerospace professionals" },

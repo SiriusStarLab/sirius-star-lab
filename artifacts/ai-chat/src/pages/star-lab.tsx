@@ -4044,7 +4044,7 @@ function ScoutPanel({ pin }: { pin: string }) {
                 <p className="text-slate-400 text-sm font-medium mb-2">What should I scout for?</p>
                 <p className="text-slate-300 text-xs leading-relaxed">Type what you're looking for below — automation opportunities, market gaps, broken products to improve, or trend-driven plays. I'll search across forums, reviews, job boards, and market data.</p>
                 <div className="flex flex-wrap gap-1.5 justify-center mt-4">
-                  {["automation bots for accountants", "gaps in vet software", "UK manufacturing pain points", "AI in precision engineering"].map(s => (
+                  {["automation bots for accountants", "gaps in vet software", "UK manufacturing pain points", "AI in emerging markets"].map(s => (
                     <button key={s} onClick={() => { setChatInput(s); run(s); }}
                       className="text-[10px] px-2.5 py-1 rounded-full transition-all"
                       style={{ background: "#F1F5F9", color: "rgba(15,23,42,0.5)", border: "1px solid rgba(15,23,42,0.09)" }}>
@@ -7769,7 +7769,7 @@ function AutoLabPanel({ pin, onSelectProject, onFocusProject }: {
               {running && <span className="text-xs px-2 py-0.5 rounded-full animate-pulse" style={{ background: "hsla(155,70%,45%,0.12)", color: "hsl(155,70%,55%)" }}>Scanning now…</span>}
             </div>
             <p className="text-xs leading-relaxed" style={{ color: "rgba(15,23,42,0.4)", maxWidth: "580px" }}>
-              Runs 5 intelligence passes across every sector on Earth — automation bots (legal, healthcare, commerce, trades), SaaS gaps (creative, education, niche SMB, compliance), broken product mining (App Store, Reddit, forums), precision engineering (10 sectors), and trend/patent intelligence. Each scan creates new projects for your approval.
+              Runs 5 intelligence passes across every sector on Earth — automation bots (legal, healthcare, commerce, trades), SaaS gaps (creative, education, niche SMB, compliance), broken product mining (App Store, Reddit, forums), emerging markets (AI agents, creator economy, climate tech, mental health, Web3), and trend/patent intelligence. Each scan creates new projects for your approval.
             </p>
           </div>
           <button onClick={triggerScan} disabled={running || triggering}
@@ -7805,7 +7805,7 @@ function AutoLabPanel({ pin, onSelectProject, onFocusProject }: {
               { pass: "1", label: "Bot & Automation", color: "hsl(280,70%,60%)", sectors: "Legal, HR, Finance, Insurance · Healthcare, NHS, Pharmacy, Vets · Retail, eCommerce, Hospitality, Food · Construction, Agriculture, Logistics, Manufacturing" },
               { pass: "2", label: "SaaS & Software Gaps", color: "hsl(193,100%,50%)", sectors: "Creative & Media tools · Education, corporate L&D · Niche SMBs (funeral directors, pet groomers, tradespeople) · GDPR, ESG, FCA, CQC compliance" },
               { pass: "3", label: "Broken Product Mining", color: "hsl(25,100%,55%)", sectors: "App Store 1-2 star reviews · Reddit complaints (r/smallbusiness, r/entrepreneur) · G2 / Capterra / Trustpilot · UK-specific gaps in US-centric software" },
-              { pass: "4", label: "Precision Engineering", color: "hsl(45,100%,55%)", sectors: "Oil & Gas, Aerospace, Medical, Hydrogen · Automotive, Motorsport, Defence, Marine · Nuclear, Semiconductor, Scientific instruments" },
+              { pass: "4", label: "Emerging Markets", color: "hsl(45,100%,55%)", sectors: "AI agent tools · Creator economy · Climate tech · Mental health tech · Web3 infrastructure · Remote work enablement" },
               { pass: "5", label: "Trend & Patent Intelligence", color: "hsl(155,70%,55%)", sectors: "UK/EU regulations coming into force · New patent filings · ProductHunt & YC trends · Job board automation signals · Social media emerging needs" },
             ].map(p => (
               <div key={p.pass} className="flex items-start gap-3 rounded-xl px-3.5 py-2.5" style={{ background: "#F8FAFC", border: "1px solid rgba(15,23,42,0.06)" }}>
@@ -8173,7 +8173,7 @@ function AutoLabPanel({ pin, onSelectProject, onFocusProject }: {
             <div className="text-center space-y-2 max-w-sm">
               <p className="text-slate-800 font-semibold text-base">Autonomous Lab is ready</p>
               <p className="text-xs leading-relaxed" style={{ color: "rgba(15,23,42,0.6)" }}>
-                Scans every 24 hours. Each scan finds 6 social media / marketing bot opportunities and 4 precision engineering products (oil & gas, aerospace, medical, hydrogen) manufacturable at Sirius Star Lab. Every new project is sent to you for approval.
+                Scans every 24 hours across 5 intelligence passes — automation bots, SaaS gaps, broken products, emerging markets, and trend intelligence. Every new project found is sent to you for approval.
               </p>
             </div>
             <button onClick={triggerScan} disabled={triggering}
@@ -13704,7 +13704,7 @@ const EXAMPLE_COMMANDS = [
   "Create a CRM bot for dental practices with appointment booking and NHS billing",
   "Build an AI-powered hydrogen safety monitoring system for industrial facilities",
   "Create a medical device regulatory compliance tracker for NHS procurement teams",
-  "Build a precision engineering quote calculator with 3D file upload and AI pricing",
+  "Build an AI pricing calculator for digital services with instant quote generation and Stripe integration",
 ];
 
 // ─── System Audit Panel ──────────────────────────────────────────────────────

@@ -243,12 +243,12 @@ export function MarketingPage() {
   ];
 
   const sectors = [
-    { icon: Activity,     label: "Oil & Gas",            desc: "North Sea and global upstream/downstream operations" },
-    { icon: Rocket,       label: "Aerospace",             desc: "Precision components, MRO, defence supply chain" },
-    { icon: FlaskConical, label: "Medical Devices",       desc: "ISO-certified manufacturing and procurement teams" },
-    { icon: Atom,         label: "Hydrogen & Clean Energy", desc: "Next-generation energy transition businesses" },
-    { icon: Wrench,       label: "Precision Engineering", desc: "Turning, milling, EDM, CNC — the full machining world" },
     { icon: Cpu,          label: "Technology & AI",       desc: "SaaS companies, tech agencies, digital-first businesses" },
+    { icon: TrendingUp,   label: "Finance & Professional", desc: "Accountants, consultants, legal firms, financial advisors" },
+    { icon: Users,        label: "Marketing & Creative",  desc: "Agencies, studios, content teams, brand builders" },
+    { icon: FlaskConical, label: "Healthcare",             desc: "Clinics, care providers, health tech, wellness brands" },
+    { icon: Activity,     label: "E-commerce & Retail",   desc: "Online stores, marketplaces, direct-to-consumer brands" },
+    { icon: Globe,        label: "Any Industry",          desc: "Sirius works across every sector — if you have customers, Sirius can help" },
   ];
 
   const whys = [
@@ -337,7 +337,7 @@ export function MarketingPage() {
         <motion.p initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.25 }}
           className="text-lg sm:text-xl max-w-2xl leading-relaxed mb-4"
           style={{ color: "rgba(255,255,255,0.55)" }}>
-          Sirius is the AI intelligence partner that runs your social media, builds your sales pipeline, and drives your revenue — across oil & gas, aerospace, medical, hydrogen and beyond.
+          Sirius is the AI intelligence partner that runs your social media, builds your sales pipeline, and drives your revenue — so you can focus on what only you can do.
         </motion.p>
         <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.7, delay: 0.35 }}
           className="text-sm font-mono mb-10" style={{ color: "rgba(255,255,255,0.25)", letterSpacing: "0.1em" }}>
@@ -384,9 +384,9 @@ export function MarketingPage() {
         <div className="max-w-5xl mx-auto">
           <Reveal className="text-center mb-14">
             <p className="text-xs font-mono mb-3" style={{ color: TEAL, letterSpacing: "0.2em" }}>INDUSTRIES WE SERVE</p>
-            <h2 className="text-3xl sm:text-4xl font-black text-white mb-4">Built for the industries<br />that built the world</h2>
+            <h2 className="text-3xl sm:text-4xl font-black text-white mb-4">Works for every business<br />in every industry</h2>
             <p className="text-base max-w-xl mx-auto" style={{ color: "rgba(255,255,255,0.45)" }}>
-              Sirius was built inside a precision engineering and AI company. It understands complex, technical, regulated industries — not just marketing agencies.
+              Sirius adapts to your business — your market, your voice, your goals. It does not matter what sector you are in. If you have customers, Sirius can help you reach them.
             </p>
           </Reveal>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">

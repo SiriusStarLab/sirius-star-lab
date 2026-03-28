@@ -124,36 +124,25 @@ ${RULES}
 
 Find 6 genuinely broken products with clear evidence of user frustration and identify the exact better product to build.`;
 
-// ── Pass 4: Precision Engineering — Expanded Sectors ─────────────────────────
+// ── Pass 4: Emerging Markets ──────────────────────────────────────────────────
 
-const ENGINEERING_PROMPT = () => `You are a precision engineering product intelligence analyst. Today is ${TODAY()}.
+const ENGINEERING_PROMPT = () => `You are an emerging market product intelligence analyst. Today is ${TODAY()}.
 
-## MANUFACTURING CAPABILITY
-Sirius Star Lab has:
-- Dugard CNC sliding head lathes (38mm bar capacity) — complex multi-feature turned parts, ±0.005mm tolerance
-- Dugard CNC sliding head lathes (26mm bar capacity) — high-volume precision turning
-- Star CNC sliding head lathe — high-speed precision turning
-- Two EDM wire cutting machines — ultra-precise profiles, hardened steels, complex forms, bespoke tooling & gauges
-
-CAN MAKE: precision turned components, complex machined parts, bespoke cutting tools, gauges, fixtures, implant-grade parts, aerospace-spec components, sensor housings, hydraulic fittings, custom tooling.
+## MISSION
+Find high-value digital product and AI tool opportunities in fast-moving, underserved emerging markets.
 
 ## SECTORS TO SCAN
-Search for high-value precision component opportunities across ALL of these sectors:
-- **Oil & Gas**: subsea connectors, valve bodies, downhole tools, wellhead components, hydraulic manifolds
-- **Aerospace**: landing gear parts, fastener systems, hydraulic actuator components, sensor housings, fuel system parts
-- **Medical Devices**: orthopaedic implants, surgical instruments, endoscopy components, catheter components, drug delivery mechanisms, dental implant components
-- **Hydrogen/Clean Energy**: fuel cell hardware, high-pressure hydrogen fittings, electrolysis components, valve seats, sensor housings
-- **Automotive/Motorsport**: precision powertrain components, EV battery connectors, motorsport-spec parts, fuel injection components
-- **Defence**: precision actuator components, optical instrument housings, weapon system components, UAV precision parts
-- **Nuclear**: instrumentation fittings, high-integrity valve components, containment seals (where EDM/turning applicable)
-- **Marine/Offshore**: subsea instrumentation fittings, precision pump components, ROV components, mooring system parts
-- **Semiconductor/Electronics**: precision jigs and fixtures, test probe housings, inspection gauges, vacuum system components
-- **Scientific Instruments**: precision optical mounts, metrology gauge components, laboratory instrument parts
+- **AI Agent Tools**: workflow automation, AI assistants for specific professions, autonomous agents for business tasks
+- **Creator Economy**: tools for YouTubers, podcasters, newsletter writers, course creators, community managers
+- **Climate & Clean Tech**: carbon tracking, sustainability reporting, EV infrastructure software, energy monitoring
+- **Mental Health & Wellbeing**: therapy support tools, journalling apps, stress management, sleep optimisation
+- **Web3 & Decentralised Infrastructure**: developer tools, compliance tooling, portfolio tracking, DAO management
+- **Remote Work Enablement**: async collaboration, distributed team management, contractor management, global payroll
 
 ${PRODUCT_FORMAT}
 ${RULES}
 
-Find 6 high-value precision component products manufacturable on the described machines. Each must state WHICH machine makes it and why it's a strong commercial opportunity right now.`;
+Find 6 high-value digital product opportunities in these emerging markets. Each must explain why the timing is right NOW and what specific pain it solves.`;
 
 // ── Pass 5: Trend & Patent Intelligence ──────────────────────────────────────
 
@@ -712,10 +701,10 @@ async function runBrokenProductScan(scanId: string, existing: { id: number; name
 // ── Pass 4: Precision Engineering ────────────────────────────────────────────
 
 async function runEngineeringScan(scanId: string, existing: { id: number; name: string }[]): Promise<{ created: number; items: any[] }> {
-  console.log("[Lab Auto-Scan] [Pass 4 — Engineering] Scanning expanded precision component sectors...");
+  console.log("[Lab Auto-Scan] [Pass 4 — Emerging Markets] Scanning emerging digital market sectors...");
   try {
     const raw = await runScanWithWebSearch(
-      `You are a precision engineering product analyst. Today is ${TODAY()}. ${RULES}`,
+      `You are a digital product analyst. Today is ${TODAY()}. ${RULES}`,
       ENGINEERING_PROMPT(),
       6000,
     );
@@ -884,7 +873,7 @@ export async function runLabAutoScan(): Promise<{
     const upgrades = await upgradeExistingProjects(scanId);
     allItems.push(...upgrades.items);
 
-    const summary = `Multi-sector scan complete — ${projectsCreated} new projects created (pending approval), ${upgrades.upgraded} existing projects upgraded. Sectors covered: bots (legal, health, commerce, trades), SaaS (creative, education, niche SMB, compliance), broken products, precision engineering (10 sectors), trends & patents.`;
+    const summary = `Multi-sector scan complete — ${projectsCreated} new projects created (pending approval), ${upgrades.upgraded} existing projects upgraded. Sectors covered: bots (legal, health, commerce, trades), SaaS (creative, education, niche SMB, compliance), broken products, emerging markets (AI agents, creator economy, climate tech, mental health, Web3), trends & patents.`;
 
     await db.update(labScanHistory).set({
       status: "complete",

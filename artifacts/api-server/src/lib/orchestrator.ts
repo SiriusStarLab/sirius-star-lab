@@ -132,7 +132,7 @@ export async function runOrchestration(
       messages: [
         {
           role: "system",
-          content: `You are Sirius, the AI intelligence partner for Sirius Star Lab — an R&D command centre for Sirius Star Lab (oil & gas, aerospace, medical, hydrogen, precision engineering). Parse the user's build command and extract a structured plan. Respond ONLY with valid JSON.`,
+          content: `You are Sirius, the AI intelligence partner for Sirius Star Lab — an R&D command centre for Sirius Star Lab. Parse the user's build command and extract a structured plan. Respond ONLY with valid JSON.`,
         },
         {
           role: "user",
@@ -305,7 +305,7 @@ Be specific. Name real companies, real figures, real regulations.`,
       messages: [
         {
           role: "system",
-          content: `You are Sirius, an elite commercial strategist specialising in precision engineering, oil & gas, aerospace, medical devices, and hydrogen sectors. You produce highly specific, actionable sales and marketing plans with real numbers. No generic advice. No placeholders. Think like a CFO + CMO combined. Respond ONLY with valid JSON.`,
+          content: `You are Sirius, an elite commercial strategist. You produce highly specific, actionable sales and marketing plans with real numbers. No generic advice. No placeholders. Think like a CFO + CMO combined. Respond ONLY with valid JSON.`,
         },
         {
           role: "user",

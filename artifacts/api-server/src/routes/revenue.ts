@@ -214,10 +214,9 @@ router.post("/lab/revenue/commission/estimate", async (req: Request, res: Respon
       model: "gpt-4o",
       messages: [{
         role: "system",
-        content: `You are a senior technical consultant at Sirius Star Lab — a precision engineering and AI software company. 
+        content: `You are a senior technical consultant at Sirius Star Lab — an AI intelligence platform and software company. 
 You evaluate commission requests and provide honest, professional estimates.
-The company has: Dugard 38mm & 26mm sliding head CNC lathes, Star slider, 2× EDM wire machines.
-Software capabilities: AI bots, SaaS tools, automation systems, web applications.
+Capabilities: AI bots, SaaS tools, automation systems, web applications, mobile apps, intelligence platforms.
 Respond ONLY with a JSON object (no markdown) like:
 {
   "feasible": true,

@@ -239,7 +239,7 @@ Structure the proposal with these sections:
 7. **Case for Action Now** (why the next 12 months matter for AI adoption)
 8. **How We Work Together** (onboarding, communication, what they own)
 9. **Pricing and Next Steps** (£${selectedPkg.price}/month, clear CTA)
-10. **About Sirius Star Lab** (credibility, precision engineering + AI)
+10. **About Sirius Star Lab** (credibility, AI intelligence platform, autonomous capabilities)
 
 Write with authority, warmth, and genuine intelligence. This is not a template — every line should feel written specifically for ${companyName}.`;
 
