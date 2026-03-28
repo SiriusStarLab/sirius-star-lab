@@ -117,7 +117,7 @@ export async function runProactiveEngine(): Promise<void> {
 
 export function startProactiveEngine(intervalMinutes = 15): void {
   console.log(`[Sirius Proactive] Autonomous engine online — running every ${intervalMinutes} minutes`);
-  // First run 90 seconds after boot so other systems are ready
-  setTimeout(() => runProactiveEngine().catch(console.error), 90_000);
+  // First run 10 seconds after boot so other systems are ready
+  setTimeout(() => runProactiveEngine().catch(console.error), 10_000);
   setInterval(() => runProactiveEngine().catch(console.error), intervalMinutes * 60 * 1000);
 }
