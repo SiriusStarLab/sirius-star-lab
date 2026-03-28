@@ -29,16 +29,16 @@ const PLATFORMS: Platform[] = [
 const FEATURES: Feature[] = [
   // Core AI
   { category: "Core AI", name: "Conversational AI", desc: "Natural language chat and Q&A", platforms: { ChatGPT: true, Grok: true, Gemini: true, Claude: true, Copilot: true, Perplexity: true, "Sirius Star Lab": true } },
-  { category: "Core AI", name: "Image Generation", desc: "Create images from text prompts", platforms: { ChatGPT: true, Grok: true, Gemini: true, Claude: false, Copilot: true, Perplexity: false, "Sirius Star Lab": true } },
-  { category: "Core AI", name: "Voice / Audio", desc: "Voice input and spoken responses", platforms: { ChatGPT: true, Grok: true, Gemini: true, Claude: false, Copilot: true, Perplexity: false, "Sirius Star Lab": true } },
-  { category: "Core AI", name: "Code Generation", desc: "Write, review and debug code", platforms: { ChatGPT: true, Grok: true, Gemini: true, Claude: true, Copilot: true, Perplexity: false, "Sirius Star Lab": true } },
-  { category: "Core AI", name: "Web Search (Real-time)", desc: "Access live web data in answers", platforms: { ChatGPT: true, Grok: true, Gemini: true, Claude: false, Copilot: true, Perplexity: true, "Sirius Star Lab": true } },
+  { category: "Core AI", name: "Image Generation", desc: "Create images from text prompts", platforms: { ChatGPT: true, Grok: true, Gemini: true, Claude: false, Copilot: true, Perplexity: true, "Sirius Star Lab": true } },
+  { category: "Core AI", name: "Voice / Audio", desc: "Voice input and spoken responses", platforms: { ChatGPT: true, Grok: true, Gemini: true, Claude: true, Copilot: true, Perplexity: "Input only", "Sirius Star Lab": true } },
+  { category: "Core AI", name: "Code Generation", desc: "Write, review and debug code", platforms: { ChatGPT: true, Grok: true, Gemini: true, Claude: true, Copilot: true, Perplexity: "Limited", "Sirius Star Lab": true } },
+  { category: "Core AI", name: "Web Search (Real-time)", desc: "Access live web data in answers", platforms: { ChatGPT: true, Grok: true, Gemini: true, Claude: true, Copilot: true, Perplexity: true, "Sirius Star Lab": true } },
 
   // Research & Analysis
-  { category: "Research & Analysis", name: "Deep Research Mode", desc: "Multi-step web research with cited reports", platforms: { ChatGPT: true, Grok: true, Gemini: true, Claude: false, Copilot: false, Perplexity: true, "Sirius Star Lab": true } },
-  { category: "Research & Analysis", name: "Document Intelligence", desc: "Upload & interrogate PDFs, docs, spreadsheets", platforms: { ChatGPT: true, Grok: false, Gemini: true, Claude: true, Copilot: true, Perplexity: false, "Sirius Star Lab": true } },
-  { category: "Research & Analysis", name: "Data Analysis (CSV/Excel)", desc: "Upload data files and get chart insights", platforms: { ChatGPT: true, Grok: false, Gemini: true, Claude: false, Copilot: false, Perplexity: false, "Sirius Star Lab": true } },
-  { category: "Research & Analysis", name: "Memory / Context", desc: "Remembers facts across conversations", platforms: { ChatGPT: "Limited", Grok: false, Gemini: "Limited", Claude: "Projects only", Copilot: false, Perplexity: false, "Sirius Star Lab": true } },
+  { category: "Research & Analysis", name: "Deep Research Mode", desc: "Multi-step web research with cited reports", platforms: { ChatGPT: true, Grok: true, Gemini: true, Claude: "Manual only", Copilot: "Limited", Perplexity: true, "Sirius Star Lab": true } },
+  { category: "Research & Analysis", name: "Document Intelligence", desc: "Upload & interrogate PDFs, docs, spreadsheets", platforms: { ChatGPT: true, Grok: true, Gemini: true, Claude: true, Copilot: true, Perplexity: "Limited", "Sirius Star Lab": true } },
+  { category: "Research & Analysis", name: "Data Analysis (CSV/Excel)", desc: "Upload data files and get chart insights", platforms: { ChatGPT: true, Grok: true, Gemini: true, Claude: true, Copilot: true, Perplexity: false, "Sirius Star Lab": true } },
+  { category: "Research & Analysis", name: "Memory / Context", desc: "Remembers facts across conversations", platforms: { ChatGPT: true, Grok: false, Gemini: true, Claude: "Projects only", Copilot: "Limited", Perplexity: false, "Sirius Star Lab": true } },
 
   // Business Intelligence — Sirius Exclusive Zone
   { category: "Business Intelligence", name: "Business Profile Brain", desc: "AI learns your company, goals, clients permanently", exclusive: true, platforms: { ChatGPT: false, Grok: false, Gemini: false, Claude: false, Copilot: false, Perplexity: false, "Sirius Star Lab": true } },
@@ -226,8 +226,12 @@ export function ComparePage() {
           })}
         </div>
 
-        {/* Bottom CTA */}
-        <div className="mt-16 text-center">
+        {/* Accuracy note */}
+        <p className="text-center text-xs mt-12 mb-2" style={{ color: "rgba(15,23,42,0.3)" }}>
+          Feature data reflects publicly available capabilities as of March 2026. Competitor features change frequently — we review this table regularly.
+        </p>
+
+        <div className="mt-6 text-center">
           <div className="inline-block px-10 py-10 rounded-3xl" style={{ background: "#F1F5F9", border: "1px solid rgba(0,212,255,0.15)" }}>
             <div className="flex items-center justify-center gap-2 mb-3">
               <Star className="w-5 h-5" style={{ color: "#FFD700" }} />
