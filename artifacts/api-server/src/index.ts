@@ -5,6 +5,7 @@ import { startAiArchSweep } from "./lib/ai-arch-sweep.js";
 import { startProjectPipeline } from "./lib/project-pipeline.js";
 import { tickAutomations } from "./lib/sirius-automation.js";
 import { runInvestmentRule } from "./lib/investment-rule.js";
+import { startProactiveEngine } from "./lib/sirius-proactive.js";
 
 const rawPort = process.env["PORT"];
 if (!rawPort) {
@@ -29,4 +30,6 @@ app.listen(port, () => {
   // Sirius self-management — run automations she has created
   setInterval(() => tickAutomations(), 60_000);
   console.log("[Sirius Automations] Self-management engine started — checking every 60 seconds");
+  // Sirius proactive engine — autonomously completes projects without being asked
+  startProactiveEngine(15);
 });
