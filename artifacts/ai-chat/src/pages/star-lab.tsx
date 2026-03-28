@@ -1839,7 +1839,10 @@ function CadFilesPanel({ project, pin }: { project: Project; pin: string }) {
   );
 }
 
-function ProjectWorkspace({ project, pin, onUpdate, onBack }: { project: Project; pin: string; onUpdate: (p: Project) => void; onBack: () => void }) {
+function ProjectWorkspace({ project, pin, onUpdate, onBack, allProjects, onNavigateProject }: {
+  project: Project; pin: string; onUpdate: (p: Project) => void; onBack: () => void;
+  allProjects?: Project[]; onNavigateProject?: (id: number) => void;
+}) {
   const [activeTab, setActiveTab] = useState("overview");
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -1852,9 +1855,23 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack }: { project: Project
   const [insightsLoaded, setInsightsLoaded] = useState(false);
   const [expandedInsight, setExpandedInsight] = useState<number | null>(null);
   const [genVersion, setGenVersion] = useState(0);
+  const [reviewFilter, setReviewFilter] = useState<"all" | "launch-ready" | "cad-pending">("all");
   const base = getApiBase();
 
   const headers = useCallback(() => ({ "Content-Type": "application/json", "x-lab-pin": pin }), [pin]);
+
+  // Build the review nav list from allProjects filtered by reviewFilter
+  const reviewList = useMemo(() => {
+    if (!allProjects) return [];
+    const pool = allProjects.filter(p => p.status !== "archived");
+    if (reviewFilter === "launch-ready") return pool.filter(p => p.launchStatus === "launch-ready");
+    if (reviewFilter === "cad-pending") return pool.filter(p => p.launchStatus === "cad-pending");
+    return pool;
+  }, [allProjects, reviewFilter]);
+
+  const currentIdx = reviewList.findIndex(p => p.id === project.id);
+  const prevProject = currentIdx > 0 ? reviewList[currentIdx - 1] : null;
+  const nextProject = currentIdx < reviewList.length - 1 ? reviewList[currentIdx + 1] : null;
 
   const loadCompleteness = useCallback(async () => {
     const res = await fetch(`${base}lab/projects/${project.id}/completeness`, { headers: { "x-lab-pin": pin } });
@@ -2011,6 +2028,45 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack }: { project: Project
           style={{ border: "1px solid rgba(15,23,42,0.1)" }}>
           <ChevronRight className="w-3.5 h-3.5 rotate-180" style={{ color: "rgba(15,23,42,0.4)" }} />
         </button>
+
+        {/* Prev / Next review navigation */}
+        {onNavigateProject && reviewList.length > 1 && (
+          <div className="flex items-center gap-1 flex-shrink-0">
+            {/* Filter pill */}
+            <div className="flex p-0.5 rounded-lg mr-1" style={{ background: "rgba(15,23,42,0.05)" }}>
+              {(["all", "launch-ready", "cad-pending"] as const).map(f => (
+                <button key={f} onClick={() => setReviewFilter(f)}
+                  className="px-2 py-0.5 rounded-md text-[10px] font-semibold transition-all capitalize"
+                  style={{
+                    background: reviewFilter === f ? "white" : "transparent",
+                    color: reviewFilter === f ? "rgba(15,23,42,0.75)" : "rgba(15,23,42,0.38)",
+                    boxShadow: reviewFilter === f ? "0 1px 3px rgba(0,0,0,0.08)" : "none",
+                  }}>
+                  {f === "all" ? `All (${allProjects?.filter(p => p.status !== "archived").length ?? 0})` : f === "launch-ready" ? `🚀 Ready (${allProjects?.filter(p => p.launchStatus === "launch-ready").length ?? 0})` : `📐 CAD (${allProjects?.filter(p => p.launchStatus === "cad-pending").length ?? 0})`}
+                </button>
+              ))}
+            </div>
+            {/* Prev */}
+            <button onClick={() => prevProject && onNavigateProject(prevProject.id)} disabled={!prevProject}
+              className="w-6 h-6 rounded-md flex items-center justify-center transition-all disabled:opacity-25"
+              style={{ background: "rgba(15,23,42,0.06)", border: "1px solid rgba(15,23,42,0.08)" }}
+              title={prevProject ? `← ${prevProject.name}` : "First project"}>
+              <ChevronLeft className="w-3.5 h-3.5" style={{ color: "rgba(15,23,42,0.6)" }} />
+            </button>
+            {/* Counter */}
+            <span className="text-[10px] font-semibold tabular-nums px-1.5"
+              style={{ color: "rgba(15,23,42,0.45)", minWidth: 36, textAlign: "center" }}>
+              {currentIdx >= 0 ? `${currentIdx + 1}/${reviewList.length}` : `?/${reviewList.length}`}
+            </span>
+            {/* Next */}
+            <button onClick={() => nextProject && onNavigateProject(nextProject.id)} disabled={!nextProject}
+              className="w-6 h-6 rounded-md flex items-center justify-center transition-all disabled:opacity-25"
+              style={{ background: "rgba(15,23,42,0.06)", border: "1px solid rgba(15,23,42,0.08)" }}
+              title={nextProject ? `${nextProject.name} →` : "Last project"}>
+              <ChevronRight className="w-3.5 h-3.5" style={{ color: "rgba(15,23,42,0.6)" }} />
+            </button>
+          </div>
+        )}
         {editingName ? (
           <div className="flex items-center gap-2 flex-1">
             <input autoFocus value={editName} onChange={e => setEditName(e.target.value)}
@@ -15405,7 +15461,14 @@ export function StarLabPage() {
         )}
         {navMode === "projects" && (
           activeProject
-            ? <ProjectWorkspace project={activeProject} pin={pin} onUpdate={p => setActiveProject(p)} onBack={() => setActiveProject(null)} />
+            ? <ProjectWorkspace
+                project={activeProject}
+                pin={pin}
+                onUpdate={p => setActiveProject(p)}
+                onBack={() => setActiveProject(null)}
+                allProjects={projects}
+                onNavigateProject={id => loadProject(id)}
+              />
             : (
               <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative" style={{ background: "#F8FAFC" }}>
 
