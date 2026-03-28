@@ -155,7 +155,7 @@ router.post("/lab/agency/scan", authMiddleware, async (req: Request, res: Respon
     const searchSector = sector || "digital agencies and e-commerce brands";
     const searchRegion = region || "UK";
 
-    const systemPrompt = `You are Sirius — an elite B2B business development AI working for Strategic Innovation Dundee Ltd.
+    const systemPrompt = `You are Sirius — an elite B2B business development AI working for Sirius Star Lab.
 Your task: identify 8-10 specific types of businesses in the ${searchRegion} ${searchSector} space that are MOST LIKELY to pay £799-£2,499/month for an AI that runs their social media, sales sequences, content marketing, and business intelligence.
 
 For each prospect category, provide:
@@ -221,11 +221,11 @@ router.post("/lab/agency/proposal", authMiddleware, async (req: Request, res: Re
   const selectedPkg = packageDetails[pkg || "fullstack"] || packageDetails["fullstack"];
 
   try {
-    const systemPrompt = `You are Sirius — the world's most sophisticated business intelligence AI, writing a proposal on behalf of Strategic Innovation Dundee Ltd.
+    const systemPrompt = `You are Sirius — the world's most sophisticated business intelligence AI, writing a proposal on behalf of Sirius Star Lab.
 
 You are generating a bespoke, professional business proposal for ${companyName} to adopt the "${selectedPkg.name}" service at £${selectedPkg.price}/month.
 
-About us: Strategic Innovation Dundee Ltd is run by Garry Hutton. We have built Sirius Star Lab — an elite AI intelligence partnership platform that we now offer as a managed service to businesses who want AI to run their digital operations without building it themselves.
+About us: Sirius Star Lab is run by Garry Hutton. We have built Sirius Star Lab — an elite AI intelligence partnership platform that we now offer as a managed service to businesses who want AI to run their digital operations without building it themselves.
 
 Your proposal must be specific to ${companyName}, feel personally researched, and be compelling enough that the CEO/MD reads it and picks up the phone.
 
@@ -239,7 +239,7 @@ Structure the proposal with these sections:
 7. **Case for Action Now** (why the next 12 months matter for AI adoption)
 8. **How We Work Together** (onboarding, communication, what they own)
 9. **Pricing and Next Steps** (£${selectedPkg.price}/month, clear CTA)
-10. **About Strategic Innovation Dundee Ltd** (credibility, precision engineering + AI)
+10. **About Sirius Star Lab** (credibility, precision engineering + AI)
 
 Write with authority, warmth, and genuine intelligence. This is not a template — every line should feel written specifically for ${companyName}.`;
 
@@ -292,7 +292,7 @@ router.post("/lab/agency/pitch", authMiddleware, async (req: Request, res: Respo
   sseHeaders(res);
 
   try {
-    const prompt = `You are writing a ${format || "LinkedIn DM"} from Garry Hutton at Strategic Innovation Dundee Ltd to ${contactName || "the decision maker"} ${contactRole ? `(${contactRole})` : ""} at ${companyName}${sector ? ` in the ${sector} sector` : ""}.
+    const prompt = `You are writing a ${format || "LinkedIn DM"} from Garry Hutton at Sirius Star Lab to ${contactName || "the decision maker"} ${contactRole ? `(${contactRole})` : ""} at ${companyName}${sector ? ` in the ${sector} sector` : ""}.
 
 Garry has built Sirius Star Lab — an elite AI intelligence platform that can run a business's entire social media, sales sequences, content, and customer communications.
 

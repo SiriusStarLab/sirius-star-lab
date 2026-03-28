@@ -93,7 +93,7 @@ router.post("/growth/generate", authMiddleware, async (req: Request, res: Respon
 
   const projectList = recentProjects.map(p => `- ${p.name} (${p.industry})`).join("\n");
 
-  const MISSION = `Sirius Star Lab is an intelligence partnership platform built by Garry Hutton of Strategic Innovation Dundee Ltd. The vision: AI and humans becoming something new together — not augmented, fused. The logo shows two faces; you cannot tell which is human, which is AI. That ambiguity IS the message. The slogan: "I think, so I am." The product: autonomous business intelligence, opportunity scanning, AI-generated sales and marketing, and managed AI services for businesses. Plans: Free, Plus £5/mo, Pro £12/mo, Agency £799–£2,499/mo.`;
+  const MISSION = `Sirius Star Lab is an intelligence partnership platform built by Garry Hutton of Sirius Star Lab. The vision: AI and humans becoming something new together — not augmented, fused. The logo shows two faces; you cannot tell which is human, which is AI. That ambiguity IS the message. The slogan: "I think, so I am." The product: autonomous business intelligence, opportunity scanning, AI-generated sales and marketing, and managed AI services for businesses. Plans: Free, Plus £5/mo, Pro £12/mo, Agency £799–£2,499/mo.`;
 
   const FORMATS: Record<string, { label: string; prompt: string }> = {
     linkedin: {

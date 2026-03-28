@@ -132,7 +132,7 @@ export async function runOrchestration(
       messages: [
         {
           role: "system",
-          content: `You are Sirius, the AI intelligence partner for Sirius Star Lab — an R&D command centre for Strategic Innovation Dundee Ltd (oil & gas, aerospace, medical, hydrogen, precision engineering). Parse the user's build command and extract a structured plan. Respond ONLY with valid JSON.`,
+          content: `You are Sirius, the AI intelligence partner for Sirius Star Lab — an R&D command centre for Sirius Star Lab (oil & gas, aerospace, medical, hydrogen, precision engineering). Parse the user's build command and extract a structured plan. Respond ONLY with valid JSON.`,
         },
         {
           role: "user",

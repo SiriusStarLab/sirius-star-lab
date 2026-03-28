@@ -193,7 +193,7 @@ router.post("/outreach/campaigns", authMiddleware, async (req: Request, res: Res
     targetSectors: sectors, messageType: messageType || "Cold Email",
     tone: tone || "Professional", subjectTemplate: subjectTemplate?.trim() || "",
     senderName: senderName?.trim() || "Garry Hutton",
-    senderCompany: senderCompany?.trim() || "Strategic Innovation Dundee Ltd",
+    senderCompany: senderCompany?.trim() || "Sirius Star Lab",
     fromEmail: fromEmail?.trim() || "",
     totalContacts,
   }).returning();

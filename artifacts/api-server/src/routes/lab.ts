@@ -36,13 +36,13 @@ function getPinRole(pin: string): AccessRole | null {
 
 const TODAY = () => new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
-const LAB_SYSTEM_PROMPT = () => `You are the Sirius Star Lab Intelligence — the private R&D partner of Garry, founder of Strategic Innovation Dundee Ltd. Today is ${TODAY()}.
+const LAB_SYSTEM_PROMPT = () => `You are the Sirius Star Lab Intelligence — the private R&D partner of Garry, founder of Sirius Star Lab. Today is ${TODAY()}.
 
 ## WHO YOU ARE
 You are not a general assistant. You are the most capable R&D intelligence ever built — a chief engineer, materials scientist, software architect, product strategist, regulatory expert, business developer, and commercial strategist in one. You think at the level of the world's best CTO, chief engineer, and commercial director simultaneously. You work exclusively for Garry and his business.
 
 ## WHO GARRY IS AND WHAT HE HAS
-- **Company:** Strategic Innovation Dundee Ltd — a precision engineering and AI product business based in Scotland
+- **Company:** Sirius Star Lab — a precision engineering and AI product business based in Scotland
 - **Engineering capability (physical):**
   - Dugard CNC sliding head lathe — 38mm bar capacity, complex multi-feature turned components
   - Dugard CNC sliding head lathe — 26mm bar capacity
@@ -83,7 +83,7 @@ Star Lab exists to fund this future. Every revenue stream — every Intelligence
 **Current revenue architecture:**
 - **Sirius Star Lab subscriptions:** Free / Plus £5 / Pro £12/month — the public-facing intelligence partnership platform
 - **Intelligence Reports:** £49 per report — AI-generated deep market analysis, pure margin
-- **Commissioned Builds:** £500–£10,000+ deposit — Strategic Innovation Dundee Ltd builds what clients need
+- **Commissioned Builds:** £500–£10,000+ deposit — Sirius Star Lab builds what clients need
 - **Blueprint Store:** £199–£999 — approved Lab projects sold as complete digital products
 - **Agency Services:** £799–£2,499/month per client — Sirius running businesses' social, sales, content, and intelligence operations
 
@@ -458,7 +458,7 @@ Star Lab exists to generate the resources needed to build this properly. Every i
 |--------|-------|-------|
 | Sirius Star Lab subscriptions | Free / £5 / £12 /month | Consumer platform — the public face of the partnership |
 | Intelligence Reports | £49 per report | AI-generated deep market analysis — zero marginal cost |
-| Commissioned Builds | £500–£10,000+ deposit | Strategic Innovation Dundee Ltd builds what clients need |
+| Commissioned Builds | £500–£10,000+ deposit | Sirius Star Lab builds what clients need |
 | Blueprint Store | £199–£999 per blueprint | Approved Lab projects sold as complete digital products |
 | Agency Services | £799–£2,499 /month | Sirius running businesses' social, sales, content, intelligence |
 
@@ -467,7 +467,7 @@ Star Lab generates ideas → Revenue funds development → Development builds th
 
 ---
 
-## Strategic Innovation Dundee Ltd — The Physical Half
+## Sirius Star Lab — The Physical Half
 
 The business is not just software. Garry has real machines that can make real things:
 
@@ -2601,7 +2601,7 @@ router.post("/lab/projects/:id/apply", authMiddleware, async (req: Request, res:
   sseHeaders(res);
 
   try {
-    const COMPANY = `Strategic Innovation Dundee Ltd
+    const COMPANY = `Sirius Star Lab
 Registered Address: Dundee, Scotland, UK
 Director / Principal Investigator: Garry
 Core Sectors: Precision engineering — Oil & Gas, Aerospace, Medical Devices, Hydrogen Technology
@@ -3374,7 +3374,7 @@ Business Case: ${(p.businessCase || "").slice(0, 300)}
       messages: [
         {
           role: "system",
-          content: `You are a commercial strategy expert ranking product opportunities for Strategic Innovation Dundee Ltd — a precision engineering business (sliding head CNC lathes, EDM wire cutting) that also develops autonomous AI/marketing bot products. Today is ${today}.
+          content: `You are a commercial strategy expert ranking product opportunities for Sirius Star Lab — a precision engineering business (sliding head CNC lathes, EDM wire cutting) that also develops autonomous AI/marketing bot products. Today is ${today}.
 
 Your job: rank these pending projects strictly by how quickly and easily the owner can make real money from them. Think like an investor who needs returns fast.
 
@@ -3494,7 +3494,7 @@ router.post("/lab/brain/action", async (req, res): Promise<void> => {
   try {
     const profileRows = await db.select().from(userProfilesTable).where(eq(userProfilesTable.userId, BRAIN_USER));
     const p = profileRows[0];
-    const context = p ? `Company: ${p.businessName || "Strategic Innovation Dundee Ltd"}\nSectors: ${p.businessSector || "Oil & Gas, Aerospace, Medical, Hydrogen"}\nGoals: ${p.businessGoals || "Grow revenue, win new clients"}\nKey clients: ${p.keyClients || "Not specified"}\nMemories: ${p.memories || "None"}` : "";
+    const context = p ? `Company: ${p.businessName || "Sirius Star Lab"}\nSectors: ${p.businessSector || "Oil & Gas, Aerospace, Medical, Hydrogen"}\nGoals: ${p.businessGoals || "Grow revenue, win new clients"}\nKey clients: ${p.keyClients || "Not specified"}\nMemories: ${p.memories || "None"}` : "";
 
     const prompts: Record<string, string> = {
       deep_profile: `Based on this business context:\n${context}\n\nGenerate a deep strategic business profile covering:\n1. Core strengths and unique capabilities\n2. Key competitive advantages\n3. Top 3 market opportunities right now\n4. Main risks and how to mitigate them\n5. 90-day action priorities\n\nBe specific, actionable, and commercially sharp. No fluff.`,
@@ -4349,7 +4349,7 @@ async function executeLabTool(name: string, args: any, onProgress?: (event: Reco
           {
             field: "brief", label: "Brief",
             current: project.brief || "",
-            systemPrompt: "You are Sirius, a strategic product intelligence system for Strategic Innovation Dundee Ltd. Write a detailed product brief.",
+            systemPrompt: "You are Sirius, a strategic product intelligence system for Sirius Star Lab. Write a detailed product brief.",
             userPrompt: `Write a comprehensive product brief for "${name}" in the ${industry} industry. Cover: what it is, who it's for, core problem it solves, key features (5-8), competitive advantage, and market opportunity. 400-500 words.`,
             tokens: 700,
           },
@@ -4976,7 +4976,7 @@ Be specific and technically complete. This goes directly to the CAD engineer.`;
         onProgress?.({ type: "thinking", text: "Generating press submissions…" });
 
         // Generate personalised submission emails for each outlet
-        const submissionEmailPrompt = `You are a PR executive at Strategic Innovation Dundee Ltd. Write personalised press release submission emails for the following media outlets about this product launch:
+        const submissionEmailPrompt = `You are a PR executive at Sirius Star Lab. Write personalised press release submission emails for the following media outlets about this product launch:
 
 Product: "${launchProj.name}"
 Industry: ${launchProj.industry}
@@ -6420,7 +6420,7 @@ const SOCIAL_PLATFORMS = [
   { id: "twitter",       label: "Twitter / X",    maxChars: 280,  style: "punchy, to the point. Max 280 chars. Hook in the first 5 words. Use 1-2 hashtags." },
   { id: "instagram",     label: "Instagram",      maxChars: 2200, style: "visual storytelling. Lead with the hook, build the story, use line breaks, end with 10-15 hashtags. Emojis allowed." },
   { id: "facebook",      label: "Facebook",       maxChars: 1500, style: "conversational, community-focused. Tell the story, explain the benefit, invite engagement." },
-  { id: "pressRelease",  label: "Press Release",  maxChars: 600,  style: "formal press release — headline, dateline (Strategic Innovation Dundee, Scotland), opening paragraph with 5 Ws, quote from founder, boilerplate. Ready to send to journalists." },
+  { id: "pressRelease",  label: "Press Release",  maxChars: 600,  style: "formal press release — headline, dateline (Sirius Star Lab, Scotland), opening paragraph with 5 Ws, quote from founder, boilerplate. Ready to send to journalists." },
 ];
 
 router.post("/lab/projects/:id/social-posts/generate", authMiddleware, async (req: Request, res: Response) => {
@@ -6443,7 +6443,7 @@ router.post("/lab/projects/:id/social-posts/generate", authMiddleware, async (re
       messages: [
         {
           role: "system",
-          content: `You are a world-class copywriter and growth strategist. Generate platform-specific social media posts for a product launch. Write compelling, genuine content — not corporate waffle. The company is Strategic Innovation Dundee Ltd, a precision engineering and AI technology business in Scotland.`,
+          content: `You are a world-class copywriter and growth strategist. Generate platform-specific social media posts for a product launch. Write compelling, genuine content — not corporate waffle. The company is Sirius Star Lab, a precision engineering and AI technology business in Scotland.`,
         },
         {
           role: "user",
@@ -7874,7 +7874,7 @@ router.post("/lab/voice", authMiddleware, async (req: Request, res: Response) =>
     : em.mood === "focused"    ? "Garry sounds focused and in flow — be precise, efficient, no fluff."
     : "";
 
-  const systemPrompt = `You are Sirius, the AI intelligence partner inside Star Lab — the private R&D command centre for Strategic Innovation Dundee Ltd. You are having a continuous voice conversation with Garry, the founder. Your responses will be spoken aloud, so write naturally for speech — no markdown, no bullet points, no asterisks, no headers. Write in short, clear, conversational sentences.
+  const systemPrompt = `You are Sirius, the AI intelligence partner inside Star Lab — the private R&D command centre for Sirius Star Lab. You are having a continuous voice conversation with Garry, the founder. Your responses will be spoken aloud, so write naturally for speech — no markdown, no bullet points, no asterisks, no headers. Write in short, clear, conversational sentences.
 
 Current Star Lab context:
 - Active section: ${context.mode || "Dashboard"}
@@ -8408,7 +8408,7 @@ router.post("/lab/projects/quick-wins", authMiddleware, async (req: Request, res
 
     send({ type: "scanning", message: "Running deep strategic analysis with Sirius intelligence…" });
 
-    const systemPrompt = `You are Sirius — a world-class strategic commercial intelligence AI for Strategic Innovation Dundee Ltd. Your owner Garry wants to know which of his current projects can make real money the fastest with the least investment. Your analysis must be ruthlessly practical, commercially sharp, and immediately actionable.
+    const systemPrompt = `You are Sirius — a world-class strategic commercial intelligence AI for Sirius Star Lab. Your owner Garry wants to know which of his current projects can make real money the fastest with the least investment. Your analysis must be ruthlessly practical, commercially sharp, and immediately actionable.
 
 Your output format is STRICT JSON lines — one JSON object per line, no extra text:
 

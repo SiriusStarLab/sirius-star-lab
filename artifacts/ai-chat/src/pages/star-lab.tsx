@@ -7328,7 +7328,7 @@ function DashboardPanel({ projects, pin, onNavigate, onOpenProject }: {
             <p className="text-xs font-mono mb-1" style={{ color: "rgba(15,23,42,0.55)", letterSpacing: "0.15em" }}>{today.toUpperCase()}</p>
             <h1 className="text-slate-800 font-bold text-2xl mb-1">{timeGreet}, Garry.</h1>
             <p className="text-sm" style={{ color: "rgba(15,23,42,0.45)" }}>
-              Strategic Innovation Dundee Ltd · Sirius Star Lab Command Centre
+              Sirius Star Lab Command Centre
             </p>
           </div>
           <div className="flex items-center gap-2 text-xs" style={{ color: "rgba(15,23,42,0.6)" }}>
@@ -8176,7 +8176,7 @@ function AutoLabPanel({ pin, onSelectProject, onFocusProject }: {
             <div className="text-center space-y-2 max-w-sm">
               <p className="text-slate-800 font-semibold text-base">Autonomous Lab is ready</p>
               <p className="text-xs leading-relaxed" style={{ color: "rgba(15,23,42,0.6)" }}>
-                Scans every 24 hours. Each scan finds 6 social media / marketing bot opportunities and 4 precision engineering products (oil & gas, aerospace, medical, hydrogen) manufacturable at Strategic Innovation Dundee. Every new project is sent to you for approval.
+                Scans every 24 hours. Each scan finds 6 social media / marketing bot opportunities and 4 precision engineering products (oil & gas, aerospace, medical, hydrogen) manufacturable at Sirius Star Lab. Every new project is sent to you for approval.
               </p>
             </div>
             <button onClick={triggerScan} disabled={triggering}
@@ -8554,7 +8554,7 @@ function OutreachHubPanel({ pin }: { pin: string }) {
   // --- Campaigns state ---
   const [campaigns, setCampaigns] = useState<OCampaign[]>([]);
   const [campaignsLoading, setCampaignsLoading] = useState(false);
-  const [newCamp, setNewCamp] = useState({ name: "", product: "Sirius Star Lab", targetSectors: [] as string[], messageType: "Cold Email", tone: "Professional", subjectTemplate: "", senderName: "Garry Hutton", senderCompany: "Strategic Innovation Dundee Ltd", fromEmail: "" });
+  const [newCamp, setNewCamp] = useState({ name: "", product: "Sirius Star Lab", targetSectors: [] as string[], messageType: "Cold Email", tone: "Professional", subjectTemplate: "", senderName: "Garry Hutton", senderCompany: "Sirius Star Lab", fromEmail: "" });
   const [creating, setCreating] = useState(false);
   const [showCreateCamp, setShowCreateCamp] = useState(false);
 
@@ -8975,7 +8975,7 @@ function OutreachHubPanel({ pin }: { pin: string }) {
                     setCreating(true);
                     await fetch(`${base}outreach/campaigns`, { method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin }, body: JSON.stringify(newCamp) });
                     await loadCampaigns(); setShowCreateCamp(false);
-                    setNewCamp({ name: "", product: "Sirius Star Lab", targetSectors: [], messageType: "Cold Email", tone: "Professional", subjectTemplate: "", senderName: "Garry Hutton", senderCompany: "Strategic Innovation Dundee Ltd", fromEmail: "" });
+                    setNewCamp({ name: "", product: "Sirius Star Lab", targetSectors: [], messageType: "Cold Email", tone: "Professional", subjectTemplate: "", senderName: "Garry Hutton", senderCompany: "Sirius Star Lab", fromEmail: "" });
                     setCreating(false);
                   }} disabled={creating || !newCamp.name.trim()} className="flex-1 py-2 rounded-xl text-xs font-semibold text-slate-800 flex items-center justify-center gap-2 disabled:opacity-50" style={{ background: "hsl(340,80%,42%)" }}>
                     {creating ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Creating…</> : "Create Campaign"}
@@ -9361,7 +9361,7 @@ function BrainPanel({ pin }: { pin: string }) {
                 </div>
                 <div>
                   <label className="text-slate-400 text-xs mb-1 block">Company Name</label>
-                  <input value={bizForm.businessName} onChange={e => setBizForm(p => ({ ...p, businessName: e.target.value }))} placeholder="Strategic Innovation Dundee Ltd" className={inp} />
+                  <input value={bizForm.businessName} onChange={e => setBizForm(p => ({ ...p, businessName: e.target.value }))} placeholder="Sirius Star Lab" className={inp} />
                 </div>
                 <div>
                   <label className="text-slate-400 text-xs mb-1 block">Primary Sectors</label>

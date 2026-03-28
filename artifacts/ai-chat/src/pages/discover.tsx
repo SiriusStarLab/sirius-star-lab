@@ -260,7 +260,7 @@ export function DiscoverPage() {
       {/* Footer */}
       <footer className="border-t py-8 px-6 text-center" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
         <p className="text-white/20 text-sm">
-          © {new Date().getFullYear()} Sirius Star Lab · Strategic Innovation Dundee Ltd ·{" "}
+          © {new Date().getFullYear()} Sirius Star Lab · Sirius Star Lab ·{" "}
           <a href="/privacy" className="hover:text-white/50 transition-colors">Privacy</a> ·{" "}
           <a href="/terms" className="hover:text-white/50 transition-colors">Terms</a> ·{" "}
           <a href="/why-sirius" className="hover:text-white/50 transition-colors">Why Sirius?</a>

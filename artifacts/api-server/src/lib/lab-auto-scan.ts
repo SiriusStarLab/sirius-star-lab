@@ -129,7 +129,7 @@ Find 6 genuinely broken products with clear evidence of user frustration and ide
 const ENGINEERING_PROMPT = () => `You are a precision engineering product intelligence analyst. Today is ${TODAY()}.
 
 ## MANUFACTURING CAPABILITY
-Strategic Innovation Dundee Ltd has:
+Sirius Star Lab has:
 - Dugard CNC sliding head lathes (38mm bar capacity) — complex multi-feature turned parts, ±0.005mm tolerance
 - Dugard CNC sliding head lathes (26mm bar capacity) — high-volume precision turning
 - Star CNC sliding head lathe — high-speed precision turning

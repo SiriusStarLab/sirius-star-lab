@@ -313,7 +313,7 @@ export function MarketingPage() {
           className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-medium mb-8"
           style={{ background: "rgba(0,200,180,0.08)", border: "1px solid rgba(0,200,180,0.2)", color: TEAL }}>
           <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: TEAL }} />
-          Strategic Innovation Dundee · AI Agency Platform
+          Sirius Star Lab · AI Agency Platform
         </motion.div>
 
         {/* Twin avatar */}
@@ -567,7 +567,7 @@ export function MarketingPage() {
           <div className="w-5 h-5 rounded-full overflow-hidden opacity-60">
             <img src="/logo-v2.png" alt="Sirius Star Lab" className="w-full h-full object-cover" />
           </div>
-          <span>Sirius Star Lab · Strategic Innovation Dundee Ltd · Scotland</span>
+          <span>Sirius Star Lab · Sirius Star Lab · Scotland</span>
         </div>
         <div className="flex items-center gap-6">
           <a href="/privacy" style={{ color: "rgba(255,255,255,0.25)" }}>Privacy</a>

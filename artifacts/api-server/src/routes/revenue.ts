@@ -214,7 +214,7 @@ router.post("/lab/revenue/commission/estimate", async (req: Request, res: Respon
       model: "gpt-4o",
       messages: [{
         role: "system",
-        content: `You are a senior technical consultant at Strategic Innovation Dundee Ltd — a precision engineering and AI software company. 
+        content: `You are a senior technical consultant at Sirius Star Lab — a precision engineering and AI software company. 
 You evaluate commission requests and provide honest, professional estimates.
 The company has: Dugard 38mm & 26mm sliding head CNC lathes, Star slider, 2× EDM wire machines.
 Software capabilities: AI bots, SaaS tools, automation systems, web applications.
@@ -285,7 +285,7 @@ router.post("/lab/revenue/commission/checkout", async (req: Request, res: Respon
           unit_amount: depositAmount,
           product_data: {
             name: `Commission Deposit: ${title}`,
-            description: `50% deposit for custom build. Total project estimate: £${totalGBP}. Strategic Innovation Dundee Ltd.`,
+            description: `50% deposit for custom build. Total project estimate: £${totalGBP}. Sirius Star Lab.`,
           },
         },
         quantity: 1,

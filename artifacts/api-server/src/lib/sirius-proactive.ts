@@ -70,7 +70,7 @@ async function autoCreatePaymentLink(proj: any): Promise<string | null> {
     // Create Stripe product + price + payment link
     const product = await stripe.products.create({
       name: proj.name,
-      description: (proj.brief || "").slice(0, 255) || `${proj.industry || "Software"} product by Strategic Innovation Dundee Ltd`,
+      description: (proj.brief || "").slice(0, 255) || `${proj.industry || "Software"} product by Sirius Star Lab`,
       metadata: { projectId: String(proj.id), industry: proj.industry || "General", source: "sirius_proactive" },
     });
 
