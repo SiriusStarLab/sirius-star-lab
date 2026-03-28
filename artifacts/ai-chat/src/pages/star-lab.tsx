@@ -4758,6 +4758,7 @@ function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed, onViewProject 
   const [sessionId, setSessionId] = useState<number | null>(null);
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [sessionsError, setSessionsError] = useState(false);
 
   // Architect sub-agent
   const [architectOpen, setArchitectOpen] = useState(false);
@@ -4886,14 +4887,16 @@ function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed, onViewProject 
   };
   const [pipelineStatus, setPipelineStatus] = useState<PipelineStatus | null>(null);
   const [pipelineLoading, setPipelineLoading] = useState(false);
+  const [pipelineLoadError, setPipelineLoadError] = useState(false);
   const [pipelineTileOpen, setPipelineTileOpen] = useState<"queued" | "cad-pending" | "launch-ready" | null>(null);
 
   const fetchPipelineStatus = useCallback(() => {
     setPipelineLoading(true);
+    setPipelineLoadError(false);
     fetch(`${API}lab/pipeline/status`, { headers: { "x-lab-pin": pin } })
-      .then(r => r.json())
-      .then(data => setPipelineStatus(data))
-      .catch(() => {})
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then(data => { if (data?.error) throw new Error(data.error); setPipelineStatus(data); })
+      .catch(() => { setPipelineLoadError(true); })
       .finally(() => setPipelineLoading(false));
   }, [API, pin]);
 
@@ -4971,13 +4974,14 @@ function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed, onViewProject 
   // Load sessions on mount
   useEffect(() => {
     setSessionsLoading(true);
+    setSessionsError(false);
     fetch(`${API}lab/app-builder/sessions`, {
       method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
       body: JSON.stringify({ pin }),
     })
-      .then(r => r.json())
-      .then(data => { if (Array.isArray(data)) setSessions(data); })
-      .catch(() => {})
+      .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+      .then(data => { if (Array.isArray(data)) setSessions(data); else throw new Error(); })
+      .catch(() => { setSessionsError(true); })
       .finally(() => setSessionsLoading(false));
   }, [pin]);
 
@@ -5850,6 +5854,16 @@ function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed, onViewProject 
               </button>
             </div>
 
+            {/* Pipeline load error */}
+            {pipelineLoadError && (
+              <div className="flex items-center justify-between px-4 py-3 rounded-xl mb-4" style={{ background: "hsl(0,80%,98%)", border: "1px solid hsl(0,80%,88%)" }}>
+                <p className="text-xs" style={{ color: "hsl(0,70%,50%)" }}>⚠ Could not load pipeline status — server may be restarting</p>
+                <button onClick={fetchPipelineStatus} className="text-xs font-semibold px-2.5 py-1 rounded-lg flex-shrink-0 ml-3 transition-all hover:opacity-80" style={{ background: "hsl(0,70%,50%)", color: "white" }}>
+                  Retry
+                </button>
+              </div>
+            )}
+
             {/* Currently building */}
             <div className="rounded-2xl p-5 mb-4" style={{ background: pipelineStatus?.currentlyBuilding ? "hsla(155,70%,45%,0.08)" : "rgba(15,23,42,0.04)", border: `1px solid ${pipelineStatus?.currentlyBuilding ? "hsla(155,70%,45%,0.25)" : "rgba(15,23,42,0.08)"}` }}>
               <div className="flex items-center gap-3">
@@ -6006,7 +6020,16 @@ function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed, onViewProject 
                 onFocus={e => e.target.style.borderColor = "hsl(193,100%,40%)"}
                 onBlur={e => e.target.style.borderColor = "rgba(15,23,42,0.12)"}
               />
-              {error && <p className="text-xs mt-2" style={{ color: "hsl(0,80%,55%)" }}>{error}</p>}
+              {error && (
+                <div className="flex items-center justify-between gap-3 mt-2 px-3 py-2.5 rounded-xl" style={{ background: "hsl(0,80%,98%)", border: "1px solid hsl(0,80%,88%)" }}>
+                  <p className="text-xs" style={{ color: "hsl(0,70%,50%)" }}>⚠ {error}</p>
+                  <button onClick={() => { setError(""); if (prompt.trim()) handleFullPipeline(); }}
+                    className="text-xs font-semibold px-2.5 py-1 rounded-lg flex-shrink-0 transition-all hover:opacity-80"
+                    style={{ background: "hsl(0,70%,50%)", color: "white" }}>
+                    Retry
+                  </button>
+                </div>
+              )}
               <div className="mt-5 space-y-3">
                 {/* Primary: full auto-pipeline */}
                 <button onClick={handleFullPipeline} disabled={loading || !prompt.trim()}
@@ -6122,12 +6145,18 @@ function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed, onViewProject 
             </div>
 
             {/* Previous Sessions */}
-            {sessions.length > 0 && (
+            {(sessions.length > 0 || sessionsLoading || sessionsError) && (
               <div className="mt-5">
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "rgba(15,23,42,0.45)" }}>Previous Builds</p>
-                  <span className="text-[10px]" style={{ color: "rgba(15,23,42,0.35)" }}>Click to resume</span>
+                  {sessions.length > 0 && <span className="text-[10px]" style={{ color: "rgba(15,23,42,0.35)" }}>Click to resume</span>}
                 </div>
+                {sessionsLoading && sessions.length === 0 && (
+                  <p className="text-[11px] py-2 px-1" style={{ color: "rgba(15,23,42,0.38)" }}>Loading sessions…</p>
+                )}
+                {sessionsError && (
+                  <p className="text-[11px] py-2 px-1" style={{ color: "hsl(0,70%,55%)" }}>⚠ Could not load previous builds — server may be starting up</p>
+                )}
                 <div className="space-y-2">
                   {sessions.map(s => (
                     <div key={s.id} onClick={() => loadSession(s.id)}
@@ -6273,7 +6302,16 @@ function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed, onViewProject 
                 </div>
               </div>
 
-              {error && <p className="text-xs mt-3" style={{ color: "hsl(0,80%,55%)" }}>{error}</p>}
+              {error && (
+                <div className="flex items-center justify-between gap-3 mt-3 px-3 py-2.5 rounded-xl" style={{ background: "hsl(0,80%,98%)", border: "1px solid hsl(0,80%,88%)" }}>
+                  <p className="text-xs" style={{ color: "hsl(0,70%,50%)" }}>⚠ {error}</p>
+                  <button onClick={() => { setError(""); if (prompt.trim()) handleFullPipeline(); }}
+                    className="text-xs font-semibold px-2.5 py-1 rounded-lg flex-shrink-0 transition-all hover:opacity-80"
+                    style={{ background: "hsl(0,70%,50%)", color: "white" }}>
+                    Retry
+                  </button>
+                </div>
+              )}
               {pipelineActive ? (
                 <div className="mt-5 flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: "linear-gradient(135deg, hsla(155,70%,42%,0.08) 0%, hsla(193,100%,38%,0.06) 100%)", border: "1px solid hsla(155,70%,42%,0.2)" }}>
                   <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" style={{ color: "hsl(155,70%,42%)" }} />
