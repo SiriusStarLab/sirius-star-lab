@@ -12853,12 +12853,14 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
             boxShadow: "0 20px 60px rgba(15,23,42,0.18), 0 0 0 1px rgba(15,23,42,0.08)",
             animation: "slideUp 0.2s ease-out",
             // Mobile: full screen. Desktop (≥640px): compact panel bottom-right
-            bottom: window.innerWidth < 640 ? 0 : 76,
+            bottom: window.innerWidth < 640 ? 0 : 104,
             right: window.innerWidth < 640 ? 0 : 16,
             left: window.innerWidth < 640 ? 0 : "auto",
             top: window.innerWidth < 640 ? 0 : "auto",
             width: window.innerWidth < 640 ? "100%" : 360,
-            height: window.innerWidth < 640 ? "100%" : 480,
+            height: window.innerWidth < 640 ? "100%" : undefined,
+            maxHeight: window.innerWidth < 640 ? "100%" : "calc(100svh - 160px)",
+            minHeight: window.innerWidth < 640 ? "100%" : 400,
             borderRadius: window.innerWidth < 640 ? 0 : 16,
           }}>
           <style>{`@keyframes slideUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }`}</style>
