@@ -234,7 +234,9 @@
 /* bg-white-alpha used as tinted backgrounds → light-dark-alpha */
 [data-lab] .bg-white\/5           { background-color: rgba(15,23,42,0.04); }
 [data-lab] .bg-white\/10          { background-color: rgba(15,23,42,0.06); }
-/* Input placeholder text */
+/* Input / textarea text and placeholder */
+[data-lab] input,
+[data-lab] textarea                 { color: rgba(15,23,42,0.85); }
 [data-lab] input::placeholder      { color: rgba(15,23,42,0.35); }
 [data-lab] textarea::placeholder   { color: rgba(15,23,42,0.35); }
 
