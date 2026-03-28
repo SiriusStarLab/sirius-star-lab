@@ -288,13 +288,13 @@ export function ChatPage() {
               >
                 <p className="text-[11px] font-mono tracking-[0.25em] uppercase mb-3"
                   style={{ color: "hsl(193 100% 44% / 0.70)" }}>
-                  I'm {aiName}
+                  I'm {aiName} · I think, so I am
                 </p>
-                <h1 className="text-[2.4rem] md:text-5xl font-bold tracking-tight leading-none mb-3 text-foreground">
-                  Start your search
+                <h1 className="text-[2.1rem] md:text-[2.8rem] font-bold tracking-tight leading-tight mb-3 text-foreground">
+                  Welcome to a new way of life
                 </h1>
-                <p className="text-sm tracking-widest font-mono text-muted-foreground/50">
-                  Ask anything · I think, so I am
+                <p className="text-base md:text-lg font-medium text-muted-foreground/70">
+                  What would you like to do?
                 </p>
               </motion.div>
 
