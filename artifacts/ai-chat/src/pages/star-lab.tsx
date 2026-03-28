@@ -7327,9 +7327,6 @@ function DashboardPanel({ projects, pin, onNavigate, onOpenProject }: {
           <div>
             <p className="text-xs font-mono mb-1" style={{ color: "rgba(15,23,42,0.55)", letterSpacing: "0.15em" }}>{today.toUpperCase()}</p>
             <h1 className="text-slate-800 font-bold text-2xl mb-1">{timeGreet}, Garry.</h1>
-            <p className="text-sm" style={{ color: "rgba(15,23,42,0.45)" }}>
-              Sirius Star Lab Command Centre
-            </p>
           </div>
           <div className="flex items-center gap-2 text-xs" style={{ color: "rgba(15,23,42,0.6)" }}>
             <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "hsl(155,70%,55%)" }} />
