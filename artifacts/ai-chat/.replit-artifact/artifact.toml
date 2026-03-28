@@ -22,7 +22,6 @@ PORT = "25374"
 BASE_PATH = "/"
 
 [services.production]
-build = ["pnpm", "--filter", "@workspace/ai-chat", "run", "build"]
 publicDir = "artifacts/ai-chat/dist/public"
 serve = "static"
 
