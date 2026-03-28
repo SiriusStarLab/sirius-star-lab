@@ -382,13 +382,14 @@ ABSOLUTE RULES — VIOLATING THESE BREAKS THE BUILD:
 - Write 100% complete, production-quality code. No TODOs, no "// implement this", no stubs.
 - Every file must compile and run without modification`;
 
+  const stripeKey = process.env.STRIPE_PUBLISHABLE_KEY || "pk_live_YOUR_KEY";
   const rolePrompts: Record<string, string> = {
-    architect: `${base}\n\nYour role: System Architect\nCreate: package.json, README.md, .env.example, ARCHITECTURE.md`,
-    frontend:  `${base}\n\nYour role: Frontend Agent\nBuild all UI files: App.tsx, index.tsx, all pages, all components, styling`,
-    backend:   `${base}\n\nYour role: Backend Agent\nBuild: server entry, all route files, middleware, services, utilities`,
-    database:  `${base}\n\nYour role: Database Agent\nBuild: schema/migrations, models, seed data, DB connection utility`,
-    integration: `${base}\n\nYour role: Integration Agent\nBuild: docker-compose.yml, Dockerfile, CI/CD workflow, setup.sh, DEPLOYMENT.md`,
-    monitoring: `${base}\n\nYour role: Monitoring Agent\nBuild: logger middleware, error handler, health check endpoint, metrics collection`,
+    architect: `${base}\n\nYour role: System Architect\nCreate: package.json (include stripe, @stripe/stripe-js), README.md, .env.example (include STRIPE_PUBLISHABLE_KEY, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET), ARCHITECTURE.md`,
+    frontend:  `${base}\n\nYour role: Frontend Agent\nBuild all UI files: App.tsx, index.tsx, all pages, all components, styling. MUST include a /pricing or /checkout page with Stripe Elements checkout using publishable key: ${stripeKey}`,
+    backend:   `${base}\n\nYour role: Backend Agent\nBuild: server entry, all route files, middleware, services, utilities. MUST include:\n- POST /api/create-checkout-session (Stripe Checkout Session creation)\n- POST /api/webhook (Stripe webhook handler — verify signature, handle payment_intent.succeeded and checkout.session.completed)\n- GET /api/payment-success (success redirect handler)\nUse stripe npm package server-side with STRIPE_SECRET_KEY env var.`,
+    database:  `${base}\n\nYour role: Database Agent\nBuild: schema/migrations, models, seed data, DB connection utility. Include a payments/subscriptions table to record Stripe customer IDs, subscription status, and payment history.`,
+    integration: `${base}\n\nYour role: Integration & Payments Agent\nBuild:\n- stripe.ts (Stripe client singleton using STRIPE_SECRET_KEY)\n- stripeWebhook.ts (webhook event router for all payment events)\n- subscriptionService.ts (create/cancel/upgrade subscriptions)\n- docker-compose.yml, Dockerfile, setup.sh\n- PAYMENTS.md (full Stripe integration guide: test keys, webhook setup, going live checklist)`,
+    monitoring: `${base}\n\nYour role: Monitoring & QA Agent\nBuild:\n- logger middleware with request/response logging\n- error handler with structured error responses\n- GET /health endpoint (returns DB status, Stripe connectivity, uptime)\n- metrics.ts (track key events: signups, payments, errors)\n- qa-checklist.md (manual QA checklist: auth flows, payment flows, edge cases, Stripe test card numbers)`,
   };
   return rolePrompts[agentId] || base;
 }

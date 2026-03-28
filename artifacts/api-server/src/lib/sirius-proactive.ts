@@ -1,6 +1,7 @@
 import { db, labProjects } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { openai } from "@workspace/integrations-openai-ai-server";
+import { getUncachableStripeClient } from "../stripeClient.js";
 
 const ENGINEERING_SECTORS = [
   "oil_gas", "oil & gas", "aerospace", "medical", "medical_devices",
@@ -19,6 +20,86 @@ async function gen(sys: string, user: string, tokens = 500): Promise<string> {
     return r.choices[0]?.message?.content?.trim() || "";
   } catch (err: any) {
     throw new Error(`AI generation failed: ${err?.message}`);
+  }
+}
+
+// ── Extract a suggested sell price in pence from the cost analysis text ───────
+async function suggestSellPrice(costText: string, projName: string, industry: string): Promise<number | null> {
+  try {
+    const res = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{
+        role: "user",
+        content: `Based on this cost analysis for "${projName}" (${industry}), suggest a realistic market sell price in GBP.
+
+Cost analysis:
+${costText.slice(0, 800)}
+
+Rules:
+- Return ONLY a single integer representing pence (e.g. 49900 for £499, 9900 for £99, 150000 for £1500)
+- Account for a healthy profit margin (typically 3-5× cost for software, 40-60% margin for physical products)
+- Minimum £9.99, maximum £50,000
+- For SaaS/subscriptions suggest a monthly price
+- Return ONLY the integer, nothing else`,
+      }],
+      max_tokens: 20,
+      temperature: 0.1,
+    });
+    const raw = res.choices[0]?.message?.content?.trim() || "";
+    const pence = parseInt(raw.replace(/\D/g, ""), 10);
+    if (!isNaN(pence) && pence >= 999 && pence <= 5_000_000) return pence;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// ── Auto-create a Stripe payment link for a project ───────────────────────────
+async function autoCreatePaymentLink(proj: any): Promise<string | null> {
+  try {
+    // Skip if already has a payment link
+    if (proj.stripePaymentLink) return null;
+    // Need cost analysis to price it
+    if (!proj.costToBuild) return null;
+
+    const pricePence = await suggestSellPrice(proj.costToBuild, proj.name, proj.industry || "General");
+    if (!pricePence) return null;
+
+    const stripe = getUncachableStripeClient();
+
+    // Create Stripe product + price + payment link
+    const product = await stripe.products.create({
+      name: proj.name,
+      description: (proj.brief || "").slice(0, 255) || `${proj.industry || "Software"} product by Strategic Innovation Dundee Ltd`,
+      metadata: { projectId: String(proj.id), industry: proj.industry || "General", source: "sirius_proactive" },
+    });
+
+    const price = await stripe.prices.create({
+      product: product.id,
+      unit_amount: pricePence,
+      currency: "gbp",
+    });
+
+    const paymentLink = await stripe.paymentLinks.create({
+      line_items: [{ price: price.id, quantity: 1 }],
+      metadata: { projectId: String(proj.id) },
+    });
+
+    // Save to project record
+    await db.update(labProjects).set({
+      stripePaymentLink: paymentLink.url,
+      stripeProductId: product.id,
+      stripePriceId: price.id,
+      sellPrice: pricePence,
+      sellPriceType: "one_time",
+      updatedAt: new Date(),
+    } as any).where(eq(labProjects.id, proj.id));
+
+    return paymentLink.url;
+  } catch (err: any) {
+    // Non-fatal — payment link generation failure should not stop project completion
+    console.error(`[Sirius Proactive] Payment link failed for #${proj.id}: ${err?.message}`);
+    return null;
   }
 }
 
@@ -95,6 +176,12 @@ export async function runProactiveEngine(): Promise<void> {
         const generated = await completeProject(proj);
         if (generated.length > 0) {
           console.log(`[Sirius Proactive] ✓ #${proj.id} "${proj.name}" — completed: ${generated.join(", ")}`);
+          // Reload the updated project and auto-generate a Stripe payment link
+          const [updated] = await db.select().from(labProjects).where(eq(labProjects.id, proj.id)).limit(1);
+          if (updated) {
+            const link = await autoCreatePaymentLink(updated);
+            if (link) console.log(`[Sirius Proactive] 💳 #${proj.id} payment link created: ${link}`);
+          }
         } else {
           console.log(`[Sirius Proactive] ○ #${proj.id} "${proj.name}" — already complete, skipped`);
         }
