@@ -12741,7 +12741,7 @@ NAVIGATION RULES — CRITICAL:
 - To go back to the projects list: call navigate_to with section="projects" (no project_id).
 - To build an app: use start_app_build TOOL.
 
-VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sentences. Always end with a question.`,
+VOICE STYLE: Short, direct sentences. No bullet points or markdown. Report what you just did, then what's next. Only ask a question if the instruction is genuinely ambiguous — never ask for confirmation before executing a clear command. When running a multi-step task, keep going without stopping.`,
     };
 
     setStreaming(true);
@@ -12858,9 +12858,7 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
             left: window.innerWidth < 640 ? 0 : "auto",
             top: window.innerWidth < 640 ? 0 : "auto",
             width: window.innerWidth < 640 ? "100%" : 360,
-            height: window.innerWidth < 640 ? "100%" : undefined,
-            maxHeight: window.innerWidth < 640 ? "100%" : "calc(100svh - 160px)",
-            minHeight: window.innerWidth < 640 ? "100%" : 400,
+            height: window.innerWidth < 640 ? "100%" : `min(500px, calc(100svh - 160px))`,
             borderRadius: window.innerWidth < 640 ? 0 : 16,
           }}>
           <style>{`@keyframes slideUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }`}</style>
