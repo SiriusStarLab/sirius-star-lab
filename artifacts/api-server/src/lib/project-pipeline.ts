@@ -298,12 +298,18 @@ Produce clear, numbered drawing requirements (dimensions, views, materials, tole
     // 6. Determine next status:
     //    - Software/digital products go straight to launch-ready
     //    - Physical products: launch-ready if drawing notes OR physical CAD files exist; cad-pending only if neither
+    //    NOTE: re-fetch drawing notes from DB — step 5 may have just written them
     const isDigital = isSoftwareBuildable(next.name, next.brief || "");
     let nextStatus: string;
     if (isDigital) {
       nextStatus = "launch-ready";
     } else {
-      const hasDrawingNotes = !!(next.drawingNotes?.trim());
+      const [freshRow] = await db
+        .select({ drawingNotes: labProjects.drawingNotes })
+        .from(labProjects)
+        .where(eq(labProjects.id, next.id))
+        .limit(1);
+      const hasDrawingNotes = !!(freshRow?.drawingNotes?.trim());
       const existingCad = await db
         .select({ id: cadFiles.id })
         .from(cadFiles)
@@ -339,7 +345,7 @@ Produce clear, numbered drawing requirements (dimensions, views, materials, tole
 export async function advanceCadPendingWithNotes(): Promise<void> {
   try {
     const stuck = await db
-      .select({ id: labProjects.id, name: labProjects.name, drawingNotes: labProjects.drawingNotes })
+      .select({ id: labProjects.id, name: labProjects.name, drawingNotes: labProjects.drawingNotes, brief: labProjects.brief })
       .from(labProjects)
       .where(
         and(
@@ -348,21 +354,47 @@ export async function advanceCadPendingWithNotes(): Promise<void> {
         )
       );
 
-    const toAdvance = stuck.filter(p => p.drawingNotes && p.drawingNotes.trim().length > 20);
+    // Advance projects that have drawing notes (proper completion)
+    const withNotes = stuck.filter(p => p.drawingNotes && p.drawingNotes.trim().length > 20);
+    // Also advance projects that have a brief but failed to generate drawing notes
+    // (they've been through the pipeline — AI failure shouldn't leave them stuck forever)
+    const withBriefOnly = stuck.filter(p =>
+      !(p.drawingNotes && p.drawingNotes.trim().length > 20) &&
+      p.brief && p.brief.trim().length > 20
+    );
 
-    if (toAdvance.length === 0) return;
+    const total = withNotes.length + withBriefOnly.length;
+    if (total === 0) return;
 
-    await db
-      .update(labProjects)
-      .set({ launchStatus: "launch-ready", updatedAt: new Date() })
-      .where(
-        and(
-          eq(labProjects.launchStatus, "cad-pending"),
-          ne(labProjects.status, "archived"),
-        )
-      );
+    if (withNotes.length > 0) {
+      const ids = withNotes.map(p => p.id);
+      await db
+        .update(labProjects)
+        .set({ launchStatus: "launch-ready", updatedAt: new Date() })
+        .where(
+          and(
+            eq(labProjects.launchStatus, "cad-pending"),
+            ne(labProjects.status, "archived"),
+            sql`${labProjects.id} = ANY(${sql.raw(`ARRAY[${ids.join(",")}]::int[]`)})`,
+          )
+        );
+      console.log(`[Pipeline] ✅ Migration: advanced ${withNotes.length} cad-pending → launch-ready (drawing notes present)`);
+    }
 
-    console.log(`[Pipeline] ✅ Migration: advanced ${toAdvance.length} cad-pending → launch-ready (drawing notes already present)`);
+    if (withBriefOnly.length > 0) {
+      const ids = withBriefOnly.map(p => p.id);
+      await db
+        .update(labProjects)
+        .set({ launchStatus: "launch-ready", updatedAt: new Date() })
+        .where(
+          and(
+            eq(labProjects.launchStatus, "cad-pending"),
+            ne(labProjects.status, "archived"),
+            sql`${labProjects.id} = ANY(${sql.raw(`ARRAY[${ids.join(",")}]::int[]`)})`,
+          )
+        );
+      console.log(`[Pipeline] ✅ Migration: advanced ${withBriefOnly.length} cad-pending → launch-ready (brief present, build was attempted)`);
+    }
   } catch (err: any) {
     console.error("[Pipeline] Migration advanceCadPendingWithNotes failed:", err?.message);
   }
