@@ -580,7 +580,7 @@ async function saveOpportunities(
         businessCase: opp.businessCase,
         autoCreated: "auto",
         autoScanId: scanId,
-        approvalStatus: "approved",
+        approvalStatus: null, // Requires Garry's manual approval before enrichment or pipeline
         fundingStatus: "pending",
       }).returning();
 

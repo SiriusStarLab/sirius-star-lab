@@ -18,9 +18,12 @@ if (Number.isNaN(port) || port <= 0) {
 
 app.listen(port, () => {
   console.log(`Server listening on port ${port}`);
-  startScheduledSweeps(6);
-  startLabAutoScanner(24);
-  startAiArchSweep(24);
+  // Intelligence sweep — MANUAL ONLY (disabled auto-schedule to conserve credits)
+  // startScheduledSweeps(6);
+  // Lab Auto-Scan — MANUAL ONLY (trigger via Sirius chat command)
+  // startLabAutoScanner(24);
+  // AI Architecture sweep — MANUAL ONLY (disabled auto-schedule to conserve credits)
+  // startAiArchSweep(24);
   startProjectPipeline();
   // Unblock any cad-pending projects that already have drawing notes
   advanceCadPendingWithNotes().catch(e => console.error("[Pipeline] Migration failed:", e));
@@ -32,6 +35,7 @@ app.listen(port, () => {
   // Sirius self-management — run automations she has created
   setInterval(() => tickAutomations(), 60_000);
   console.log("[Sirius Automations] Self-management engine started — checking every 60 seconds");
-  // Sirius proactive engine — autonomously completes projects without being asked
-  startProactiveEngine(15);
+  // Sirius proactive engine — MANUAL ONLY (disabled auto-enrichment to conserve credits)
+  // startProactiveEngine(15);
+  console.log("[Sirius] Lean mode active — market scans & proactive enrichment are manual-only. Use chat commands to trigger.");
 });
