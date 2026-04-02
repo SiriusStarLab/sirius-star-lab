@@ -5088,20 +5088,20 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
 
         // ── 5b. AI integration connectivity ─────────────────────────────────
         try {
-          const aiTestRes = await fetch(`${process.env.AI_INTEGRATIONS_OPENAI_BASE_URL}/chat/completions`, {
+          const aiTestRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
             method: "POST",
-            headers: { "Authorization": `Bearer ${process.env.AI_INTEGRATIONS_OPENAI_API_KEY}`, "Content-Type": "application/json" },
+            headers: { "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`, "Content-Type": "application/json", "HTTP-Referer": "https://sirius-ai.live", "X-Title": "Sirius Star Lab" },
             body: JSON.stringify({ model: "anthropic/claude-haiku-4.5", messages: [{ role: "user", content: "ping" }], max_tokens: 1 }),
             signal: AbortSignal.timeout(8000),
           });
           if (aiTestRes.ok || aiTestRes.status === 400) {
-            report.push({ system: "AI Integration", status: "ok", detail: "OpenAI proxy reachable and authorised" });
+            report.push({ system: "AI Integration", status: "ok", detail: "OpenRouter reachable and authorised" });
           } else {
             const errBody = await aiTestRes.text().catch(() => "");
-            report.push({ system: "AI Integration", status: "fail", detail: `Proxy returned ${aiTestRes.status} — ${errBody.slice(0, 120)}. Sirius cannot generate content until this is resolved.`, action: "bug_report" });
+            report.push({ system: "AI Integration", status: "fail", detail: `OpenRouter returned ${aiTestRes.status} — ${errBody.slice(0, 120)}. Sirius cannot generate content until this is resolved.`, action: "bug_report" });
           }
         } catch (e: any) {
-          report.push({ system: "AI Integration", status: "fail", detail: `Cannot reach AI proxy: ${e.message}`, action: "bug_report" });
+          report.push({ system: "AI Integration", status: "fail", detail: `Cannot reach OpenRouter: ${e.message}`, action: "bug_report" });
         }
 
         // ── 6. Projects pending Garry's approval ────────────────────────────
