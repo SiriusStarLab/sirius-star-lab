@@ -1684,6 +1684,92 @@ type CadFileRecord = {
   uploadedAt: string;
 };
 
+function NewDimensionsCadButton({ project, pin }: { project: Project; pin: string }) {
+  const [status, setStatus] = useState<"idle" | "sending" | "pending" | "complete" | "error">("idle");
+  const [message, setMessage] = useState("");
+  const base = getApiBase();
+  const hdrs = useCallback(() => ({ "x-lab-pin": pin, "Content-Type": "application/json" }), [pin]);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    fetch(`${base}lab/projects/${project.id}/cad-status`, { headers: { "x-lab-pin": pin } })
+      .then(r => r.json())
+      .then(d => {
+        if (d.status === "pending") { setStatus("pending"); setMessage("Drawing in progress — NewDimensions is working on it…"); startPolling(); }
+        else if (d.status === "complete") { setStatus("complete"); setMessage("Drawing complete and stored in CAD Files below."); }
+        else if (d.status === "error") { setStatus("error"); setMessage(d.error || "An error occurred."); }
+      }).catch(() => {});
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [project.id]);
+
+  const startPolling = () => {
+    if (pollRef.current) return;
+    pollRef.current = setInterval(async () => {
+      try {
+        const r = await fetch(`${base}lab/projects/${project.id}/cad-status`, { headers: { "x-lab-pin": pin } });
+        const d = await r.json();
+        if (d.status === "complete") {
+          setStatus("complete"); setMessage("Drawing complete and stored in CAD Files below.");
+          if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+        } else if (d.status === "error") {
+          setStatus("error"); setMessage(d.error || "An error occurred.");
+          if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+        }
+      } catch {}
+    }, 5000);
+  };
+
+  const sendToCAD = async () => {
+    if (!project.drawingNotes?.trim() && !project.specs?.trim()) {
+      setStatus("error"); setMessage("Generate drawing notes first before sending to CAD."); return;
+    }
+    setStatus("sending"); setMessage("");
+    try {
+      const r = await fetch(`${base}lab/projects/${project.id}/send-to-cad`, { method: "POST", headers: hdrs() });
+      const d = await r.json();
+      if (!r.ok) { setStatus("error"); setMessage(d.error || "Failed to send to NewDimensions."); return; }
+      if (d.status === "complete") { setStatus("complete"); setMessage("Drawing received and stored in CAD Files below."); }
+      else { setStatus("pending"); setMessage("Sent to NewDimensions — drawing in progress. This panel will update automatically when complete."); startPolling(); }
+    } catch (e: any) {
+      setStatus("error"); setMessage(e.message || "Network error.");
+    }
+  };
+
+  const hasContent = !!(project.drawingNotes?.trim() || project.specs?.trim());
+
+  return (
+    <div style={{ padding: "12px 16px", background: "linear-gradient(135deg, rgba(0,140,186,0.04) 0%, rgba(60,100,200,0.04) 100%)", borderBottom: "1px solid rgba(15,23,42,0.07)" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px" }}>
+        <div style={{ minWidth: 0 }}>
+          <p style={{ color: "rgba(15,23,42,0.8)", fontSize: "0.78rem", fontWeight: 700, marginBottom: "1px", display: "flex", alignItems: "center", gap: "5px" }}>
+            <span style={{ fontSize: "0.9rem" }}>🔷</span> NewDimensions CAD
+          </p>
+          <p style={{ color: "rgba(15,23,42,0.45)", fontSize: "0.68rem", lineHeight: "1.4" }}>
+            {status === "idle" && (hasContent ? "Send drawing spec to NewDimensions — the completed drawing returns automatically." : "Generate drawing notes first, then send to NewDimensions.")}
+            {status === "sending" && "Sending to NewDimensions…"}
+            {status === "pending" && message}
+            {status === "complete" && <span style={{ color: "hsl(142,70%,35%)", fontWeight: 600 }}>✓ {message}</span>}
+            {status === "error" && <span style={{ color: "hsl(0,70%,50%)" }}>⚠ {message}</span>}
+          </p>
+        </div>
+        <button
+          onClick={sendToCAD}
+          disabled={status === "sending" || status === "pending" || !hasContent}
+          style={{
+            flexShrink: 0, padding: "7px 14px", borderRadius: "10px", fontSize: "0.72rem", fontWeight: 700,
+            border: "none", cursor: (status === "sending" || status === "pending" || !hasContent) ? "not-allowed" : "pointer",
+            background: status === "complete" ? "hsl(142,60%,40%)" : status === "pending" ? "hsl(38,90%,50%)" : "hsl(193,100%,32%)",
+            color: "white", opacity: (status === "sending" || !hasContent) ? 0.6 : 1,
+            display: "flex", alignItems: "center", gap: "5px", whiteSpace: "nowrap",
+          }}>
+          {status === "sending" && <span style={{ display: "inline-block", width: "10px", height: "10px", border: "2px solid rgba(255,255,255,0.4)", borderTopColor: "white", borderRadius: "50%", animation: "spin 1s linear infinite" }} />}
+          {status === "pending" ? "⏳ Pending…" : status === "complete" ? "✓ Done" : "Send to CAD →"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function CadFilesPanel({ project, pin }: { project: Project; pin: string }) {
   const [files, setFiles] = useState<CadFileRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -2442,6 +2528,7 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack, allProjects, onNavig
                     onBlur={e => saveField("drawingNotes", e.target.value)}
                     placeholder="Drawing notes: views required, dimension callouts, tolerances, assembly details, revision history..."
                     style={{ background: "transparent", color: "rgba(15,23,42,0.8)", fontSize: "0.83rem", lineHeight: "1.7", padding: "16px", resize: "none", outline: "none", minHeight: "140px", flexShrink: 0 }} />
+                  <NewDimensionsCadButton project={project} pin={pin} />
                   <div style={{ borderTop: "1px solid rgba(15,23,42,0.07)" }}>
                     <TechDocsPanel project={project} pin={pin} />
                   </div>

@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { eq, desc, gte, lte, and, or, like, sql, isNull, ne } from "drizzle-orm";
-import { db, labProjects, labMessages, scoutReports, cadFiles, techDocs, labScanHistory, userProfilesTable, mediaOutlets, appBuilderSessions, voiceJournalTable, siriusConfig, siriusAutomations, siriusCustomTools, siriusErrors } from "@workspace/db";
+import { db, labProjects, labMessages, scoutReports, cadFiles, techDocs, labScanHistory, userProfilesTable, mediaOutlets, appBuilderSessions, voiceJournalTable, siriusConfig, siriusAutomations, siriusCustomTools, siriusErrors, cadJobs } from "@workspace/db";
 import { getSiriusConfigValue, setSiriusConfigValue, executeCustomTool, runAutomation, logSiriusError } from "../lib/sirius-automation.js";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { generateImageBuffer } from "@workspace/integrations-openai-ai-server/image";
@@ -2872,6 +2872,178 @@ router.get("/lab/projects/:id/cad-files/:fileId/download-url", authMiddleware, a
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
+});
+
+// ── NewDimensions CAD Gateway ────────────────────────────────────────────────
+//
+//  Flow:
+//  1. Star Lab → POST /lab/projects/:id/send-to-cad
+//       Packages drawingNotes + specs and sends to NewDimensions API
+//       Creates a cadJobs record with status "pending"
+//  2. NewDimensions → POST /lab/cad-callback  (public, no PIN required)
+//       NewDimensions calls this when the drawing is ready
+//       Downloads the file, stores it in object storage, attaches to the project
+//  3. Star Lab → GET /lab/projects/:id/cad-status
+//       Polls the latest cadJob status for the project
+
+const ND_BASE_URL = () => (process.env.NEWDIMENSIONS_BASE_URL || "https://new-dimension-cad.replit.app").replace(/\/$/, "");
+const ND_API_KEY  = () => process.env.NEWDIMENSIONS_API_KEY || "";
+
+// POST /api/lab/projects/:id/send-to-cad
+router.post("/lab/projects/:id/send-to-cad", authMiddleware, async (req: Request, res: Response) => {
+  const projectId = parseInt(req.params.id as string);
+  const [project] = await db.select().from(labProjects).where(eq(labProjects.id, projectId)).limit(1);
+  if (!project) return res.status(404).json({ error: "Project not found" });
+
+  const spec = [
+    `PROJECT: ${project.name}`,
+    `INDUSTRY: ${project.industry}`,
+    project.manufacturingProcess ? `PROCESS: ${project.manufacturingProcess}` : "",
+    project.specs?.trim()         ? `\n## SPECIFICATIONS\n${project.specs}`          : "",
+    project.drawingNotes?.trim()  ? `\n## DRAWING NOTES\n${project.drawingNotes}`    : "",
+    project.materials?.trim()     ? `\n## MATERIALS\n${project.materials}`           : "",
+  ].filter(Boolean).join("\n");
+
+  if (!spec.trim()) {
+    return res.status(400).json({ error: "This project has no drawing notes or specifications to send. Generate them first." });
+  }
+
+  const apiKey = ND_API_KEY();
+  if (!apiKey) {
+    return res.status(503).json({ error: "NewDimensions API key not configured. Add NEWDIMENSIONS_API_KEY to Secrets." });
+  }
+
+  const callbackUrl = `${req.protocol}://${req.get("host")}/api/lab/cad-callback`;
+
+  try {
+    const payload = {
+      projectId,
+      projectName: project.name,
+      industry: project.industry,
+      spec,
+      callbackUrl,
+    };
+
+    const ndRes = await fetch(`${ND_BASE_URL()}/api/drawings`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+        "X-API-Key": apiKey,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const ndData = await ndRes.json().catch(() => ({})) as any;
+
+    if (!ndRes.ok) {
+      return res.status(502).json({ error: `NewDimensions API error: ${ndData?.error || ndRes.statusText}` });
+    }
+
+    const jobId = ndData?.jobId || ndData?.id || ndData?.drawingId || crypto.randomUUID().slice(0, 12);
+
+    const [job] = await db.insert(cadJobs).values({
+      projectId,
+      jobId,
+      status: ndData?.status === "complete" ? "complete" : "pending",
+      specSent: spec.slice(0, 5000),
+    }).returning();
+
+    if (ndData?.fileUrl || ndData?.downloadUrl) {
+      const fileUrl: string = ndData.fileUrl || ndData.downloadUrl;
+      const fileName: string = ndData.fileName || `${project.name.replace(/\s+/g, "_")}_drawing.pdf`;
+
+      try {
+        const fileRes = await fetch(fileUrl);
+        if (fileRes.ok) {
+          const buf = Buffer.from(await fileRes.arrayBuffer());
+          const uploadURL = await storage.getObjectEntityUploadURL();
+          const objectPath = storage.normalizeObjectEntityPath(uploadURL);
+          await fetch(uploadURL, {
+            method: "PUT",
+            headers: { "Content-Type": "application/pdf" },
+            body: buf,
+          });
+          await db.insert(cadFiles).values({ projectId, fileName, fileSize: buf.length, fileType: "application/pdf", objectPath, description: `NewDimensions — ${new Date().toLocaleDateString("en-GB")}` });
+          await db.update(cadJobs).set({ status: "complete", completedAt: new Date(), callbackPayload: JSON.stringify(ndData) }).where(eq(cadJobs.id, job.id));
+          onCadFileAttached(projectId).catch(console.error);
+          return res.json({ status: "complete", message: "Drawing received and stored in the project." });
+        }
+      } catch {}
+    }
+
+    return res.json({ status: "pending", jobId, message: "Drawing request sent to NewDimensions. It will be returned and stored automatically when complete." });
+
+  } catch (err: any) {
+    console.error("[CAD Gateway] send-to-cad error:", err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/lab/cad-callback  — webhook from NewDimensions (no PIN auth)
+router.post("/lab/cad-callback", async (req: Request, res: Response) => {
+  try {
+    const { jobId, projectId, fileUrl, fileName, status, error } = req.body ?? {};
+
+    if (!jobId) return res.status(400).json({ error: "jobId required" });
+
+    const [job] = await db.select().from(cadJobs).where(eq(cadJobs.jobId, String(jobId))).limit(1);
+    if (!job) return res.status(404).json({ error: "Unknown jobId" });
+
+    if (status === "error" || error) {
+      await db.update(cadJobs).set({ status: "error", errorMessage: error || "Unknown error from NewDimensions", completedAt: new Date() }).where(eq(cadJobs.id, job.id));
+      console.error(`[CAD Gateway] Job ${jobId} failed:`, error);
+      return res.json({ ok: true });
+    }
+
+    if (!fileUrl) {
+      await db.update(cadJobs).set({ callbackPayload: JSON.stringify(req.body) }).where(eq(cadJobs.id, job.id));
+      return res.json({ ok: true });
+    }
+
+    const pid = job.projectId || parseInt(String(projectId));
+    const fname = fileName || `drawing_${jobId}.pdf`;
+
+    const fileRes = await fetch(fileUrl);
+    if (!fileRes.ok) {
+      await db.update(cadJobs).set({ status: "error", errorMessage: `Could not download file from NewDimensions: ${fileRes.status}`, completedAt: new Date() }).where(eq(cadJobs.id, job.id));
+      return res.status(502).json({ error: "Could not fetch file from NewDimensions" });
+    }
+
+    const buf = Buffer.from(await fileRes.arrayBuffer());
+    const mimeType = fileRes.headers.get("content-type") || "application/octet-stream";
+    const uploadURL = await storage.getObjectEntityUploadURL();
+    const objectPath = storage.normalizeObjectEntityPath(uploadURL);
+    await fetch(uploadURL, { method: "PUT", headers: { "Content-Type": mimeType }, body: buf });
+
+    await db.insert(cadFiles).values({
+      projectId: pid,
+      fileName: fname,
+      fileSize: buf.length,
+      fileType: mimeType,
+      objectPath,
+      description: `NewDimensions CAD — ${new Date().toLocaleDateString("en-GB")}`,
+    });
+
+    await db.update(cadJobs).set({ status: "complete", completedAt: new Date(), callbackPayload: JSON.stringify(req.body) }).where(eq(cadJobs.id, job.id));
+
+    onCadFileAttached(pid).catch(console.error);
+
+    console.log(`[CAD Gateway] Job ${jobId} complete — drawing stored for project #${pid}`);
+    return res.json({ ok: true });
+
+  } catch (err: any) {
+    console.error("[CAD Gateway] cad-callback error:", err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/lab/projects/:id/cad-status — poll latest CAD job for a project
+router.get("/lab/projects/:id/cad-status", authMiddleware, async (req: Request, res: Response) => {
+  const projectId = parseInt(req.params.id as string);
+  const [job] = await db.select().from(cadJobs).where(eq(cadJobs.projectId, projectId)).orderBy(desc(cadJobs.createdAt)).limit(1);
+  if (!job) return res.json({ status: "none" });
+  return res.json({ status: job.status, jobId: job.jobId, createdAt: job.createdAt, completedAt: job.completedAt, error: job.errorMessage });
 });
 
 // ── Technical Documents (drawings, specs, datasheets, photos) ────────────────
