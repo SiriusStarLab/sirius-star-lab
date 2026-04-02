@@ -133,7 +133,7 @@ export async function triggerBuildNow(projectId: number): Promise<{ ok: boolean;
       // Auto drawing notes
       try {
         const drawingRes = await (await import("@workspace/integrations-openai-ai-server")).openai.chat.completions.create({
-          model: "gpt-4o-mini",
+          model: "anthropic/claude-haiku-4.5",
           messages: [{ role: "user", content: `Write concise CAD drawing specs for "${project.name}" (${project.industry}): ${(project.brief || "").slice(0, 400)}. Under 200 words, numbered.` }],
           max_tokens: 300,
         });
@@ -269,7 +269,7 @@ async function tick(): Promise<void> {
     if (!next.drawingNotes || next.drawingNotes.trim().length < 10) {
       try {
         const drawingRes = await openai.chat.completions.create({
-          model: "gpt-4o-mini",
+          model: "anthropic/claude-haiku-4.5",
           messages: [{
             role: "user",
             content: `You are a technical product designer. Write concise CAD/technical drawing specifications for this product so a CAD engineer can produce technical drawings.

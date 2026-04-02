@@ -64,7 +64,7 @@ export async function runInvestmentRule(forceReassess = false): Promise<Investme
 
     try {
       const res = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "anthropic/claude-haiku-4.5",
         max_tokens: 60,
         response_format: { type: "json_object" },
         messages: [

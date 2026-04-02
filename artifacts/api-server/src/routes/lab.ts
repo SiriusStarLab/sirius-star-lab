@@ -291,7 +291,7 @@ async function streamChatResponse(
   systemPrompt: string,
   userMessage: string,
   history: { role: string; content: string }[] = [],
-  _model = "gpt-4o"
+  _model = "anthropic/claude-sonnet-4.6"
 ): Promise<string> {
   const messages: any[] = [
     { role: "system", content: systemPrompt },
@@ -302,7 +302,7 @@ async function streamChatResponse(
   let fullContent = "";
 
   const stream = await openai.chat.completions.create({
-    model: "gpt-4o",
+    model: "anthropic/claude-sonnet-4.6",
     messages,
     stream: true,
     max_tokens: 4000,
@@ -328,7 +328,7 @@ async function streamWithSearch(
   jsonMode = false
 ): Promise<string> {
   const stream = await openai.chat.completions.create({
-    model: "gpt-4o",
+    model: "anthropic/claude-sonnet-4.6",
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userMessage },
@@ -794,7 +794,7 @@ CRITICAL EXECUTION RULES — READ CAREFULLY:
     async function doWebSearch(query: string): Promise<string> {
       try {
         const result = await openai.chat.completions.create({
-          model: "gpt-4o",
+          model: "anthropic/claude-sonnet-4.6",
           messages: [
             { role: "system", content: "You are a research assistant with deep knowledge across all domains. Provide comprehensive, factual, well-structured information. Include relevant data, market context, key players, and actionable insights. Be thorough and specific." },
             { role: "user", content: `Research the following topic thoroughly and return comprehensive findings:\n\n${query}` },
@@ -818,7 +818,7 @@ CRITICAL EXECUTION RULES — READ CAREFULLY:
       const isLastRound = round === MAX_ROUNDS - 1;
 
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o",
+        model: "anthropic/claude-sonnet-4.6",
         messages,
         tools: PROJECT_CHAT_TOOLS,
         tool_choice: isLastRound ? "none" : "auto",
@@ -1985,7 +1985,7 @@ Be brutally specific. Reference real things. No generic advice.`;
 
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "anthropic/claude-sonnet-4.6",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
@@ -2508,7 +2508,7 @@ ${JSON.stringify(projectSummary, null, 2)}
 Return the JSON response as specified. This is for a single project — the opportunities array should have exactly one entry.`;
 
     const aiResponse = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "anthropic/claude-sonnet-4.6",
       messages: [
         { role: "system", content: FUNDING_SYSTEM_PROMPT },
         { role: "user", content: userMessage },
@@ -2694,7 +2694,7 @@ Draw the application entirely from this data. Where specific data is missing, ma
 Return ONLY the application document — no preamble, no meta-commentary. Start directly with the application heading.`;
 
     const stream = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "anthropic/claude-sonnet-4.6",
       messages: [
         { role: "system", content: applicationSystemPrompt },
         { role: "user", content: userMessage },
@@ -3009,7 +3009,7 @@ When you analyse a technical document, you:
     }
 
     const stream = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "anthropic/claude-sonnet-4.6",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userContent },
@@ -3278,7 +3278,7 @@ router.post("/lab/projects/:id/complete-all", authMiddleware, async (req: Reques
 
     try {
       const stream = await openai.chat.completions.create({
-        model: "gpt-4o",
+        model: "anthropic/claude-sonnet-4.6",
         max_tokens: 2000,
         stream: true,
         messages: [
@@ -3332,7 +3332,7 @@ Business Case: ${(p.businessCase || "").slice(0, 300)}
     const today = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "anthropic/claude-sonnet-4.6",
       response_format: { type: "json_object" },
       messages: [
         {
@@ -3470,7 +3470,7 @@ router.post("/lab/brain/action", async (req, res): Promise<void> => {
     if (!prompt) { res.status(400).json({ error: "Unknown action" }); return; }
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "anthropic/claude-sonnet-4.6",
       messages: [{ role: "system", content: LAB_SYSTEM_PROMPT() }, { role: "user", content: prompt }],
       max_tokens: 1200,
       temperature: 0.7,
@@ -4120,7 +4120,7 @@ async function executeLabTool(name: string, args: any, onProgress?: (event: Reco
       case "run_market_scan": {
         const scanPrompt = `You are a market intelligence analyst. Perform a rapid scan of the ${args.industry} sector${args.focus ? ` focusing on ${args.focus}` : ""}. Identify 5 specific, actionable opportunities. For each: opportunity name, why it exists now, estimated value, who to target, and first action. Be specific and commercially sharp.`;
         const scan = await openai.chat.completions.create({
-          model: "gpt-4o",
+          model: "anthropic/claude-sonnet-4.6",
           messages: [{ role: "user", content: scanPrompt }],
           max_tokens: 800,
           temperature: 0.7,
@@ -4295,7 +4295,7 @@ async function executeLabTool(name: string, args: any, onProgress?: (event: Reco
         // Helper — generate content with GPT-4o
         const gen = async (systemPrompt: string, userPrompt: string, maxTokens = 600): Promise<string> => {
           const r = await openai.chat.completions.create({
-            model: "gpt-4o",
+            model: "anthropic/claude-sonnet-4.6",
             messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
             max_tokens: maxTokens,
           });
@@ -4495,7 +4495,7 @@ async function executeLabTool(name: string, args: any, onProgress?: (event: Reco
 
             const gen = async (sys: string, user: string, tokens = 500): Promise<string> => {
               const r = await openai.chat.completions.create({
-                model: "gpt-4o",
+                model: "anthropic/claude-sonnet-4.6",
                 messages: [{ role: "system", content: sys }, { role: "user", content: user }],
                 max_tokens: tokens,
               });
@@ -4856,15 +4856,15 @@ Be specific and technically complete. This goes directly to the CAD engineer.`;
 
         const [cadNotes, materials, costToBuild] = await Promise.all([
           isEngineering ? openai.chat.completions.create({
-            model: "gpt-4o", max_tokens: 1200,
+            model: "anthropic/claude-sonnet-4.6", max_tokens: 1200,
             messages: [{ role: "system", content: cadSystemPrompt }, { role: "user", content: cadUserPrompt }],
           }).then(r => r.choices[0]?.message?.content?.trim() || "") : Promise.resolve(""),
           openai.chat.completions.create({
-            model: "gpt-4o", max_tokens: 500,
+            model: "anthropic/claude-sonnet-4.6", max_tokens: 500,
             messages: [{ role: "system", content: materialSystemPrompt }, { role: "user", content: materialUserPrompt }],
           }).then(r => r.choices[0]?.message?.content?.trim() || ""),
           openai.chat.completions.create({
-            model: "gpt-4o", max_tokens: 600,
+            model: "anthropic/claude-sonnet-4.6", max_tokens: 600,
             messages: [{ role: "system", content: costSystemPrompt }, { role: "user", content: costUserPrompt }],
           }).then(r => r.choices[0]?.message?.content?.trim() || ""),
         ]);
@@ -4950,7 +4950,7 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
         let submissionEmails: Record<string, string> = {};
         try {
           const emailResp = await openai.chat.completions.create({
-            model: "gpt-4o", max_tokens: 1500,
+            model: "anthropic/claude-sonnet-4.6", max_tokens: 1500,
             messages: [
               { role: "system", content: "You are a PR executive. Return ONLY valid JSON." },
               { role: "user", content: submissionEmailPrompt },
@@ -5091,7 +5091,7 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
           const aiTestRes = await fetch(`${process.env.AI_INTEGRATIONS_OPENAI_BASE_URL}/chat/completions`, {
             method: "POST",
             headers: { "Authorization": `Bearer ${process.env.AI_INTEGRATIONS_OPENAI_API_KEY}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ model: "gpt-4o-mini", messages: [{ role: "user", content: "ping" }], max_tokens: 1 }),
+            body: JSON.stringify({ model: "anthropic/claude-haiku-4.5", messages: [{ role: "user", content: "ping" }], max_tokens: 1 }),
             signal: AbortSignal.timeout(8000),
           });
           if (aiTestRes.ok || aiTestRes.status === 400) {
@@ -5719,7 +5719,7 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
         const userMsg = `Design a complete automation bot with the following requirements:\n\nDescription: ${description}\nIndustry: ${industry || "General"}\nPlatforms/integrations: ${platforms || "Not specified"}\n\nProvide the complete bot architecture including code, APIs, triggers, scheduling, cost estimate, and deployment steps.`;
 
         const response = await openai.chat.completions.create({
-          model: "gpt-4o",
+          model: "anthropic/claude-sonnet-4.6",
           messages: [
             { role: "system", content: botPrompt },
             { role: "user", content: userMsg },
@@ -6055,7 +6055,7 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
         ];
 
         const searchStream = await openai.chat.completions.create({
-          model: "gpt-4o",
+          model: "anthropic/claude-sonnet-4.6",
           messages: chatMsgsForSearch,
           stream: true,
           max_tokens: 3000,
@@ -6084,7 +6084,7 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
 
     // Phase 1: Call with tools (streaming) — detect tool calls
     const phase1 = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "anthropic/claude-sonnet-4.6",
       messages: chatMessages,
       tools: activeTools,
       tool_choice: "auto",
@@ -6180,7 +6180,7 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
       ];
 
       const phase2 = await openai.chat.completions.create({
-        model: "gpt-4o",
+        model: "anthropic/claude-sonnet-4.6",
         messages: phase2Messages,
         temperature: 0.75,
         max_tokens: 1500,
@@ -6198,7 +6198,7 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
         try {
           const lastUserMsg = messages[messages.length - 1]?.content || "";
           const extraction = await openai.chat.completions.create({
-            model: "gpt-4o-mini",
+            model: "anthropic/claude-haiku-4.5",
             messages: [{
               role: "system",
               content: `Extract NEW factual information the user revealed in this message that is worth remembering long-term. Only extract genuinely new, specific, non-obvious facts. Return JSON: {"facts": [{"fact": string, "category": "Business"|"Goals"|"Clients"|"Products"|"Personal"|"Strategy"|"Decision"|"Finance"|"General"}]}. Return {"facts": []} if nothing new.`
@@ -6230,7 +6230,7 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
           const lastUserMsg = messages[messages.length - 1]?.content || "";
           if (lastUserMsg.length < 20) return;
           const extraction = await openai.chat.completions.create({
-            model: "gpt-4o-mini",
+            model: "anthropic/claude-haiku-4.5",
             messages: [{
               role: "system",
               content: `Extract NEW factual information the user revealed. Only specific, worth-remembering facts. Return JSON: {"facts": [{"fact": string, "category": "Business"|"Goals"|"Clients"|"Products"|"Personal"|"Strategy"|"Decision"|"Finance"|"General"}]}. Return {"facts": []} if nothing new.`
@@ -6281,7 +6281,7 @@ router.post("/lab/deep-research", async (req, res): Promise<void> => {
     ];
 
     const stream = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "anthropic/claude-sonnet-4.6",
       messages: [
         { role: "system", content: "You are a professional research analyst and strategic intelligence expert. Produce comprehensive, well-structured research reports with specific data, market context, key players, and actionable insights. Be detailed and specific — this report is for a business owner making real decisions." },
         { role: "user", content: `Conduct thorough research on the following topic and produce a comprehensive, well-structured report.
@@ -6359,7 +6359,7 @@ router.post("/lab/docs", async (req, res): Promise<void> => {
     const truncated = extractedText.slice(0, 28000);
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "anthropic/claude-sonnet-4.6",
       messages: [
         {
           role: "system",
@@ -6419,7 +6419,7 @@ router.post("/lab/projects/:id/social-posts/generate", authMiddleware, async (re
 
   try {
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "anthropic/claude-sonnet-4.6",
       messages: [
         {
           role: "system",
@@ -6792,7 +6792,7 @@ router.post("/lab/app-builder/architect", authMiddleware, async (req: Request, r
     send({ type: "thinking_start" });
 
     const thinkingStream = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "anthropic/claude-sonnet-4.6",
       messages: [
         {
           role: "system",
@@ -6978,7 +6978,7 @@ router.post("/lab/app-builder/interpret", authMiddleware, async (req: Request, r
 
   try {
     const result = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "anthropic/claude-sonnet-4.6",
       response_format: { type: "json_object" },
       messages: [
         {
@@ -7023,7 +7023,7 @@ router.post("/lab/app-builder/scaffold", authMiddleware, async (req: Request, re
     await delay(500);
 
     const result = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "anthropic/claude-sonnet-4.6",
       messages: [{
         role: "user",
         content: `Generate a complete project scaffold specification for:
@@ -7163,7 +7163,7 @@ router.post("/lab/app-builder/plan", authMiddleware, async (req: Request, res: R
 
   try {
     const result = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "anthropic/claude-sonnet-4.6",
       response_format: { type: "json_object" },
       messages: [
         {
@@ -7206,7 +7206,7 @@ router.post("/lab/app-builder/test", authMiddleware, async (req: Request, res: R
     send({ type: "test_start", message: "Initialising virtual test environment..." });
 
     const stream = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "anthropic/claude-sonnet-4.6",
       messages: [{
         role: "user",
         content: `You are a senior QA engineer and code reviewer. Review this ${techStack} application "${appName}" for bugs, errors, and issues.
@@ -7289,7 +7289,7 @@ router.post("/lab/app-builder/debug", authMiddleware, async (req: Request, res: 
       send({ type: "debug_fixing", filename, bugCount: fileBugs.length });
 
       const stream = await openai.chat.completions.create({
-        model: "gpt-4o",
+        model: "anthropic/claude-sonnet-4.6",
         messages: [{
           role: "user",
           content: `You are a senior engineer fixing bugs in "${appName}".
@@ -7384,7 +7384,7 @@ When generating code changes, always output the COMPLETE modified file wrapped i
 For explanations or suggestions, respond in clear Markdown.`;
 
     const stream = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "anthropic/claude-sonnet-4.6",
       messages: [
         { role: "system", content: systemPrompt },
         ...history.slice(-6).map(h => ({ role: h.role as "user" | "assistant", content: h.content })),
@@ -7495,7 +7495,7 @@ Output ONLY the file:
     }
 
     const stream = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "anthropic/claude-sonnet-4.6",
       messages,
       stream: true,
       max_tokens: 3000,
@@ -7557,7 +7557,7 @@ async function searchDocsForAgent(agentId: string, techStack: string, appName: s
 
   try {
     const result = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "anthropic/claude-sonnet-4.6",
       messages: [
         { role: "system", content: "You are a senior software architect. Return concise, accurate, current best practices." },
         { role: "user", content: `Provide 3-5 bullet points of the most important current best practices and patterns for: ${agentId} development in a ${techStack} application. Be specific and practical. Topic: ${query}` },
@@ -7636,7 +7636,7 @@ router.post("/lab/build-app", authMiddleware, async (req: Request, res: Response
       let raw = "";
       try {
         const stream = await openai.chat.completions.create({
-          model: "gpt-4o",
+          model: "anthropic/claude-sonnet-4.6",
           messages: [{ role: "user", content: prompt }],
           stream: true,
           max_tokens: 4000,
@@ -7733,7 +7733,7 @@ ${fileSummary}
 Analyse this codebase. Output improvement suggestions as JSON lines.`;
 
     const stream = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "anthropic/claude-sonnet-4.6",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
@@ -7928,7 +7928,7 @@ Rules for voice:
     // Tool-enabled loop — up to 6 rounds to support multi-step execution chains
     for (let round = 0; round < 6; round++) {
       const stream = await openai.chat.completions.create({
-        model: "gpt-4o",
+        model: "anthropic/claude-sonnet-4.6",
         messages: conversationHistory,
         tools: VOICE_TOOLS,
         tool_choice: "auto",
@@ -8090,7 +8090,7 @@ router.post("/lab/voice/journal", authMiddleware, async (req: Request, res: Resp
         .join("\n");
 
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o",
+        model: "anthropic/claude-sonnet-4.6",
         messages: [
           { role: "system", content: "You are a concise summarizer. Return ONLY valid JSON with no markdown or code blocks." },
           { role: "user", content: `Summarise this voice session between Garry and Sirius in Star Lab:\n\n${transcriptText}\n\nReturn JSON exactly: { "summary": "2–3 sentence summary of what was discussed and any decisions or actions", "keyTopics": ["topic1", "topic2", "topic3"] }` },
@@ -8240,7 +8240,7 @@ Return ONLY this JSON:
 }`;
 
       const completion = await oai.chat.completions.create({
-        model: "gpt-4o",
+        model: "anthropic/claude-sonnet-4.6",
         messages: [{ role: "system", content: SYSTEM }, { role: "user", content: USER }],
         temperature: 0.3,
         max_tokens: 900,
@@ -8434,7 +8434,7 @@ Analyse all of them, then pick the top 5 that need the least investment, can be 
     send({ type: "scanning", message: "Sirius intelligence is ranking your portfolio…" });
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "anthropic/claude-sonnet-4.6",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },

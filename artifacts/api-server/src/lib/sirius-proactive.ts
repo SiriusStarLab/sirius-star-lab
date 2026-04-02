@@ -12,7 +12,7 @@ const ENGINEERING_SECTORS = [
 async function gen(sys: string, user: string, tokens = 500): Promise<string> {
   try {
     const r = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "anthropic/claude-sonnet-4.6",
       messages: [{ role: "system", content: sys }, { role: "user", content: user }],
       max_tokens: tokens,
       temperature: 0.4,
@@ -27,7 +27,7 @@ async function gen(sys: string, user: string, tokens = 500): Promise<string> {
 async function suggestSellPrice(costText: string, projName: string, industry: string): Promise<number | null> {
   try {
     const res = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "anthropic/claude-haiku-4.5",
       messages: [{
         role: "user",
         content: `Based on this cost analysis for "${projName}" (${industry}), suggest a realistic market sell price in GBP.

@@ -62,7 +62,7 @@ Make it practical, specific, and motivating. Write as Sirius — a brilliant int
     let fullPlan = "";
 
     const stream = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "anthropic/claude-sonnet-4.6",
       messages: [{ role: "user", content: prompt }],
       stream: true,
       max_tokens: 3000,
@@ -162,7 +162,7 @@ Rules:
 - If the topic is broad (e.g. "engineering", "science", "history"), pick a diverse spread of subtopics within it`;
 
     const response = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "anthropic/claude-sonnet-4.6",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
       max_tokens: 4000,
@@ -234,7 +234,7 @@ Write 3 questions the learner should be able to answer after reading this. Don't
 Write as a knowledgeable partner who finds this genuinely interesting — not as a textbook summary.`;
 
     const stream = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "anthropic/claude-sonnet-4.6",
       messages: [{ role: "user", content: prompt }],
       stream: true,
       max_tokens: 2500,
