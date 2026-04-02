@@ -5065,29 +5065,49 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
           report.push({ system: "Custom Tools", status: "fail", detail: e.message });
         }
 
-        // ── 5. Pipeline status ───────────────────────────────────────────────
+        // ── 5. Pipeline status (uses launch_status, not status) ──────────────
         try {
-          const [queuedCount] = await db.execute(sql`SELECT COUNT(*) AS cnt FROM lab_projects WHERE status = 'queued'`) as any;
-          const [buildingCount] = await db.execute(sql`SELECT COUNT(*) AS cnt FROM lab_projects WHERE status = 'building'`) as any;
+          const [queuedCount] = await db.execute(sql`SELECT COUNT(*) AS cnt FROM lab_projects WHERE (launch_status IS NULL OR launch_status = '') AND status != 'archived'`) as any;
+          const [buildingCount] = await db.execute(sql`SELECT COUNT(*) AS cnt FROM lab_projects WHERE launch_status = 'building' AND status != 'archived'`) as any;
+          const [cadCount] = await db.execute(sql`SELECT COUNT(*) AS cnt FROM lab_projects WHERE launch_status = 'cad-pending' AND status != 'archived'`) as any;
+          const [readyCount] = await db.execute(sql`SELECT COUNT(*) AS cnt FROM lab_projects WHERE launch_status = 'launch-ready' AND status = 'active'`) as any;
           const building = await db.select({ name: labProjects.name, updatedAt: labProjects.updatedAt })
-            .from(labProjects).where(eq(labProjects.status, "building")).limit(3);
+            .from(labProjects).where(and(eq(labProjects.launchStatus, "building"), ne(labProjects.status, "archived"))).limit(3);
           const stuckBuilds = building.filter(p => {
             const minsStuck = (now.getTime() - new Date(p.updatedAt!).getTime()) / 60000;
             return minsStuck > 30;
           });
           if (stuckBuilds.length > 0) {
-            report.push({ system: "Pipeline", status: "warn", detail: `${stuckBuilds.length} project(s) stuck in 'building' for over 30 mins: ${stuckBuilds.map(p => p.name).join(", ")}`, action: "bug_report" });
+            report.push({ system: "Pipeline", status: "warn", detail: `${stuckBuilds.length} project(s) stuck in building >30 mins: ${stuckBuilds.map(p => p.name).join(", ")}`, action: "bug_report" });
           } else {
-            report.push({ system: "Pipeline", status: "ok", detail: `${queuedCount.cnt} queued · ${buildingCount.cnt} building` });
+            report.push({ system: "Pipeline", status: "ok", detail: `${queuedCount.cnt} queued · ${buildingCount.cnt} building · ${cadCount.cnt} cad-pending · ${readyCount.cnt} launch-ready` });
           }
         } catch (e: any) {
           report.push({ system: "Pipeline", status: "fail", detail: e.message });
         }
 
+        // ── 5b. AI integration connectivity ─────────────────────────────────
+        try {
+          const aiTestRes = await fetch(`${process.env.AI_INTEGRATIONS_OPENAI_BASE_URL}/chat/completions`, {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${process.env.AI_INTEGRATIONS_OPENAI_API_KEY}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ model: "gpt-4o-mini", messages: [{ role: "user", content: "ping" }], max_tokens: 1 }),
+            signal: AbortSignal.timeout(8000),
+          });
+          if (aiTestRes.ok || aiTestRes.status === 400) {
+            report.push({ system: "AI Integration", status: "ok", detail: "OpenAI proxy reachable and authorised" });
+          } else {
+            const errBody = await aiTestRes.text().catch(() => "");
+            report.push({ system: "AI Integration", status: "fail", detail: `Proxy returned ${aiTestRes.status} — ${errBody.slice(0, 120)}. Sirius cannot generate content until this is resolved.`, action: "bug_report" });
+          }
+        } catch (e: any) {
+          report.push({ system: "AI Integration", status: "fail", detail: `Cannot reach AI proxy: ${e.message}`, action: "bug_report" });
+        }
+
         // ── 6. Projects pending Garry's approval ────────────────────────────
         try {
           const pendingApprovals = await db.select({ id: labProjects.id, name: labProjects.name })
-            .from(labProjects).where(eq(labProjects.status, "pending_approval")).limit(5);
+            .from(labProjects).where(sql`approval_status = 'pending' AND status != 'archived'`).limit(5);
           if (pendingApprovals.length > 0) {
             report.push({ system: "Approvals", status: "warn", detail: `${pendingApprovals.length} project(s) waiting for Garry's decision` });
           } else {
@@ -5135,17 +5155,17 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
         const skipped: string[] = [];
         const nowTs = new Date();
 
-        // ── 1. Reset stuck builds (building >45 min) ─────────────────────────
+        // ── 1. Reset stuck builds (launch_status=building >45 min) ────────────
         try {
           const stuckThreshold = new Date(nowTs.getTime() - 45 * 60 * 1000);
           const stuck = await db.select({ id: labProjects.id, name: labProjects.name })
             .from(labProjects)
-            .where(and(eq(labProjects.status, "building"), sql`updated_at < ${stuckThreshold}`));
+            .where(and(eq(labProjects.launchStatus, "building"), ne(labProjects.status, "archived"), sql`updated_at < ${stuckThreshold}`));
           if (stuck.length > 0) {
             for (const p of stuck) {
-              await db.update(labProjects).set({ status: "queued", updatedAt: nowTs }).where(eq(labProjects.id, p.id));
+              await db.update(labProjects).set({ launchStatus: "cad-pending", updatedAt: nowTs }).where(eq(labProjects.id, p.id));
             }
-            fixes.push(`✅ Reset ${stuck.length} stuck build(s) back to queue: ${stuck.map(p => p.name).join(", ")}`);
+            fixes.push(`✅ Reset ${stuck.length} stuck build(s) back to cad-pending: ${stuck.map(p => p.name).join(", ")}`);
           } else {
             skipped.push("No stuck builds found");
           }
