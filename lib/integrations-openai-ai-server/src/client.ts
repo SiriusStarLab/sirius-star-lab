@@ -1,18 +1,16 @@
 import OpenAI from "openai";
 
-if (!process.env.AI_INTEGRATIONS_OPENROUTER_BASE_URL) {
+if (!process.env.OPENROUTER_API_KEY) {
   throw new Error(
-    "AI_INTEGRATIONS_OPENROUTER_BASE_URL must be set. Did you forget to provision the OpenRouter AI integration?",
-  );
-}
-
-if (!process.env.AI_INTEGRATIONS_OPENROUTER_API_KEY) {
-  throw new Error(
-    "AI_INTEGRATIONS_OPENROUTER_API_KEY must be set. Did you forget to provision the OpenRouter AI integration?",
+    "OPENROUTER_API_KEY must be set. Please add your OpenRouter API key as a secret.",
   );
 }
 
 export const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENROUTER_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENROUTER_BASE_URL,
+  apiKey: process.env.OPENROUTER_API_KEY,
+  baseURL: "https://openrouter.ai/api/v1",
+  defaultHeaders: {
+    "HTTP-Referer": "https://sirius-ai.live",
+    "X-Title": "Sirius Star Lab",
+  },
 });
