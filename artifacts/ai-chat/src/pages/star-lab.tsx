@@ -12625,15 +12625,23 @@ const NAV_LABELS: Record<string, string> = {
   sysaudit: "System Audit",
 };
 
-function LabFloatingChat({ pin, navMode, activeProject, onNavigate, onOpenProject }: {
+function LabFloatingChat({ pin, navMode, activeProject, onNavigate, onOpenProject, accessLevel }: {
   pin: string;
   navMode: NavMode;
   activeProject: Project | null;
   onNavigate: (mode: NavMode) => void;
   onOpenProject?: (id: number) => void;
+  accessLevel: string;
 }) {
-  const [open, setOpen] = React.useState(false);
-  const [messages, setMessages] = React.useState<{ role: "user" | "assistant"; content: string; actions?: { label: string; color: string; icon?: string }[] }[]>([]);
+  const CHAT_STORAGE_KEY = `lab_chat_${accessLevel}`;
+
+  // Load messages from the shared sessionStorage (same key as SiriusLabChatPanel)
+  const [open, setOpen] = React.useState(() => {
+    try { const s = sessionStorage.getItem(CHAT_STORAGE_KEY); return s ? JSON.parse(s).length > 0 : false; } catch { return false; }
+  });
+  const [messages, setMessages] = React.useState<{ role: "user" | "assistant"; content: string; actions?: { label: string; color: string; icon?: string }[] }[]>(() => {
+    try { const s = sessionStorage.getItem(CHAT_STORAGE_KEY); return s ? JSON.parse(s) : []; } catch { return []; }
+  });
   const [streaming, setStreaming] = React.useState(false);
   const [streamText, setStreamText] = React.useState("");
   const [streamingActions, setStreamingActions] = React.useState<{ label: string; color: string; icon?: string; detail?: string }[]>([]);
@@ -12647,6 +12655,26 @@ function LabFloatingChat({ pin, navMode, activeProject, onNavigate, onOpenProjec
   const recognitionRef = React.useRef<any>(null);
   const stoppedRef = React.useRef(false);
   const base = getApiBase();
+  const prevNavModeRef = React.useRef(navMode);
+
+  // Persist messages to shared sessionStorage so SiriusLabChatPanel can also read them
+  React.useEffect(() => {
+    try { sessionStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages)); } catch {}
+  }, [messages, CHAT_STORAGE_KEY]);
+
+  // When returning from the full labchat screen, re-sync messages and auto-open
+  React.useEffect(() => {
+    if (prevNavModeRef.current === "labchat" && navMode !== "labchat") {
+      try {
+        const saved = sessionStorage.getItem(CHAT_STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed.length > 0) { setMessages(parsed); setOpen(true); }
+        }
+      } catch {}
+    }
+    prevNavModeRef.current = navMode;
+  }, [navMode, CHAT_STORAGE_KEY]);
 
   React.useEffect(() => {
     const id = setInterval(() => setWaveTick(t => t + 1), 90);
@@ -15777,6 +15805,7 @@ export function StarLabPage() {
         pin={pin}
         navMode={navMode}
         activeProject={activeProject}
+        accessLevel={accessLevel}
         onNavigate={m => setNavMode(m as NavMode)}
         onOpenProject={id => {
           loadProject(id);
