@@ -734,90 +734,6 @@ async function runTrendScan(scanId: string, existing: { id: number; name: string
   }
 }
 
-// ── Phase 2: Upgrade existing projects ────────────────────────────────────────
-
-const UPGRADE_SYSTEM_PROMPT = () => `You are an autonomous R&D intelligence engine. Today is ${TODAY()}.
-
-For the project provided, search the web for the latest developments (last 30 days) relevant to this project.
-
-Find:
-1. New materials, components, or processes applicable to this project
-2. Competitor product launches or updates
-3. New patents filed in this space
-4. Recent research papers with relevant findings
-5. Regulatory changes affecting this product category
-6. Market intelligence: new investment, demand signals
-7. New AI/software capabilities that could enhance this product
-8. Supply chain developments: new suppliers, price changes
-
-Return JSON:
-{
-  "upgrades": [{ "category": "Technology|Competition|Regulation|Market|Research|Supply Chain", "headline": "...", "detail": "...", "impact": "high|medium|low", "actionRequired": "..." }],
-  "researchAppend": "## Research Update — [DATE]\\n\\n[600+ word comprehensive update with subheadings]"
-}
-
-Rules: minimum 3 upgrades, only include genuinely new findings from last 30 days, researchAppend must be actionable.`;
-
-async function upgradeExistingProjects(scanId: string): Promise<{ upgraded: number; items: any[] }> {
-  console.log("[Lab Auto-Scan] [Phase 2 — Upgrades] Updating existing projects with latest intelligence...");
-
-  const projects = await db.select().from(labProjects)
-    .where(eq(labProjects.status, "active"))
-    .orderBy(desc(labProjects.updatedAt))
-    .limit(8);
-
-  const eligible = projects.filter(p => (p.brief || "").length > 80 && p.approvalStatus !== "rejected");
-
-  let upgraded = 0;
-  const items: any[] = [];
-
-  for (const project of eligible) {
-    try {
-      const response = await openai.chat.completions.create({
-        model: "anthropic/claude-sonnet-4.6",
-        messages: [
-          { role: "system", content: UPGRADE_SYSTEM_PROMPT() },
-          {
-            role: "user",
-            content: `Search the web for latest developments relevant to this project and return the upgrade JSON.
-
-PROJECT: ${project.name}
-INDUSTRY: ${project.industry}
-BRIEF: ${(project.brief || "").slice(0, 500)}
-EXISTING RESEARCH (avoid duplicating): ${(project.research || "").slice(0, 300)}`,
-          },
-        ],
-        response_format: { type: "json_object" },
-        temperature: 0.2,
-        max_tokens: 3000,
-      });
-
-      const raw = response.choices[0]?.message?.content;
-      if (!raw) continue;
-
-      const data = JSON.parse(raw);
-      const append = data.researchAppend || "";
-
-      if (append && append.length > 100) {
-        const newResearch = project.research
-          ? `${project.research}\n\n---\n\n${append}`
-          : append;
-
-        await db.update(labProjects).set({ research: newResearch, updatedAt: new Date() }).where(eq(labProjects.id, project.id));
-
-        const upgradeCount = (data.upgrades || []).length;
-        items.push({ type: "upgrade", projectId: project.id, projectName: project.name, action: `${upgradeCount} new intelligence signals appended` });
-        upgraded++;
-        console.log(`[Lab Auto-Scan] Upgraded: "${project.name}" (${upgradeCount} signals)`);
-      }
-    } catch (err) {
-      console.error(`[Lab Auto-Scan] Upgrade failed for "${project.name}":`, err);
-    }
-  }
-
-  return { upgraded, items };
-}
-
 // ── Main entry point ──────────────────────────────────────────────────────────
 
 export async function runLabAutoScan(): Promise<{
@@ -827,7 +743,7 @@ export async function runLabAutoScan(): Promise<{
 }> {
   const scanId = crypto.randomUUID().slice(0, 8);
   console.log(`\n[Lab Auto-Scan] ════ Starting full multi-sector scan ${scanId} ════`);
-  console.log(`[Lab Auto-Scan] Passes: Bot×4 clusters + SaaS×4 clusters + Broken Products + Engineering + Trends + Upgrades`);
+  console.log(`[Lab Auto-Scan] Passes: Bot×4 clusters + SaaS×4 clusters + Broken Products + Engineering + Trends`);
 
   const [logEntry] = await db.insert(labScanHistory).values({
     scanId,
@@ -868,25 +784,20 @@ export async function runLabAutoScan(): Promise<{
     projectsCreated += trends.created;
     allItems.push(...trends.items);
 
-    // Run upgrades on existing projects
-    console.log(`\n[Lab Auto-Scan] ── Phase 2: Upgrading existing projects ──`);
-    const upgrades = await upgradeExistingProjects(scanId);
-    allItems.push(...upgrades.items);
-
-    const summary = `Multi-sector scan complete — ${projectsCreated} new projects created (pending approval), ${upgrades.upgraded} existing projects upgraded. Sectors covered: bots (legal, health, commerce, trades), SaaS (creative, education, niche SMB, compliance), broken products, emerging markets (AI agents, creator economy, climate tech, mental health, Web3), trends & patents.`;
+    const summary = `Multi-sector scan complete — ${projectsCreated} new projects found (pending your approval). Sectors covered: bots (legal, health, commerce, trades), SaaS (creative, education, niche SMB, compliance), broken products, emerging markets (AI agents, creator economy, climate tech, mental health, Web3), trends & patents.`;
 
     await db.update(labScanHistory).set({
       status: "complete",
-      opportunitiesFound: projectsCreated + upgrades.upgraded,
+      opportunitiesFound: projectsCreated,
       projectsCreated,
-      upgradesApplied: upgrades.upgraded,
+      upgradesApplied: 0,
       summary,
       items: JSON.stringify(allItems),
       completedAt: new Date(),
     }).where(eq(labScanHistory.id, logEntry.id));
 
-    console.log(`\n[Lab Auto-Scan] ════ Scan ${scanId} complete — ${projectsCreated} new projects (pending approval), ${upgrades.upgraded} upgraded ════\n`);
-    return { scanId, projectsCreated, upgradesApplied: upgrades.upgraded };
+    console.log(`\n[Lab Auto-Scan] ════ Scan ${scanId} complete — ${projectsCreated} new projects (pending approval) ════\n`);
+    return { scanId, projectsCreated, upgradesApplied: 0 };
 
   } catch (err: any) {
     console.error(`[Lab Auto-Scan] Fatal error in scan ${scanId}:`, err);
