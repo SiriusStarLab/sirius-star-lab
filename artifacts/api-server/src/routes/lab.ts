@@ -5941,7 +5941,7 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
         const { query, depth = "standard" } = args;
         if (!query?.trim()) return "A search query is required.";
 
-        onProgress?.({ type: "status", message: `Searching the web: ${query.slice(0, 80)}…` });
+        onProgress?.({ type: "searching", query: query.slice(0, 80) });
 
         // Use Perplexity Sonar on OpenRouter — native live web search with citations
         const model = depth === "deep" ? "perplexity/sonar-pro" : "perplexity/sonar";
@@ -5965,6 +5965,7 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
           ? `\n\n**Sources:**\n${citations.slice(0, 8).map((c: string, i: number) => `${i + 1}. ${c}`).join("\n")}`
           : "";
 
+        onProgress?.({ type: "search_done" });
         return `🌐 **Web Search: "${query}"**\n\n${answer}${citationBlock}`;
       }
 

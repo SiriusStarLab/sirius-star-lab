@@ -13271,6 +13271,8 @@ function SiriusLabChatPanel({ pin, accessLevel, navMode, activeProject, onNaviga
   const [streamingText, setStreamingText] = useState("");
   const [streamingActions, setStreamingActions] = useState<ActionCard[]>([]);
   const [thinkingText, setThinkingText] = useState("");
+  const [webSearching, setWebSearching] = useState(false);
+  const [webSearchQuery, setWebSearchQuery] = useState("");
   const [voicePhase, setVoicePhase] = useState<"idle" | "listening" | "speaking">("idle");
   const [voiceHint, setVoiceHint] = useState("");
   const [waveTick, setWaveTick] = useState(0);
@@ -13456,6 +13458,7 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
               fullText += evt.delta;
               setStreamingText(fullText);
               setThinkingText("");
+              setWebSearching(false);
             } else if (evt.type === "action") {
               const card: ActionCard = { tool: evt.tool, label: evt.label, detail: evt.detail, color: evt.color, icon: evt.icon, result: evt.result };
               actions.push(card);
@@ -13465,6 +13468,13 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
               setThinkingText(evt.text || "");
             } else if (evt.type === "status" && evt.message) {
               setThinkingText(evt.message);
+            } else if (evt.type === "searching") {
+              setWebSearching(true);
+              setWebSearchQuery(evt.query || "");
+              setThinkingText("");
+            } else if (evt.type === "search_done") {
+              setWebSearching(false);
+              setWebSearchQuery("");
             } else if (evt.type === "navigate") {
               // Buffer navigation — fire it AFTER speaking so the loop stays alive
               if (evt.section) {
@@ -13561,6 +13571,8 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
       setStreamingText("");
       setStreamingActions([]);
       setThinkingText("");
+      setWebSearching(false);
+      setWebSearchQuery("");
     }
   };
 
@@ -13765,8 +13777,16 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
                   ))}
                 </div>
               )}
+              {/* Web search indicator */}
+              {webSearching && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium"
+                  style={{ background: "rgba(0,140,255,0.06)", border: "1px solid rgba(0,140,255,0.18)", borderLeft: "3px solid hsl(210,100%,50%)" }}>
+                  <Globe className="w-3.5 h-3.5 flex-shrink-0 animate-pulse" style={{ color: "hsl(210,100%,50%)" }} />
+                  <span style={{ color: "hsl(210,90%,40%)" }}>Searching the web{webSearchQuery ? ` — "${webSearchQuery.slice(0, 60)}${webSearchQuery.length > 60 ? "…" : ""}"` : "…"}</span>
+                </div>
+              )}
               {/* Thinking indicator — always visible while a tool is running */}
-              {thinkingText && (
+              {thinkingText && !webSearching && (
                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-slate-500 italic"
                   style={{ background: "rgba(15,23,42,0.03)", border: "1px solid rgba(15,23,42,0.07)" }}>
                   <Loader2 className="w-3 h-3 animate-spin text-cyan-500 flex-shrink-0" />
