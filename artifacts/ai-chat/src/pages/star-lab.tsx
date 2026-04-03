@@ -12737,12 +12737,22 @@ function LabFloatingChat({ pin, navMode, activeProject, onNavigate, onOpenProjec
   const [voicePhase, setVoicePhase] = React.useState<"idle" | "listening" | "speaking">("idle");
   const [waveTick, setWaveTick] = React.useState(0);
   const [floatTextInput, setFloatTextInput] = React.useState("");
+  const [queuedFloatMsg, setQueuedFloatMsg] = React.useState("");
   const floatInputRef = React.useRef<HTMLInputElement>(null);
   const bottomRef = React.useRef<HTMLDivElement>(null);
   const recognitionRef = React.useRef<any>(null);
   const stoppedRef = React.useRef(false);
   const base = getApiBase();
   const prevNavModeRef = React.useRef(navMode);
+
+  // Auto-send queued message once streaming finishes
+  React.useEffect(() => {
+    if (!streaming && queuedFloatMsg) {
+      const msg = queuedFloatMsg;
+      setQueuedFloatMsg("");
+      setTimeout(() => sendVoice(msg), 150);
+    }
+  }, [streaming]);
 
   // Persist messages to shared sessionStorage so SiriusLabChatPanel can also read them
   React.useEffect(() => {
@@ -12875,7 +12885,8 @@ function LabFloatingChat({ pin, navMode, activeProject, onNavigate, onOpenProjec
   };
 
   const sendVoice = async (text: string) => {
-    if (!text || streaming) return;
+    if (!text) return;
+    if (streaming) { setQueuedFloatMsg(text); return; }
     // Always stop any existing voice recognition before sending so sessions don't collide
     stopListeningNow();
     const newMsg = { role: "user" as const, content: text };
@@ -13175,30 +13186,29 @@ VOICE STYLE: Short, direct sentences. No bullet points or markdown. Report what 
                 value={floatTextInput}
                 onChange={e => setFloatTextInput(e.target.value)}
                 onKeyDown={e => {
-                  if (e.key === "Enter" && !e.shiftKey && floatTextInput.trim() && !streaming) {
+                  if (e.key === "Enter" && !e.shiftKey && floatTextInput.trim()) {
                     e.preventDefault();
                     const txt = floatTextInput.trim();
                     setFloatTextInput("");
                     sendVoice(txt);
                   }
                 }}
-                placeholder={streaming ? "Sirius is thinking…" : voicePhase === "listening" ? "Listening…" : voicePhase === "speaking" ? "Sirius speaking…" : "Type or speak…"}
-                disabled={streaming}
+                placeholder={queuedFloatMsg ? `Queued: "${queuedFloatMsg.slice(0, 30)}…"` : streaming ? "Type ahead — sends when she finishes…" : voicePhase === "listening" ? "Listening…" : voicePhase === "speaking" ? "Sirius speaking…" : "Type or speak…"}
                 className="flex-1 text-xs rounded-xl px-3 py-2 outline-none transition-all"
                 style={{
-                  background: "hsl(210,20%,97%)",
-                  border: "1px solid rgba(15,23,42,0.1)",
+                  background: queuedFloatMsg ? "hsl(45,100%,97%)" : "hsl(210,20%,97%)",
+                  border: `1px solid ${queuedFloatMsg ? "hsl(45,80%,70%)" : "rgba(15,23,42,0.1)"}`,
                   color: "rgba(15,23,42,0.85)",
                   fontSize: 12,
                 }}
               />
-              {/* Send button — only shown when there's text */}
-              {floatTextInput.trim() && !streaming && (
+              {/* Send button — shown when there's text */}
+              {floatTextInput.trim() && (
                 <button
                   onClick={() => { const txt = floatTextInput.trim(); if (txt) { setFloatTextInput(""); sendVoice(txt); } }}
                   className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-all active:scale-95"
-                  style={{ background: "hsl(193,100%,40%)" }}>
-                  <Send className="w-3.5 h-3.5 text-white" />
+                  style={{ background: streaming ? "hsl(45,90%,55%)" : "hsl(193,100%,40%)" }}>
+                  {streaming ? <Clock className="w-3 h-3 text-white" /> : <Send className="w-3.5 h-3.5 text-white" />}
                 </button>
               )}
               {/* Mic button */}
@@ -13280,6 +13290,7 @@ function SiriusLabChatPanel({ pin, accessLevel, navMode, activeProject, onNaviga
   const [chatInputMode, setChatInputMode] = useState<"voice" | "keyboard">("voice");
   const chatInputModeRef = useRef<"voice" | "keyboard">("voice");
   const [textInput, setTextInput] = useState("");
+  const [queuedMessage, setQueuedMessage] = useState("");
   const textInputRef = useRef<HTMLTextAreaElement>(null);
   const recognitionRef = useRef<any>(null);
   const messagesRef = useRef<LabChatMsg[]>([]);
@@ -13297,6 +13308,20 @@ function SiriusLabChatPanel({ pin, accessLevel, navMode, activeProject, onNaviga
     messagesRef.current = messages;
     try { sessionStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages)); } catch {}
   }, [messages, CHAT_STORAGE_KEY]);
+
+  // Auto-send queued message once streaming finishes
+  useEffect(() => {
+    if (!streaming && queuedMessage) {
+      const msg = queuedMessage;
+      setQueuedMessage("");
+      setTimeout(() => {
+        const userMsg: LabChatMsg = { role: "user", content: msg };
+        setMessages(prev => [...prev, userMsg]);
+        const apiMessages = [...messagesRef.current, userMsg].map(m => ({ role: m.role, content: m.content }));
+        sendWithMessages(apiMessages);
+      }, 150);
+    }
+  }, [streaming]);
 
   // Waveform animation tick
   useEffect(() => {
@@ -13627,7 +13652,13 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
 
   const submitTextMessage = () => {
     const text = textInput.trim();
-    if (!text || streaming) return;
+    if (!text) return;
+    // If Sirius is mid-response, queue the message — it will auto-send when she finishes
+    if (streaming) {
+      setQueuedMessage(text);
+      setTextInput("");
+      return;
+    }
     setTextInput("");
     const userMsg: LabChatMsg = { role: "user", content: text };
     setMessages(prev => [...prev, userMsg]);
@@ -13865,13 +13896,12 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
             onKeyDown={e => {
               if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submitTextMessage(); }
             }}
-            placeholder="Type a message or tap the mic to speak…"
+            placeholder={queuedMessage ? `Queued: "${queuedMessage.slice(0, 40)}${queuedMessage.length > 40 ? "…" : ""}"` : streaming ? "Type your next message — it'll send when she finishes…" : "Type a message or tap the mic to speak…"}
             rows={1}
-            disabled={streaming}
             className="flex-1 resize-none rounded-2xl px-4 py-3 text-sm outline-none transition-all"
             style={{
-              background: "rgba(15,23,42,0.04)",
-              border: "1.5px solid rgba(15,23,42,0.1)",
+              background: queuedMessage ? "hsl(45,100%,97%)" : "rgba(15,23,42,0.04)",
+              border: `1.5px solid ${queuedMessage ? "hsl(45,80%,70%)" : "rgba(15,23,42,0.1)"}`,
               color: "rgba(15,23,42,0.85)",
               minHeight: 44,
               maxHeight: 140,
@@ -13887,13 +13917,16 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
           {/* Send button */}
           <button
             onClick={submitTextMessage}
-            disabled={!textInput.trim() || streaming}
+            disabled={!textInput.trim()}
             className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 transition-all active:scale-95"
             style={{
-              background: textInput.trim() && !streaming ? "linear-gradient(135deg, hsl(226,70%,50%), hsl(193,100%,35%))" : "rgba(15,23,42,0.08)",
-              boxShadow: textInput.trim() && !streaming ? "0 4px 14px rgba(99,102,241,0.35)" : "none",
+              background: textInput.trim() ? (streaming ? "hsl(45,90%,55%)" : "linear-gradient(135deg, hsl(226,70%,50%), hsl(193,100%,35%))") : "rgba(15,23,42,0.08)",
+              boxShadow: textInput.trim() ? "0 4px 14px rgba(99,102,241,0.25)" : "none",
             }}>
-            <Send className="w-4 h-4" style={{ color: textInput.trim() && !streaming ? "#fff" : "rgba(15,23,42,0.3)" }} />
+            {streaming && textInput.trim()
+              ? <Clock className="w-4 h-4 text-white" />
+              : <Send className="w-4 h-4" style={{ color: textInput.trim() ? "#fff" : "rgba(15,23,42,0.3)" }} />
+            }
           </button>
         </div>
       </div>
