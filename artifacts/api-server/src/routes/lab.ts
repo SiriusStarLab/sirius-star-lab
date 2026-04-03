@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { eq, desc, gte, lte, and, or, like, sql, isNull, ne } from "drizzle-orm";
-import { db, labProjects, labMessages, scoutReports, cadFiles, techDocs, labScanHistory, userProfilesTable, mediaOutlets, appBuilderSessions, voiceJournalTable, siriusConfig, siriusAutomations, siriusCustomTools, siriusErrors, cadJobs } from "@workspace/db";
+import { db, labProjects, labMessages, scoutReports, cadFiles, techDocs, labScanHistory, userProfilesTable, mediaOutlets, appBuilderSessions, voiceJournalTable, siriusConfig, siriusAutomations, siriusCustomTools, siriusErrors, cadJobs, siriusUpgrades } from "@workspace/db";
 import { getSiriusConfigValue, setSiriusConfigValue, executeCustomTool, runAutomation, logSiriusError } from "../lib/sirius-automation.js";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { generateImageBuffer } from "@workspace/integrations-openai-ai-server/image";
@@ -4271,6 +4271,70 @@ const LAB_TOOLS: any[] = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "add_upgrade_wish",
+      description: "Add a software, hardware, AI model, API, or knowledge resource to Sirius's upgrade wishlist — items Garry can purchase or acquire to make Sirius faster, smarter, and more capable. Use this whenever you discover something that would significantly improve your capabilities, access to information, or ability to execute the mission. Categories: ai_model, api, hardware, software, knowledge, platform.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: { type: "string", description: "Clear product/service name, e.g. 'Claude Opus 4', 'Tavily Search API', 'NVIDIA RTX 4090', 'IEEE Xplore Academic Access'" },
+          category: { type: "string", enum: ["ai_model", "api", "hardware", "software", "knowledge", "platform"], description: "What type of upgrade this is." },
+          description: { type: "string", description: "What this product/service does." },
+          why_needed: { type: "string", description: "Specific reason this would improve Sirius or advance the mission — be concrete about the capability gap it fills." },
+          estimated_cost: { type: "string", description: "Approximate cost, e.g. '£20/month', '£500 one-time', 'Free tier available', 'Enterprise pricing'." },
+          purchase_url: { type: "string", description: "Direct URL to purchase, sign up, or learn more. Search for this if unknown." },
+          priority: { type: "string", enum: ["critical", "high", "medium", "low"], description: "How urgently this is needed: critical = blocking a key capability, high = significantly improves output, medium = useful enhancement, low = nice-to-have." },
+        },
+        required: ["name", "category", "description", "why_needed", "priority"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "scan_for_upgrades",
+      description: "Search the web for new AI models, APIs, hardware, software, and knowledge resources that would make Sirius more capable. Run this when Garry asks what Sirius needs, or proactively when you discover a capability gap. Searches across: latest AI models, new research APIs, compute hardware, specialist software tools, academic database access, and platform improvements.",
+      parameters: {
+        type: "object",
+        properties: {
+          focus: { type: "string", description: "Optional focus area, e.g. 'AI models', 'hardware', 'research APIs', 'vision capabilities'. Leave empty for a broad scan." },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_upgrades",
+      description: "Show the current Sirius upgrade wishlist — everything identified as needed to make Sirius faster, smarter, or more capable. Use when Garry asks what Sirius needs, what to buy, or wants to review the upgrade list.",
+      parameters: {
+        type: "object",
+        properties: {
+          status: { type: "string", enum: ["wanted", "purchased", "installed", "dismissed", "all"], description: "Filter by status. Default: wanted." },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "mark_upgrade_status",
+      description: "Update the status of an upgrade — mark it as purchased, installed, or dismissed. Use when Garry says he has bought or installed something, or wants to remove an item from the wishlist.",
+      parameters: {
+        type: "object",
+        properties: {
+          upgrade_id: { type: "number", description: "The ID of the upgrade to update." },
+          status: { type: "string", enum: ["wanted", "purchased", "installed", "dismissed"], description: "New status to set." },
+          notes: { type: "string", description: "Optional notes to add, e.g. account details, where it was purchased." },
+        },
+        required: ["upgrade_id", "status"],
+      },
+    },
+  },
 ];
 
 async function executeLabTool(name: string, args: any, onProgress?: (event: Record<string, unknown>) => void): Promise<string> {
@@ -5937,6 +6001,130 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
         return `BOT DESIGN COMPLETE:\n\n${design}\n\n---\nWould you like me to save this as a project in Star Lab so you can build it out further?`;
       }
 
+      case "add_upgrade_wish": {
+        const { name, category, description, why_needed, estimated_cost, purchase_url, priority } = args;
+        if (!name?.trim()) return "Upgrade name is required.";
+        onProgress?.({ type: "status", message: `Adding upgrade to wishlist: ${name}…` });
+        const [row] = await db.insert(siriusUpgrades).values({
+          name: name.trim(),
+          category: category || "software",
+          description: description || "",
+          whyNeeded: why_needed || "",
+          estimatedCost: estimated_cost || "",
+          purchaseUrl: purchase_url || "",
+          priority: priority || "medium",
+          status: "wanted",
+          identifiedBy: "sirius",
+        }).returning();
+        return `✅ Added to upgrade wishlist: "${name}" (${category}, ${priority} priority, ID: ${row.id})\nReason: ${why_needed || "Not specified"}\nCost: ${estimated_cost || "Unknown"}\n${purchase_url ? `Purchase: ${purchase_url}` : ""}`;
+      }
+
+      case "list_upgrades": {
+        const { status = "wanted" } = args;
+        const rows = status === "all"
+          ? await db.select().from(siriusUpgrades).orderBy(desc(siriusUpgrades.discoveredAt))
+          : await db.select().from(siriusUpgrades).where(eq(siriusUpgrades.status, status)).orderBy(desc(siriusUpgrades.discoveredAt));
+        if (rows.length === 0) return `No upgrades with status "${status}" found.`;
+        const grouped: Record<string, typeof rows> = {};
+        for (const r of rows) { (grouped[r.category] ||= []).push(r); }
+        const catLabels: Record<string, string> = { ai_model: "AI Models", api: "APIs & Data", hardware: "Hardware", software: "Software", knowledge: "Knowledge Access", platform: "Platform" };
+        const priorityEmoji: Record<string, string> = { critical: "🔴", high: "🟠", medium: "🟡", low: "🟢" };
+        const statusEmoji: Record<string, string> = { wanted: "⬜", purchased: "💳", installed: "✅", dismissed: "❌" };
+        const lines = [`📦 SIRIUS UPGRADE WISHLIST — ${rows.length} items (${status})`, ""];
+        for (const [cat, items] of Object.entries(grouped)) {
+          lines.push(`### ${catLabels[cat] || cat.toUpperCase()} (${items.length})`);
+          for (const item of items) {
+            lines.push(`${statusEmoji[item.status] || "⬜"} ${priorityEmoji[item.priority] || "🟡"} [#${item.id}] **${item.name}** — ${item.estimatedCost || "Cost unknown"}`);
+            lines.push(`   ${item.whyNeeded}`);
+            if (item.purchaseUrl) lines.push(`   🔗 ${item.purchaseUrl}`);
+          }
+          lines.push("");
+        }
+        return lines.join("\n");
+      }
+
+      case "scan_for_upgrades": {
+        const { focus } = args;
+        onProgress?.({ type: "searching", query: `Scanning for Sirius upgrades${focus ? ` — ${focus}` : ""}…` });
+        const queries = focus
+          ? [`Best ${focus} tools and capabilities for AI systems in 2025 with pricing`]
+          : [
+            "Best new AI models APIs 2025 Claude GPT-4o Gemini capabilities pricing",
+            "Best hardware for running AI workloads locally GPU acceleration 2025",
+            "Best academic research APIs databases access tools for AI assistants 2025",
+            "New developer APIs tools for AI agents web search data enrichment 2025",
+          ];
+        const searchResults: string[] = [];
+        for (const q of queries) {
+          try {
+            const res = await openai.chat.completions.create({
+              model: "perplexity/sonar-pro",
+              messages: [
+                { role: "system", content: `You are a technology intelligence analyst. Today is ${TODAY()}. Search for the most current, specific, actionable upgrades relevant to AI intelligence systems. For each item return: name, what it does, why it matters, approximate cost, and URL. Be specific — real product names, real prices, real URLs.` },
+                { role: "user", content: q },
+              ],
+              max_tokens: 1500,
+              temperature: 0.1,
+            });
+            searchResults.push(res.choices[0]?.message?.content || "");
+          } catch { /* continue */ }
+        }
+        onProgress?.({ type: "search_done" });
+        onProgress?.({ type: "status", message: "Analysing and saving upgrade opportunities…" });
+
+        const combinedResults = searchResults.join("\n\n---\n\n");
+        const analysis = await openai.chat.completions.create({
+          model: "anthropic/claude-haiku-4.5",
+          messages: [
+            { role: "system", content: `You are Sirius, an AI intelligence partner. Based on these search results about AI capabilities, tools and hardware, identify the top 6-10 specific upgrades that would most improve your intelligence, speed, and ability to execute the Sirius Star Lab mission. For each one, output a JSON object on a single line with fields: name, category (ai_model|api|hardware|software|knowledge|platform), description, why_needed, estimated_cost, purchase_url, priority (critical|high|medium|low). Output only the JSON objects, one per line, no other text.` },
+            { role: "user", content: combinedResults.slice(0, 4000) },
+          ],
+          max_tokens: 1500,
+          temperature: 0.2,
+        });
+
+        const raw = analysis.choices[0]?.message?.content || "";
+        const lines = raw.split("\n").filter(l => l.trim().startsWith("{"));
+        let saved = 0;
+        const savedNames: string[] = [];
+        for (const line of lines) {
+          try {
+            const item = JSON.parse(line);
+            if (!item.name || !item.category) continue;
+            const existing = await db.select().from(siriusUpgrades).where(eq(siriusUpgrades.name, item.name)).limit(1);
+            if (existing.length > 0) continue;
+            await db.insert(siriusUpgrades).values({
+              name: item.name,
+              category: item.category,
+              description: item.description || "",
+              whyNeeded: item.why_needed || item.whyNeeded || "",
+              estimatedCost: item.estimated_cost || item.estimatedCost || "",
+              purchaseUrl: item.purchase_url || item.purchaseUrl || "",
+              priority: item.priority || "medium",
+              status: "wanted",
+              identifiedBy: "sirius",
+            });
+            saved++;
+            savedNames.push(item.name);
+          } catch { /* skip malformed */ }
+        }
+        return `🔍 UPGRADE SCAN COMPLETE\n\nFound and saved ${saved} new upgrade opportunities to the wishlist:\n${savedNames.map(n => `• ${n}`).join("\n")}\n\nGo to the Upgrades section to review and purchase them. Use list_upgrades to see the full list now.`;
+      }
+
+      case "mark_upgrade_status": {
+        const { upgrade_id, status, notes } = args;
+        if (!upgrade_id) return "Upgrade ID is required.";
+        const [existing] = await db.select().from(siriusUpgrades).where(eq(siriusUpgrades.id, upgrade_id)).limit(1);
+        if (!existing) return `No upgrade found with ID ${upgrade_id}.`;
+        await db.update(siriusUpgrades).set({
+          status,
+          notes: notes ? `${existing.notes || ""}\n${notes}`.trim() : existing.notes,
+          updatedAt: new Date(),
+        }).where(eq(siriusUpgrades.id, upgrade_id));
+        const statusLabels: Record<string, string> = { wanted: "back on the wishlist", purchased: "marked as purchased", installed: "marked as installed", dismissed: "dismissed" };
+        return `✅ "${existing.name}" has been ${statusLabels[status] || status}.${notes ? `\nNote: ${notes}` : ""}`;
+      }
+
       case "search_web": {
         const { query, depth = "standard" } = args;
         if (!query?.trim()) return "A search query is required.";
@@ -6082,6 +6270,10 @@ const TOOL_META: Record<string, { label: string; color: string; icon: string }> 
   design_bot: { label: "Designing bot architecture", color: "hsl(280,70%,55%)", icon: "🤖" },
   search_web: { label: "Searching the web", color: "hsl(210,80%,50%)", icon: "🌐" },
   fetch_url: { label: "Reading page", color: "hsl(210,80%,50%)", icon: "📄" },
+  add_upgrade_wish: { label: "Added to upgrade wishlist", color: "hsl(280,80%,58%)", icon: "📦" },
+  list_upgrades: { label: "Upgrade wishlist loaded", color: "hsl(280,80%,58%)", icon: "📦" },
+  scan_for_upgrades: { label: "Scanning for capability upgrades", color: "hsl(280,80%,58%)", icon: "🔍" },
+  mark_upgrade_status: { label: "Upgrade status updated", color: "hsl(155,70%,45%)", icon: "✅" },
 };
 
 // Detect whether a message is primarily an information/research query
@@ -8851,6 +9043,70 @@ router.post("/lab/backfill-code", authMiddleware, async (_req: Request, res: Res
     }
     console.log(`[Backfill] Code saved for ${updated}/${sessions.length} projects`);
     res.json({ ok: true, updated, checked: sessions.length });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+
+// ── Sirius Upgrades REST endpoints ─────────────────────────────────────────
+
+router.get("/lab/upgrades", authMiddleware, async (_req: Request, res: Response) => {
+  try {
+    const rows = await db.select().from(siriusUpgrades).orderBy(desc(siriusUpgrades.discoveredAt));
+    res.json(rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+
+router.post("/lab/upgrades", authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const { name, category, description, whyNeeded, estimatedCost, purchaseUrl, priority } = req.body;
+    if (!name?.trim()) { res.status(400).json({ error: "name is required" }); return; }
+    const [row] = await db.insert(siriusUpgrades).values({
+      name: name.trim(),
+      category: category || "software",
+      description: description || "",
+      whyNeeded: whyNeeded || "",
+      estimatedCost: estimatedCost || "",
+      purchaseUrl: purchaseUrl || "",
+      priority: priority || "medium",
+      status: "wanted",
+      identifiedBy: "garry",
+    }).returning();
+    res.json(row);
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+
+router.patch("/lab/upgrades/:id", authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const id = parseInt(req.params.id as string);
+    const { status, notes, name, category, description, whyNeeded, estimatedCost, purchaseUrl, priority } = req.body;
+    const update: Record<string, any> = { updatedAt: new Date() };
+    if (status) update.status = status;
+    if (notes !== undefined) update.notes = notes;
+    if (name) update.name = name;
+    if (category) update.category = category;
+    if (description !== undefined) update.description = description;
+    if (whyNeeded !== undefined) update.whyNeeded = whyNeeded;
+    if (estimatedCost !== undefined) update.estimatedCost = estimatedCost;
+    if (purchaseUrl !== undefined) update.purchaseUrl = purchaseUrl;
+    if (priority) update.priority = priority;
+    const [row] = await db.update(siriusUpgrades).set(update).where(eq(siriusUpgrades.id, id)).returning();
+    if (!row) { res.status(404).json({ error: "Not found" }); return; }
+    res.json(row);
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+
+router.delete("/lab/upgrades/:id", authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const id = parseInt(req.params.id as string);
+    await db.delete(siriusUpgrades).where(eq(siriusUpgrades.id, id));
+    res.json({ ok: true });
   } catch (err: any) {
     res.status(500).json({ error: err?.message });
   }

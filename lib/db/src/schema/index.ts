@@ -39,3 +39,4 @@ export * from "./sirius_custom_tools";
 export * from "./sirius_errors";
 export * from "./tech_docs";
 export * from "./cad_jobs";
+export * from "./sirius_upgrades";

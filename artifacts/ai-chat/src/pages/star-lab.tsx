@@ -73,7 +73,7 @@ type RankResult = {
   keyStrengths: string[]; estimatedMonthlyRevenue: string;
   buildEffort: string;
 };
-type NavMode = "dashboard" | "projects" | "botlab" | "scout" | "feed" | "grants" | "commerce" | "outreach" | "autolab" | "revenue" | "agency" | "mission" | "growth" | "brain" | "research" | "docs" | "labchat" | "appbuilder" | "ai-arch" | "orchestrate" | "sysaudit";
+type NavMode = "dashboard" | "projects" | "botlab" | "scout" | "feed" | "grants" | "commerce" | "outreach" | "autolab" | "revenue" | "agency" | "mission" | "growth" | "brain" | "research" | "docs" | "labchat" | "appbuilder" | "ai-arch" | "orchestrate" | "sysaudit" | "upgrades";
 
 const MAX_PIN_DIGITS = 8;
 const MAX_ATTEMPTS = 5;
@@ -12709,7 +12709,7 @@ const NAV_LABELS: Record<string, string> = {
   autolab: "Autonomous Lab", revenue: "Revenue Hub", agency: "Agency Hub", mission: "Mission",
   growth: "Growth Engine", brain: "Sirius Brain", research: "Deep Research", docs: "Document Intel",
   appbuilder: "App Builder", "ai-arch": "AI Architecture", orchestrate: "Command Centre",
-  sysaudit: "System Audit",
+  sysaudit: "System Audit", upgrades: "Sirius Upgrades",
 };
 
 function LabFloatingChat({ pin, navMode, activeProject, onNavigate, onOpenProject, accessLevel }: {
@@ -12846,6 +12846,7 @@ function LabFloatingChat({ pin, navMode, activeProject, onNavigate, onOpenProjec
       [["ai architecture", "ai arch", "architecture"], "ai-arch"],
       [["command centre", "orchestrate", "orchestration", "full pipeline"], "orchestrate"],
       [["system audit", "sysaudit", "platform audit", "audit", "health check", "platform health"], "sysaudit"],
+      [["upgrades", "upgrade wishlist", "what sirius needs", "sirius upgrades", "buy for sirius", "capability upgrades"], "upgrades"],
     ];
     const goVerbs = ["go to", "take me to", "open", "show me", "navigate to", "switch to", "go"];
     const hasGoVerb = goVerbs.some(v => t.includes(v));
@@ -13613,6 +13614,7 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
       [["ai architecture", "ai arch", "architecture"], "ai-arch"],
       [["command centre", "orchestrate", "orchestration", "full pipeline"], "orchestrate"],
       [["system audit", "sysaudit", "platform audit", "audit", "health check", "platform health"], "sysaudit"],
+      [["upgrades", "upgrade wishlist", "what sirius needs", "sirius upgrades", "buy for sirius", "capability upgrades"], "upgrades"],
     ];
     const goVerbs = ["go to", "take me to", "open", "show me", "navigate to", "switch to", "go"];
     const hasGoVerb = goVerbs.some(v => t.includes(v));
@@ -14394,6 +14396,298 @@ function SystemAuditPanel({ pin }: { pin: string }) {
   );
 }
 
+// ── Sirius Upgrades Panel ────────────────────────────────────────────────────
+
+type SiriusUpgradeRow = {
+  id: number;
+  name: string;
+  category: string;
+  description: string;
+  whyNeeded: string;
+  estimatedCost: string | null;
+  purchaseUrl: string | null;
+  priority: string;
+  status: string;
+  identifiedBy: string;
+  notes: string | null;
+  discoveredAt: string;
+  updatedAt: string;
+};
+
+const UPGRADE_STATUS_TABS = [
+  { key: "wanted",      label: "Wanted" },
+  { key: "ordered",     label: "Ordered" },
+  { key: "purchased",   label: "Purchased" },
+  { key: "installed",   label: "Installed" },
+  { key: "dismissed",   label: "Dismissed" },
+];
+
+const UPGRADE_PRIORITY_COLORS: Record<string, string> = {
+  critical: "#dc2626",
+  high:     "#ea580c",
+  medium:   "#ca8a04",
+  low:      "#16a34a",
+};
+
+const UPGRADE_CATEGORY_COLORS: Record<string, string> = {
+  software:  "#6366f1",
+  hardware:  "#0891b2",
+  api:       "#7c3aed",
+  service:   "#0d9488",
+  knowledge: "#be185d",
+  tool:      "#b45309",
+  other:     "#6b7280",
+};
+
+function UpgradesPanel({ pin }: { pin: string }) {
+  const API = getApiBase();
+  const [upgrades, setUpgrades] = React.useState<SiriusUpgradeRow[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [activeTab, setActiveTab] = React.useState<string>("wanted");
+  const [scanning, setScanning] = React.useState(false);
+  const [scanDone, setScanDone] = React.useState(false);
+  const [showAdd, setShowAdd] = React.useState(false);
+  const [adding, setAdding] = React.useState(false);
+  const [addForm, setAddForm] = React.useState({ name: "", category: "software", description: "", whyNeeded: "", estimatedCost: "", purchaseUrl: "", priority: "medium" });
+  const [statusMsg, setStatusMsg] = React.useState<string | null>(null);
+
+  const fetchUpgrades = async () => {
+    try {
+      const r = await fetch(`${API}lab/upgrades`, { headers: { "x-lab-pin": pin } });
+      if (r.ok) setUpgrades(await r.json());
+    } catch { /* ignore */ }
+    setLoading(false);
+  };
+
+  React.useEffect(() => { fetchUpgrades(); }, []);
+
+  const filtered = upgrades.filter(u => u.status === activeTab);
+
+  const patchUpgrade = async (id: number, body: Record<string, string>) => {
+    try {
+      const r = await fetch(`${API}lab/upgrades/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+        body: JSON.stringify(body),
+      });
+      if (r.ok) {
+        const updated = await r.json();
+        setUpgrades(prev => prev.map(u => u.id === id ? updated : u));
+        setStatusMsg(body.status ? `Marked as "${body.status}"` : "Updated");
+        setTimeout(() => setStatusMsg(null), 2000);
+      }
+    } catch { /* ignore */ }
+  };
+
+  const deleteUpgrade = async (id: number) => {
+    if (!confirm("Delete this upgrade?")) return;
+    try {
+      await fetch(`${API}lab/upgrades/${id}`, { method: "DELETE", headers: { "x-lab-pin": pin } });
+      setUpgrades(prev => prev.filter(u => u.id !== id));
+    } catch { /* ignore */ }
+  };
+
+  const triggerScan = async () => {
+    setScanning(true);
+    setScanDone(false);
+    try {
+      const r = await fetch(`${API}lab/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+        body: JSON.stringify({ message: "Please run the scan_for_upgrades tool now to discover what Sirius needs to become more capable and intelligent. Save anything new you find.", stream: false }),
+      });
+      if (r.ok) {
+        setScanDone(true);
+        setTimeout(async () => { await fetchUpgrades(); setScanDone(false); setScanning(false); }, 1500);
+        return;
+      }
+    } catch { /* ignore */ }
+    setScanning(false);
+  };
+
+  const handleAddSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!addForm.name.trim()) return;
+    setAdding(true);
+    try {
+      const r = await fetch(`${API}lab/upgrades`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+        body: JSON.stringify(addForm),
+      });
+      if (r.ok) {
+        const row = await r.json();
+        setUpgrades(prev => [row, ...prev]);
+        setAddForm({ name: "", category: "software", description: "", whyNeeded: "", estimatedCost: "", purchaseUrl: "", priority: "medium" });
+        setShowAdd(false);
+      }
+    } catch { /* ignore */ }
+    setAdding(false);
+  };
+
+  const countsMap = Object.fromEntries(UPGRADE_STATUS_TABS.map(t => [t.key, upgrades.filter(u => u.status === t.key).length]));
+
+  return (
+    <div className="flex-1 overflow-y-auto" style={{ background: "#F8FAFC" }}>
+      <div style={{ maxWidth: 900, margin: "0 auto", padding: "24px 16px 64px" }}>
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+          <div style={{ width: 40, height: 40, borderRadius: 10, background: "hsl(280,80%,58%)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Package size={20} color="#fff" />
+          </div>
+          <div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: "#0f172a" }}>Sirius Upgrades</div>
+            <div style={{ fontSize: 13, color: "#64748b" }}>Tools, APIs, and capabilities Sirius needs to evolve</div>
+          </div>
+          <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+            <button
+              onClick={() => setShowAdd(v => !v)}
+              style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid #e2e8f0", background: "#fff", color: "#374151", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
+            >
+              <Plus size={14} /> Add
+            </button>
+            <button
+              onClick={triggerScan}
+              disabled={scanning}
+              style={{ padding: "8px 14px", borderRadius: 8, border: "none", background: "hsl(280,80%,58%)", color: "#fff", fontSize: 13, fontWeight: 600, cursor: scanning ? "not-allowed" : "pointer", display: "flex", alignItems: "center", gap: 6, opacity: scanning ? 0.7 : 1 }}
+            >
+              {scanning ? (scanDone ? <Check size={14} /> : <RefreshCw size={14} style={{ animation: "spin 1s linear infinite" }} />) : <Zap size={14} />}
+              {scanning ? (scanDone ? "Saved!" : "Scanning…") : "Scan with Sirius"}
+            </button>
+          </div>
+        </div>
+
+        {/* Status flash */}
+        {statusMsg && (
+          <div style={{ background: "hsl(155,70%,95%)", border: "1px solid hsl(155,70%,75%)", borderRadius: 8, padding: "8px 14px", fontSize: 13, color: "hsl(155,60%,30%)", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
+            <Check size={14} /> {statusMsg}
+          </div>
+        )}
+
+        {/* Add form */}
+        {showAdd && (
+          <form onSubmit={handleAddSubmit} style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, padding: 20, marginBottom: 20 }}>
+            <div style={{ fontWeight: 700, fontSize: 14, color: "#0f172a", marginBottom: 12 }}>Add Upgrade Manually</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <input required value={addForm.name} onChange={e => setAddForm(p => ({ ...p, name: e.target.value }))} placeholder="Upgrade name *" style={{ padding: "8px 10px", borderRadius: 7, border: "1px solid #e2e8f0", fontSize: 13, gridColumn: "1/-1" }} />
+              <select value={addForm.category} onChange={e => setAddForm(p => ({ ...p, category: e.target.value }))} style={{ padding: "8px 10px", borderRadius: 7, border: "1px solid #e2e8f0", fontSize: 13 }}>
+                {Object.keys(UPGRADE_CATEGORY_COLORS).map(c => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
+              </select>
+              <select value={addForm.priority} onChange={e => setAddForm(p => ({ ...p, priority: e.target.value }))} style={{ padding: "8px 10px", borderRadius: 7, border: "1px solid #e2e8f0", fontSize: 13 }}>
+                {["critical","high","medium","low"].map(p => <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>)}
+              </select>
+              <input value={addForm.estimatedCost} onChange={e => setAddForm(p => ({ ...p, estimatedCost: e.target.value }))} placeholder="Estimated cost (e.g. £20/mo)" style={{ padding: "8px 10px", borderRadius: 7, border: "1px solid #e2e8f0", fontSize: 13 }} />
+              <input value={addForm.purchaseUrl} onChange={e => setAddForm(p => ({ ...p, purchaseUrl: e.target.value }))} placeholder="Purchase URL" style={{ padding: "8px 10px", borderRadius: 7, border: "1px solid #e2e8f0", fontSize: 13 }} />
+              <textarea value={addForm.whyNeeded} onChange={e => setAddForm(p => ({ ...p, whyNeeded: e.target.value }))} placeholder="Why is this needed?" rows={2} style={{ padding: "8px 10px", borderRadius: 7, border: "1px solid #e2e8f0", fontSize: 13, gridColumn: "1/-1", resize: "vertical" }} />
+              <textarea value={addForm.description} onChange={e => setAddForm(p => ({ ...p, description: e.target.value }))} placeholder="Description (optional)" rows={2} style={{ padding: "8px 10px", borderRadius: 7, border: "1px solid #e2e8f0", fontSize: 13, gridColumn: "1/-1", resize: "vertical" }} />
+            </div>
+            <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+              <button type="submit" disabled={adding} style={{ padding: "8px 16px", borderRadius: 7, border: "none", background: "hsl(280,80%,58%)", color: "#fff", fontSize: 13, fontWeight: 600, cursor: adding ? "not-allowed" : "pointer" }}>
+                {adding ? "Saving…" : "Save Upgrade"}
+              </button>
+              <button type="button" onClick={() => setShowAdd(false)} style={{ padding: "8px 14px", borderRadius: 7, border: "1px solid #e2e8f0", background: "#fff", color: "#374151", fontSize: 13, cursor: "pointer" }}>Cancel</button>
+            </div>
+          </form>
+        )}
+
+        {/* Status tabs */}
+        <div style={{ display: "flex", gap: 4, marginBottom: 20, background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, padding: 4 }}>
+          {UPGRADE_STATUS_TABS.map(t => (
+            <button
+              key={t.key}
+              onClick={() => setActiveTab(t.key)}
+              style={{
+                flex: 1, padding: "7px 10px", borderRadius: 7, border: "none",
+                background: activeTab === t.key ? "hsl(280,80%,58%)" : "transparent",
+                color: activeTab === t.key ? "#fff" : "#64748b",
+                fontSize: 12, fontWeight: 600, cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
+              }}
+            >
+              {t.label}
+              {countsMap[t.key] > 0 && (
+                <span style={{ background: activeTab === t.key ? "rgba(255,255,255,0.25)" : "#e2e8f0", borderRadius: 10, padding: "1px 6px", fontSize: 11 }}>
+                  {countsMap[t.key]}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Cards */}
+        {loading ? (
+          <div style={{ textAlign: "center", color: "#94a3b8", padding: 40 }}>Loading upgrades…</div>
+        ) : filtered.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "48px 20px" }}>
+            <Package size={36} color="#cbd5e1" style={{ marginBottom: 12 }} />
+            <div style={{ color: "#94a3b8", fontSize: 14, marginBottom: 8 }}>
+              {activeTab === "wanted" ? "No upgrades identified yet" : `No "${activeTab}" items`}
+            </div>
+            {activeTab === "wanted" && (
+              <div style={{ color: "#b0b8c4", fontSize: 13 }}>Click "Scan with Sirius" to discover what she needs, or add one manually.</div>
+            )}
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {filtered.map(u => (
+              <div key={u.id} style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, padding: 18, boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
+                      <span style={{ fontSize: 15, fontWeight: 700, color: "#0f172a" }}>{u.name}</span>
+                      <span style={{ background: UPGRADE_CATEGORY_COLORS[u.category] || "#6b7280", color: "#fff", fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 10, textTransform: "uppercase", letterSpacing: "0.05em" }}>{u.category}</span>
+                      <span style={{ background: UPGRADE_PRIORITY_COLORS[u.priority] || "#6b7280", color: "#fff", fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 10, textTransform: "uppercase", letterSpacing: "0.05em" }}>{u.priority}</span>
+                      {u.identifiedBy === "sirius" && (
+                        <span style={{ background: "hsl(193,100%,95%)", color: "hsl(193,100%,30%)", fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 10 }}>SIRIUS</span>
+                      )}
+                    </div>
+                    {u.whyNeeded && <div style={{ fontSize: 13, color: "#374151", marginBottom: 4, lineHeight: 1.5 }}><span style={{ fontWeight: 600, color: "#64748b" }}>Why: </span>{u.whyNeeded}</div>}
+                    {u.description && <div style={{ fontSize: 13, color: "#64748b", marginBottom: 4, lineHeight: 1.5 }}>{u.description}</div>}
+                    {u.notes && <div style={{ fontSize: 12, color: "#94a3b8", fontStyle: "italic", marginBottom: 4 }}>{u.notes}</div>}
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 10, flexWrap: "wrap" }}>
+                      {u.estimatedCost && (
+                        <span style={{ fontSize: 13, fontWeight: 700, color: "hsl(280,80%,50%)" }}>{u.estimatedCost}</span>
+                      )}
+                      {u.purchaseUrl && (
+                        <a href={u.purchaseUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: "hsl(210,80%,55%)", textDecoration: "underline", display: "flex", alignItems: "center", gap: 4 }}>
+                          <Globe size={11} /> Buy / View
+                        </a>
+                      )}
+                      <span style={{ fontSize: 11, color: "#cbd5e1" }}>
+                        Found {new Date(u.discoveredAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                      </span>
+                    </div>
+                  </div>
+                  {/* Action buttons */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 5, flexShrink: 0 }}>
+                    {u.status === "wanted" && (
+                      <>
+                        <button onClick={() => patchUpgrade(u.id, { status: "ordered" })} style={{ padding: "5px 10px", borderRadius: 7, border: "1px solid #e2e8f0", background: "#f8fafc", color: "#374151", fontSize: 11, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>Mark Ordered</button>
+                        <button onClick={() => patchUpgrade(u.id, { status: "purchased" })} style={{ padding: "5px 10px", borderRadius: 7, border: "1px solid #e2e8f0", background: "#f8fafc", color: "#374151", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Purchased</button>
+                        <button onClick={() => patchUpgrade(u.id, { status: "dismissed" })} style={{ padding: "5px 10px", borderRadius: 7, border: "1px solid #fef2f2", background: "#fef2f2", color: "#dc2626", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Dismiss</button>
+                      </>
+                    )}
+                    {u.status === "ordered" && (
+                      <button onClick={() => patchUpgrade(u.id, { status: "purchased" })} style={{ padding: "5px 10px", borderRadius: 7, border: "1px solid #e2e8f0", background: "#f0fdf4", color: "#16a34a", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Arrived / Purchased</button>
+                    )}
+                    {u.status === "purchased" && (
+                      <button onClick={() => patchUpgrade(u.id, { status: "installed" })} style={{ padding: "5px 10px", borderRadius: 7, border: "1px solid #e2e8f0", background: "#f0fdf4", color: "#16a34a", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Mark Installed</button>
+                    )}
+                    {(u.status === "installed" || u.status === "dismissed") && (
+                      <button onClick={() => patchUpgrade(u.id, { status: "wanted" })} style={{ padding: "5px 10px", borderRadius: 7, border: "1px solid #e2e8f0", background: "#f8fafc", color: "#374151", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Restore</button>
+                    )}
+                    <button onClick={() => deleteUpgrade(u.id)} style={{ padding: "5px 10px", borderRadius: 7, border: "none", background: "transparent", color: "#cbd5e1", fontSize: 11, cursor: "pointer" }}>Delete</button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function OrchestratorPanel({ pin, onOpenProject }: {
   pin: string;
   onOpenProject: (projectId: number) => void;
@@ -15170,6 +15464,7 @@ export function StarLabPage() {
     { id: "dashboard" as NavMode,  label: "Dashboard",        icon: LayoutDashboard, color: "hsl(193,100%,45%)", category: "command",      guestAllowed: true  },
     { id: "labchat"   as NavMode,  label: "Chat with Sirius", icon: MessageSquare,   color: "hsl(193,100%,50%)", category: "command",      guestAllowed: true  },
     { id: "sysaudit"  as NavMode,  label: "System Audit",     icon: ShieldAlert,     color: "hsl(210,80%,55%)",  category: "command",      guestAllowed: false },
+    { id: "upgrades"  as NavMode,  label: "Sirius Upgrades",  icon: Package,         color: "hsl(280,80%,58%)",  category: "command",      guestAllowed: false },
     { id: "mission"   as NavMode,  label: "Mission",          icon: Star,            color: "hsl(193,100%,50%)", category: "command",      guestAllowed: true  },
     // BUILD
     { id: "appbuilder" as NavMode, label: "App Builder",      icon: Rocket,          color: "hsl(155,70%,42%)",  category: "build",        guestAllowed: false },
@@ -15587,6 +15882,7 @@ export function StarLabPage() {
             <SystemAuditPanel pin={pin} />
           </div>
         )}
+        {navMode === "upgrades" && <UpgradesPanel pin={pin} />}
         {navMode === "appbuilder" && (
           <AppBuilderPanel
             pin={pin}
