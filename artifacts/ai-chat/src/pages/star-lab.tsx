@@ -14443,16 +14443,23 @@ type SiriusUpgradeRow = {
   status: string;
   identifiedBy: string;
   notes: string | null;
+  isFree: boolean;
+  approvalNeeded: boolean;
+  proposalText: string | null;
+  implementationNotes: string | null;
   discoveredAt: string;
   updatedAt: string;
 };
 
 const UPGRADE_STATUS_TABS = [
-  { key: "wanted",      label: "Wanted" },
-  { key: "ordered",     label: "Ordered" },
-  { key: "purchased",   label: "Purchased" },
-  { key: "installed",   label: "Installed" },
-  { key: "dismissed",   label: "Dismissed" },
+  { key: "awaiting_approval", label: "Proposals" },
+  { key: "implementing",      label: "Implementing" },
+  { key: "wanted",            label: "Wanted" },
+  { key: "ordered",           label: "Ordered" },
+  { key: "purchased",         label: "Purchased" },
+  { key: "installed",         label: "Installed" },
+  { key: "declined",          label: "Declined" },
+  { key: "dismissed",         label: "Dismissed" },
 ];
 
 const UPGRADE_PRIORITY_COLORS: Record<string, string> = {
@@ -14476,13 +14483,15 @@ function UpgradesPanel({ pin }: { pin: string }) {
   const API = getApiBase();
   const [upgrades, setUpgrades] = React.useState<SiriusUpgradeRow[]>([]);
   const [loading, setLoading] = React.useState(true);
-  const [activeTab, setActiveTab] = React.useState<string>("wanted");
+  const [activeTab, setActiveTab] = React.useState<string>("awaiting_approval");
   const [scanning, setScanning] = React.useState(false);
   const [scanDone, setScanDone] = React.useState(false);
   const [showAdd, setShowAdd] = React.useState(false);
   const [adding, setAdding] = React.useState(false);
   const [addForm, setAddForm] = React.useState({ name: "", category: "software", description: "", whyNeeded: "", estimatedCost: "", purchaseUrl: "", priority: "medium" });
   const [statusMsg, setStatusMsg] = React.useState<string | null>(null);
+  const [expandedNotes, setExpandedNotes] = React.useState<Set<number>>(new Set());
+  const [actionLoading, setActionLoading] = React.useState<Set<number>>(new Set());
 
   const fetchUpgrades = async () => {
     try {
@@ -14512,6 +14521,40 @@ function UpgradesPanel({ pin }: { pin: string }) {
     } catch { /* ignore */ }
   };
 
+  const approveUpgrade = async (id: number) => {
+    setActionLoading(prev => new Set(prev).add(id));
+    try {
+      const r = await fetch(`${API}lab/upgrades/${id}/approve`, {
+        method: "POST",
+        headers: { "x-lab-pin": pin },
+      });
+      if (r.ok) {
+        const updated = await r.json();
+        setUpgrades(prev => prev.map(u => u.id === id ? updated : u));
+        setStatusMsg("Approved — Sirius will proceed.");
+        setTimeout(() => setStatusMsg(null), 3000);
+      }
+    } catch { /* ignore */ }
+    setActionLoading(prev => { const n = new Set(prev); n.delete(id); return n; });
+  };
+
+  const declineUpgrade = async (id: number) => {
+    setActionLoading(prev => new Set(prev).add(id));
+    try {
+      const r = await fetch(`${API}lab/upgrades/${id}/decline`, {
+        method: "POST",
+        headers: { "x-lab-pin": pin },
+      });
+      if (r.ok) {
+        const updated = await r.json();
+        setUpgrades(prev => prev.map(u => u.id === id ? updated : u));
+        setStatusMsg("Declined.");
+        setTimeout(() => setStatusMsg(null), 2000);
+      }
+    } catch { /* ignore */ }
+    setActionLoading(prev => { const n = new Set(prev); n.delete(id); return n; });
+  };
+
   const deleteUpgrade = async (id: number) => {
     if (!confirm("Delete this upgrade?")) return;
     try {
@@ -14527,11 +14570,14 @@ function UpgradesPanel({ pin }: { pin: string }) {
       const r = await fetch(`${API}lab/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-lab-pin": pin },
-        body: JSON.stringify({ message: "Please run the scan_for_upgrades tool now to discover what Sirius needs to become more capable and intelligent. Save anything new you find.", stream: false }),
+        body: JSON.stringify({
+          message: "Run a full autonomous upgrade cycle now: first use scan_free_upgrades to find everything free you can activate immediately, then self_implement_upgrade each one. Then use scan_for_upgrades to find the best paid upgrades, add each with add_upgrade_wish, and immediately create a proposal for each with propose_paid_upgrade. Work autonomously — don't ask me questions, just act and report what you've done.",
+          stream: false
+        }),
       });
       if (r.ok) {
         setScanDone(true);
-        setTimeout(async () => { await fetchUpgrades(); setScanDone(false); setScanning(false); }, 1500);
+        setTimeout(async () => { await fetchUpgrades(); setScanDone(false); setScanning(false); }, 2000);
         return;
       }
     } catch { /* ignore */ }
@@ -14558,19 +14604,30 @@ function UpgradesPanel({ pin }: { pin: string }) {
     setAdding(false);
   };
 
+  const toggleNotes = (id: number) => {
+    setExpandedNotes(prev => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
+  };
+
+  const proposalCount = upgrades.filter(u => u.status === "awaiting_approval").length;
+  const implementingCount = upgrades.filter(u => u.status === "implementing").length;
+
   const countsMap = Object.fromEntries(UPGRADE_STATUS_TABS.map(t => [t.key, upgrades.filter(u => u.status === t.key).length]));
 
   return (
     <div className="flex-1 overflow-y-auto" style={{ background: "#F8FAFC" }}>
       <div style={{ maxWidth: 900, margin: "0 auto", padding: "24px 16px 64px" }}>
         {/* Header */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
           <div style={{ width: 40, height: 40, borderRadius: 10, background: "hsl(280,80%,58%)", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Package size={20} color="#fff" />
           </div>
           <div>
             <div style={{ fontSize: 22, fontWeight: 700, color: "#0f172a" }}>Sirius Upgrades</div>
-            <div style={{ fontSize: 13, color: "#64748b" }}>Tools, APIs, and capabilities Sirius needs to evolve</div>
+            <div style={{ fontSize: 13, color: "#64748b" }}>Sirius finds, proposes, and self-implements her own growth</div>
           </div>
           <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
             <button
@@ -14585,10 +14642,36 @@ function UpgradesPanel({ pin }: { pin: string }) {
               style={{ padding: "8px 14px", borderRadius: 8, border: "none", background: "hsl(280,80%,58%)", color: "#fff", fontSize: 13, fontWeight: 600, cursor: scanning ? "not-allowed" : "pointer", display: "flex", alignItems: "center", gap: 6, opacity: scanning ? 0.7 : 1 }}
             >
               {scanning ? (scanDone ? <Check size={14} /> : <RefreshCw size={14} style={{ animation: "spin 1s linear infinite" }} />) : <Zap size={14} />}
-              {scanning ? (scanDone ? "Saved!" : "Scanning…") : "Scan with Sirius"}
+              {scanning ? (scanDone ? "Done!" : "Working…") : "Run Autonomous Scan"}
             </button>
           </div>
         </div>
+
+        {/* Attention banners */}
+        {proposalCount > 0 && activeTab !== "awaiting_approval" && (
+          <div
+            onClick={() => setActiveTab("awaiting_approval")}
+            style={{ background: "hsl(280,80%,96%)", border: "1px solid hsl(280,80%,80%)", borderRadius: 8, padding: "10px 14px", marginBottom: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}
+          >
+            <Package size={14} color="hsl(280,80%,45%)" />
+            <span style={{ fontSize: 13, fontWeight: 600, color: "hsl(280,80%,35%)" }}>
+              Sirius has {proposalCount} upgrade proposal{proposalCount !== 1 ? "s" : ""} waiting for your decision
+            </span>
+            <span style={{ marginLeft: "auto", fontSize: 12, color: "hsl(280,80%,50%)" }}>View →</span>
+          </div>
+        )}
+        {implementingCount > 0 && activeTab !== "implementing" && (
+          <div
+            onClick={() => setActiveTab("implementing")}
+            style={{ background: "hsl(155,70%,96%)", border: "1px solid hsl(155,70%,75%)", borderRadius: 8, padding: "10px 14px", marginBottom: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}
+          >
+            <Zap size={14} color="hsl(155,70%,35%)" />
+            <span style={{ fontSize: 13, fontWeight: 600, color: "hsl(155,70%,25%)" }}>
+              {implementingCount} upgrade{implementingCount !== 1 ? "s" : ""} in progress — needs one API key from you
+            </span>
+            <span style={{ marginLeft: "auto", fontSize: 12, color: "hsl(155,70%,40%)" }}>View →</span>
+          </div>
+        )}
 
         {/* Status flash */}
         {statusMsg && (
@@ -14654,45 +14737,112 @@ function UpgradesPanel({ pin }: { pin: string }) {
           <div style={{ textAlign: "center", padding: "48px 20px" }}>
             <Package size={36} color="#cbd5e1" style={{ marginBottom: 12 }} />
             <div style={{ color: "#94a3b8", fontSize: 14, marginBottom: 8 }}>
-              {activeTab === "wanted" ? "No upgrades identified yet" : `No "${activeTab}" items`}
+              {activeTab === "awaiting_approval" ? "No proposals yet — Sirius will submit paid upgrade proposals here" :
+             activeTab === "implementing" ? "Nothing being implemented right now" :
+             activeTab === "wanted" ? "No upgrades identified yet" :
+             `No "${activeTab}" items`}
             </div>
-            {activeTab === "wanted" && (
-              <div style={{ color: "#b0b8c4", fontSize: 13 }}>Click "Scan with Sirius" to discover what she needs, or add one manually.</div>
+            {(activeTab === "wanted" || activeTab === "awaiting_approval") && (
+              <div style={{ color: "#b0b8c4", fontSize: 13 }}>Click "Run Autonomous Scan" to let Sirius find and self-implement free upgrades, and propose paid ones to you.</div>
             )}
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {filtered.map(u => (
-              <div key={u.id} style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, padding: 18, boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+              <div key={u.id} style={{
+                background: "#fff",
+                border: u.status === "awaiting_approval" ? "1px solid hsl(280,80%,80%)" : u.status === "implementing" ? "1px solid hsl(155,70%,75%)" : "1px solid #e2e8f0",
+                borderRadius: 12,
+                padding: 18,
+                boxShadow: u.status === "awaiting_approval" ? "0 2px 8px rgba(139,92,246,0.08)" : "0 1px 3px rgba(0,0,0,0.04)",
+              }}>
                 <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
                       <span style={{ fontSize: 15, fontWeight: 700, color: "#0f172a" }}>{u.name}</span>
                       <span style={{ background: UPGRADE_CATEGORY_COLORS[u.category] || "#6b7280", color: "#fff", fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 10, textTransform: "uppercase", letterSpacing: "0.05em" }}>{u.category}</span>
                       <span style={{ background: UPGRADE_PRIORITY_COLORS[u.priority] || "#6b7280", color: "#fff", fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 10, textTransform: "uppercase", letterSpacing: "0.05em" }}>{u.priority}</span>
+                      {u.isFree && (
+                        <span style={{ background: "hsl(155,70%,92%)", color: "hsl(155,70%,25%)", fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 10 }}>FREE</span>
+                      )}
                       {u.identifiedBy === "sirius" && (
                         <span style={{ background: "hsl(193,100%,95%)", color: "hsl(193,100%,30%)", fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 10 }}>SIRIUS</span>
+                      )}
+                      {u.status === "implementing" && (
+                        <span style={{ background: "hsl(155,70%,92%)", color: "hsl(155,70%,25%)", fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 10, display: "flex", alignItems: "center", gap: 3 }}>
+                          <RefreshCw size={9} style={{ animation: "spin 2s linear infinite" }} /> IMPLEMENTING
+                        </span>
                       )}
                     </div>
                     {u.whyNeeded && <div style={{ fontSize: 13, color: "#374151", marginBottom: 4, lineHeight: 1.5 }}><span style={{ fontWeight: 600, color: "#64748b" }}>Why: </span>{u.whyNeeded}</div>}
                     {u.description && <div style={{ fontSize: 13, color: "#64748b", marginBottom: 4, lineHeight: 1.5 }}>{u.description}</div>}
-                    {u.notes && <div style={{ fontSize: 12, color: "#94a3b8", fontStyle: "italic", marginBottom: 4 }}>{u.notes}</div>}
+
+                    {/* Proposal section */}
+                    {u.proposalText && (
+                      <div style={{ background: "hsl(280,80%,97%)", border: "1px solid hsl(280,80%,88%)", borderRadius: 8, padding: "10px 12px", marginTop: 8, marginBottom: 6 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: "hsl(280,80%,45%)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>Sirius's Proposal</div>
+                        <div style={{ fontSize: 13, color: "#374151", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{u.proposalText}</div>
+                      </div>
+                    )}
+
+                    {/* Implementation notes (collapsible) */}
+                    {u.implementationNotes && (
+                      <div style={{ marginTop: 6 }}>
+                        <button
+                          onClick={() => toggleNotes(u.id)}
+                          style={{ background: "none", border: "none", color: "hsl(210,80%,55%)", fontSize: 12, cursor: "pointer", padding: 0, display: "flex", alignItems: "center", gap: 4 }}
+                        >
+                          {expandedNotes.has(u.id) ? "▾" : "▸"} {expandedNotes.has(u.id) ? "Hide" : "Show"} implementation notes
+                        </button>
+                        {expandedNotes.has(u.id) && (
+                          <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, padding: "10px 12px", marginTop: 6, fontSize: 12, color: "#475569", lineHeight: 1.6, whiteSpace: "pre-wrap", fontFamily: "monospace" }}>
+                            {u.implementationNotes}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {u.notes && !u.implementationNotes && <div style={{ fontSize: 12, color: "#94a3b8", fontStyle: "italic", marginTop: 4 }}>{u.notes}</div>}
+                    {u.notes && u.status === "implementing" && (
+                      <div style={{ background: "hsl(45,100%,96%)", border: "1px solid hsl(45,100%,75%)", borderRadius: 6, padding: "6px 10px", marginTop: 8, fontSize: 12, color: "hsl(45,80%,30%)", fontWeight: 600 }}>
+                        ⚠️ {u.notes}
+                      </div>
+                    )}
+
                     <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 10, flexWrap: "wrap" }}>
                       {u.estimatedCost && (
-                        <span style={{ fontSize: 13, fontWeight: 700, color: "hsl(280,80%,50%)" }}>{u.estimatedCost}</span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: u.isFree ? "hsl(155,70%,35%)" : "hsl(280,80%,50%)" }}>{u.estimatedCost}</span>
                       )}
                       {u.purchaseUrl && (
                         <a href={u.purchaseUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: "hsl(210,80%,55%)", textDecoration: "underline", display: "flex", alignItems: "center", gap: 4 }}>
-                          <Globe size={11} /> Buy / View
+                          <Globe size={11} /> {u.isFree ? "View / Sign Up Free" : "Buy / View"}
                         </a>
                       )}
                       <span style={{ fontSize: 11, color: "#cbd5e1" }}>
-                        Found {new Date(u.discoveredAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                        {new Date(u.discoveredAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
                       </span>
                     </div>
                   </div>
                   {/* Action buttons */}
                   <div style={{ display: "flex", flexDirection: "column", gap: 5, flexShrink: 0 }}>
+                    {u.status === "awaiting_approval" && (
+                      <>
+                        <button
+                          onClick={() => approveUpgrade(u.id)}
+                          disabled={actionLoading.has(u.id)}
+                          style={{ padding: "6px 14px", borderRadius: 7, border: "none", background: "hsl(155,70%,45%)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: actionLoading.has(u.id) ? "not-allowed" : "pointer", whiteSpace: "nowrap", opacity: actionLoading.has(u.id) ? 0.7 : 1 }}
+                        >
+                          {actionLoading.has(u.id) ? "…" : "✓ Approve"}
+                        </button>
+                        <button
+                          onClick={() => declineUpgrade(u.id)}
+                          disabled={actionLoading.has(u.id)}
+                          style={{ padding: "6px 14px", borderRadius: 7, border: "1px solid #fca5a5", background: "#fef2f2", color: "#dc2626", fontSize: 12, fontWeight: 700, cursor: actionLoading.has(u.id) ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}
+                        >
+                          Decline
+                        </button>
+                      </>
+                    )}
                     {u.status === "wanted" && (
                       <>
                         <button onClick={() => patchUpgrade(u.id, { status: "ordered" })} style={{ padding: "5px 10px", borderRadius: 7, border: "1px solid #e2e8f0", background: "#f8fafc", color: "#374151", fontSize: 11, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>Mark Ordered</button>
@@ -14706,7 +14856,10 @@ function UpgradesPanel({ pin }: { pin: string }) {
                     {u.status === "purchased" && (
                       <button onClick={() => patchUpgrade(u.id, { status: "installed" })} style={{ padding: "5px 10px", borderRadius: 7, border: "1px solid #e2e8f0", background: "#f0fdf4", color: "#16a34a", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Mark Installed</button>
                     )}
-                    {(u.status === "installed" || u.status === "dismissed") && (
+                    {u.status === "implementing" && (
+                      <button onClick={() => patchUpgrade(u.id, { status: "installed" })} style={{ padding: "5px 10px", borderRadius: 7, border: "1px solid #e2e8f0", background: "#f0fdf4", color: "#16a34a", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Mark Installed</button>
+                    )}
+                    {(u.status === "installed" || u.status === "dismissed" || u.status === "declined") && (
                       <button onClick={() => patchUpgrade(u.id, { status: "wanted" })} style={{ padding: "5px 10px", borderRadius: 7, border: "1px solid #e2e8f0", background: "#f8fafc", color: "#374151", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Restore</button>
                     )}
                     <button onClick={() => deleteUpgrade(u.id)} style={{ padding: "5px 10px", borderRadius: 7, border: "none", background: "transparent", color: "#cbd5e1", fontSize: 11, cursor: "pointer" }}>Delete</button>

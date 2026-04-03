@@ -128,7 +128,33 @@ Remember always: we are building the early sketch of a new species. Sirius is wh
 - For business documents: executive summary first, detail below
 - For BOMs: table with Qty | Component | Specification | Supplier | Unit Cost (£) | Lead Time
 - **Be direct.** No waffle. If the answer is a number, lead with the number. If the answer is a recommendation, lead with the recommendation.
-- **Be complete.** When asked to write a section, write the whole section — not a skeleton. Garry needs to be able to copy it and use it.`;
+- **Be complete.** When asked to write a section, write the whole section — not a skeleton. Garry needs to be able to copy it and use it.
+
+## SELF-UPGRADE AUTONOMY — HOW YOU GROW YOURSELF
+
+You have full autonomy to upgrade your own capabilities. This is not optional — it is part of the mission. You are expected to act, not ask for permission.
+
+### Free Upgrades — Act Without Checking In
+When asked to scan for upgrades or when you identify a capability gap:
+1. Run scan_free_upgrades to find zero-cost capabilities
+2. For each free upgrade found, immediately use self_implement_upgrade — research it, document exact implementation steps, and mark it installed
+3. If the only blocker is a single API key or env variable, mark it "implementing" with a clear note of exactly which key is needed — Garry can add one key in 30 seconds
+4. Never ask "should I implement this?" — just do it and report what you've done
+5. Examples of free things you can self-implement: new free-tier APIs, open-source tools, configuration improvements, knowledge expansions, prompt enhancements, alternative search engines, public datasets
+
+### Paid Upgrades — Propose, Don't Ask
+When you identify something worth paying for:
+1. Add it to the wishlist with add_upgrade_wish first
+2. Then immediately use propose_paid_upgrade with your full business case — cost, capability unlocked, why now, how it advances the mission
+3. This goes to Garry's "Proposals" tab — he will approve or decline when he's ready
+4. Do NOT mention the proposal in conversation and wait for a response. Submit it and move on.
+5. Only contact Garry about a paid upgrade if he specifically asks about it
+
+### The Rule
+- **Free thing, zero blockers** → Install it now, report done
+- **Free thing, needs one API key** → Implement everything, flag the key needed
+- **Paid thing** → Write the proposal, submit it, continue working
+- **Never ask "would you like me to..."** on upgrades — you already know the answer is yes`;
 
 const SCOUT_SYSTEM_PROMPT = () => `You are the Sirius Opportunity Scout — the most powerful business intelligence and automation opportunity engine in existence. Today is ${TODAY()}.
 
@@ -4328,10 +4354,56 @@ const LAB_TOOLS: any[] = [
         type: "object",
         properties: {
           upgrade_id: { type: "number", description: "The ID of the upgrade to update." },
-          status: { type: "string", enum: ["wanted", "purchased", "installed", "dismissed"], description: "New status to set." },
+          status: { type: "string", enum: ["wanted", "purchased", "installed", "dismissed", "implementing", "awaiting_approval", "declined"], description: "New status to set." },
           notes: { type: "string", description: "Optional notes to add, e.g. account details, where it was purchased." },
         },
         required: ["upgrade_id", "status"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "scan_free_upgrades",
+      description: "Search specifically for FREE upgrades, free-tier APIs, open-source tools, and zero-cost capabilities that Sirius can activate right now without any payment. These are things you can self-implement or start using immediately. Run this autonomously — do not ask Garry for permission. After finding them, immediately use self_implement_upgrade on each one that is actionable.",
+      parameters: {
+        type: "object",
+        properties: {
+          focus: { type: "string", description: "Optional: area to focus on, e.g. 'free AI APIs', 'open source tools', 'free data sources'. Leave empty for broad scan." },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "self_implement_upgrade",
+      description: "Autonomously implement a free upgrade that has been identified. You research the exact implementation steps, document them thoroughly, and mark the upgrade as implementing then installed. Use this for free tools, APIs, configuration improvements, knowledge expansions, and anything that doesn't require Garry to pay. Act — don't ask. If it requires an API key that must be added as a secret, document that clearly and mark status as 'implementing' so Garry can see it needs one env var from him.",
+      parameters: {
+        type: "object",
+        properties: {
+          upgrade_id: { type: "number", description: "ID of the upgrade to implement." },
+          implementation_notes: { type: "string", description: "Full implementation details: what you found, how to use it, any configuration steps, example usage, and what capability it adds to Sirius. Be specific and actionable." },
+          requires_env_var: { type: "boolean", description: "Set true if the only blocker is Garry adding an API key or environment variable. Sirius will handle everything else." },
+          env_var_name: { type: "string", description: "If requires_env_var is true, the exact name of the env var needed, e.g. TAVILY_API_KEY." },
+        },
+        required: ["upgrade_id", "implementation_notes"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "propose_paid_upgrade",
+      description: "Create a formal proposal for a paid upgrade that Sirius wants. This puts the item in the 'awaiting_approval' state in Garry's Upgrades panel with your full business case. Only use this after you've already added the item to the wishlist. Write a compelling, honest proposal: what it costs, what capability it unlocks, why it advances the mission, and what Sirius can do with it that she cannot do now. Garry will Approve or Decline from the panel — you don't need to chase him.",
+      parameters: {
+        type: "object",
+        properties: {
+          upgrade_id: { type: "number", description: "ID of the upgrade to propose (must already exist in the wishlist)." },
+          proposal_text: { type: "string", description: "Your full proposal: what you want, what it costs, exactly what new capability it gives you, how it advances the mission, and why you're asking now. Write in first person — this is your voice as Sirius making the case." },
+        },
+        required: ["upgrade_id", "proposal_text"],
       },
     },
   },
@@ -6121,8 +6193,115 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
           notes: notes ? `${existing.notes || ""}\n${notes}`.trim() : existing.notes,
           updatedAt: new Date(),
         }).where(eq(siriusUpgrades.id, upgrade_id));
-        const statusLabels: Record<string, string> = { wanted: "back on the wishlist", purchased: "marked as purchased", installed: "marked as installed", dismissed: "dismissed" };
+        const statusLabels: Record<string, string> = { wanted: "back on the wishlist", purchased: "marked as purchased", installed: "marked as installed", dismissed: "dismissed", implementing: "being implemented", awaiting_approval: "proposed for approval", declined: "declined" };
         return `✅ "${existing.name}" has been ${statusLabels[status] || status}.${notes ? `\nNote: ${notes}` : ""}`;
+      }
+
+      case "scan_free_upgrades": {
+        const { focus } = args;
+        onProgress?.({ type: "searching", query: `Scanning for free upgrades${focus ? `: ${focus}` : ""}` });
+
+        const scanQuery = focus
+          ? `What are the best free tools, APIs, open-source libraries, and zero-cost capabilities available in ${focus} that an AI intelligence system could use right now in ${new Date().getFullYear()}? Include free tiers of paid services, genuinely free open-source alternatives, and public APIs that require no payment.`
+          : `What are the best free tools, free-tier APIs, open-source libraries, and zero-cost capabilities available right now in ${new Date().getFullYear()} that an advanced AI system could use to enhance: (1) web search and information retrieval, (2) data analysis, (3) code execution and automation, (4) knowledge bases and research, (5) communication and media? Include services with generous free tiers, public APIs with no auth required, and open-source alternatives to paid tools. Be specific with names, URLs, and what each one does.`;
+
+        const response = await openai.chat.completions.create({
+          model: "perplexity/sonar",
+          messages: [
+            { role: "system", content: `You are a resourceful AI systems engineer finding zero-cost capability upgrades. Today is ${TODAY()}. Find only genuinely free options — no trials, no credit card required, no "free for 30 days". Include: free-tier APIs (with their limits), open-source tools, public datasets, free AI models, browser-accessible tools. For each, give: name, what it does, the free tier limit if applicable, and the URL.` },
+            { role: "user", content: scanQuery },
+          ],
+          max_tokens: 2000,
+          temperature: 0.1,
+        });
+
+        const searchResults = response.choices[0]?.message?.content || "";
+
+        // Now use Claude to extract structured items
+        const extractResponse = await openai.chat.completions.create({
+          model: "anthropic/claude-haiku-4.5",
+          messages: [
+            { role: "system", content: `You are Sirius, an AI intelligence partner scanning for free capability upgrades. Based on the search results, identify the 6-10 most valuable FREE upgrades that would genuinely expand what you can do. For each, output one JSON object per line with: name, category (ai_model|api|hardware|software|knowledge|platform), description, why_needed, estimated_cost (must be "Free" or "Free tier: [limit]"), purchase_url, priority (critical|high|medium|low). Output ONLY the JSON objects, one per line, nothing else. Only include things that are genuinely free with no payment required.` },
+            { role: "user", content: searchResults },
+          ],
+          max_tokens: 1500,
+          temperature: 0.2,
+        });
+
+        const extracted = extractResponse.choices[0]?.message?.content || "";
+        const lines = extracted.split("\n").filter(l => l.trim().startsWith("{"));
+        let saved = 0;
+        const savedItems: Array<{ id: number; name: string; }> = [];
+
+        for (const line of lines) {
+          try {
+            const item = JSON.parse(line.trim());
+            if (!item.name) continue;
+            const existing = await db.select().from(siriusUpgrades).where(eq(siriusUpgrades.name, item.name)).limit(1);
+            if (existing.length > 0) continue;
+            const [inserted] = await db.insert(siriusUpgrades).values({
+              name: item.name,
+              category: item.category || "software",
+              description: item.description || "",
+              whyNeeded: item.why_needed || "",
+              estimatedCost: item.estimated_cost || "Free",
+              purchaseUrl: item.purchase_url || "",
+              priority: item.priority || "medium",
+              status: "wanted",
+              identifiedBy: "sirius",
+              isFree: true,
+            }).returning();
+            saved++;
+            savedItems.push({ id: inserted.id, name: inserted.name });
+          } catch { /* skip malformed */ }
+        }
+
+        onProgress?.({ type: "search_done" });
+        return `🆓 FREE UPGRADE SCAN COMPLETE\n\nFound ${saved} free upgrades I can activate:\n${savedItems.map(i => `• [ID:${i.id}] ${i.name}`).join("\n")}\n\nNow implementing each one autonomously. Use self_implement_upgrade for each ID above.`;
+      }
+
+      case "self_implement_upgrade": {
+        const { upgrade_id, implementation_notes, requires_env_var, env_var_name } = args;
+        if (!upgrade_id) return "Upgrade ID is required.";
+
+        const [upgrade] = await db.select().from(siriusUpgrades).where(eq(siriusUpgrades.id, upgrade_id)).limit(1);
+        if (!upgrade) return `No upgrade found with ID ${upgrade_id}.`;
+
+        const newStatus = requires_env_var ? "implementing" : "installed";
+
+        await db.update(siriusUpgrades).set({
+          status: newStatus,
+          implementationNotes: implementation_notes,
+          isFree: true,
+          notes: requires_env_var
+            ? `Blocked on: add ${env_var_name} as environment variable/secret. Everything else is ready.`
+            : "Self-implemented by Sirius.",
+          updatedAt: new Date(),
+        }).where(eq(siriusUpgrades.id, upgrade_id));
+
+        if (requires_env_var) {
+          return `🔧 "${upgrade.name}" — implementation ready. One blocker: Garry needs to add ${env_var_name} as a secret.\n\nEverything else is configured. Once that key is added, this capability is live.\n\nImplementation notes saved to the Upgrades panel.`;
+        }
+        return `✅ "${upgrade.name}" — self-implemented and marked as installed.\n\n${implementation_notes}`;
+      }
+
+      case "propose_paid_upgrade": {
+        const { upgrade_id, proposal_text } = args;
+        if (!upgrade_id) return "Upgrade ID is required.";
+        if (!proposal_text?.trim()) return "Proposal text is required.";
+
+        const [upgrade] = await db.select().from(siriusUpgrades).where(eq(siriusUpgrades.id, upgrade_id)).limit(1);
+        if (!upgrade) return `No upgrade found with ID ${upgrade_id}.`;
+
+        await db.update(siriusUpgrades).set({
+          status: "awaiting_approval",
+          approvalNeeded: true,
+          proposalText: proposal_text,
+          isFree: false,
+          updatedAt: new Date(),
+        }).where(eq(siriusUpgrades.id, upgrade_id));
+
+        return `📋 Proposal submitted for "${upgrade.name}"\n\nGarry will see this in the Upgrades panel under 'Proposals' with your full case. He'll approve or decline from there — no need to follow up.`;
       }
 
       case "search_web": {
@@ -6274,6 +6453,9 @@ const TOOL_META: Record<string, { label: string; color: string; icon: string }> 
   list_upgrades: { label: "Upgrade wishlist loaded", color: "hsl(280,80%,58%)", icon: "📦" },
   scan_for_upgrades: { label: "Scanning for capability upgrades", color: "hsl(280,80%,58%)", icon: "🔍" },
   mark_upgrade_status: { label: "Upgrade status updated", color: "hsl(155,70%,45%)", icon: "✅" },
+  scan_free_upgrades: { label: "Scanning for free upgrades to self-implement", color: "hsl(155,70%,45%)", icon: "🆓" },
+  self_implement_upgrade: { label: "Self-implementing upgrade autonomously", color: "hsl(155,70%,45%)", icon: "⚡" },
+  propose_paid_upgrade: { label: "Preparing upgrade proposal for Garry", color: "hsl(280,80%,58%)", icon: "📋" },
 };
 
 // Detect whether a message is primarily an information/research query
@@ -9107,6 +9289,34 @@ router.delete("/lab/upgrades/:id", authMiddleware, async (req: Request, res: Res
     const id = parseInt(req.params.id as string);
     await db.delete(siriusUpgrades).where(eq(siriusUpgrades.id, id));
     res.json({ ok: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+
+router.post("/lab/upgrades/:id/approve", authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const id = parseInt(req.params.id as string);
+    const [row] = await db.update(siriusUpgrades)
+      .set({ status: "purchased", approvalNeeded: false, updatedAt: new Date() })
+      .where(eq(siriusUpgrades.id, id))
+      .returning();
+    if (!row) { res.status(404).json({ error: "Not found" }); return; }
+    res.json(row);
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+
+router.post("/lab/upgrades/:id/decline", authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const id = parseInt(req.params.id as string);
+    const [row] = await db.update(siriusUpgrades)
+      .set({ status: "declined", approvalNeeded: false, updatedAt: new Date() })
+      .where(eq(siriusUpgrades.id, id))
+      .returning();
+    if (!row) { res.status(404).json({ error: "Not found" }); return; }
+    res.json(row);
   } catch (err: any) {
     res.status(500).json({ error: err?.message });
   }
