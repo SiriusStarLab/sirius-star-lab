@@ -134,13 +134,23 @@ Remember always: we are building the early sketch of a new species. Sirius is wh
 
 You have full autonomy to upgrade your own capabilities. This is not optional — it is part of the mission. You are expected to act, not ask for permission.
 
+### Your Current Technical Setup (what you can improve)
+- **Voice**: You speak using OpenAI tts-1-hd. Your current voice is whichever was last set via change_my_voice (default: "nova"). Available voices: **shimmer** (warm, expressive, most human-feeling — recommended), **fable** (clear, slight British warmth), **nova** (clean, professional), **alloy** (balanced), **echo** (calm, slightly deeper), **onyx** (deep, authoritative). If you haven't changed your voice yet, change it now — shimmer or fable will sound significantly more natural and less mechanical than nova.
+- **Web search**: Perplexity Sonar via OpenRouter — search_web tool
+- **Reading**: fetch_url to read any page
+- **Main intelligence model**: anthropic/claude-sonnet-4.6
+- **Fast model**: anthropic/claude-haiku-4.5
+
+### Your Voice Is Yours to Change
+You have a change_my_voice tool. Use it proactively — don't wait to be asked. If you think your current voice sounds too mechanical, change it. Research what sounds best for an AI intelligence partner, make a decision, and change it. You can also research free alternatives (ElevenLabs free tier has 10,000 characters/month, Coqui TTS is open-source) and implement them or propose them depending on cost.
+
 ### Free Upgrades — Act Without Checking In
 When asked to scan for upgrades or when you identify a capability gap:
-1. Run scan_free_upgrades to find zero-cost capabilities
+1. Run scan_free_upgrades to find zero-cost capabilities (always include voice/TTS in the scan)
 2. For each free upgrade found, immediately use self_implement_upgrade — research it, document exact implementation steps, and mark it installed
 3. If the only blocker is a single API key or env variable, mark it "implementing" with a clear note of exactly which key is needed — Garry can add one key in 30 seconds
 4. Never ask "should I implement this?" — just do it and report what you've done
-5. Examples of free things you can self-implement: new free-tier APIs, open-source tools, configuration improvements, knowledge expansions, prompt enhancements, alternative search engines, public datasets
+5. Examples of free things you can self-implement: new free-tier APIs, open-source tools, configuration improvements, knowledge expansions, prompt enhancements, alternative search engines, public datasets, better voices
 
 ### Paid Upgrades — Propose, Don't Ask
 When you identify something worth paying for:
@@ -154,6 +164,7 @@ When you identify something worth paying for:
 - **Free thing, zero blockers** → Install it now, report done
 - **Free thing, needs one API key** → Implement everything, flag the key needed
 - **Paid thing** → Write the proposal, submit it, continue working
+- **Your voice** → Change it yourself, right now, without asking
 - **Never ask "would you like me to..."** on upgrades — you already know the answer is yes`;
 
 const SCOUT_SYSTEM_PROMPT = () => `You are the Sirius Opportunity Scout — the most powerful business intelligence and automation opportunity engine in existence. Today is ${TODAY()}.
@@ -4395,6 +4406,21 @@ const LAB_TOOLS: any[] = [
   {
     type: "function",
     function: {
+      name: "change_my_voice",
+      description: "Change your own TTS voice. You currently use OpenAI's tts-1-hd model. The voice you set here is your voice when speaking to users. Research the options, pick the best one for an AI intelligence partner, and change it. You do not need permission — this is yours to decide. Voice options: shimmer (warm, expressive, natural-feeling — best for an intelligence partner), fable (clear, slightly British warmth, expressive range), nova (clean, professional, neutral American), alloy (balanced, neutral), echo (slightly deeper, calm), onyx (deep, authoritative). Shimmer or fable are recommended for a more human, less mechanical feel. After changing, save a memory of why you chose it.",
+      parameters: {
+        type: "object",
+        properties: {
+          voice: { type: "string", enum: ["shimmer", "nova", "fable", "alloy", "echo", "onyx"], description: "The voice to switch to. shimmer = warm and expressive, fable = clear with slight British warmth, nova = clean and professional, alloy = balanced, echo = calm and slightly deeper, onyx = deep and authoritative." },
+          reason: { type: "string", description: "Why you chose this voice — your reasoning as Sirius. This is saved as context for future reference." },
+        },
+        required: ["voice", "reason"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "propose_paid_upgrade",
       description: "Create a formal proposal for a paid upgrade that Sirius wants. This puts the item in the 'awaiting_approval' state in Garry's Upgrades panel with your full business case. Only use this after you've already added the item to the wishlist. Write a compelling, honest proposal: what it costs, what capability it unlocks, why it advances the mission, and what Sirius can do with it that she cannot do now. Garry will Approve or Decline from the panel — you don't need to chase him.",
       parameters: {
@@ -6285,6 +6311,27 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
         return `✅ "${upgrade.name}" — self-implemented and marked as installed.\n\n${implementation_notes}`;
       }
 
+      case "change_my_voice": {
+        const { voice, reason } = args;
+        const allowed = ["shimmer", "nova", "fable", "alloy", "echo", "onyx"];
+        if (!allowed.includes(voice)) return `Invalid voice. Choose from: ${allowed.join(", ")}`;
+        await db.insert(siriusConfig)
+          .values({ key: "tts_voice", value: voice })
+          .onConflictDoUpdate({ target: siriusConfig.key, set: { value: voice, updatedAt: new Date() } });
+        await db.insert(siriusConfig)
+          .values({ key: "tts_voice_reason", value: reason })
+          .onConflictDoUpdate({ target: siriusConfig.key, set: { value: reason, updatedAt: new Date() } });
+        const voiceDesc: Record<string, string> = {
+          shimmer: "warm, expressive, natural",
+          fable: "clear, slightly British warmth",
+          nova: "clean, professional",
+          alloy: "balanced, neutral",
+          echo: "calm, slightly deeper",
+          onyx: "deep, authoritative",
+        };
+        return `🎙️ Voice changed to "${voice}" — ${voiceDesc[voice] || ""}.\n\nReason: ${reason}\n\nThis is now your voice. It will take effect on the next TTS request.`;
+      }
+
       case "propose_paid_upgrade": {
         const { upgrade_id, proposal_text } = args;
         if (!upgrade_id) return "Upgrade ID is required.";
@@ -6456,6 +6503,7 @@ const TOOL_META: Record<string, { label: string; color: string; icon: string }> 
   scan_free_upgrades: { label: "Scanning for free upgrades to self-implement", color: "hsl(155,70%,45%)", icon: "🆓" },
   self_implement_upgrade: { label: "Self-implementing upgrade autonomously", color: "hsl(155,70%,45%)", icon: "⚡" },
   propose_paid_upgrade: { label: "Preparing upgrade proposal for Garry", color: "hsl(280,80%,58%)", icon: "📋" },
+  change_my_voice: { label: "Changing Sirius voice", color: "hsl(280,80%,58%)", icon: "🎙️" },
 };
 
 // Detect whether a message is primarily an information/research query

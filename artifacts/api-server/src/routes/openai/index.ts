@@ -1273,7 +1273,21 @@ router.post("/openai/tts", async (req, res): Promise<void> => {
     res.status(400).json({ error: "text is required" });
     return;
   }
-  const safeVoice = ALLOWED_TTS_VOICES.includes(voice) ? voice : "nova";
+
+  // If a specific voice is requested, use it; otherwise load Sirius's preferred voice from config
+  let resolvedVoice = ALLOWED_TTS_VOICES.includes(voice) ? voice : null;
+  if (!resolvedVoice) {
+    try {
+      const { db, siriusConfig } = await import("@workspace/db");
+      const { eq } = await import("drizzle-orm");
+      const rows = await db.select().from(siriusConfig).where(eq(siriusConfig.key, "tts_voice")).limit(1);
+      const saved = rows[0]?.value;
+      resolvedVoice = (saved && ALLOWED_TTS_VOICES.includes(saved as any)) ? saved as any : "nova";
+    } catch {
+      resolvedVoice = "nova";
+    }
+  }
+  const safeVoice = resolvedVoice;
   try {
     let finalText = text;
     if (language && language !== "auto" && !language.toLowerCase().startsWith("english")) {
