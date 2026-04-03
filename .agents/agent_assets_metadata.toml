@@ -24,3 +24,9 @@ id = "CzN0JsadqbdYfdMt4w-Wu"
 uri = "file://artifacts/ai-chat/public/logo-v2.png"
 type = "image"
 title = "Sirius Star Lab — New Logo"
+
+[[outputs]]
+id = "LPy9QPjA0vt7OmYvGAjRz"
+uri = "file://sirius-star-lab-export.tar.gz"
+type = "unspecified"
+title = "Sirius Star Lab — Full Source Code Export"
