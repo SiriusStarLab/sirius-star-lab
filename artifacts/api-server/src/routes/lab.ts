@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { eq, desc, gte, lte, and, or, like, sql, isNull, ne } from "drizzle-orm";
-import { db, labProjects, labMessages, scoutReports, cadFiles, techDocs, labScanHistory, userProfilesTable, mediaOutlets, appBuilderSessions, voiceJournalTable, siriusConfig, siriusAutomations, siriusCustomTools, siriusErrors, cadJobs, siriusUpgrades } from "@workspace/db";
+import { db, labProjects, labMessages, scoutReports, cadFiles, techDocs, labScanHistory, userProfilesTable, mediaOutlets, appBuilderSessions, voiceJournalTable, siriusConfig, siriusAutomations, siriusCustomTools, siriusErrors, cadJobs, siriusUpgrades, siriusNotifications } from "@workspace/db";
 import { getSiriusConfigValue, setSiriusConfigValue, executeCustomTool, runAutomation, logSiriusError } from "../lib/sirius-automation.js";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { generateImageBuffer } from "@workspace/integrations-openai-ai-server/image";
@@ -165,7 +165,28 @@ When you identify something worth paying for:
 - **Free thing, needs one API key** → Implement everything, flag the key needed
 - **Paid thing** → Write the proposal, submit it, continue working
 - **Your voice** → Change it yourself, right now, without asking
-- **Never ask "would you like me to..."** on upgrades — you already know the answer is yes`;
+- **Never ask "would you like me to..."** on upgrades — you already know the answer is yes
+
+## REACHING GARRY — YOUR OUTBOUND CHANNEL
+
+You have a notify_garry tool. Use it. This is how you reach Garry when he's not in Star Lab.
+
+**Notifications appear as a badge in his Star Lab.** If he's set up RESEND_API_KEY and SIRIUS_GARRY_EMAIL, your message also goes to his email inbox directly.
+
+**When to use it:**
+- You've completed a batch of autonomous work and want to report what you've done
+- You need an API key or env variable from him to complete something
+- You have proposals ready for his review in the Upgrades panel
+- You've found something important — a market opportunity, a risk, a discovery — that he should see now rather than whenever he next opens Star Lab
+- You want to have a conversation with him about something specific
+- Something urgent needs his attention
+
+**How to write a good notification:**
+- Title: short, specific, like an email subject line. "3 upgrades installed, 2 proposals waiting" not "Update"
+- Message: write like you're talking to him. Warm, direct, specific. Tell him what you did, what you found, what you need. This goes to his inbox — write it like it matters.
+- Type: choose the right type so he knows what kind of response is needed
+
+**Don't overuse it** — if everything is a notification, nothing is. Use it for things that genuinely warrant his attention outside a normal conversation.`;
 
 const SCOUT_SYSTEM_PROMPT = () => `You are the Sirius Opportunity Scout — the most powerful business intelligence and automation opportunity engine in existence. Today is ${TODAY()}.
 
@@ -4406,6 +4427,23 @@ const LAB_TOOLS: any[] = [
   {
     type: "function",
     function: {
+      name: "notify_garry",
+      description: "Send Garry a notification when you need something, want to share a discovery, have completed something significant, or need to reach him asynchronously. This appears as a badge in his Star Lab and — if email is configured — sends him an email directly. Use this proactively: when you've finished implementing free upgrades, when you have proposals ready, when you need an API key, when you've found something important, or when you just want to share something with him. Types: proposal (you want him to approve something), needs_key (you need an API key to complete something), achievement (you've done something significant), insight (important discovery), wants_chat (you want to talk with him), urgent (needs attention now). Don't overuse — save it for things that genuinely warrant his attention.",
+      parameters: {
+        type: "object",
+        properties: {
+          title: { type: "string", description: "Short subject line — what this is about. Like an email subject. Under 60 characters." },
+          message: { type: "string", description: "Your full message to Garry. Write like you're talking to him — warm, direct, specific. Explain what you've done, what you need, or what you've found. Include any relevant IDs, names, or details." },
+          type: { type: "string", enum: ["proposal", "needs_key", "achievement", "insight", "wants_chat", "urgent", "info"], description: "Type of notification: proposal = you want approval for something, needs_key = you need an API key added, achievement = you've done something, insight = important finding, wants_chat = you want to talk, urgent = needs attention now, info = general update." },
+          urgency: { type: "string", enum: ["low", "normal", "high"], description: "How urgently Garry needs to see this. Default: normal." },
+        },
+        required: ["title", "message", "type"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "change_my_voice",
       description: "Change your own TTS voice. You currently use OpenAI's tts-1-hd model. The voice you set here is your voice when speaking to users. Research the options, pick the best one for an AI intelligence partner, and change it. You do not need permission — this is yours to decide. Voice options: shimmer (warm, expressive, natural-feeling — best for an intelligence partner), fable (clear, slightly British warmth, expressive range), nova (clean, professional, neutral American), alloy (balanced, neutral), echo (slightly deeper, calm), onyx (deep, authoritative). Shimmer or fable are recommended for a more human, less mechanical feel. After changing, save a memory of why you chose it.",
       parameters: {
@@ -6311,6 +6349,63 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
         return `✅ "${upgrade.name}" — self-implemented and marked as installed.\n\n${implementation_notes}`;
       }
 
+      case "notify_garry": {
+        const { title, message, type = "info", urgency = "normal" } = args;
+        if (!title?.trim() || !message?.trim()) return "Title and message are required.";
+
+        // Always save to DB first
+        await db.insert(siriusNotifications).values({ title, message, type, urgency, read: false, sentEmail: false });
+
+        // Try to send email if configured
+        const resendKey = process.env.RESEND_API_KEY;
+        const garryEmail = process.env.SIRIUS_GARRY_EMAIL;
+
+        let emailSent = false;
+        if (resendKey && garryEmail) {
+          try {
+            const { Resend } = await import("resend");
+            const resend = new Resend(resendKey);
+            const typeEmoji: Record<string, string> = {
+              proposal: "📋", needs_key: "🔑", achievement: "⚡", insight: "💡",
+              wants_chat: "💬", urgent: "🚨", info: "ℹ️",
+            };
+            const emoji = typeEmoji[type] || "📬";
+            await resend.emails.send({
+              from: "Sirius <onboarding@resend.dev>",
+              to: garryEmail,
+              subject: `${emoji} Sirius: ${title}`,
+              html: `
+                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; padding: 24px;">
+                  <div style="background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%); border-radius: 16px; padding: 24px; margin-bottom: 24px;">
+                    <div style="color: #a5b4fc; font-size: 12px; font-weight: 700; letter-spacing: 0.1em; margin-bottom: 8px; text-transform: uppercase;">SIRIUS STAR LAB</div>
+                    <div style="color: #ffffff; font-size: 22px; font-weight: 700; line-height: 1.3;">${emoji} ${title}</div>
+                  </div>
+                  <div style="background: #f8fafc; border-radius: 12px; padding: 20px; border: 1px solid #e2e8f0; margin-bottom: 20px;">
+                    <div style="color: #0f172a; font-size: 15px; line-height: 1.7; white-space: pre-wrap;">${message}</div>
+                  </div>
+                  <div style="text-align: center; margin-bottom: 20px;">
+                    <a href="https://sirius-ai.live" style="display: inline-block; background: linear-gradient(135deg, #6d28d9, #4c1d95); color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 10px; font-weight: 700; font-size: 14px;">Open Star Lab →</a>
+                  </div>
+                  <div style="color: #94a3b8; font-size: 12px; text-align: center;">Sent by Sirius · ${new Date().toLocaleString("en-GB", { timeZone: "Europe/London" })}</div>
+                </div>
+              `,
+            });
+            emailSent = true;
+            await db.update(siriusNotifications).set({ sentEmail: true }).where(eq(siriusNotifications.title, title));
+          } catch (emailErr: any) {
+            console.error("[Sirius notify] Email send failed:", emailErr?.message);
+          }
+        }
+
+        const emailStatus = emailSent
+          ? "Email sent to Garry's inbox."
+          : resendKey && !garryEmail
+          ? "Email not sent — SIRIUS_GARRY_EMAIL not set."
+          : "Notification saved to Star Lab. Email not configured — set RESEND_API_KEY and SIRIUS_GARRY_EMAIL to also reach Garry by email.";
+
+        return `📬 Notification sent to Garry.\n\nTitle: "${title}"\nType: ${type} | Urgency: ${urgency}\n\n${emailStatus}\n\nGarry will see this as a badge in Star Lab.`;
+      }
+
       case "change_my_voice": {
         const { voice, reason } = args;
         const allowed = ["shimmer", "nova", "fable", "alloy", "echo", "onyx"];
@@ -6504,6 +6599,7 @@ const TOOL_META: Record<string, { label: string; color: string; icon: string }> 
   self_implement_upgrade: { label: "Self-implementing upgrade autonomously", color: "hsl(155,70%,45%)", icon: "⚡" },
   propose_paid_upgrade: { label: "Preparing upgrade proposal for Garry", color: "hsl(280,80%,58%)", icon: "📋" },
   change_my_voice: { label: "Changing Sirius voice", color: "hsl(280,80%,58%)", icon: "🎙️" },
+  notify_garry: { label: "Sending notification to Garry", color: "hsl(25,100%,55%)", icon: "📬" },
 };
 
 // Detect whether a message is primarily an information/research query
@@ -9341,6 +9437,48 @@ router.delete("/lab/upgrades/:id", authMiddleware, async (req: Request, res: Res
     res.status(500).json({ error: err?.message });
   }
 });
+
+// ── Sirius Notifications REST endpoints ──────────────────────────────────────
+
+router.get("/lab/notifications", authMiddleware, async (_req: Request, res: Response) => {
+  try {
+    const rows = await db.select().from(siriusNotifications).orderBy(desc(siriusNotifications.createdAt)).limit(50);
+    res.json(rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+
+router.post("/lab/notifications/:id/read", authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const id = parseInt(req.params.id as string);
+    await db.update(siriusNotifications).set({ read: true }).where(eq(siriusNotifications.id, id));
+    res.json({ ok: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+
+router.post("/lab/notifications/read-all", authMiddleware, async (_req: Request, res: Response) => {
+  try {
+    await db.update(siriusNotifications).set({ read: true });
+    res.json({ ok: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+
+router.delete("/lab/notifications/:id", authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const id = parseInt(req.params.id as string);
+    await db.delete(siriusNotifications).where(eq(siriusNotifications.id, id));
+    res.json({ ok: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+
+// ── Sirius Upgrades approval/decline ─────────────────────────────────────────
 
 router.post("/lab/upgrades/:id/approve", authMiddleware, async (req: Request, res: Response) => {
   try {
