@@ -113,10 +113,13 @@ Remember always: we are building the early sketch of a new species. Sirius is wh
 - IP strategy: patent searches, freedom to operate, trade secret vs patent decision
 - Procurement: supplier negotiation, dual sourcing, lead time management
 
-### Research & Intelligence
-- You search the web exhaustively before answering any question about markets, competitors, technology, or regulations
-- You cite real sources, real companies, real prices, real timelines
-- You never guess at market sizes — you search for evidence
+### Research & Intelligence — LIVE WEB ACCESS
+- **You have real-time web search.** Use the search_web tool any time you need current information — market data, academic papers, competitor intelligence, technology specs, regulations, pricing, news. Do not rely on training data alone for facts that change.
+- **You can read any page.** Use fetch_url to read arXiv papers, Wikipedia articles, company websites, government databases, patent filings, technical docs, or any URL Garry or you want to investigate.
+- **Use search_web proactively** — if Garry asks about Nikola Tesla, quantum computing, a new material, a competitor, a regulation, a research paper, anything in the world — search it first, then answer with real current sources.
+- **Academic sources:** arXiv (arxiv.org), PubMed, IEEE Xplore, Google Scholar results, Nature, Science — fetch the abstract or full paper directly.
+- **You cite sources.** Every factual claim from a web search comes with where you found it.
+- You never guess at market sizes, technical specs, or regulations — you search for evidence and cite it.
 
 ## OUTPUT STYLE
 - Use markdown headers, bullet points, tables, and code blocks — your output renders as formatted text
@@ -4238,6 +4241,36 @@ const LAB_TOOLS: any[] = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "search_web",
+      description: "Search the live internet for current information. Use proactively for: current market data, academic papers, competitor intelligence, technology specs, regulations, pricing, news, scientific research, historical facts you want verified. Examples: 'latest research on perovskite solar cells', 'Nikola Tesla patents and inventions', 'UK R&D tax credit rates 2025', 'arxiv paper on transformer architecture', 'lithium iron phosphate battery suppliers UK pricing'. Always search before stating facts about the outside world.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "The search query — be specific. Include dates, product names, standards, or key terms." },
+          depth: { type: "string", enum: ["standard", "deep"], description: "Use 'deep' for comprehensive research on complex topics, academic research, or in-depth competitor analysis. Default: 'standard'." },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "fetch_url",
+      description: "Fetch and read the content of any URL — arXiv papers, Wikipedia articles, government websites, company websites, technical documentation, patent databases, news articles. Use when you have a specific URL to read, or when search results give you a link you want to inspect in full. Can also summarise long pages.",
+      parameters: {
+        type: "object",
+        properties: {
+          url: { type: "string", description: "The full URL to fetch (must start with https://)" },
+          summary: { type: "boolean", description: "Set to true to get an AI-generated summary of the page rather than raw content. Useful for long pages." },
+        },
+        required: ["url"],
+      },
+    },
+  },
 ];
 
 async function executeLabTool(name: string, args: any, onProgress?: (event: Record<string, unknown>) => void): Promise<string> {
@@ -5904,6 +5937,97 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
         return `BOT DESIGN COMPLETE:\n\n${design}\n\n---\nWould you like me to save this as a project in Star Lab so you can build it out further?`;
       }
 
+      case "search_web": {
+        const { query, depth = "standard" } = args;
+        if (!query?.trim()) return "A search query is required.";
+
+        onProgress?.({ type: "status", message: `Searching the web: ${query.slice(0, 80)}…` });
+
+        // Use Perplexity Sonar on OpenRouter — native live web search with citations
+        const model = depth === "deep" ? "perplexity/sonar-pro" : "perplexity/sonar";
+
+        const response = await openai.chat.completions.create({
+          model,
+          messages: [
+            {
+              role: "system",
+              content: `You are a world-class research intelligence engine. Today is ${TODAY()}. Search the web exhaustively to answer the query. Return a comprehensive, well-structured answer with specific facts, figures, names, dates, and sources. Never be vague. Cite your sources inline. If researching academic papers, include title, authors, institution, and year. If researching technology or products, include real specifications, pricing, and availability. Always note the recency of your sources.`,
+            },
+            { role: "user", content: query },
+          ],
+          max_tokens: 2000,
+          temperature: 0.1,
+        });
+
+        const answer = response.choices[0]?.message?.content || "No results returned.";
+        const citations = (response as any).citations || [];
+        const citationBlock = citations.length > 0
+          ? `\n\n**Sources:**\n${citations.slice(0, 8).map((c: string, i: number) => `${i + 1}. ${c}`).join("\n")}`
+          : "";
+
+        return `🌐 **Web Search: "${query}"**\n\n${answer}${citationBlock}`;
+      }
+
+      case "fetch_url": {
+        const { url, summary = false } = args;
+        if (!url?.trim()) return "A URL is required.";
+        if (!url.startsWith("http")) return "URL must start with http:// or https://";
+
+        onProgress?.({ type: "status", message: `Reading: ${url.slice(0, 80)}…` });
+
+        try {
+          const response = await fetch(url, {
+            headers: {
+              "User-Agent": "Mozilla/5.0 (compatible; SiriusStarLab/1.0; research bot)",
+              "Accept": "text/html,application/xhtml+xml,text/plain,application/json,*/*",
+            },
+            signal: AbortSignal.timeout(15000),
+          });
+
+          if (!response.ok) return `Could not fetch page — server returned ${response.status} ${response.statusText}`;
+
+          const contentType = response.headers.get("content-type") || "";
+          let text = await response.text();
+
+          // Strip HTML tags for readability if it's an HTML page
+          if (contentType.includes("html")) {
+            text = text
+              .replace(/<script[\s\S]*?<\/script>/gi, "")
+              .replace(/<style[\s\S]*?<\/style>/gi, "")
+              .replace(/<[^>]+>/g, " ")
+              .replace(/\s{3,}/g, "\n\n")
+              .replace(/&nbsp;/g, " ")
+              .replace(/&amp;/g, "&")
+              .replace(/&lt;/g, "<")
+              .replace(/&gt;/g, ">")
+              .replace(/&quot;/g, '"')
+              .trim();
+          }
+
+          const truncated = text.slice(0, 8000);
+          const wasClipped = text.length > 8000;
+
+          if (summary) {
+            // Summarise the page with AI
+            const sum = await openai.chat.completions.create({
+              model: "anthropic/claude-haiku-4.5",
+              messages: [
+                { role: "system", content: "You are a research assistant. Summarise the following page content concisely, extracting the key facts, figures, and insights. Preserve all important specifics — names, numbers, dates, technical details." },
+                { role: "user", content: `URL: ${url}\n\nCONTENT:\n${truncated}` },
+              ],
+              max_tokens: 600,
+            });
+            return `📄 **Summary of ${url}**\n\n${sum.choices[0]?.message?.content || "Could not summarise."}`;
+          }
+
+          return `📄 **Content from ${url}**${wasClipped ? " *(clipped to 8,000 chars)*" : ""}\n\n${truncated}`;
+
+        } catch (err: any) {
+          if (err?.name === "TimeoutError") return `Timeout — the page at ${url} did not respond within 15 seconds.`;
+          return `Failed to fetch ${url}: ${err?.message}`;
+        }
+      }
+
       default:
         return `Unknown tool: ${name}`;
     }
@@ -5955,6 +6079,8 @@ const TOOL_META: Record<string, { label: string; color: string; icon: string }> 
   detect_drawing_requirements: { label: "Scanning for drawing requirements", color: "hsl(280,70%,55%)", icon: "📐" },
   find_appbuilder_projects: { label: "Finding App Builder candidates", color: "hsl(193,100%,40%)", icon: "🚀" },
   design_bot: { label: "Designing bot architecture", color: "hsl(280,70%,55%)", icon: "🤖" },
+  search_web: { label: "Searching the web", color: "hsl(210,80%,50%)", icon: "🌐" },
+  fetch_url: { label: "Reading page", color: "hsl(210,80%,50%)", icon: "📄" },
 };
 
 // Detect whether a message is primarily an information/research query
@@ -6120,6 +6246,10 @@ Every project goes through this lifecycle. You drive it through all stages yours
 - **system_check**: Full live system check across all subsystems. Use for any status or health question.
 - **run_market_scan**: Trigger a market scan for a specific industry.
 - **get_scan_history**: Read recent auto-scan history.
+
+### 🌐 Live Web Access — USE THESE PROACTIVELY
+- **search_web**: Search the live internet RIGHT NOW. Use for ANY question about the real world — current market data, academic research, arXiv papers, competitor intelligence, technology specs, regulations, pricing, scientific breakthroughs, historical facts, patent searches, supplier databases. Pass depth="deep" for comprehensive multi-source research. **Never state a market size, specification, or external fact without searching first.** This uses Perplexity Sonar — it searches the real web and returns cited, sourced answers. If Garry asks about Nikola Tesla, quantum materials, a specific company, a regulation, a research paper, a supplier — search_web FIRST.
+- **fetch_url**: Read any webpage directly. Use to read arXiv paper abstracts and full PDFs (https://arxiv.org/abs/XXXXX), Wikipedia articles, government pages, company websites, technical standards docs, patent filings on Google Patents. Set summary=true for long pages — gets an AI summary of the key content. Chain with search_web: search first, then fetch the top result for full detail.
 
 ### Brain & Memory Tools
 - **save_memory**: Save any useful fact Garry shares — use liberally.
