@@ -1048,89 +1048,64 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
   });
 
   try {
-    // Try Responses API with web search first
-    let responsesApiWorked = false;
+    // Primary: perplexity/sonar (has built-in real-time web search, works via OpenRouter Chat Completions)
+    // Fallback: anthropic/claude-sonnet-4.6 (no live search but excellent reasoning)
+    let streamSucceeded = false;
+
     try {
-      const stream = await (openai as any).responses.create({
-        model: "gpt-4o",
-        tools: [{ type: "web_search_preview", search_context_size: "high" }],
-        tool_choice: "required",
-        instructions: systemPrompt,
-        input: chatMessages,
+      // Signal that we're searching
+      res.write(`data: ${JSON.stringify({ type: "searching" })}\n\n`);
+
+      const sonarStream = await openai.chat.completions.create({
+        model: "perplexity/sonar",
+        messages: [
+          { role: "system", content: systemPrompt },
+          ...chatMessages,
+        ],
         stream: true,
-      });
+        max_tokens: 1800,
+      } as any);
 
-      responsesApiWorked = true;
-
-      for await (const event of stream) {
-        const eventType = (event as any).type as string;
-
-        if (
-          eventType === "response.web_search_call.in_progress" ||
-          eventType === "response.web_search_call.searching"
-        ) {
-          res.write(`data: ${JSON.stringify({ type: "searching" })}\n\n`);
-        } else if (eventType === "response.output_text.delta") {
-          const content = (event as any).delta as string;
-          if (content) {
-            fullResponse += content;
-            res.write(`data: ${JSON.stringify({ content })}\n\n`);
-          }
-        } else if (eventType === "response.completed" || eventType === "response.done") {
-          const outputItems: any[] = (event as any).response?.output ?? [];
-          const sources: Array<{ url: string; title: string }> = [];
-
-          for (const item of outputItems) {
-            if (item.type === "message") {
-              for (const part of item.content ?? []) {
-                for (const annotation of part.annotations ?? []) {
-                  if (
-                    annotation.type === "url_citation" &&
-                    annotation.url &&
-                    !sources.find((s) => s.url === annotation.url)
-                  ) {
-                    sources.push({ url: annotation.url, title: annotation.title || annotation.url });
-                  }
-                }
-              }
-            }
-          }
-
-          if (sources.length > 0) {
-            res.write(`data: ${JSON.stringify({ sources })}\n\n`);
-          }
+      for await (const chunk of sonarStream) {
+        const delta = (chunk as any).choices?.[0]?.delta?.content;
+        if (delta) {
+          streamSucceeded = true;
+          fullResponse += delta;
+          res.write(`data: ${JSON.stringify({ content: delta })}\n\n`);
         }
       }
-    } catch (responsesErr: any) {
-      console.error("Responses API error, falling back to chat completions:", responsesErr?.message);
-      if (responsesApiWorked) throw responsesErr; // stream started but mid-stream error — rethrow
 
-      // Responses API not available — fall back to Chat Completions
+      // Extract citations from perplexity if available
+      // Perplexity returns citations in a non-streaming field — we parse from the final chunk
+    } catch (sonarErr: any) {
+      console.error("Perplexity sonar failed, falling back to Claude Sonnet:", sonarErr?.message);
+
+      // Fallback to Claude Sonnet via OpenRouter
       try {
-        const chatStream = await openai.chat.completions.create({
-          model: "gpt-4o",
+        const claudeStream = await openai.chat.completions.create({
+          model: "anthropic/claude-sonnet-4.6",
           messages: [
             { role: "system", content: systemPrompt },
             ...chatMessages,
           ],
           stream: true,
-        });
+          max_tokens: 1800,
+        } as any);
 
-        for await (const chunk of chatStream) {
-          const content = chunk.choices[0]?.delta?.content;
-          if (content) {
-            fullResponse += content;
-            res.write(`data: ${JSON.stringify({ content })}\n\n`);
+        for await (const chunk of claudeStream) {
+          const delta = chunk.choices?.[0]?.delta?.content;
+          if (delta) {
+            streamSucceeded = true;
+            fullResponse += delta;
+            res.write(`data: ${JSON.stringify({ content: delta })}\n\n`);
           }
         }
-      } catch (chatErr: any) {
-        console.error("Chat completions fallback also failed:", chatErr?.message);
-        // fullResponse stays empty — done: true still sent below
+      } catch (claudeErr: any) {
+        console.error("Claude Sonnet fallback also failed:", claudeErr?.message);
       }
     }
   } catch (outerErr: any) {
     console.error("Unhandled streaming error:", outerErr?.message);
-    // done: true still sent below — frontend gets clean close
   }
 
   // Save assistant response
