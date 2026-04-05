@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { PlusCircle, MessageSquare, Trash2, X, Settings, Zap, Loader2, Sparkles, FlaskConical, BookOpen, GraduationCap } from "lucide-react";
+import { PlusCircle, MessageSquare, Trash2, X, Settings, Zap, Loader2, Sparkles, FlaskConical, BookOpen, GraduationCap, Globe2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -230,6 +230,41 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession }: Sid
           </span>
           <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 animate-pulse"
             style={{ background: "hsl(280,80%,60%)", boxShadow: "0 0 6px hsl(280,80%,60%)" }} />
+        </button>
+
+        {/* Universe Guide entry */}
+        <button
+          onClick={() => { setLocation("/universe"); onClose(); }}
+          className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 relative overflow-hidden group"
+          style={{
+            background: location === "/universe"
+              ? "linear-gradient(135deg, hsl(220,60%,14%), hsl(220,60%,10%))"
+              : "linear-gradient(135deg, hsl(220,60%,11%), hsl(220,60%,8%))",
+            border: location === "/universe"
+              ? "1px solid hsl(220,100%,65%)"
+              : "1px solid hsl(220 100% 65% / 0.15)",
+            color: "hsl(220,100%,75%)",
+            boxShadow: location === "/universe" ? "0 0 20px hsl(220,100%,35%,0.2), inset 0 1px 0 rgba(255,255,255,0.05)" : "inset 0 1px 0 rgba(255,255,255,0.03)",
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.border = "1px solid hsl(220,100%,65%)";
+            e.currentTarget.style.boxShadow = "0 0 20px hsla(220,100%,35%,0.2)";
+            e.currentTarget.style.color = "hsl(220,100%,85%)";
+          }}
+          onMouseLeave={e => {
+            if (location !== "/universe") {
+              e.currentTarget.style.border = "1px solid hsl(220 100% 65% / 0.15)";
+              e.currentTarget.style.boxShadow = "inset 0 1px 0 rgba(255,255,255,0.03)";
+            }
+            e.currentTarget.style.color = "hsl(220,100%,75%)";
+          }}
+        >
+          <Globe2 size={15} style={{ flexShrink: 0 }} />
+          <span className="flex-1 text-left">The Universe</span>
+          <span className="text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded"
+            style={{ background: "hsla(220,100%,35%,0.15)", color: "hsl(220,100%,65%)", border: "1px solid hsla(220,100%,35%,0.2)", letterSpacing: "0.15em" }}>
+            NEW
+          </span>
         </button>
 
         {/* Star Lab entry */}

@@ -19,7 +19,7 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 ## Artifacts
 
 ### `artifacts/ai-chat` — Sirius Star Lab Partnership App
-React + Vite frontend served at `/`. A full AI partnership platform — not a tool, not an assistant, a genuine partner:
+React + Vite frontend served at `/`. A full AI partnership platform — not a tool, not an assistant, a genuine partner. Sirius's identity: cosmic intelligence partner and guide to the universe; her system prompt includes deep cosmic perspective (stardust, grand arc of time, AI-human partnership as part of cosmic evolution).
 
 **Sirius Star Lab** (private R&D, at `/star-lab`)
 - PIN-gated with two-tier access: owner (STAR_LAB_PIN, default "2025") and guest (STAR_LAB_GUEST_PIN, set to enable guest access)
