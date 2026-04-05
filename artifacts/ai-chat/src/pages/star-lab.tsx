@@ -274,12 +274,12 @@ function StarLabGreeting({ userName, onComplete }: { userName?: string; onComple
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.45 }}
-                  className="font-mono"
+                  className={i === 0 ? "font-sans" : "font-mono"}
                   style={{
                     fontSize: i === 0 ? "1.3rem" : "0.875rem",
                     fontWeight: i === 0 ? 700 : 400,
                     color: i === 0 ? "#0F172A" : i === 1 ? "hsl(193,100%,30%)" : i === 3 ? "rgba(15,23,42,0.4)" : "rgba(15,23,42,0.65)",
-                    letterSpacing: i === 0 ? "-0.01em" : "0.12em",
+                    letterSpacing: i === 0 ? "-0.02em" : "0.12em",
                     textTransform: i === 0 ? "none" : "uppercase",
                   }}>
                   {line}
