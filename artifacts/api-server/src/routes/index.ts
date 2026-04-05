@@ -12,6 +12,7 @@ import revenueRouter from "./revenue";
 import agencyRouter from "./agency";
 import publicRouter from "./public";
 import fitstackRouter from "./fitstack";
+import dreamLabRouter from "./dream-lab";
 
 const router: IRouter = Router();
 
@@ -28,5 +29,6 @@ router.use(learnRouter);
 router.use(revenueRouter);
 router.use(agencyRouter);
 router.use("/fitstack", fitstackRouter);
+router.use(dreamLabRouter);
 
 export default router;

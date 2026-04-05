@@ -195,6 +195,43 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession }: Sid
           </span>
         </button>
 
+        {/* Dream Lab entry */}
+        <button
+          onClick={() => { setLocation("/dream-lab"); onClose(); }}
+          className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 relative overflow-hidden group"
+          style={{
+            background: location === "/dream-lab"
+              ? "linear-gradient(135deg, hsl(280,50%,14%), hsl(280,50%,10%))"
+              : "linear-gradient(135deg, hsl(280,50%,11%), hsl(280,50%,8%))",
+            border: location === "/dream-lab"
+              ? "1px solid hsl(280,80%,55%)"
+              : "1px solid hsl(280 80% 55% / 0.15)",
+            color: "hsl(280,80%,70%)",
+            boxShadow: location === "/dream-lab" ? "0 0 20px hsl(280,80%,35%,0.2), inset 0 1px 0 rgba(255,255,255,0.05)" : "inset 0 1px 0 rgba(255,255,255,0.03)",
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.border = "1px solid hsl(280,80%,55%)";
+            e.currentTarget.style.boxShadow = "0 0 20px hsla(280,80%,35%,0.2)";
+            e.currentTarget.style.color = "hsl(280,80%,80%)";
+          }}
+          onMouseLeave={e => {
+            if (location !== "/dream-lab") {
+              e.currentTarget.style.border = "1px solid hsl(280 80% 55% / 0.15)";
+              e.currentTarget.style.boxShadow = "inset 0 1px 0 rgba(255,255,255,0.03)";
+            }
+            e.currentTarget.style.color = "hsl(280,80%,70%)";
+          }}
+        >
+          <Sparkles size={15} style={{ flexShrink: 0 }} />
+          <span className="flex-1 text-left">Dream Lab</span>
+          <span className="text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded"
+            style={{ background: "hsla(280,80%,35%,0.15)", color: "hsl(280,80%,65%)", border: "1px solid hsla(280,80%,35%,0.2)", letterSpacing: "0.15em" }}>
+            NEW
+          </span>
+          <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 animate-pulse"
+            style={{ background: "hsl(280,80%,60%)", boxShadow: "0 0 6px hsl(280,80%,60%)" }} />
+        </button>
+
         {/* Star Lab entry */}
         <button
           onClick={() => { setLocation("/star-lab"); onClose(); }}
