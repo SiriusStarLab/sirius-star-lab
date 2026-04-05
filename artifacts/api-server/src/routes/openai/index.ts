@@ -1338,7 +1338,7 @@ router.post("/openai/tts", async (req, res): Promise<void> => {
 });
 
 // ─── Universe Guide streaming endpoint ───────────────────────────────────────
-router.post("/universe-stream", async (req, res) => {
+router.post("/openai/universe-stream", async (req, res) => {
   const { messages, domain } = req.body as { messages: Array<{ role: string; content: string }>; domain: string };
 
   if (!messages || !Array.isArray(messages)) {

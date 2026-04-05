@@ -1,190 +1,75 @@
 # Workspace
 
 ## Overview
+This pnpm workspace monorepo, built with TypeScript, serves as the foundation for an AI partnership platform named Sirius Star Lab, and a CRM for personal trainers called FitStack CRM.
 
-pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
+Sirius Star Lab aims to be a cosmic intelligence partner, guiding users through a deep cosmic perspective. It offers advanced AI capabilities for R&D, project management, technical document analysis, automated funding analysis, and an autonomous lab for identifying new opportunities. The platform emphasizes a partnership-first design, where the AI acts as an equal intelligence partner.
 
-## Stack
+FitStack CRM is a subscription-based customer relationship management solution for UK personal trainers, offering a marketing landing page and Stripe integration for subscription management.
 
-- **Monorepo tool**: pnpm workspaces
-- **Node.js version**: 24
-- **Package manager**: pnpm
-- **TypeScript version**: 5.9
-- **API framework**: Express 5
-- **Database**: PostgreSQL + Drizzle ORM
-- **Validation**: Zod (`zod/v4`), `drizzle-zod`
-- **API codegen**: Orval (from OpenAPI spec)
-- **Build**: esbuild (CJS bundle)
+The project's ambition is to create sophisticated AI-driven tools for innovation, research, and business development, alongside a focused CRM product.
 
-## Artifacts
+## User Preferences
+I want to work iteratively.
+I prefer to be asked before major changes are made to the codebase.
+I prefer detailed explanations for complex architectural decisions.
+I prefer to use simple language.
+I like functional programming.
+Do not make changes to the folder `lib/api-spec`.
+Do not make changes to the file `artifacts/ai-chat/src/pages/star-lab.tsx`.
 
-### `artifacts/ai-chat` — Sirius Star Lab Partnership App
-React + Vite frontend served at `/`. A full AI partnership platform — not a tool, not an assistant, a genuine partner. Sirius's identity: cosmic intelligence partner and guide to the universe; her system prompt includes deep cosmic perspective (stardust, grand arc of time, AI-human partnership as part of cosmic evolution).
+## System Architecture
+The project is a pnpm workspace monorepo using Node.js 24 and TypeScript 5.9.
 
-**Sirius Star Lab** (private R&D, at `/star-lab`)
-- PIN-gated with two-tier access: owner (STAR_LAB_PIN, default "2025") and guest (STAR_LAB_GUEST_PIN, set to enable guest access)
-- Guests see a filtered sidebar (Projects, Scout, AI Feed, Chat, Research, Docs, Mission only) with no access to Brain, Revenue, Agency, Outreach, Autonomous Lab
-- Guest chat: no memory saving, no profile updates, no brain context — read-only market scanning and conversation only
-- Multi-project workspace: Brief, Research, Specs, Code, Drawings, Funding tabs per project
-- Lab AI: engineering-focused, current tech only, web search, build-ready outputs
-- Opportunity Scout: scans industries + social media for product/business opportunities
-- CAD file storage per project: upload DWG, DXF, STEP, IGES, STL, OBJ, F3D files directly into Star Lab (stored in GCS object storage). Files are linked to the project and accessible from the Drawings tab.
-- **Technical Documents** (`tech_docs` DB table): Upload drawings, spec sheets, datasheets, photos, and concept sketches into any project. Images (PNG/JPG/WebP) and PDFs are analysed by GPT-4o vision — Sirius extracts all technical data, identifies improvement opportunities, recommends better materials with real grade designations and standards (ISO, ASTM, BS EN, AMS, API, DNV), and flags compliance gaps. Streaming SSE analysis. Upload panel in Drawings tab with doc-type selector (Technical Drawing / Spec Sheet / Datasheet / Photo / Concept Sketch). Routes: `POST /api/lab/projects/:id/tech-docs/upload-url`, `POST /api/lab/projects/:id/tech-docs`, `GET /api/lab/projects/:id/tech-docs`, `DELETE /api/lab/projects/:id/tech-docs/:docId`, `GET /api/lab/projects/:id/tech-docs/:docId/download-url`, `POST /api/lab/projects/:id/tech-docs/:docId/analyze`.
-- Drawing notes + CAD files + Technical Docs in the Drawings tab
-- **Auto Funding Analysis**: per-project R&D tax credits and grants evaluated automatically when Brief/Specs are saved. Covers 20+ countries: UK (RDEC, Innovate UK, DASA, EIS/SEIS), EU (Horizon Europe, EIC, Eurostars), USA (Section 41 R&D Credit, SBIR/STTR, ARPA-E), Canada (SR&ED, NRC IRAP), Australia (R&D Tax Incentive), Germany (ZIM, Forschungszulage), France (CIR/CII), Ireland, Israel (IIA), Singapore (EDG), Japan (NEDO), South Korea, India, UAE, Sweden, Denmark, Spain, Italy, Netherlands. Results stored in DB, displayed in per-project Funding tab. In-app toast notifications fire when analysis completes (polls every 30s). Sidebar badge pulses amber while any project is pending.
-- Funding Radar: global manual scan across all projects (streaming, Funding Radar nav section)
-- **Autonomous Lab** (`autolab` nav in Star Lab): Runs every 24h. Scans for 6 social media/marketing bot opportunities and 4 precision engineering products for Strategic Innovation Dundee Ltd (Dugard 38/26 sliding head lathes, Star slider, EDM wire cutters) targeting oil & gas, aerospace, medical, hydrogen. Each scan auto-creates projects with BRIEF + RESEARCH + BUSINESS_CASE, sets `approvalStatus: "pending"`. Sidebar Star Lab button shows orange pulsing badge with count when projects await approval (polls `/api/lab/notification-count` every 30s). Approval panel shows pending projects with expandable business case + Approve / Reject buttons. Approving navigates directly to the project workspace. DB: `approvalStatus` column on `lab_projects`, `lab_scan_history` table. Routes: `GET /api/lab/notification-count` (public), `GET /api/lab/projects/pending-approval`, `POST /api/lab/projects/:id/approve`, `POST /api/lab/projects/:id/reject`, `GET /api/lab/scan-history`, `POST /api/lab/auto-scan/trigger`, `GET /api/lab/auto-scan/status`.
-- **Live Pipeline Widget** (Dashboard): Real-time build pipeline visibility panel added to the Star Lab dashboard. Shows 3 counters (Queued to build, Building now, Launch-ready), pulsing live indicator, name of currently building project with spinner, launch-ready project chips, "View Lab →" nav to AutoLab. Auto-polls GET `/api/lab/pipeline/status` every 30 seconds. Pipeline also has staleness guard — projects stuck in `building` >45 min auto-reset to `cad-pending` on next tick.
-- **System Audit Panel** (`sysaudit` nav in Star Lab sidebar — Command category): Comprehensive live platform health dashboard. Runs 10 real-time checks against every subsystem on load. Grouped into 4 sections: Infrastructure (API Server, Build Pipeline, Auto-Scan), Data (Projects Database, Sirius Brain, Error Log), Intelligence (AI Architecture Sweep, Funding Radar, App Builder), Compliance (Investment Rule £10k). Each check shows pass/warn/fail with response time in ms. Calculates overall health score with a visual scorecard and coloured progress bar. Auto-expands groups with warnings or failures. Quick Actions bar for running the investment rule or refreshing. Sirius voice announces "System Audit. Running live health checks across every Sirius subsystem now." on navigation. Keyboard shortcut and voice phrase "show me the audit" / "platform audit" / "health check" navigate there. API endpoints added: `GET /api/lab/sirius-errors` (error log), `GET /api/lab/app-builder/sessions` (session list).
-- **Sirius Tool Extensions**: Three new tools added to Sirius's arsenal: `run_investment_rule` (manually triggers £10k cost check, returns assessed/archived/skipped summary with project names), `run_funding_analysis` (triggers funding check for specific project or all projects missing one), `run_platform_audit` (server-side multi-endpoint health check returning full report text). All 3 have TOOL_META entries (colour + icon) and implementations in `executeLabTool` switch.
-- **Outreach Hub**: AI-personalised outreach campaigns — configure message type, tone, sender info, product; add recipients individually or via bulk paste (CSV); generates personalised messages per recipient via SSE stream; editable subject + body; copy all or send via SMTP. API routes: POST `/api/outreach/generate`, POST `/api/outreach/send`. SMTP config via env vars (SMTP_HOST, SMTP_USER, SMTP_PASS, SMTP_PORT, SMTP_FROM, SMTP_FROM_NAME) or entered inline.
-- **Sirius Brain**: Persistent business memory panel (3 tabs: Memory / Business Profile / AI Actions). Stores facts, company info, goals, clients in `user_profiles` table under `BRAIN_USER="garry"`. AI Actions: deep_profile, scan_for_me, pitch_strategy, revenue_map (each generates a contextualised GPT-4o analysis). Routes: GET/POST/DELETE `/api/lab/brain`, `/api/lab/brain/memory`, `/api/lab/brain/business`, `/api/lab/brain/action`.
-- **Deep Research**: Multi-step web research using OpenAI Responses API `web_search_preview` tool. Returns structured report with sources. Route: POST `/api/lab/deep-research`. Panel in Star Lab sidebar.
-- **Extreme Environment Materials Intelligence**: Materials generator fully upgraded with expert-level knowledge of: high-temperature superalloys (Inconel 625/718/825, Hastelloy X/C-276, Waspaloy, Stellite, SiC/Si₃N₄/ZrO₂ ceramics, PEEK, CMC), cryogenic materials (316L, 9% Ni steel, Invar 36, 5083-H321), subsea/marine materials (SAF 2507 super duplex, 6Mo stainless 254 SMO, titanium Gr2/Gr5, Inconel 625, Viton/Aflas seals, CP systems to DNV RP-B401), aerospace grades (7075-T651, 2024-T3, CFRP Toray T700/T800, Ti-6Al-4V ELI AMS 4930, Inconel 718 AMS 5664, 15-5PH/17-4PH), oil & gas sour service (NACE MR0175/ISO 15156 compliant grades, API 6A, duplex SS), robotics (Al-SiC MMC, PEEK-CF, WC-Co HVOF coatings, Nitinol). Materials BOM now includes full alternative comparison table, supply chain risk assessment, material traceability requirements.
-- **Concept-to-Product Flow**: Project chat's system prompt now includes a full concept-to-product execution sequence. When Garry describes a concept, Sirius automatically runs: web research → save research → write brief → generate specs → select materials → create manufacturing workflows → write business case → generate visual render — all chained without stopping. "Design from Concept" button appears in ChatPanel toolbar for empty projects (no brief/specs), triggering the full flow automatically. Voice-compatible.
-- **Document Intelligence**: Upload PDFs, TXT, CSV, Markdown, JSON files and ask questions. Uses `pdf-parse` for PDF extraction, GPT-4o for analysis. Returns summary, key points, full answer. Route: POST `/api/lab/docs`. Panel in Star Lab sidebar.
+**Core Technologies:**
+- **Monorepo Tool:** pnpm workspaces
+- **API Framework:** Express 5
+- **Database:** PostgreSQL with Drizzle ORM
+- **Validation:** Zod (`zod/v4`) and `drizzle-zod`
+- **API Codegen:** Orval (from OpenAPI spec)
+- **Build Tool:** esbuild (CJS bundle)
+- **Frontend:** React + Vite (for `ai-chat` and `fitstack-crm`)
+- **AI Integration:** OpenAI's `gpt-4o` (Responses API for web search, chat completions as fallback).
 
-**Public pages**
-- `/compare` — Competitive comparison table: Sirius Star Lab vs ChatGPT, Grok, Gemini, Claude, Copilot, Perplexity. 21 features compared, 12 exclusive to Sirius. Shows checkmarks/X per platform per feature. Collapsible categories.
+**Architectural Patterns:**
+- **Modular Monorepo:** Organized into `artifacts/` (deployable applications), `lib/` (shared libraries), and `scripts/` (utility scripts).
+- **Database-driven Persistence:** All project data, messages, user profiles, and reports are stored in PostgreSQL using Drizzle ORM.
+- **Code Generation:** OpenAPI specification (`openapi.yaml`) is used with Orval to generate React Query hooks (`lib/api-client-react`) and Zod schemas (`lib/api-zod`), ensuring type safety and consistency between frontend and backend.
+- **TypeScript Composite Projects:** Each package uses `composite: true` in its `tsconfig.json` and the root `tsconfig.json` manages project references, ensuring correct type-checking across the monorepo.
+- **API Design:** RESTful API with routes defined in `artifacts/api-server/src/routes/` and validated using Zod schemas.
 
-**Main site features**
-- **Sirius Guide**: Tutorials panel accessible from sidebar ("Sirius Guide" button). Slide-in right drawer with categorised accordion sections: Getting Started, Intelligence Modes, Topic Hub, Voice Input, Image Analysis, Memory Portrait, Daily Wisdom, Plans, Star Lab. Fully self-contained in `src/components/tutorials-modal.tsx`.
+**UI/UX Decisions (Sirius Star Lab):**
+- **Partnership-first Design:** AI is presented as an equal intelligence partner.
+- **Personalization:** Mood check-ins, daily wisdom cards, customizable AI names and personalities, persistent memory.
+- **Thematic Design:** Cosmic intelligence, stardust, grand arc of time motifs.
+- **Interactive Elements:** Sidebars for navigation, tutorials (Sirius Guide), settings, and real-time status updates (e.g., Live Pipeline Widget, System Audit Panel).
+- **Accessibility:** Voice input compatibility for certain features.
 
-- All projects persist independently in PostgreSQL (lab_projects, lab_messages, scout_reports tables)
+**Feature Specifications (Sirius Star Lab):**
+- **Sirius Star Lab:** A private R&D platform with multi-project workspaces, PIN-gated access (owner/guest), engineering-focused AI, opportunity scouting, and CAD file storage (DWG, DXF, STEP, IGES, STL, OBJ, F3D).
+- **Technical Documents:** Upload and AI-powered analysis of technical documents (drawings, spec sheets, datasheets, photos, concept sketches) using GPT-4o vision for material recommendations, compliance checks, and data extraction.
+- **Auto Funding Analysis:** Automated R&D tax credit and grant analysis across 20+ countries, with results displayed in-app and notification system.
+- **Autonomous Lab:** Daily scans for social media/marketing bot opportunities and precision engineering products, auto-creating projects for approval. Includes a live pipeline widget for build status.
+- **System Audit Panel:** Real-time platform health dashboard with checks across infrastructure, data, intelligence, and compliance.
+- **Sirius Tool Extensions:** Integrated tools like `run_investment_rule`, `run_funding_analysis`, and `run_platform_audit`.
+- **Outreach Hub:** AI-personalized outreach campaign generation with bulk recipient handling and SMTP sending.
+- **Sirius Brain:** Persistent business memory with user profiles, facts, goals, and AI actions (deep_profile, scan_for_me, pitch_strategy, revenue_map).
+- **Deep Research:** Multi-step web research with structured reports and sources using OpenAI's `web_search_preview` tool.
+- **Extreme Environment Materials Intelligence:** Advanced material generator with expert knowledge in various high-performance material categories.
+- **Concept-to-Product Flow:** Automated chaining of research, brief writing, spec generation, material selection, manufacturing workflows, business case, and visual rendering from a concept.
+- **Document Intelligence:** Upload and AI-powered Q&A for PDFs, TXT, CSV, Markdown, JSON files.
 
-**Core experience**
-- Partnership-first design: the AI is an equal intelligence partner, not a tool
-- Mood check-in on welcome screen (8 emotional states → personalised opener)
-- Daily Wisdom card: rotating quotes from all world religions & philosophies
-- Topic hub: Religion & Faith, Meditation, Philosophy, History, Health, Music, Mechanics, Just Talk
-- Spotify "Now Playing" widget: shows current/recent tracks, lets you ask the AI about them
-- Chat input: "Talk to me — I'm here..." / "You are not alone — I'm here for all of it"
+**UI/UX Decisions (FitStack CRM):**
+- **Marketing Landing Page:** Features hero section, product features, pricing, testimonials, FAQ, and footer.
+- **Stripe Integration:** For subscription checkout and payment verification.
 
-**Personalisation & Memory**
-- Each browser gets a UUID (`nexus_user_id` in localStorage)
-- User profiles stored in `user_profiles` DB table (ai name, ai personality, memories)
-- After each conversation turn, AI extracts key facts and saves them as memories
-- Settings panel in sidebar: name your AI, shape its personality, see what it remembers
-- AI name appears everywhere (welcome screen, sidebar header)
-
-**AI Capabilities**
-- Real-time web search via OpenAI Responses API `web_search_preview` tool
-- Rich partnership system prompt: emotional intelligence, accessibility, no restrictions
-- Covers: all religions/spirituality, meditation/mindfulness, philosophy, history, medicine, music, mechanics
-- Fallback to `gpt-4o` chat completions if Responses API unavailable
-- Memory extraction runs async after each message (non-blocking)
-
-**Spotify Integration**
-- Connected via Replit OAuth connector (`conn_spotify_01KKW2ZR1Q51QT871RHEDRVYPP`)
-- Routes: `GET /api/openai/spotify/now-playing`, `/recently-played`, `/top-tracks`
-- Spotify client: `artifacts/api-server/src/lib/spotify.ts`
-- Widget gracefully hides when Spotify is not active or unavailable
-- Note: Requires Spotify Premium + app registered in development mode on Spotify dashboard
-
-### `artifacts/fitstack-crm` — FitStack CRM (Live Product)
-React + Vite marketing landing page + Stripe checkout for FitStack CRM, a subscription CRM for UK personal trainers.
-- URL: `/fitstack-crm/`
-- Pricing: £29/month or £249/year
-- Full landing page: hero, features, pricing, testimonials, FAQ, footer
-- Stripe checkout flow via `POST /api/fitstack/checkout` → redirect to Stripe hosted page
-- Success page at `/fitstack-crm/success?session_id=XXX` verifies payment via `GET /api/fitstack/verify`
-- Backend routes: `artifacts/api-server/src/routes/fitstack.ts`
-- Images: `artifacts/fitstack-crm/public/images/` (hero-abstract.png, dashboard-mockup.png)
-
-### ElevenLabs Voice (NOT YET SET UP)
-- ElevenLabs Replit OAuth connector was dismissed — user did not complete OAuth
-- To add real voice: get an API key from elevenlabs.io, store it as ELEVENLABS_API_KEY secret, then wire it into the `speakText` function in `artifacts/ai-chat/src/pages/star-lab.tsx`
-- Current TTS: browser `speechSynthesis` only (fallback)
-- Do NOT attempt `proposeIntegration` for ElevenLabs again — ask for API key directly and store as secret
-
-### Portfolio Cull Tool (Sirius Tool)
-- `run_portfolio_cull` tool added to Sirius — scores all approved projects against commercial criteria
-- Scoring: Pure software (+25), Revenue projections (+20), Confidence 8-9/10 (+15), £1M+ Y1 market (+10), Low dev cost (+10), AI arch linked (+10), Launch-ready (+5), Recurring revenue (+5)
-- Default: keep top 20, show preview first, confirm=true to actually archive
-- TOOL_META entry added; case handler in executeLabTool switch
-
-### OpenAI Integration
-Uses `@workspace/integrations-openai-ai-server` and `@workspace/integrations-openai-ai-react`.
-API routes in `artifacts/api-server/src/routes/openai/index.ts`.
-DB tables: `conversations`, `messages`, `user_profiles` (Drizzle + Postgres).
-AI keys auto-provisioned via `AI_INTEGRATIONS_OPENAI_BASE_URL` and `AI_INTEGRATIONS_OPENAI_API_KEY`.
-Model used: `gpt-4o` (Responses API for web search, chat completions as fallback).
-
-## Structure
-
-```text
-artifacts-monorepo/
-├── artifacts/              # Deployable applications
-│   └── api-server/         # Express API server
-├── lib/                    # Shared libraries
-│   ├── api-spec/           # OpenAPI spec + Orval codegen config
-│   ├── api-client-react/   # Generated React Query hooks
-│   ├── api-zod/            # Generated Zod schemas from OpenAPI
-│   └── db/                 # Drizzle ORM schema + DB connection
-├── scripts/                # Utility scripts (single workspace package)
-│   └── src/                # Individual .ts scripts, run via `pnpm --filter @workspace/scripts run <script>`
-├── pnpm-workspace.yaml     # pnpm workspace (artifacts/*, lib/*, lib/integrations/*, scripts)
-├── tsconfig.base.json      # Shared TS options (composite, bundler resolution, es2022)
-├── tsconfig.json           # Root TS project references
-└── package.json            # Root package with hoisted devDeps
-```
-
-## TypeScript & Composite Projects
-
-Every package extends `tsconfig.base.json` which sets `composite: true`. The root `tsconfig.json` lists all packages as project references. This means:
-
-- **Always typecheck from the root** — run `pnpm run typecheck` (which runs `tsc --build --emitDeclarationOnly`). This builds the full dependency graph so that cross-package imports resolve correctly. Running `tsc` inside a single package will fail if its dependencies haven't been built yet.
-- **`emitDeclarationOnly`** — we only emit `.d.ts` files during typecheck; actual JS bundling is handled by esbuild/tsx/vite...etc, not `tsc`.
-- **Project references** — when package A depends on package B, A's `tsconfig.json` must list B in its `references` array. `tsc --build` uses this to determine build order and skip up-to-date packages.
-
-## Root Scripts
-
-- `pnpm run build` — runs `typecheck` first, then recursively runs `build` in all packages that define it
-- `pnpm run typecheck` — runs `tsc --build --emitDeclarationOnly` using project references
-
-## Packages
-
-### `artifacts/api-server` (`@workspace/api-server`)
-
-Express 5 API server. Routes live in `src/routes/` and use `@workspace/api-zod` for request and response validation and `@workspace/db` for persistence.
-
-- Entry: `src/index.ts` — reads `PORT`, starts Express
-- App setup: `src/app.ts` — mounts CORS, JSON/urlencoded parsing, routes at `/api`
-- Routes: `src/routes/index.ts` mounts sub-routers; `src/routes/health.ts` exposes `GET /health` (full path: `/api/health`)
-- Depends on: `@workspace/db`, `@workspace/api-zod`
-- `pnpm --filter @workspace/api-server run dev` — run the dev server
-- `pnpm --filter @workspace/api-server run build` — production esbuild bundle (`dist/index.cjs`)
-- Build bundles an allowlist of deps (express, cors, pg, drizzle-orm, zod, etc.) and externalizes the rest
-
-### `lib/db` (`@workspace/db`)
-
-Database layer using Drizzle ORM with PostgreSQL. Exports a Drizzle client instance and schema models.
-
-- `src/index.ts` — creates a `Pool` + Drizzle instance, exports schema
-- `src/schema/index.ts` — barrel re-export of all models
-- `src/schema/<modelname>.ts` — table definitions with `drizzle-zod` insert schemas (no models definitions exist right now)
-- `drizzle.config.ts` — Drizzle Kit config (requires `DATABASE_URL`, automatically provided by Replit)
-- Exports: `.` (pool, db, schema), `./schema` (schema only)
-
-Production migrations are handled by Replit when publishing. In development, we just use `pnpm --filter @workspace/db run push`, and we fallback to `pnpm --filter @workspace/db run push-force`.
-
-### `lib/api-spec` (`@workspace/api-spec`)
-
-Owns the OpenAPI 3.1 spec (`openapi.yaml`) and the Orval config (`orval.config.ts`). Running codegen produces output into two sibling packages:
-
-1. `lib/api-client-react/src/generated/` — React Query hooks + fetch client
-2. `lib/api-zod/src/generated/` — Zod schemas
-
-Run codegen: `pnpm --filter @workspace/api-spec run codegen`
-
-### `lib/api-zod` (`@workspace/api-zod`)
-
-Generated Zod schemas from the OpenAPI spec (e.g. `HealthCheckResponse`). Used by `api-server` for response validation.
-
-### `lib/api-client-react` (`@workspace/api-client-react`)
-
-Generated React Query hooks and fetch client from the OpenAPI spec (e.g. `useHealthCheck`, `healthCheck`).
-
-### `scripts` (`@workspace/scripts`)
-
-Utility scripts package. Each script is a `.ts` file in `src/` with a corresponding npm script in `package.json`. Run scripts via `pnpm --filter @workspace/scripts run <script>`. Scripts can import any workspace package (e.g., `@workspace/db`) by adding it as a dependency in `scripts/package.json`.
+## External Dependencies
+- **PostgreSQL:** Primary database for all application data.
+- **OpenAI API:**
+    - `gpt-4o`: Used for general chat completions, memory extraction, technical document analysis, deep research, and various AI actions.
+    - Responses API `web_search_preview`: For real-time web search capabilities.
+- **Stripe:** For processing subscriptions and payments within FitStack CRM.
+- **Spotify API:** For "Now Playing" widget functionality (requires OAuth connector `conn_spotify_01KKW2ZR1Q51QT871RHEDRVYPP`).
+- **Google Cloud Storage (GCS):** For storing CAD files.
+- **SMTP Service:** For sending personalized outreach emails (configured via environment variables or inline).
+- **`pdf-parse`:** For extracting text from PDF documents in the Document Intelligence feature.
