@@ -138,7 +138,7 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
   };
 
   const handleSend = () => {
-    if ((!input.trim() && !imageBase64 && !documentBase64) || isTyping) return;
+    if (!input.trim() && !imageBase64 && !documentBase64) return;
     onSend(input, imageBase64 || undefined, mode !== "guru" ? mode : undefined, documentBase64 || undefined, documentName || undefined);
     setInput("");
     setImageBase64(null);
@@ -260,7 +260,7 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
     else startRecording();
   };
 
-  const canSend = !!(input.trim() || imageBase64 || documentBase64) && !isTyping;
+  const canSend = !!(input.trim() || imageBase64 || documentBase64);
 
   // Show upgrade wall when daily limit is hit
   if (status.dailyLimit !== null && !status.canSendMessage) {

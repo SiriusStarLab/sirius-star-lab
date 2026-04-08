@@ -112,21 +112,46 @@ export function ChatPage() {
   const playTTS = (text: string) => {
     if (!window.speechSynthesis) return;
     window.speechSynthesis.cancel();
+
     const clean = text
       .replace(/\*\*/g, "")
       .replace(/#{1,6}\s/g, "")
       .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-      .slice(0, 4000);
-    const utt = new SpeechSynthesisUtterance(clean);
-    utt.lang = "en-GB";
-    utt.rate = 0.95;
-    utt.pitch = 1.0;
+      .slice(0, 6000);
+
+    // Split into sentence-sized chunks to work around Chrome's ~15s speech cutoff bug.
+    // Chrome silently stops speaking long utterances; chaining short ones avoids this.
+    const sentences = clean.match(/[^.!?]+[.!?]+[\s]*/g) || [clean];
+    const chunks: string[] = [];
+    let current = "";
+    for (const s of sentences) {
+      if ((current + s).length > 220) {
+        if (current) chunks.push(current.trim());
+        current = s;
+      } else {
+        current += s;
+      }
+    }
+    if (current.trim()) chunks.push(current.trim());
+
     const voices = window.speechSynthesis.getVoices();
     const preferred = voices.find(v => v.lang === "en-GB" && v.name.toLowerCase().includes("female"))
       || voices.find(v => v.lang === "en-GB")
       || voices.find(v => v.lang.startsWith("en"));
-    if (preferred) utt.voice = preferred;
-    window.speechSynthesis.speak(utt);
+
+    const speakChunk = (index: number) => {
+      if (index >= chunks.length) return;
+      const utt = new SpeechSynthesisUtterance(chunks[index]);
+      utt.lang = "en-GB";
+      utt.rate = 0.95;
+      utt.pitch = 1.0;
+      if (preferred) utt.voice = preferred;
+      utt.onend = () => speakChunk(index + 1);
+      utt.onerror = () => speakChunk(index + 1); // skip broken chunk, keep going
+      window.speechSynthesis.speak(utt);
+    };
+
+    speakChunk(0);
   };
 
   const stopTTS = () => {
