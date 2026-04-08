@@ -463,6 +463,8 @@ function PinGate({ onUnlock, userName }: { onUnlock: (pin: string, role: AccessR
         const role: AccessRole = body.role === "guest" ? "guest" : "owner";
         sessionStorage.setItem("lab_pin", pin);
         sessionStorage.setItem("lab_role", role);
+        // Permanently link this device's chat sessions to the owner profile so Sirius remembers across sessions
+        if (role === "owner") localStorage.setItem("sirius_user_id", "garry");
         speakText("Access granted. Welcome to Star Lab.", () => onUnlock(pin, role));
         setTimeout(() => onUnlock(pin, role), 3500);
       } else {
