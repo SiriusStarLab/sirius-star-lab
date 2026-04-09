@@ -12,6 +12,16 @@ import { onCadFileAttached, getPipelineStatus, triggerBuildNow } from "../lib/pr
 import { runInvestmentRule } from "../lib/investment-rule.js";
 import { recordPinFailure, clearPinRecord, securityLog } from "../middlewares/security.js";
 import { getUncachableStripeClient } from "../stripeClient.js";
+import { runCodeAgent, type CodeAgentEvent } from "../lib/code-agent.js";
+
+// Active code-agent SSE streams (sessionId → Response)
+const codeAgentStreams = new Map<string, Response>();
+function broadcastCodeEvent(event: CodeAgentEvent) {
+  const data = `data: ${JSON.stringify(event)}\n\n`;
+  for (const [, res] of codeAgentStreams) {
+    try { (res as any).write(data); } catch { /* stream closed */ }
+  }
+}
 
 const router: IRouter = Router();
 
@@ -3833,6 +3843,23 @@ const LAB_TOOLS: any[] = [
     },
   },
   {
+    type: "function" as const,
+    function: {
+      name: "run_code_agent",
+      description: "Autonomously write, edit, or fix real code in the Sirius project. Use when Garry asks you to add a feature, fix a bug, edit the UI, improve yourself, or build something directly in the codebase. The code agent reads actual source files, writes targeted changes, and applies them live. Returns a summary of what was changed.",
+      parameters: {
+        type: "object",
+        properties: {
+          task: {
+            type: "string",
+            description: "Clear, detailed description of the coding task. Include: what to build or fix, which part of the system (chat, Star Lab, API, mobile), and any specific requirements or constraints.",
+          },
+        },
+        required: ["task"],
+      },
+    },
+  },
+  {
     type: "function",
     function: {
       name: "navigate_to",
@@ -6538,6 +6565,26 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
         }
       }
 
+      case "run_code_agent": {
+        const { task } = args as { task: string };
+        const filesChanged: string[] = [];
+        const messages: string[] = [];
+
+        await runCodeAgent(task, (event) => {
+          broadcastCodeEvent(event);
+          if (event.type === "file_change" && !filesChanged.includes(event.path)) {
+            filesChanged.push(event.path);
+          }
+          if (event.type === "complete") {
+            messages.push(event.summary);
+          }
+        });
+
+        const summary = messages.join(" ").trim() || "Code agent completed.";
+        const changed = filesChanged.length > 0 ? `\n\nFiles changed:\n${filesChanged.map(f => `• ${f}`).join("\n")}` : "\n\nNo files were changed.";
+        return `${summary}${changed}`;
+      }
+
       default:
         return `Unknown tool: ${name}`;
     }
@@ -6557,6 +6604,7 @@ const TOOL_META: Record<string, { label: string; color: string; icon: string }> 
   run_market_scan: { label: "Market scan complete", color: "hsl(25,100%,55%)", icon: "🔭" },
   query_projects: { label: "Projects queried", color: "hsl(193,100%,40%)", icon: "🔍" },
   get_scan_history: { label: "Scan history loaded", color: "hsl(155,70%,45%)", icon: "📡" },
+  run_code_agent: { label: "Code Agent writing code", color: "hsl(155,70%,42%)", icon: "💻" },
   navigate_to: { label: "Navigating", color: "hsl(226,70%,55%)", icon: "🧭" },
   start_app_build: { label: "Queuing new build", color: "hsl(155,70%,42%)", icon: "🚀" },
   get_pipeline_status: { label: "Pipeline status loaded", color: "hsl(193,100%,40%)", icon: "⚙️" },
@@ -9506,6 +9554,47 @@ router.post("/lab/upgrades/:id/decline", authMiddleware, async (req: Request, re
   } catch (err: any) {
     res.status(500).json({ error: err?.message });
   }
+});
+
+// ── Code Agent SSE stream ────────────────────────────────────────────────────
+// EventSource cannot send custom headers, so we accept PIN as a query param here
+router.get("/lab/code/stream", (req: Request, res: Response) => {
+  const pin = (req.query.pin as string) || (req.headers["x-lab-pin"] as string);
+  const role = getPinRole(pin);
+  if (!role) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const sessionId = (req.query.session as string) || Math.random().toString(36).slice(2);
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders();
+  res.write(`data: ${JSON.stringify({ type: "connected", sessionId })}\n\n`);
+  codeAgentStreams.set(sessionId, res as any);
+  req.on("close", () => { codeAgentStreams.delete(sessionId); });
+});
+
+// Direct code agent trigger (POST) — runs agent and streams via SSE, returns summary
+router.post("/lab/code/agent", authMiddleware, async (req: Request, res: Response) => {
+  const { task, pin } = req.body as { task: string; pin: string };
+  if (!task) { res.status(400).json({ error: "task required" }); return; }
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders();
+
+  const send = (event: CodeAgentEvent) => {
+    try { (res as any).write(`data: ${JSON.stringify(event)}\n\n`); } catch { /* closed */ }
+    broadcastCodeEvent(event);
+  };
+
+  try {
+    await runCodeAgent(task, send);
+  } catch (err: any) {
+    send({ type: "error", message: err?.message || "Unknown error" });
+  }
+
+  try { res.end(); } catch { /* closed */ }
 });
 
 export default router;

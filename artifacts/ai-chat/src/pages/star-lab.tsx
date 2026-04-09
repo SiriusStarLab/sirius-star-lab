@@ -15696,6 +15696,17 @@ export function StarLabPage() {
   const [fundingAlerts, setFundingAlerts] = useState<FundingAlert[]>([]);
   const prevFundingStatus = useRef<Record<number, string>>({});
   const [changePinOpen, setChangePinOpen] = useState(false);
+
+  // ── Code Agent terminal ───────────────────────────────────────────────────
+  type CodeAgentEventType = "thinking" | "tool_call" | "tool_result" | "file_change" | "message" | "complete" | "error";
+  type CodeAgentEvt = { type: CodeAgentEventType; text?: string; tool?: string; args?: Record<string, any>; result?: string; error?: boolean; path?: string; action?: string; summary?: string; filesChanged?: string[]; message?: string };
+  const [codeTerminalOpen, setCodeTerminalOpen] = useState(false);
+  const [codeTerminalMinimised, setCodeTerminalMinimised] = useState(false);
+  const [codeEvents, setCodeEvents] = useState<CodeAgentEvt[]>([]);
+  const [codeAgentRunning, setCodeAgentRunning] = useState(false);
+  const codeEventsEndRef = useRef<HTMLDivElement>(null);
+  const codeStreamRef = useRef<EventSource | null>(null);
+
   const base = getApiBase();
 
   useEffect(() => {
@@ -15705,6 +15716,28 @@ export function StarLabPage() {
   }, []);
 
   const headers = useCallback(() => ({ "Content-Type": "application/json", "x-lab-pin": pin }), [pin]);
+
+  // Subscribe to live Code Agent SSE stream when Star Lab is unlocked
+  useEffect(() => {
+    if (!unlocked || !pin) return;
+    const sessionId = Math.random().toString(36).slice(2);
+    const es = new EventSource(`${base}lab/code/stream?session=${sessionId}&pin=${encodeURIComponent(pin)}`);
+    codeStreamRef.current = es;
+    es.onmessage = (e) => {
+      try {
+        const event = JSON.parse(e.data) as CodeAgentEvt & { type: string };
+        if (event.type === "connected") return;
+        if (event.type === "thinking" || event.type === "tool_call" || event.type === "tool_result" || event.type === "file_change" || event.type === "message" || event.type === "complete" || event.type === "error") {
+          setCodeEvents(prev => [...prev.slice(-199), event as CodeAgentEvt]);
+          if (event.type === "thinking" || event.type === "tool_call") { setCodeAgentRunning(true); setCodeTerminalOpen(true); setCodeTerminalMinimised(false); }
+          if (event.type === "complete" || event.type === "error") { setCodeAgentRunning(false); }
+          setTimeout(() => { codeEventsEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, 80);
+        }
+      } catch { /* ignore parse errors */ }
+    };
+    es.onerror = () => { /* silently reconnect */ };
+    return () => { es.close(); codeStreamRef.current = null; };
+  }, [unlocked, pin, base]);
 
   const loadProjects = useCallback(async (attempt = 0) => {
     if (attempt === 0) { setProjectsLoading(true); setProjectsError(false); }
@@ -15928,6 +15961,72 @@ export function StarLabPage() {
           </motion.div>
         ))}
       </AnimatePresence>
+
+      {/* ── Code Terminal Panel ─────────────────────────────────────────── */}
+      {codeTerminalOpen && (
+        <div className="fixed bottom-5 left-5 z-[60] flex flex-col rounded-2xl shadow-2xl overflow-hidden"
+          style={{ width: "400px", maxHeight: codeTerminalMinimised ? "48px" : "480px", background: "#0D1117", border: "1px solid rgba(255,255,255,0.08)", transition: "max-height 0.25s ease" }}>
+          {/* Header */}
+          <div className="flex items-center gap-2 px-3 py-2.5 flex-shrink-0" style={{ background: "#161B22", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+            <div className="flex gap-1.5">
+              <div className="w-3 h-3 rounded-full" style={{ background: "#FF5F57" }} />
+              <div className="w-3 h-3 rounded-full" style={{ background: "#FEBC2E" }} />
+              <div className="w-3 h-3 rounded-full" style={{ background: "#28C840" }} />
+            </div>
+            <span className="text-xs font-mono ml-1 flex-1" style={{ color: "rgba(255,255,255,0.7)" }}>
+              💻 Code Terminal{codeAgentRunning ? " — running…" : " — idle"}
+            </span>
+            {codeAgentRunning && <span className="w-1.5 h-1.5 rounded-full animate-pulse flex-shrink-0" style={{ background: "hsl(155,70%,50%)" }} />}
+            <button onClick={() => setCodeTerminalMinimised(v => !v)} className="text-xs px-1.5 py-0.5 rounded font-mono transition-colors" style={{ color: "rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.05)" }}>
+              {codeTerminalMinimised ? "↑" : "−"}
+            </button>
+            <button onClick={() => { setCodeTerminalOpen(false); setCodeEvents([]); }} className="text-xs px-1.5 py-0.5 rounded font-mono transition-colors" style={{ color: "rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.05)" }}>
+              ×
+            </button>
+          </div>
+          {/* Event log */}
+          {!codeTerminalMinimised && (
+            <div className="flex-1 overflow-y-auto p-3 space-y-1 font-mono text-xs" style={{ maxHeight: "432px" }}>
+              {codeEvents.length === 0 && (
+                <p style={{ color: "rgba(255,255,255,0.25)" }}>Waiting for Code Agent…</p>
+              )}
+              {codeEvents.map((ev, i) => {
+                if (ev.type === "thinking") return (
+                  <p key={i} style={{ color: "rgba(255,255,255,0.45)" }}>▸ {ev.text}</p>
+                );
+                if (ev.type === "tool_call") return (
+                  <p key={i} style={{ color: "hsl(193,100%,60%)" }}>⚙ {ev.tool}({ev.args ? Object.keys(ev.args).map(k => `${k}="${String(ev.args![k]).slice(0, 40)}"`).join(", ") : ""})</p>
+                );
+                if (ev.type === "file_change") {
+                  const col = ev.action === "modified" ? "hsl(45,100%,60%)" : ev.action === "created" ? "hsl(155,70%,55%)" : "rgba(255,255,255,0.35)";
+                  const icon = ev.action === "modified" ? "✎" : ev.action === "created" ? "+" : ev.action === "listed" ? "📂" : "📄";
+                  return <p key={i} style={{ color: col }}>{icon} {ev.path} <span style={{ color: "rgba(255,255,255,0.3)" }}>({ev.action})</span></p>;
+                }
+                if (ev.type === "tool_result") return (
+                  <p key={i} style={{ color: ev.error ? "hsl(0,75%,65%)" : "rgba(255,255,255,0.3)" }}>  → {ev.result?.slice(0, 120)}</p>
+                );
+                if (ev.type === "message") return (
+                  <p key={i} style={{ color: "rgba(255,255,255,0.75)", whiteSpace: "pre-wrap" }}>{ev.text}</p>
+                );
+                if (ev.type === "complete") return (
+                  <div key={i} className="mt-2 pt-2" style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+                    <p style={{ color: "hsl(155,70%,55%)" }}>✓ Complete</p>
+                    {ev.filesChanged && ev.filesChanged.length > 0 && ev.filesChanged.map((f, fi) => (
+                      <p key={fi} style={{ color: "rgba(255,255,255,0.4)" }}>  • {f}</p>
+                    ))}
+                  </div>
+                );
+                if (ev.type === "error") return (
+                  <p key={i} style={{ color: "hsl(0,75%,65%)" }}>✗ {ev.message}</p>
+                );
+                return null;
+              })}
+              <div ref={codeEventsEndRef} />
+            </div>
+          )}
+        </div>
+      )}
+
       {/* SIDEBAR */}
       <div className="w-56 flex-shrink-0 flex flex-col border-r" style={{ borderColor: "rgba(15,23,42,0.07)", background: "#FFFFFF" }}>
         {/* Logo */}
