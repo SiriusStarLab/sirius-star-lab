@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Sparkles, Brain, User, Save, RotateCcw, Globe } from "lucide-react";
+import { X, Sparkles, Brain, User, Save, RotateCcw, Globe, Link2, CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useProfile } from "@/hooks/use-profile";
+import { isOwner } from "@/lib/user-id";
 
 const LANGUAGES = [
   { value: "auto", label: "Auto-detect (match what I write)" },
@@ -64,6 +65,25 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
   const [preferredLanguage, setPreferredLanguage] = useState("auto");
   const [displayName, setDisplayName] = useState("");
   const [saved, setSaved] = useState(false);
+
+  const [pinInput, setPinInput] = useState("");
+  const [pinState, setPinState] = useState<"idle" | "success" | "error">("idle");
+  const [linked, setLinked] = useState(false);
+
+  useEffect(() => { setLinked(isOwner()); }, [isOpen]);
+
+  const handleLinkPin = () => {
+    if (pinInput.trim() === "169323") {
+      localStorage.setItem("sirius_user_id", "garry");
+      setPinState("success");
+      setLinked(true);
+      setPinInput("");
+      setTimeout(() => { setPinState("idle"); window.location.reload(); }, 1200);
+    } else {
+      setPinState("error");
+      setTimeout(() => setPinState("idle"), 2000);
+    }
+  };
 
   useEffect(() => {
     if (!isLoading) {
@@ -249,6 +269,53 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
                   <p className="text-xs text-muted-foreground/60 mt-3">
                     These memories are built automatically from your conversations and are stored only for you.
                   </p>
+                )}
+              </section>
+
+              {/* Device link section */}
+              <section className="space-y-3 pt-2">
+                <div className="flex items-center gap-2">
+                  <Link2 className="w-4 h-4 text-primary" />
+                  <h3 className="text-sm font-semibold text-foreground">Link this device</h3>
+                </div>
+                {linked ? (
+                  <div className="flex items-center gap-2 rounded-xl bg-green-500/10 border border-green-500/25 px-3 py-2.5">
+                    <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
+                    <span className="text-sm text-green-600">Device linked to your account.</span>
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-xs text-muted-foreground">
+                      Already have an account? Enter your account PIN to link this device and restore your memory.
+                    </p>
+                    <div className="flex gap-2">
+                      <input
+                        type="password"
+                        placeholder="Account PIN"
+                        value={pinInput}
+                        onChange={e => { setPinInput(e.target.value); setPinState("idle"); }}
+                        onKeyDown={e => e.key === "Enter" && handleLinkPin()}
+                        maxLength={12}
+                        className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      />
+                      <Button
+                        size="sm"
+                        variant={pinState === "error" ? "destructive" : "outline"}
+                        onClick={handleLinkPin}
+                        disabled={!pinInput.trim() || pinState === "success"}
+                        className="flex items-center gap-1.5"
+                      >
+                        {pinState === "success" ? (
+                          <CheckCircle2 className="w-4 h-4 text-green-500" />
+                        ) : pinState === "error" ? (
+                          <AlertCircle className="w-4 h-4" />
+                        ) : (
+                          <Link2 className="w-4 h-4" />
+                        )}
+                        {pinState === "success" ? "Linked!" : pinState === "error" ? "Incorrect" : "Link"}
+                      </Button>
+                    </div>
+                  </>
                 )}
               </section>
             </div>

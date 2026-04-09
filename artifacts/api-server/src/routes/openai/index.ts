@@ -662,40 +662,48 @@ async function extractAndSaveMemories(
   existingMemories: string
 ) {
   try {
+    // Split existing memories into stable (P/S prefix) and dynamic (E/R prefix) facts.
+    // Stable facts are never dropped — only updated if contradicted.
+    // Dynamic facts (emotional state, recent context) are refreshed each session.
+    const existingLines = existingMemories
+      ? existingMemories.split("\n").map(l => l.trim()).filter(Boolean)
+      : [];
+    const stableLines = existingLines.filter(l => /^\((P|S)\)/.test(l));
+    const dynamicLines = existingLines.filter(l => !/^\((P|S)\)/.test(l));
+
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       response_format: { type: "json_object" },
       messages: [
         {
           role: "system",
-          content: `You are a memory engine for a personal AI partner. Your job is to extract meaningful, durable knowledge about a person from their conversations — knowledge that will help their AI serve them better over time.
+          content: `You are a memory engine for a personal AI partner. Extract NEW facts from the conversation below to add to an existing memory profile.
 
-Existing knowledge about this person:
-${existingMemories || "none yet"}
+EXISTING STABLE FACTS (personal identity & communication style — preserve these unless clearly contradicted):
+${stableLines.length > 0 ? stableLines.join("\n") : "none yet"}
 
-From the conversation below, extract facts across FOUR categories:
+EXISTING DYNAMIC FACTS (emotional state, recent context — update these freely):
+${dynamicLines.length > 0 ? dynamicLines.join("\n") : "none yet"}
 
-1. PERSONAL FACTS — Name, pronouns, occupation, location, relationships, health, hobbies, interests, beliefs, goals, challenges, achievements, family, anything they shared about themselves. Prefix: (P)
+From the NEW conversation, extract facts across FOUR categories:
 
-2. COMMUNICATION STYLE — Do they prefer short or long answers? Bullet points or flowing prose? Casual or structured? Do they ask many questions or stay focused? Do they seem to rush or enjoy exploring? Prefix: (S)
-
-3. EMOTIONAL PATTERNS — How do they tend to feel? Are they anxious, optimistic, enthusiastic, reserved, earnest, playful? Do they carry a recurring worry or aspiration? Prefix: (E)
-
-4. RECENT CONTEXT — Anything time-sensitive: an upcoming event, a project they're working on, a problem they're in the middle of, a decision they're making. Prefix: (R)
+1. PERSONAL FACTS — Name, location, relationships, occupation, beliefs, goals, family, health, hobbies. Prefix: (P)
+2. COMMUNICATION STYLE — Response length preference, tone, formatting, pace, directness. Prefix: (S)  
+3. EMOTIONAL PATTERNS — Current emotional state, recurring worries or hopes, mood. Prefix: (E)
+4. RECENT CONTEXT — Active projects, upcoming events, decisions being made, things they're working on. Prefix: (R)
 
 Rules:
-- Merge new facts with existing ones. Update outdated facts (e.g. if they had a goal and now it's done, update it).
-- Remove exact duplicates and contradictions (keep the newest version).
-- Each fact must be under 20 words.
-- Return up to 25 total facts across all categories.
-- Return ONLY a JSON object: {"facts": ["(P) fact", "(S) fact", "(E) fact", "(R) fact", ...]}
-- If nothing meaningful to extract, return existing facts as-is.`,
+- Only return facts that are NEW or UPDATED from this conversation. Do not repeat stable facts unless you are correcting them.
+- Each fact must be under 25 words.
+- Return up to 20 new/updated facts.
+- Return ONLY: {"new_facts": ["(P) fact", ...], "remove_facts": ["exact text of any outdated fact to remove"]}
+- If nothing new to extract, return {"new_facts": [], "remove_facts": []}`,
         },
         {
           role: "user",
           content: conversation
-            .slice(-12)
-            .map((m) => `${m.role === "user" ? "Person" : "AI"}: ${m.content.slice(0, 600)}`)
+            .slice(-16)
+            .map((m) => `${m.role === "user" ? "Person" : "AI"}: ${m.content.slice(0, 800)}`)
             .join("\n\n"),
         },
       ],
@@ -706,10 +714,34 @@ Rules:
 
     const stripped = content.replace(/^```(?:json)?\s*/m, "").replace(/```\s*$/m, "").trim();
     const parsed = JSON.parse(stripped);
-    const facts: string[] = parsed.facts ?? [];
-    if (!Array.isArray(facts) || facts.length === 0) return;
+    const newFacts: string[] = parsed.new_facts ?? [];
+    const removeFacts: string[] = parsed.remove_facts ?? [];
 
-    const memoriesText = facts.join("\n");
+    // Merge: start with all existing lines, remove outdated ones, add new ones
+    let merged = existingLines.filter(line =>
+      !removeFacts.some(r => line.toLowerCase().includes(r.toLowerCase().slice(0, 30)))
+    );
+
+    // Add new facts that aren't already covered
+    for (const fact of newFacts) {
+      const key = fact.replace(/^\([PSER]\)\s*/i, "").toLowerCase().slice(0, 30);
+      const alreadyExists = merged.some(m =>
+        m.replace(/^\([PSER]\)\s*/i, "").toLowerCase().slice(0, 30) === key
+      );
+      if (!alreadyExists) merged.push(fact);
+    }
+
+    // Cap at 60 total facts to prevent unbounded growth
+    if (merged.length > 60) {
+      // Keep all stable (P/S) facts, trim dynamic (E/R) if over limit
+      const stable = merged.filter(l => /^\((P|S)\)/.test(l));
+      const dynamic = merged.filter(l => !/^\((P|S)\)/.test(l));
+      merged = [...stable, ...dynamic.slice(-(60 - stable.length))];
+    }
+
+    if (merged.length === 0) return;
+
+    const memoriesText = merged.join("\n");
 
     await db
       .insert(userProfilesTable)
