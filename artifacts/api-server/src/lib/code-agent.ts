@@ -28,9 +28,9 @@ const ALLOWED_PATHS = [
 
 // Commands Sirius is allowed to run
 const ALLOWED_COMMANDS = [
-  /^pnpm\s+(install|add|remove|run\s+build|run\s+lint|run\s+typecheck|run\s+db:push)/,
+  /^pnpm\s+(install|add|remove|run\s+build|run\s+lint|run\s+typecheck|run\s+db:push|audit)/,
   /^npx\s+tsc/,
-  /^ls\s/,
+  /^ls(\s|$)/,
   /^cat\s/,
   /^echo\s/,
   /^mkdir\s+-p\s/,

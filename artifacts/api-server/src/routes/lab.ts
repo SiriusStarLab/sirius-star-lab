@@ -13,6 +13,7 @@ import { runInvestmentRule } from "../lib/investment-rule.js";
 import { recordPinFailure, clearPinRecord, securityLog } from "../middlewares/security.js";
 import { getUncachableStripeClient } from "../stripeClient.js";
 import { runCodeAgent, type CodeAgentEvent } from "../lib/code-agent.js";
+import { runSecurityScan } from "../lib/security-scanner.js";
 
 // Active code-agent SSE streams (sessionId → Response)
 const codeAgentStreams = new Map<string, Response>();
@@ -3845,6 +3846,14 @@ const LAB_TOOLS: any[] = [
   {
     type: "function" as const,
     function: {
+      name: "run_security_scan",
+      description: "Run a full security scan of the Sirius platform. Checks for dependency vulnerabilities, exposed secrets or API keys in source files, suspicious access attempts, and configuration integrity. Use when Garry asks about security, when something feels off, or proactively to keep the system safe. Returns a prioritised list of findings with recommendations.",
+      parameters: { type: "object", properties: {}, required: [] },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
       name: "run_code_agent",
       description: "Autonomously write, edit, or fix real code in the Sirius project. Use when Garry asks you to add a feature, fix a bug, edit the UI, improve yourself, or build something directly in the codebase. The code agent reads actual source files, writes targeted changes, and applies them live. Returns a summary of what was changed.",
       parameters: {
@@ -6565,6 +6574,34 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
         }
       }
 
+      case "run_security_scan": {
+        const report = await runSecurityScan();
+        const riskEmoji = { clean: "✅", low: "🟡", medium: "🟠", high: "🔴", critical: "🚨" }[report.overallRisk];
+        const lines: string[] = [
+          `${riskEmoji} **Security Scan Complete** — ${new Date(report.timestamp).toLocaleString("en-GB")}`,
+          `**Overall risk:** ${report.overallRisk.toUpperCase()}`,
+          ``,
+          report.summary,
+          ``,
+        ];
+        const real = report.findings.filter(f => f.severity !== "info");
+        const info = report.findings.filter(f => f.severity === "info");
+        if (real.length > 0) {
+          lines.push(`**Findings (${real.length}):**`);
+          for (const f of real) {
+            const e = { critical: "🚨", high: "🔴", medium: "🟠", low: "🟡" }[f.severity] || "•";
+            lines.push(`${e} **[${f.severity.toUpperCase()}] ${f.title}**`);
+            lines.push(`  ${f.detail}`);
+            lines.push(`  → ${f.recommendation}`);
+          }
+        }
+        if (info.length > 0) {
+          lines.push(``, `**Clean checks:**`);
+          for (const f of info) lines.push(`✅ ${f.title}`);
+        }
+        return lines.join("\n");
+      }
+
       case "run_code_agent": {
         const { task } = args as { task: string };
         const filesChanged: string[] = [];
@@ -6604,6 +6641,7 @@ const TOOL_META: Record<string, { label: string; color: string; icon: string }> 
   run_market_scan: { label: "Market scan complete", color: "hsl(25,100%,55%)", icon: "🔭" },
   query_projects: { label: "Projects queried", color: "hsl(193,100%,40%)", icon: "🔍" },
   get_scan_history: { label: "Scan history loaded", color: "hsl(155,70%,45%)", icon: "📡" },
+  run_security_scan: { label: "Running security scan", color: "hsl(0,75%,55%)", icon: "🔒" },
   run_code_agent: { label: "Code Agent writing code", color: "hsl(155,70%,42%)", icon: "💻" },
   navigate_to: { label: "Navigating", color: "hsl(226,70%,55%)", icon: "🧭" },
   start_app_build: { label: "Queuing new build", color: "hsl(155,70%,42%)", icon: "🚀" },
@@ -9551,6 +9589,25 @@ router.post("/lab/upgrades/:id/decline", authMiddleware, async (req: Request, re
       .returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
     res.json(row);
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+
+// ── Security scan endpoint ───────────────────────────────────────────────────
+router.post("/lab/security/scan", authMiddleware, async (_req: Request, res: Response) => {
+  try {
+    const report = await runSecurityScan();
+    res.json(report);
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+
+router.get("/lab/security/scan", authMiddleware, async (_req: Request, res: Response) => {
+  try {
+    const report = await runSecurityScan();
+    res.json(report);
   } catch (err: any) {
     res.status(500).json({ error: err?.message });
   }
