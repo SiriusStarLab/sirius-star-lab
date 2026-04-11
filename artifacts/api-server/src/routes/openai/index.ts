@@ -1096,7 +1096,7 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
         ],
         stream: true,
         max_tokens: 1800,
-      } as any);
+      } as any) as unknown as AsyncIterable<any>;
 
       for await (const chunk of sonarStream) {
         const delta = (chunk as any).choices?.[0]?.delta?.content;
@@ -1122,7 +1122,7 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
           ],
           stream: true,
           max_tokens: 1800,
-        } as any);
+        } as any) as unknown as AsyncIterable<any>;
 
         for await (const chunk of claudeStream) {
           const delta = chunk.choices?.[0]?.delta?.content;

@@ -133,7 +133,7 @@ export default function ExploreScreen() {
       const updated = await fetchMoodHistory(userId).catch(() => null);
       if (updated) setMoodHistory(updated);
     }
-    router.push({ pathname: "/(tabs)/", params: { prompt: `I'm feeling ${mood.toLowerCase()} today. How can we explore that together?` } });
+    router.push({ pathname: "/(tabs)", params: { prompt: `I'm feeling ${mood.toLowerCase()} today. How can we explore that together?` } });
   }, [userId]);
 
   const handleArc = useCallback(async () => {
@@ -180,11 +180,11 @@ export default function ExploreScreen() {
 
   const handleSurprise = () => {
     const pick = SURPRISE_PROMPTS[Math.floor(Math.random() * SURPRISE_PROMPTS.length)];
-    router.push({ pathname: "/(tabs)/", params: { prompt: pick } });
+    router.push({ pathname: "/(tabs)", params: { prompt: pick } });
   };
 
   const handleTopic = (topic: string) => {
-    router.push({ pathname: "/(tabs)/", params: { prompt: `Let's explore ${topic}. What's the most fascinating thing happening in this field right now?` } });
+    router.push({ pathname: "/(tabs)", params: { prompt: `Let's explore ${topic}. What's the most fascinating thing happening in this field right now?` } });
   };
 
   const recentMoods = moodHistory.slice(0, 7);
@@ -403,7 +403,7 @@ export default function ExploreScreen() {
         ].map((item, i) => (
           <Pressable
             key={i}
-            onPress={() => router.push({ pathname: "/(tabs)/", params: { prompt: `Tell me about ${item.title}. ${item.subtitle}.` } })}
+            onPress={() => router.push({ pathname: "/(tabs)", params: { prompt: `Tell me about ${item.title}. ${item.subtitle}.` } })}
             style={({ pressed }) => [styles.diveCard, pressed && { opacity: 0.8 }]}
           >
             <View style={{ flex: 1 }}>

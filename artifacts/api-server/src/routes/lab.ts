@@ -5860,11 +5860,11 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
 
         // 2. Auto-scan
         try {
-          const scanHist = await db.select({ createdAt: labScanHistory.createdAt, itemsFound: labScanHistory.itemsFound })
-            .from(labScanHistory).orderBy(desc(labScanHistory.createdAt)).limit(1);
+          const scanHist = await db.select({ startedAt: labScanHistory.startedAt, opportunitiesFound: labScanHistory.opportunitiesFound })
+            .from(labScanHistory).orderBy(desc(labScanHistory.startedAt)).limit(1);
           const last = scanHist[0];
-          const ageHrs = last ? Math.floor((Date.now() - new Date(last.createdAt).getTime()) / 3600000) : 999;
-          checks.push({ name: "Auto-Scan", status: ageHrs < 26 ? "pass" : "warn", detail: last ? `Last scan: ${ageHrs}h ago — found ${last.itemsFound} items` : "No scan history" });
+          const ageHrs = last ? Math.floor((Date.now() - new Date(last.startedAt).getTime()) / 3600000) : 999;
+          checks.push({ name: "Auto-Scan", status: ageHrs < 26 ? "pass" : "warn", detail: last ? `Last scan: ${ageHrs}h ago — found ${last.opportunitiesFound} items` : "No scan history" });
         } catch { checks.push({ name: "Auto-Scan", status: "warn", detail: "Could not read scan history" }); }
 
         // 3. Investment Rule
@@ -5879,7 +5879,7 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
         try {
           const total = await db.select({ id: labProjects.id }).from(labProjects);
           const launchReady = total.length > 0 ? await db.select({ id: labProjects.id }).from(labProjects).where(eq(labProjects.launchStatus, "launch-ready")) : [];
-          const pending = total.filter ? await db.select({ id: labProjects.id }).from(labProjects).where(eq(labProjects.approvalStatus, "pending")) : [];
+          const pending = total.length > 0 ? await db.select({ id: labProjects.id }).from(labProjects).where(eq(labProjects.approvalStatus, "pending")) : [];
           checks.push({ name: "Projects Database", status: "pass", detail: `Total: ${total.length.toLocaleString()} | Launch-ready: ${launchReady.length} | Awaiting approval: ${pending.length}` });
         } catch { checks.push({ name: "Projects Database", status: "fail", detail: "Database query failed" }); }
 
@@ -6585,11 +6585,11 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
           ``,
         ];
         const real = report.findings.filter(f => f.severity !== "info");
-        const info = report.findings.filter(f => f.severity === "info");
+        const info = report.findings.filter(f => (f.severity as string) === "info");
         if (real.length > 0) {
           lines.push(`**Findings (${real.length}):**`);
           for (const f of real) {
-            const e = { critical: "🚨", high: "🔴", medium: "🟠", low: "🟡" }[f.severity] || "•";
+            const e = ({ critical: "🚨", high: "🔴", medium: "🟠", low: "🟡", info: "ℹ️" } as Record<string, string>)[f.severity] || "•";
             lines.push(`${e} **[${f.severity.toUpperCase()}] ${f.title}**`);
             lines.push(`  ${f.detail}`);
             lines.push(`  → ${f.recommendation}`);

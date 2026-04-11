@@ -15726,7 +15726,7 @@ export function StarLabPage() {
     es.onmessage = (e) => {
       try {
         const event = JSON.parse(e.data) as CodeAgentEvt & { type: string };
-        if (event.type === "connected") return;
+        if ((event as any).type === "connected") return;
         if (event.type === "thinking" || event.type === "tool_call" || event.type === "tool_result" || event.type === "file_change" || event.type === "message" || event.type === "complete" || event.type === "error") {
           setCodeEvents(prev => [...prev.slice(-199), event as CodeAgentEvt]);
           if (event.type === "thinking" || event.type === "tool_call") { setCodeAgentRunning(true); setCodeTerminalOpen(true); setCodeTerminalMinimised(false); }

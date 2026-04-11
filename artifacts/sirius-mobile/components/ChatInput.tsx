@@ -69,7 +69,7 @@ export function ChatInput({ onSend, disabled = false, placeholder = "Message Sir
       if (!uri) { setVoiceState("idle"); return; }
 
       const base64 = await FileSystem.readAsStringAsync(uri, {
-        encoding: FileSystem.EncodingType.Base64,
+        encoding: "base64" as any,
       });
 
       const base = getApiBase();

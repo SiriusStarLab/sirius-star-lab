@@ -9,6 +9,7 @@
 import { exec } from "child_process";
 import { promisify } from "util";
 import * as fs from "fs/promises";
+import { type Dirent } from "fs";
 import * as path from "path";
 import { db, siriusErrors } from "@workspace/db";
 import { desc, gte } from "drizzle-orm";
@@ -78,7 +79,7 @@ async function scanFileForSecrets(filePath: string): Promise<SecurityFinding[]> 
 }
 
 async function walkAndScan(dir: string, findings: SecurityFinding[]): Promise<void> {
-  let entries: fs.Dirent[];
+  let entries: Dirent[];
   try {
     entries = await fs.readdir(dir, { withFileTypes: true });
   } catch {

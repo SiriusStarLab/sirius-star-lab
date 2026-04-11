@@ -280,9 +280,10 @@ When you are done, call no more tools and write a final summary of exactly what 
     const toolResults: any[] = [];
 
     for (const tc of msg.tool_calls) {
-      const toolName = tc.function.name;
+      const tcFn = (tc as any).function as { name: string; arguments: string };
+      const toolName = tcFn.name;
       let args: Record<string, any> = {};
-      try { args = JSON.parse(tc.function.arguments); } catch { args = {}; }
+      try { args = JSON.parse(tcFn.arguments); } catch { args = {}; }
 
       onEvent({ type: "tool_call", tool: toolName, args });
 

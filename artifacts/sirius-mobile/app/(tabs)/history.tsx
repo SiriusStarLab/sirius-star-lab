@@ -34,7 +34,7 @@ function ConversationItem({
   return (
     <Pressable
       onPress={() =>
-        router.push({ pathname: "/(tabs)/", params: { conversationId: String(item.id) } })
+        router.push({ pathname: "/(tabs)", params: { conversationId: String(item.id) } })
       }
       style={({ pressed }) => [
         styles.item,
@@ -120,7 +120,7 @@ export default function HistoryScreen() {
           <Text style={styles.emptyText}>No conversations yet</Text>
           <Text style={styles.emptyHint}>Start chatting to see your history</Text>
           <Pressable
-            onPress={() => router.push("/(tabs)/")}
+            onPress={() => router.push("/(tabs)")}
             style={({ pressed }) => [styles.startBtn, { opacity: pressed ? 0.8 : 1 }]}
           >
             <Text style={styles.startBtnText}>Start a conversation</Text>
