@@ -68,15 +68,8 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession }: Sid
     if (forceOpenPricing) setIsPricingOpen(true);
   }, [forceOpenPricing]);
 
-  const handleDirectUpgrade = async () => {
-    setCheckingOut(true);
-    try {
-      const url = await startCheckout(userId, "plus");
-      window.location.href = url;
-    } catch {
-      setCheckingOut(false);
-      setIsPricingOpen(true);
-    }
+  const handleDirectUpgrade = () => {
+    setIsPricingOpen(true);
   };
 
   const { data: conversations, isLoading } = useListOpenaiConversations();

@@ -3846,6 +3846,28 @@ const LAB_TOOLS: any[] = [
   {
     type: "function" as const,
     function: {
+      name: "pending_payments",
+      description: "View and manage pending bank transfer payment requests from users who want to upgrade. Shows a list of users who have said they've made a bank transfer and are waiting for activation. Use this to check who has paid and activate their account. You can also activate or reject individual requests.",
+      parameters: {
+        type: "object",
+        properties: {
+          action: {
+            type: "string",
+            enum: ["list", "activate", "reject"],
+            description: "list = show all pending requests. activate = upgrade a user's account. reject = mark a request as rejected.",
+          },
+          id: {
+            type: "number",
+            description: "The ID of the payment request to activate or reject.",
+          },
+        },
+        required: ["action"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
       name: "run_security_scan",
       description: "Run a full security scan of the Sirius platform. Checks for dependency vulnerabilities, exposed secrets or API keys in source files, suspicious access attempts, and configuration integrity. Use when Garry asks about security, when something feels off, or proactively to keep the system safe. Returns a prioritised list of findings with recommendations.",
       parameters: { type: "object", properties: {}, required: [] },
@@ -6574,6 +6596,43 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
         }
       }
 
+      case "pending_payments": {
+        const { action, id } = args as { action: string; id?: number };
+        if (action === "activate" && id) {
+          const res = await fetch(`http://localhost:${process.env.PORT || 8080}/api/payment/activate`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id }),
+          });
+          const data = await res.json() as any;
+          if (data.success) return `✅ Payment #${id} activated — user \`${data.userId}\` upgraded to **${data.tier}**.`;
+          return `❌ Failed to activate: ${data.error}`;
+        }
+        if (action === "reject" && id) {
+          const res = await fetch(`http://localhost:${process.env.PORT || 8080}/api/payment/reject`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id }),
+          });
+          const data = await res.json() as any;
+          if (data.success) return `🗑️ Payment #${id} rejected.`;
+          return `❌ Failed to reject: ${data.error}`;
+        }
+        // list
+        const res = await fetch(`http://localhost:${process.env.PORT || 8080}/api/payment/pending`);
+        const rows = await res.json() as any[];
+        if (!rows.length) return `✅ No pending payment requests right now.`;
+        const lines = [`💰 **Pending Payment Requests (${rows.length})**`, ``];
+        for (const r of rows) {
+          lines.push(`**#${r.id}** — ${r.name || "Anonymous"} → **${r.tier.toUpperCase()}** (${r.amount})`);
+          lines.push(`  User ID: \`${r.userId}\``);
+          if (r.email) lines.push(`  Email: ${r.email}`);
+          lines.push(`  Reference: \`${r.reference}\``);
+          lines.push(`  Requested: ${new Date(r.createdAt).toLocaleString("en-GB")}`);
+          lines.push(`  → Say "activate payment #${r.id}" to upgrade them, or "reject payment #${r.id}" to dismiss.`);
+          lines.push(``);
+        }
+        return lines.join("\n");
+      }
+
       case "run_security_scan": {
         const report = await runSecurityScan();
         const riskEmoji = { clean: "✅", low: "🟡", medium: "🟠", high: "🔴", critical: "🚨" }[report.overallRisk];
@@ -6641,6 +6700,7 @@ const TOOL_META: Record<string, { label: string; color: string; icon: string }> 
   run_market_scan: { label: "Market scan complete", color: "hsl(25,100%,55%)", icon: "🔭" },
   query_projects: { label: "Projects queried", color: "hsl(193,100%,40%)", icon: "🔍" },
   get_scan_history: { label: "Scan history loaded", color: "hsl(155,70%,45%)", icon: "📡" },
+  pending_payments: { label: "Checking pending payments", color: "hsl(45,90%,55%)", icon: "💰" },
   run_security_scan: { label: "Running security scan", color: "hsl(0,75%,55%)", icon: "🔒" },
   run_code_agent: { label: "Code Agent writing code", color: "hsl(155,70%,42%)", icon: "💻" },
   navigate_to: { label: "Navigating", color: "hsl(226,70%,55%)", icon: "🧭" },

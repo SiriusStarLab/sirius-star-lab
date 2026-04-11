@@ -1,24 +1,15 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Zap, Check, Crown, Loader2, Shield, RotateCcw, Star } from "lucide-react";
+import { X, Zap, Check, Crown, Loader2, Building2, Copy, CheckCheck, RotateCcw } from "lucide-react";
 import { getUserId } from "@/lib/user-id";
 import { getApiBase } from "@/lib/api-base";
 
-async function startCheckout(userId: string, tier: "plus" | "pro"): Promise<string> {
-  const base = getApiBase();
-  const res = await fetch(`${base}stripe/checkout`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ userId, tier }),
-  });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || "Could not start checkout");
-  }
-  const { url } = await res.json();
-  if (!url) throw new Error("No checkout URL returned");
-  return url;
-}
+const BANK = {
+  name: "GCTH Supplies Ltd",
+  account: "26359434",
+  sortCode: "04-03-33",
+  bank: "Mettle",
+};
 
 interface PricingModalProps {
   isOpen: boolean;
@@ -28,49 +19,72 @@ interface PricingModalProps {
 }
 
 export function PricingModal({ isOpen, onClose, currentTier = "free", defaultTier }: PricingModalProps) {
-  const [loading, setLoading] = useState<"plus" | "pro" | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [step, setStep] = useState<"plans" | "pay">("plans");
+  const [selectedTier, setSelectedTier] = useState<"plus" | "pro">(defaultTier ?? "plus");
+  const [loading, setLoading] = useState(false);
+  const [done, setDone] = useState(false);
+  const [reference, setReference] = useState("");
+  const [copied, setCopied] = useState<string | null>(null);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const userId = getUserId();
   const isPremium = currentTier !== "free";
 
-  async function handleUpgrade(tier: "plus" | "pro") {
-    setLoading(tier);
-    setError(null);
+  const PRICES = {
+    plus: { amount: "£5.00", label: "Sirius Plus", monthly: "£5/month" },
+    pro: { amount: "£12.00", label: "Sirius Pro", monthly: "£12/month" },
+  };
+
+  function copy(val: string, key: string) {
+    navigator.clipboard.writeText(val).catch(() => {});
+    setCopied(key);
+    setTimeout(() => setCopied(null), 2000);
+  }
+
+  async function handleConfirm() {
+    setLoading(true);
     try {
-      const url = await startCheckout(userId, tier);
-      window.location.href = url;
-    } catch (err: any) {
-      setError("Something went wrong. Please try again in a moment.");
-      setLoading(null);
+      const base = getApiBase();
+      const res = await fetch(`${base}payment/request`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, tier: selectedTier, name, email }),
+      });
+      const data = await res.json();
+      setReference(data.reference ?? "");
+      setDone(true);
+    } catch {
+      setDone(true);
+    } finally {
+      setLoading(false);
     }
   }
 
-  async function handleManageBilling() {
-    try {
-      const base = getApiBase();
-      const res = await fetch(`${base}stripe/portal`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId }),
-      });
-      const { url } = await res.json();
-      if (url) window.location.href = url;
-    } catch {}
+  function handleClose() {
+    setStep("plans");
+    setDone(false);
+    setName("");
+    setEmail("");
+    onClose();
   }
+
+  function startPay(tier: "plus" | "pro") {
+    setSelectedTier(tier);
+    setStep("pay");
+  }
+
+  const price = PRICES[selectedTier];
 
   return (
     <>
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={handleClose}
             style={{
               position: "fixed", inset: 0, zIndex: 50,
-              background: "rgba(8,12,26,0.88)",
-              backdropFilter: "blur(14px)",
+              background: "rgba(8,12,26,0.88)", backdropFilter: "blur(14px)",
             }}
           />
         )}
@@ -79,24 +93,17 @@ export function PricingModal({ isOpen, onClose, currentTier = "free", defaultTie
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: 60 }}
-            animate={{ opacity: 1, y: 0 }}
+            initial={{ opacity: 0, y: 60 }} animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 40 }}
             transition={{ type: "spring", damping: 30, stiffness: 320 }}
             style={{
-              position: "fixed",
-              bottom: 0, left: 0, right: 0,
-              zIndex: 51,
-              display: "flex",
-              justifyContent: "center",
-              padding: "0 0 0 0",
+              position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 51,
+              display: "flex", justifyContent: "center",
             }}
           >
-            {/* Bottom sheet on mobile, centred card on desktop */}
             <div
               style={{
-                width: "100%",
-                maxWidth: 540,
+                width: "100%", maxWidth: 540,
                 borderRadius: "24px 24px 0 0",
                 background: "#0c1020",
                 border: "1px solid rgba(0,212,255,0.15)",
@@ -106,14 +113,12 @@ export function PricingModal({ isOpen, onClose, currentTier = "free", defaultTie
               }}
               onClick={e => e.stopPropagation()}
             >
-              {/* Drag handle */}
               <div style={{ display: "flex", justifyContent: "center", paddingTop: 14, paddingBottom: 4 }}>
                 <div style={{ width: 40, height: 4, borderRadius: 2, background: "rgba(255,255,255,0.12)" }} />
               </div>
 
-              {/* Close button */}
               <button
-                onClick={onClose}
+                onClick={handleClose}
                 style={{
                   position: "absolute", top: 16, right: 16,
                   width: 30, height: 30, borderRadius: 8,
@@ -126,253 +131,274 @@ export function PricingModal({ isOpen, onClose, currentTier = "free", defaultTie
                 <X size={14} />
               </button>
 
-              <div style={{ padding: "12px 24px 32px" }}>
-                {/* Header */}
-                <div style={{ textAlign: "center", marginBottom: 24 }}>
-                  <h2 style={{
-                    fontSize: 22, fontWeight: 800, color: "#fff",
-                    marginBottom: 6, letterSpacing: -0.3,
-                  }}>
-                    {isPremium ? "Your Sirius plan" : "Get more from Sirius"}
-                  </h2>
-                  <p style={{ fontSize: 14, color: "rgba(255,255,255,0.45)", lineHeight: 1.5 }}>
-                    {isPremium
-                      ? "You're already a partner. Thank you."
-                      : "Less than a coffee a month. Cancel any time, no questions asked."}
-                  </p>
-                </div>
+              <div style={{ padding: "12px 24px 32px", maxHeight: "85vh", overflowY: "auto" }}>
 
-                {/* Error */}
-                {error && (
-                  <div style={{
-                    padding: "12px 16px", borderRadius: 10, marginBottom: 16,
-                    background: "rgba(239,68,68,0.08)",
-                    border: "1px solid rgba(239,68,68,0.2)",
-                    color: "#f87171", fontSize: 13, textAlign: "center",
-                  }}>
-                    {error}
-                  </div>
-                )}
+                {/* ── PLANS VIEW ── */}
+                {step === "plans" && !isPremium && (
+                  <>
+                    <div style={{ textAlign: "center", marginBottom: 24 }}>
+                      <h2 style={{ fontSize: 22, fontWeight: 800, color: "#fff", marginBottom: 6 }}>
+                        Get more from Sirius
+                      </h2>
+                      <p style={{ fontSize: 14, color: "rgba(255,255,255,0.45)", lineHeight: 1.5 }}>
+                        Pay by bank transfer — no card details needed.
+                      </p>
+                    </div>
 
-                {/* PLUS — main card */}
-                {currentTier !== "plus" && currentTier !== "pro" && (
-                  <div style={{
-                    borderRadius: 18,
-                    background: "linear-gradient(135deg, rgba(0,212,255,0.1), rgba(0,212,255,0.04))",
-                    border: "1.5px solid rgba(0,212,255,0.35)",
-                    padding: "20px 20px 18px",
-                    marginBottom: 12,
-                    boxShadow: "0 0 30px rgba(0,212,255,0.1)",
-                    position: "relative",
-                    overflow: "hidden",
-                  }}>
-                    {/* Popular badge */}
+                    {/* Plus */}
                     <div style={{
-                      position: "absolute", top: 14, right: 14,
-                      background: "rgba(0,212,255,0.15)",
-                      border: "1px solid rgba(0,212,255,0.3)",
-                      borderRadius: 20, padding: "3px 10px",
-                      display: "flex", alignItems: "center", gap: 5,
+                      borderRadius: 18,
+                      background: "linear-gradient(135deg, rgba(0,212,255,0.1), rgba(0,212,255,0.04))",
+                      border: "1.5px solid rgba(0,212,255,0.35)",
+                      padding: "20px 20px 18px", marginBottom: 12,
                     }}>
-                      <Star size={9} style={{ color: "#00d4ff" }} fill="#00d4ff" />
-                      <span style={{ fontSize: 10, color: "#00d4ff", fontWeight: 600, letterSpacing: "0.08em" }}>MOST POPULAR</span>
-                    </div>
-
-                    <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 14 }}>
-                      <div style={{
-                        width: 44, height: 44, borderRadius: 12,
-                        background: "rgba(0,212,255,0.15)",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        flexShrink: 0,
-                      }}>
-                        <Zap size={20} style={{ color: "#00d4ff" }} fill="#00d4ff" />
-                      </div>
-                      <div>
-                        <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-                          <span style={{ fontSize: 28, fontWeight: 800, color: "#fff" }}>£5</span>
-                          <span style={{ fontSize: 13, color: "rgba(255,255,255,0.4)" }}>/month</span>
-                        </div>
-                        <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginTop: 1 }}>
-                          Sirius Plus · billed monthly
-                        </p>
-                      </div>
-                    </div>
-
-                    <ul style={{ listStyle: "none", padding: 0, margin: "0 0 18px" }}>
-                      {[
-                        "200 messages every day",
-                        "Sirius remembers you between sessions",
-                        "10 image generations per day",
-                        "Full conversation history",
-                        "Real-time web search",
-                      ].map(f => (
-                        <li key={f} style={{
-                          display: "flex", alignItems: "center", gap: 10, marginBottom: 8,
+                      <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 14 }}>
+                        <div style={{
+                          width: 44, height: 44, borderRadius: 12,
+                          background: "rgba(0,212,255,0.15)",
+                          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
                         }}>
-                          <div style={{
-                            width: 18, height: 18, borderRadius: "50%",
-                            background: "rgba(0,212,255,0.12)",
-                            display: "flex", alignItems: "center", justifyContent: "center",
-                            flexShrink: 0,
-                          }}>
-                            <Check size={10} style={{ color: "#00d4ff" }} strokeWidth={3} />
+                          <Zap size={20} style={{ color: "#00d4ff" }} fill="#00d4ff" />
+                        </div>
+                        <div>
+                          <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                            <span style={{ fontSize: 28, fontWeight: 800, color: "#fff" }}>£5</span>
+                            <span style={{ fontSize: 13, color: "rgba(255,255,255,0.4)" }}>/month</span>
                           </div>
-                          <span style={{ fontSize: 13, color: "rgba(255,255,255,0.8)" }}>{f}</span>
-                        </li>
-                      ))}
-                    </ul>
+                          <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginTop: 1 }}>Sirius Plus · billed monthly</p>
+                        </div>
+                      </div>
+                      <ul style={{ listStyle: "none", padding: 0, margin: "0 0 18px" }}>
+                        {["200 messages every day", "Sirius remembers you between sessions", "Image analysis", "Full conversation history", "Real-time web search"].map(f => (
+                          <li key={f} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                            <div style={{ width: 18, height: 18, borderRadius: "50%", background: "rgba(0,212,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                              <Check size={10} style={{ color: "#00d4ff" }} strokeWidth={3} />
+                            </div>
+                            <span style={{ fontSize: 13, color: "rgba(255,255,255,0.8)" }}>{f}</span>
+                          </li>
+                        ))}
+                      </ul>
+                      <button
+                        onClick={() => startPay("plus")}
+                        style={{
+                          width: "100%", padding: "15px", borderRadius: 12, border: "none",
+                          background: "#00d4ff", color: "#080c1a", fontSize: 15, fontWeight: 700,
+                          cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                        }}
+                      >
+                        <Zap size={15} fill="currentColor" /> Pay £5/month by bank transfer
+                      </button>
+                    </div>
 
+                    {/* Pro */}
                     <button
-                      onClick={() => handleUpgrade("plus")}
-                      disabled={!!loading}
+                      onClick={() => startPay("pro")}
                       style={{
-                        width: "100%", padding: "15px",
-                        borderRadius: 12, border: "none",
-                        background: loading === "plus" ? "rgba(0,212,255,0.2)" : "#00d4ff",
-                        color: loading === "plus" ? "#00d4ff" : "#080c1a",
-                        fontSize: 15, fontWeight: 700,
-                        cursor: loading ? "not-allowed" : "pointer",
-                        display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                        transition: "all 0.2s",
-                        opacity: loading && loading !== "plus" ? 0.5 : 1,
+                        width: "100%", borderRadius: 14,
+                        background: "rgba(245,158,11,0.05)",
+                        border: "1px solid rgba(245,158,11,0.2)",
+                        padding: "16px 18px",
+                        display: "flex", alignItems: "center", gap: 14,
+                        cursor: "pointer", marginBottom: 20,
                       }}
                     >
-                      {loading === "plus" ? (
-                        <><Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> Getting your payment ready…</>
-                      ) : (
-                        <>
-                          <Zap size={15} fill="currentColor" />
-                          Start Plus for £5/month
-                        </>
-                      )}
+                      <div style={{ width: 40, height: 40, borderRadius: 10, background: "rgba(245,158,11,0.1)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        <Crown size={18} style={{ color: "#f59e0b" }} />
+                      </div>
+                      <div style={{ flex: 1, textAlign: "left" }}>
+                        <p style={{ fontSize: 14, fontWeight: 700, color: "#f59e0b" }}>Go Pro — £12/month</p>
+                        <p style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", marginTop: 2 }}>Unlimited everything · Deep memory · Priority speed</p>
+                      </div>
+                      <span style={{ fontSize: 18, color: "rgba(245,158,11,0.5)" }}>→</span>
+                    </button>
+
+                    <div style={{ textAlign: "center" }}>
+                      <p style={{ fontSize: 11, color: "rgba(255,255,255,0.25)" }}>Bank transfer · Cancel any time by emailing us</p>
+                    </div>
+                  </>
+                )}
+
+                {/* ── ACTIVE PLAN ── */}
+                {step === "plans" && isPremium && (
+                  <>
+                    <div style={{ textAlign: "center", marginBottom: 24 }}>
+                      <h2 style={{ fontSize: 22, fontWeight: 800, color: "#fff", marginBottom: 6 }}>Your Sirius plan</h2>
+                      <p style={{ fontSize: 14, color: "rgba(255,255,255,0.45)" }}>You're already a partner. Thank you.</p>
+                    </div>
+                    <div style={{
+                      borderRadius: 14, background: "rgba(0,212,255,0.04)",
+                      border: "1.5px solid rgba(0,212,255,0.2)",
+                      padding: "16px 20px", marginBottom: 20,
+                      display: "flex", alignItems: "center", gap: 14,
+                    }}>
+                      <div style={{ width: 40, height: 40, borderRadius: 10, background: currentTier === "pro" ? "rgba(245,158,11,0.1)" : "rgba(0,212,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        {currentTier === "pro" ? <Crown size={18} style={{ color: "#f59e0b" }} /> : <Zap size={18} style={{ color: "#00d4ff" }} fill="#00d4ff" />}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <p style={{ fontSize: 14, fontWeight: 700, color: currentTier === "pro" ? "#f59e0b" : "#00d4ff" }}>
+                          Sirius {currentTier === "pro" ? "Pro" : "Plus"} — Active
+                        </p>
+                        <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>
+                          {currentTier === "pro" ? "Unlimited everything" : "200 messages/day"} · {currentTier === "pro" ? "£12" : "£5"}/month
+                        </p>
+                      </div>
+                      <Check size={18} style={{ color: currentTier === "pro" ? "#f59e0b" : "#00d4ff" }} />
+                    </div>
+                    <p style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", textAlign: "center" }}>
+                      To cancel, stop your monthly bank transfer and contact us.
+                    </p>
+                  </>
+                )}
+
+                {/* ── PAYMENT DETAILS VIEW ── */}
+                {step === "pay" && !done && (
+                  <>
+                    <button
+                      onClick={() => setStep("plans")}
+                      style={{ background: "none", border: "none", color: "rgba(255,255,255,0.4)", cursor: "pointer", fontSize: 13, marginBottom: 16, display: "flex", alignItems: "center", gap: 6 }}
+                    >
+                      ← Back
+                    </button>
+
+                    <div style={{ textAlign: "center", marginBottom: 20 }}>
+                      <h2 style={{ fontSize: 20, fontWeight: 800, color: "#fff", marginBottom: 4 }}>
+                        Pay by bank transfer
+                      </h2>
+                      <p style={{ fontSize: 14, color: "rgba(255,255,255,0.45)" }}>
+                        {price.label} · {price.monthly}
+                      </p>
+                    </div>
+
+                    {/* Bank details */}
+                    <div style={{
+                      borderRadius: 16, background: "rgba(0,212,255,0.06)",
+                      border: "1px solid rgba(0,212,255,0.2)", padding: "18px 20px", marginBottom: 16,
+                    }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+                        <Building2 size={16} style={{ color: "#00d4ff" }} />
+                        <span style={{ fontSize: 13, fontWeight: 700, color: "#00d4ff" }}>Bank Transfer Details</span>
+                      </div>
+
+                      {[
+                        { label: "Pay to", value: BANK.name, key: "name" },
+                        { label: "Bank", value: BANK.bank, key: "bank" },
+                        { label: "Account number", value: BANK.account, key: "account" },
+                        { label: "Sort code", value: BANK.sortCode, key: "sort" },
+                        { label: "Amount", value: price.amount, key: "amount" },
+                        { label: "Reference", value: `SIRIUS-${userId.substring(0, 8).toUpperCase()}-${selectedTier.toUpperCase()}`, key: "ref" },
+                      ].map(({ label, value, key }) => (
+                        <div key={key} style={{
+                          display: "flex", alignItems: "center", justifyContent: "space-between",
+                          padding: "8px 0",
+                          borderBottom: "1px solid rgba(255,255,255,0.05)",
+                        }}>
+                          <span style={{ fontSize: 12, color: "rgba(255,255,255,0.35)" }}>{label}</span>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <span style={{ fontSize: 13, fontWeight: 600, color: "#fff" }}>{value}</span>
+                            <button
+                              onClick={() => copy(value, key)}
+                              style={{ background: "none", border: "none", cursor: "pointer", color: copied === key ? "#00d4ff" : "rgba(255,255,255,0.3)", padding: 2 }}
+                            >
+                              {copied === key ? <CheckCheck size={13} /> : <Copy size={13} />}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginBottom: 16, lineHeight: 1.6 }}>
+                      Make the transfer in your banking app, then tap the button below. Your account will be upgraded within a few hours once we confirm receipt.
+                    </p>
+
+                    {/* Optional name/email */}
+                    <div style={{ marginBottom: 16 }}>
+                      <input
+                        placeholder="Your name (optional)"
+                        value={name}
+                        onChange={e => setName(e.target.value)}
+                        style={{
+                          width: "100%", padding: "12px 14px", borderRadius: 10,
+                          background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)",
+                          color: "#fff", fontSize: 14, marginBottom: 8, boxSizing: "border-box",
+                          outline: "none",
+                        }}
+                      />
+                      <input
+                        placeholder="Email for confirmation (optional)"
+                        value={email}
+                        onChange={e => setEmail(e.target.value)}
+                        style={{
+                          width: "100%", padding: "12px 14px", borderRadius: 10,
+                          background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)",
+                          color: "#fff", fontSize: 14, boxSizing: "border-box",
+                          outline: "none",
+                        }}
+                      />
+                    </div>
+
+                    <button
+                      onClick={handleConfirm}
+                      disabled={loading}
+                      style={{
+                        width: "100%", padding: "15px", borderRadius: 12, border: "none",
+                        background: loading ? "rgba(0,212,255,0.2)" : "#00d4ff",
+                        color: loading ? "#00d4ff" : "#080c1a",
+                        fontSize: 15, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer",
+                        display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                      }}
+                    >
+                      {loading
+                        ? <><Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> Sending…</>
+                        : "I've made the transfer"}
+                    </button>
+                  </>
+                )}
+
+                {/* ── DONE VIEW ── */}
+                {step === "pay" && done && (
+                  <div style={{ textAlign: "center", padding: "20px 0" }}>
+                    <div style={{ fontSize: 48, marginBottom: 16 }}>✅</div>
+                    <h2 style={{ fontSize: 20, fontWeight: 800, color: "#fff", marginBottom: 8 }}>
+                      Transfer noted — thank you!
+                    </h2>
+                    <p style={{ fontSize: 14, color: "rgba(255,255,255,0.5)", lineHeight: 1.6, marginBottom: 20 }}>
+                      Once we confirm your payment, your account will be upgraded to{" "}
+                      <strong style={{ color: "#00d4ff" }}>{price.label}</strong>. This usually happens within a few hours.
+                    </p>
+                    {reference && (
+                      <div style={{
+                        borderRadius: 10, background: "rgba(0,212,255,0.08)",
+                        border: "1px solid rgba(0,212,255,0.2)",
+                        padding: "10px 16px", marginBottom: 20, display: "inline-block",
+                      }}>
+                        <p style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", marginBottom: 2 }}>Your reference</p>
+                        <p style={{ fontSize: 14, fontWeight: 700, color: "#00d4ff" }}>{reference}</p>
+                      </div>
+                    )}
+                    <button
+                      onClick={handleClose}
+                      style={{
+                        padding: "12px 32px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.1)",
+                        background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.6)",
+                        fontSize: 14, cursor: "pointer",
+                      }}
+                    >
+                      Close
                     </button>
                   </div>
                 )}
 
-                {/* Current Plus plan card */}
-                {currentTier === "plus" && (
-                  <div style={{
-                    borderRadius: 18,
-                    background: "rgba(0,212,255,0.04)",
-                    border: "1.5px solid rgba(0,212,255,0.2)",
-                    padding: "16px 20px",
-                    marginBottom: 12,
-                    display: "flex", alignItems: "center", gap: 14,
-                  }}>
-                    <div style={{ width: 40, height: 40, borderRadius: 10, background: "rgba(0,212,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <Zap size={18} style={{ color: "#00d4ff" }} fill="#00d4ff" />
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <p style={{ fontSize: 14, fontWeight: 700, color: "#00d4ff" }}>Sirius Plus — Active</p>
-                      <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>200 messages/day · £5/month</p>
-                    </div>
-                    <Check size={18} style={{ color: "#00d4ff" }} />
-                  </div>
-                )}
-
-                {/* PRO — secondary option */}
-                {currentTier !== "pro" && (
-                  <button
-                    onClick={() => handleUpgrade("pro")}
-                    disabled={!!loading}
-                    style={{
-                      width: "100%",
-                      borderRadius: 14,
-                      background: "rgba(245,158,11,0.05)",
-                      border: "1px solid rgba(245,158,11,0.2)",
-                      padding: "16px 18px",
-                      display: "flex", alignItems: "center", gap: 14,
-                      cursor: loading ? "not-allowed" : "pointer",
-                      transition: "all 0.2s",
-                      marginBottom: 20,
-                      opacity: loading && loading !== "pro" ? 0.5 : 1,
-                    }}
-                  >
-                    <div style={{ width: 40, height: 40, borderRadius: 10, background: "rgba(245,158,11,0.1)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                      {loading === "pro"
-                        ? <Loader2 size={18} style={{ color: "#f59e0b", animation: "spin 1s linear infinite" }} />
-                        : <Crown size={18} style={{ color: "#f59e0b" }} />}
-                    </div>
-                    <div style={{ flex: 1, textAlign: "left" }}>
-                      <p style={{ fontSize: 14, fontWeight: 700, color: "#f59e0b" }}>
-                        {loading === "pro" ? "Getting your payment ready…" : "Go Pro — £12/month"}
-                      </p>
-                      <p style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", marginTop: 2 }}>
-                        Unlimited everything · Deep memory · Priority speed
-                      </p>
-                    </div>
-                    {!loading && <span style={{ fontSize: 18, color: "rgba(245,158,11,0.5)" }}>→</span>}
-                  </button>
-                )}
-
-                {/* Current Pro plan card */}
-                {currentTier === "pro" && (
-                  <div style={{
-                    borderRadius: 14,
-                    background: "rgba(245,158,11,0.04)",
-                    border: "1px solid rgba(245,158,11,0.2)",
-                    padding: "16px 18px",
-                    display: "flex", alignItems: "center", gap: 14,
-                    marginBottom: 20,
-                  }}>
-                    <div style={{ width: 40, height: 40, borderRadius: 10, background: "rgba(245,158,11,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <Crown size={18} style={{ color: "#f59e0b" }} />
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <p style={{ fontSize: 14, fontWeight: 700, color: "#f59e0b" }}>Sirius Pro — Active</p>
-                      <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>Unlimited everything · £12/month</p>
-                    </div>
-                    <Check size={18} style={{ color: "#f59e0b" }} />
-                  </div>
-                )}
-
-                {/* Manage billing for premium users */}
-                {isPremium && (
-                  <button
-                    onClick={handleManageBilling}
-                    style={{
-                      width: "100%", padding: "12px",
-                      borderRadius: 10, marginBottom: 20,
-                      background: "rgba(255,255,255,0.03)",
-                      border: "1px solid rgba(255,255,255,0.07)",
-                      color: "rgba(255,255,255,0.4)",
-                      fontSize: 13, cursor: "pointer",
-                      display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                    }}
-                  >
-                    <RotateCcw size={13} />
-                    Manage billing or cancel subscription
-                  </button>
-                )}
-
-                {/* Trust signals */}
-                <div style={{
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  gap: 16, flexWrap: "wrap",
-                }}>
-                  {[
-                    { icon: <Shield size={12} />, text: "Secured by Stripe" },
-                    { icon: <Check size={12} />, text: "Cancel any time" },
-                    { icon: <RotateCcw size={12} />, text: "No questions asked" },
-                  ].map(({ icon, text }) => (
-                    <div key={text} style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                      <span style={{ color: "rgba(255,255,255,0.25)" }}>{icon}</span>
-                      <span style={{ fontSize: 11, color: "rgba(255,255,255,0.3)" }}>{text}</span>
-                    </div>
-                  ))}
-                </div>
               </div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      <style>{`
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-      `}</style>
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </>
   );
 }
 
-// Exported helper so sidebar can go direct to checkout without opening modal
-export { startCheckout };
+export async function startCheckout(userId: string, tier: "plus" | "pro"): Promise<string> {
+  return "/upgrade";
+}

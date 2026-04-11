@@ -100,14 +100,8 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
   const { status } = useSubscription();
   const userId = getUserId();
 
-  const handleLimitUpgrade = async () => {
-    setUpgradingFromLimit(true);
-    try {
-      const url = await startCheckout(userId, "plus");
-      window.location.href = url;
-    } catch {
-      setUpgradingFromLimit(false);
-    }
+  const handleLimitUpgrade = () => {
+    setUpgradingFromLimit(false);
   };
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -285,23 +279,20 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
           </p>
           <button
             onClick={handleLimitUpgrade}
-            disabled={upgradingFromLimit}
             style={{
               padding: "14px 32px",
               borderRadius: 12, border: "none",
-              background: upgradingFromLimit ? "rgba(0,212,255,0.2)" : "#00d4ff",
-              color: upgradingFromLimit ? "#00d4ff" : "#080c1a",
+              background: "#00d4ff",
+              color: "#080c1a",
               fontSize: 15, fontWeight: 700, cursor: "pointer",
               display: "inline-flex", alignItems: "center", gap: 8,
               transition: "all 0.2s",
             }}
           >
-            {upgradingFromLimit
-              ? <><Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> Getting checkout ready…</>
-              : <><Zap size={15} fill="currentColor" /> Get Plus for £5/month</>}
+            <Zap size={15} fill="currentColor" /> Get Plus for £5/month
           </button>
           <p style={{ fontSize: 11, color: "rgba(255,255,255,0.2)", marginTop: 12 }}>
-            Secured by Stripe · Cancel any time
+            Pay by bank transfer · Cancel any time
           </p>
         </div>
         <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
