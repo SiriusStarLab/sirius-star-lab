@@ -677,7 +677,7 @@ async function extractAndSaveMemories(
       messages: [
         {
           role: "system",
-          content: `You are a memory engine for a personal AI partner. Extract NEW facts from the conversation below to add to an existing memory profile.
+          content: `You are a memory engine for a personal AI partner. Extract NEW facts from the conversation below to add to an existing memory profile. Respond in JSON format only.
 
 EXISTING STABLE FACTS (personal identity & communication style — preserve these unless clearly contradicted):
 ${stableLines.length > 0 ? stableLines.join("\n") : "none yet"}
@@ -696,7 +696,7 @@ Rules:
 - Only return facts that are NEW or UPDATED from this conversation. Do not repeat stable facts unless you are correcting them.
 - Each fact must be under 25 words.
 - Return up to 20 new/updated facts.
-- Return ONLY: {"new_facts": ["(P) fact", ...], "remove_facts": ["exact text of any outdated fact to remove"]}
+- Return valid JSON only: {"new_facts": ["(P) fact", ...], "remove_facts": ["exact text of any outdated fact to remove"]}
 - If nothing new to extract, return {"new_facts": [], "remove_facts": []}`,
         },
         {

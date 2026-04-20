@@ -134,6 +134,7 @@ function VoicePlayer({ topic, language, onContinue, onClose }: VoicePlayerProps)
   const [progress, setProgress] = useState(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioBlobRef = useRef<string | null>(null);
+  const usingBrowserTTSRef = useRef(false);
 
   useEffect(() => {
     const audio = new Audio();
@@ -151,12 +152,37 @@ function VoicePlayer({ topic, language, onContinue, onClose }: VoicePlayerProps)
     }
   }, []);
 
+  const playWithBrowserTTS = useCallback((text: string) => {
+    if (!window.speechSynthesis) { setStatus("error"); return; }
+    window.speechSynthesis.cancel();
+    usingBrowserTTSRef.current = true;
+    setStatus("playing");
+    setProgress(0);
+
+    const sentences = text.match(/[^.!?]+[.!?]+/g) ?? [text];
+    let totalSpoken = 0;
+    const total = sentences.length;
+
+    const speakNext = (i: number) => {
+      if (i >= total) { usingBrowserTTSRef.current = false; setStatus("done"); setProgress(100); return; }
+      const utt = new SpeechSynthesisUtterance(sentences[i]);
+      utt.rate = 0.92;
+      utt.pitch = 1;
+      const voices = window.speechSynthesis.getVoices();
+      const preferred = voices.find(v => /Google UK English Female|Samantha|Karen|Moira/i.test(v.name));
+      if (preferred) utt.voice = preferred;
+      utt.onend = () => { totalSpoken++; setProgress((totalSpoken / total) * 100); speakNext(i + 1); };
+      utt.onerror = () => { usingBrowserTTSRef.current = false; setStatus("error"); };
+      window.speechSynthesis.speak(utt);
+    };
+    speakNext(0);
+  }, []);
+
   const fetchAndPlay = useCallback(async (voice: TtsVoiceId) => {
     const audio = audioRef.current;
     if (!audio) return;
     audio.pause();
     audio.src = "";
-    audio.play().catch(() => {});
     destroyBlob();
     setStatus("loading");
     setProgress(0);
@@ -180,34 +206,49 @@ function VoicePlayer({ topic, language, onContinue, onClose }: VoicePlayerProps)
       await audio.play();
       setStatus("playing");
     } catch {
-      setStatus("error");
+      playWithBrowserTTS(topic.voiceScript);
     }
-  }, [topic, language, destroyBlob]);
+  }, [topic, language, destroyBlob, playWithBrowserTTS]);
+
+  const stopAll = useCallback(() => {
+    audioRef.current?.pause();
+    destroyBlob();
+    if (usingBrowserTTSRef.current) {
+      window.speechSynthesis?.cancel();
+      usingBrowserTTSRef.current = false;
+    }
+  }, [destroyBlob]);
 
   const handlePlayPause = () => {
     if (status === "idle" || status === "error") fetchAndPlay(selectedVoice);
-    else if (status === "playing") { audioRef.current?.pause(); setStatus("paused"); }
-    else if (status === "paused") { audioRef.current?.play(); setStatus("playing"); }
+    else if (status === "playing") {
+      if (usingBrowserTTSRef.current) { window.speechSynthesis?.pause(); }
+      else { audioRef.current?.pause(); }
+      setStatus("paused");
+    }
+    else if (status === "paused") {
+      if (usingBrowserTTSRef.current) { window.speechSynthesis?.resume(); }
+      else { audioRef.current?.play(); }
+      setStatus("playing");
+    }
     else if (status === "done") fetchAndPlay(selectedVoice);
   };
 
   const handleStop = () => {
-    audioRef.current?.pause();
-    destroyBlob();
+    stopAll();
     setStatus("idle");
     setProgress(0);
   };
 
   const handleVoiceChange = (v: TtsVoiceId) => {
     setSelectedVoice(v);
-    audioRef.current?.pause();
-    destroyBlob();
+    stopAll();
     setStatus("idle");
     setProgress(0);
   };
 
-  const handleClose = () => { audioRef.current?.pause(); destroyBlob(); onClose(); };
-  const handleContinue = () => { audioRef.current?.pause(); destroyBlob(); onContinue(); };
+  const handleClose = () => { stopAll(); onClose(); };
+  const handleContinue = () => { stopAll(); onContinue(); };
 
   const isPlaying = status === "playing";
   const isLoading = status === "loading";
