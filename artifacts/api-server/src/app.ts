@@ -63,6 +63,18 @@ app.use(express.urlencoded({ extended: true, limit: "5mb" }));
 // ── 8. Input threat scanner — runs after body is parsed ──────────────────────
 app.use(inputScanMiddleware);
 
+// Disable proxy buffering for all SSE streaming responses
+app.use((_req, res, next) => {
+  const originalSetHeader = res.setHeader.bind(res);
+  res.setHeader = function(name: string, value: any) {
+    if (name.toLowerCase() === "content-type" && String(value).includes("text/event-stream")) {
+      originalSetHeader("X-Accel-Buffering", "no");
+    }
+    return originalSetHeader(name, value);
+  };
+  next();
+});
+
 // ── 9. Per-route rate limits ──────────────────────────────────────────────────
 
 // Star Lab — PIN brute-force check on ALL lab routes

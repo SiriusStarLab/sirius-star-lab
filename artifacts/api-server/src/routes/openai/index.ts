@@ -1022,6 +1022,7 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
 
   let fullResponse = "";
 
@@ -1356,6 +1357,7 @@ router.post("/openai/universe-stream", async (req, res) => {
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
 
   const chatMessages = messages.map(m => ({
     role: m.role as "system" | "user" | "assistant",
