@@ -458,12 +458,12 @@ export default function SettingsScreen() {
               </>
             ) : (
               <>
-                <Text style={{ fontSize: 36, textAlign: "center", marginBottom: 12 }}>✅</Text>
+                <Text style={{ fontSize: 36, textAlign: "center", marginBottom: 12 }}>🎉</Text>
                 <Text style={{ fontSize: 20, fontWeight: "800", color: "#fff", textAlign: "center", marginBottom: 8 }}>
-                  Transfer noted — thank you!
+                  You're upgraded!
                 </Text>
                 <Text style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", textAlign: "center", lineHeight: 20, marginBottom: 20 }}>
-                  Your account will be upgraded once we confirm receipt. Usually within a few hours.
+                  Your account is now active. Just complete the bank transfer and you're all set — no waiting needed.
                 </Text>
                 {!!payRef && (
                   <View style={{

@@ -357,13 +357,12 @@ export function PricingModal({ isOpen, onClose, currentTier = "free", defaultTie
                 {/* ── DONE VIEW ── */}
                 {step === "pay" && done && (
                   <div style={{ textAlign: "center", padding: "20px 0" }}>
-                    <div style={{ fontSize: 48, marginBottom: 16 }}>✅</div>
+                    <div style={{ fontSize: 48, marginBottom: 16 }}>🎉</div>
                     <h2 style={{ fontSize: 20, fontWeight: 800, color: "#fff", marginBottom: 8 }}>
-                      Transfer noted — thank you!
+                      You're now on {price.label}!
                     </h2>
                     <p style={{ fontSize: 14, color: "rgba(255,255,255,0.5)", lineHeight: 1.6, marginBottom: 20 }}>
-                      Once we confirm your payment, your account will be upgraded to{" "}
-                      <strong style={{ color: "#00d4ff" }}>{price.label}</strong>. This usually happens within a few hours.
+                      Your account has been upgraded. Just make the bank transfer and you're all set — no further steps needed.
                     </p>
                     {reference && (
                       <div style={{
@@ -371,7 +370,7 @@ export function PricingModal({ isOpen, onClose, currentTier = "free", defaultTie
                         border: "1px solid rgba(0,212,255,0.2)",
                         padding: "10px 16px", marginBottom: 20, display: "inline-block",
                       }}>
-                        <p style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", marginBottom: 2 }}>Your reference</p>
+                        <p style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", marginBottom: 2 }}>Use this as your payment reference</p>
                         <p style={{ fontSize: 14, fontWeight: 700, color: "#00d4ff" }}>{reference}</p>
                       </div>
                     )}
@@ -383,7 +382,7 @@ export function PricingModal({ isOpen, onClose, currentTier = "free", defaultTie
                         fontSize: 14, cursor: "pointer",
                       }}
                     >
-                      Close
+                      Start using Sirius
                     </button>
                   </div>
                 )}

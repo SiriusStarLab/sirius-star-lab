@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { paymentRequestsTable, userProfilesTable } from "@workspace/db";
+import { paymentRequestsTable, userProfilesTable, siriusNotifications } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 
 const router = Router();
@@ -22,7 +22,7 @@ router.get("/payment/bank", (_req, res) => {
   res.json(BANK);
 });
 
-// POST /api/payment/request — log a payment request
+// POST /api/payment/request — auto-activate user and send Star Lab notification
 router.post("/payment/request", async (req, res) => {
   try {
     const { userId, tier, name, email, note } = req.body as {
@@ -33,64 +33,59 @@ router.post("/payment/request", async (req, res) => {
     }
     const price = PRICES[tier];
     const reference = `SIRIUS-${userId.substring(0, 8).toUpperCase()}-${tier.toUpperCase()}`;
-    const [row] = await db.insert(paymentRequestsTable).values({
-      userId, tier, amount: price.amount, name, email, note, reference, status: "pending",
-    }).returning();
+
+    // Log the request
+    await db.insert(paymentRequestsTable).values({
+      userId, tier, amount: price.amount, name, email, note, reference,
+      status: "activated",
+      activatedAt: new Date(),
+    });
+
+    // Auto-activate immediately — the user said they've paid
+    await db.insert(userProfilesTable)
+      .values({ userId, aiName: "Sirius", subscriptionTier: tier })
+      .onConflictDoUpdate({
+        target: userProfilesTable.userId,
+        set: { subscriptionTier: tier },
+      });
+
+    // Star Lab notification for Garry
+    const who = name ? `${name}${email ? ` (${email})` : ""}` : email || `User ${userId.substring(0, 8)}`;
+    await db.insert(siriusNotifications).values({
+      title: `💰 New subscription — ${price.label}`,
+      message: `${who} has subscribed to ${price.label} (${price.amount}/month).\n\nReference: ${reference}\nThey should see a bank transfer in your Mettle account soon.`,
+      type: "payment",
+      urgency: "high",
+      read: false,
+      sentEmail: false,
+    });
+
     return res.json({ success: true, reference, amount: price.amount, label: price.label });
   } catch (err: any) {
     console.error("Payment request error:", err.message);
-    return res.status(500).json({ error: "Failed to log payment request" });
+    return res.status(500).json({ error: "Failed to process payment request" });
   }
 });
 
-// GET /api/payment/pending — list pending payments (owner only — Star Lab)
-router.get("/payment/pending", async (_req, res) => {
+// GET /api/payment/all — list all payment records (Star Lab)
+router.get("/payment/all", async (_req, res) => {
   try {
     const rows = await db.select().from(paymentRequestsTable)
-      .where(eq(paymentRequestsTable.status, "pending"))
-      .orderBy(desc(paymentRequestsTable.createdAt));
+      .orderBy(desc(paymentRequestsTable.createdAt))
+      .limit(50);
     return res.json(rows);
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
 });
 
-// POST /api/payment/activate — owner activates a pending payment
-router.post("/payment/activate", async (req, res) => {
+// GET /api/payment/pending — kept for backwards compat (now returns "activated" ones for review)
+router.get("/payment/pending", async (_req, res) => {
   try {
-    const { id } = req.body as { id?: number };
-    if (!id) return res.status(400).json({ error: "id required" });
-    const [row] = await db.select().from(paymentRequestsTable)
-      .where(eq(paymentRequestsTable.id, id));
-    if (!row) return res.status(404).json({ error: "Not found" });
-
-    await db.update(paymentRequestsTable)
-      .set({ status: "activated", activatedAt: new Date() })
-      .where(eq(paymentRequestsTable.id, id));
-
-    await db.insert(userProfilesTable)
-      .values({ userId: row.userId, aiName: "Sirius", subscriptionTier: row.tier })
-      .onConflictDoUpdate({
-        target: userProfilesTable.userId,
-        set: { subscriptionTier: row.tier },
-      });
-
-    return res.json({ success: true, userId: row.userId, tier: row.tier });
-  } catch (err: any) {
-    console.error("Activate payment error:", err.message);
-    return res.status(500).json({ error: err.message });
-  }
-});
-
-// POST /api/payment/reject — owner rejects/cancels a payment request
-router.post("/payment/reject", async (req, res) => {
-  try {
-    const { id } = req.body as { id?: number };
-    if (!id) return res.status(400).json({ error: "id required" });
-    await db.update(paymentRequestsTable)
-      .set({ status: "rejected" })
-      .where(eq(paymentRequestsTable.id, id));
-    return res.json({ success: true });
+    const rows = await db.select().from(paymentRequestsTable)
+      .orderBy(desc(paymentRequestsTable.createdAt))
+      .limit(20);
+    return res.json(rows);
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }

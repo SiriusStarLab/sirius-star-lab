@@ -3847,7 +3847,7 @@ const LAB_TOOLS: any[] = [
     type: "function" as const,
     function: {
       name: "pending_payments",
-      description: "View and manage pending bank transfer payment requests from users who want to upgrade. Shows a list of users who have said they've made a bank transfer and are waiting for activation. Use this to check who has paid and activate their account. You can also activate or reject individual requests.",
+      description: "View recent bank transfer subscription sign-ups. Users are auto-activated immediately when they submit the payment form — this just shows you who has subscribed and expects a bank transfer to arrive in your Mettle account. Check this to see new subscribers.",
       parameters: {
         type: "object",
         properties: {
@@ -6597,37 +6597,16 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
       }
 
       case "pending_payments": {
-        const { action, id } = args as { action: string; id?: number };
-        if (action === "activate" && id) {
-          const res = await fetch(`http://localhost:${process.env.PORT || 8080}/api/payment/activate`, {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id }),
-          });
-          const data = await res.json() as any;
-          if (data.success) return `✅ Payment #${id} activated — user \`${data.userId}\` upgraded to **${data.tier}**.`;
-          return `❌ Failed to activate: ${data.error}`;
-        }
-        if (action === "reject" && id) {
-          const res = await fetch(`http://localhost:${process.env.PORT || 8080}/api/payment/reject`, {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id }),
-          });
-          const data = await res.json() as any;
-          if (data.success) return `🗑️ Payment #${id} rejected.`;
-          return `❌ Failed to reject: ${data.error}`;
-        }
-        // list
-        const res = await fetch(`http://localhost:${process.env.PORT || 8080}/api/payment/pending`);
+        const res = await fetch(`http://localhost:${process.env.PORT || 8080}/api/payment/all`);
         const rows = await res.json() as any[];
-        if (!rows.length) return `✅ No pending payment requests right now.`;
-        const lines = [`💰 **Pending Payment Requests (${rows.length})**`, ``];
+        if (!rows.length) return `✅ No subscription sign-ups yet.`;
+        const lines = [`💰 **Recent Subscriptions (${rows.length})**`, ``, `Users are auto-activated on sign-up. Check your Mettle account for incoming transfers.`, ``];
         for (const r of rows) {
-          lines.push(`**#${r.id}** — ${r.name || "Anonymous"} → **${r.tier.toUpperCase()}** (${r.amount})`);
-          lines.push(`  User ID: \`${r.userId}\``);
-          if (r.email) lines.push(`  Email: ${r.email}`);
+          const who = r.name || r.email || `Anonymous (${r.userId.substring(0, 8)})`;
+          lines.push(`**${who}** → **${r.tier.toUpperCase()}** (${r.amount}/month)`);
+          if (r.email) lines.push(`  📧 ${r.email}`);
           lines.push(`  Reference: \`${r.reference}\``);
-          lines.push(`  Requested: ${new Date(r.createdAt).toLocaleString("en-GB")}`);
-          lines.push(`  → Say "activate payment #${r.id}" to upgrade them, or "reject payment #${r.id}" to dismiss.`);
+          lines.push(`  Signed up: ${new Date(r.createdAt).toLocaleString("en-GB")}`);
           lines.push(``);
         }
         return lines.join("\n");
