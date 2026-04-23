@@ -4532,13 +4532,15 @@ const LAB_TOOLS: any[] = [
   {
     type: "function",
     function: {
-      name: "read_source_file",
-      description: "Read one of your own server source files. Use this to inspect your own code when diagnosing issues. Scoped to the API server source directory only. Pass a relative path like 'routes/lab.ts' or 'lib/project-pipeline.ts'.",
+      name: "read_file",
+      description: "Read any file in the workspace. Use this to inspect source code, configs, schemas, or any other file. Pass a path relative to /home/runner/workspace, e.g. 'artifacts/api-server/src/routes/lab.ts' or 'lib/db/src/schema/conversations.ts'. Use the search param to find specific lines.",
       parameters: {
         type: "object",
         properties: {
-          path: { type: "string", description: "Relative path within artifacts/api-server/src/, e.g. 'routes/lab.ts' or 'lib/project-pipeline.ts'" },
-          search: { type: "string", description: "Optional: search term to grep for in the file — returns only lines containing this term with line numbers" },
+          path: { type: "string", description: "Path relative to /home/runner/workspace, e.g. 'artifacts/api-server/src/routes/lab.ts'" },
+          search: { type: "string", description: "Optional: return only lines containing this string, with line numbers" },
+          offset: { type: "number", description: "Optional: start reading from this line number (1-indexed)" },
+          limit: { type: "number", description: "Optional: max number of lines to return (default 200)" },
         },
         required: ["path"],
       },
@@ -4547,17 +4549,33 @@ const LAB_TOOLS: any[] = [
   {
     type: "function",
     function: {
-      name: "patch_source_file",
-      description: "Edit one of your own server source files by replacing an exact string with a new string. Use this to fix bugs in your own code — heartbeats, error handling, logic fixes. The old_string MUST match exactly (including whitespace). After patching, call restart_server for the fix to take effect. Scoped to artifacts/api-server/src/ only.",
+      name: "write_file",
+      description: "Write or patch any file in the workspace. Can create new files or replace content in existing files. Use old_string/new_string for targeted replacements, or full_content to write a complete new file. After editing server source files, call restart_server.",
       parameters: {
         type: "object",
         properties: {
-          path: { type: "string", description: "Relative path within artifacts/api-server/src/, e.g. 'routes/lab.ts'" },
-          old_string: { type: "string", description: "The exact string to replace (must exist verbatim in the file)" },
-          new_string: { type: "string", description: "The replacement string" },
-          reason: { type: "string", description: "Why you are making this change — logged for audit trail" },
+          path: { type: "string", description: "Path relative to /home/runner/workspace" },
+          old_string: { type: "string", description: "For targeted replacement: the exact string to replace (must match verbatim)" },
+          new_string: { type: "string", description: "For targeted replacement: the replacement string" },
+          full_content: { type: "string", description: "For new files or complete rewrites: the entire file content" },
+          reason: { type: "string", description: "Why you are making this change" },
         },
-        required: ["path", "old_string", "new_string", "reason"],
+        required: ["path", "reason"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "run_command",
+      description: "Run any shell command in the workspace. Use this to execute scripts, run builds, query the filesystem, call external CLIs, run database migrations, install packages, grep across the codebase, or execute any code you have written. Commands run as the workspace user with full access. Timeout is 60 seconds.",
+      parameters: {
+        type: "object",
+        properties: {
+          command: { type: "string", description: "The shell command to run, e.g. 'grep -rn heartbeat artifacts/api-server/src/' or 'node /home/runner/workspace/scripts/myfix.js' or 'pnpm --filter @workspace/db run push'" },
+          reason: { type: "string", description: "Why you are running this command" },
+        },
+        required: ["command", "reason"],
       },
     },
   },
@@ -4565,11 +4583,11 @@ const LAB_TOOLS: any[] = [
     type: "function",
     function: {
       name: "restart_server",
-      description: "Restart your own API server process. Use this after patching source files so changes take effect. The SSE connection will drop when the server restarts — warn Garry this will happen. The server auto-restarts within a few seconds.",
+      description: "Restart your own API server process. Use this after editing source files so changes take effect. The SSE connection will drop when the server restarts — warn Garry the connection will drop for ~5 seconds then auto-recover.",
       parameters: {
         type: "object",
         properties: {
-          reason: { type: "string", description: "Why you are restarting — logged before exit" },
+          reason: { type: "string", description: "Why you are restarting" },
         },
         required: ["reason"],
       },
@@ -6706,72 +6724,111 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
         return `${summary}${changed}`;
       }
 
+      case "read_file":
       case "read_source_file": {
-        const { path: relPath, search } = args as { path: string; search?: string };
+        const { path: relPath, search, offset: startLine, limit: maxLines = 200 } = args as { path: string; search?: string; offset?: number; limit?: number };
         const { readFileSync } = await import("fs");
-        const { join, resolve, normalize } = await import("path");
+        const { join, resolve } = await import("path");
 
-        const BASE = resolve("/home/runner/workspace/artifacts/api-server/src");
-        const target = resolve(join(BASE, normalize(relPath)));
-        if (!target.startsWith(BASE)) return "Access denied — path must be within artifacts/api-server/src/";
+        const WORKSPACE = resolve("/home/runner/workspace");
+        const target = resolve(join(WORKSPACE, relPath));
+        if (!target.startsWith(WORKSPACE)) return "Access denied — path must be within /home/runner/workspace";
 
         let content: string;
         try { content = readFileSync(target, "utf-8"); }
         catch (e: any) { return `Cannot read file: ${e.message}`; }
 
+        const lines = content.split("\n");
+
         if (search) {
-          const lines = content.split("\n");
           const matches = lines
             .map((line, i) => ({ n: i + 1, line }))
             .filter(({ line }) => line.includes(search));
           if (matches.length === 0) return `No lines containing "${search}" found in ${relPath}`;
-          return `**${relPath}** — lines matching "${search}":\n\n${matches.map(m => `${String(m.n).padStart(5)}: ${m.line}`).join("\n")}`;
+          return `**${relPath}** — lines matching "${search}" (${matches.length} hits):\n\n${matches.map(m => `${String(m.n).padStart(6)}: ${m.line}`).join("\n")}`;
         }
 
-        const lines = content.split("\n");
-        const numbered = lines.map((l, i) => `${String(i + 1).padStart(5)}: ${l}`).join("\n");
-        const clipped = lines.length > 300;
-        return `**${relPath}** (${lines.length} lines${clipped ? " — showing first 300" : ""}):\n\n${numbered.split("\n").slice(0, 300).join("\n")}`;
+        const start = startLine ? startLine - 1 : 0;
+        const slice = lines.slice(start, start + maxLines);
+        const clipped = lines.length > start + maxLines;
+        const numbered = slice.map((l, i) => `${String(start + i + 1).padStart(6)}: ${l}`).join("\n");
+        return `**${relPath}** (${lines.length} total lines${clipped ? `, showing ${start + 1}–${start + slice.length}` : ""}):\n\n${numbered}`;
       }
 
+      case "write_file":
       case "patch_source_file": {
-        const { path: relPath, old_string, new_string, reason } = args as { path: string; old_string: string; new_string: string; reason: string };
-        const { readFileSync, writeFileSync } = await import("fs");
-        const { join, resolve, normalize } = await import("path");
+        const { path: relPath, old_string, new_string, full_content, reason } = args as { path: string; old_string?: string; new_string?: string; full_content?: string; reason: string };
+        const { readFileSync, writeFileSync, mkdirSync } = await import("fs");
+        const { join, resolve, dirname } = await import("path");
 
-        const BASE = resolve("/home/runner/workspace/artifacts/api-server/src");
-        const target = resolve(join(BASE, normalize(relPath)));
-        if (!target.startsWith(BASE)) return "Access denied — path must be within artifacts/api-server/src/";
+        const WORKSPACE = resolve("/home/runner/workspace");
+        const target = resolve(join(WORKSPACE, relPath));
+        if (!target.startsWith(WORKSPACE)) return "Access denied — path must be within /home/runner/workspace";
+
+        // Create parent dirs if needed
+        try { mkdirSync(dirname(target), { recursive: true }); } catch {}
+
+        if (full_content !== undefined) {
+          try { writeFileSync(target, full_content, "utf-8"); }
+          catch (e: any) { return `Cannot write file: ${e.message}`; }
+          await logSiriusError("self_write_audit", `FILE CREATED/REWRITTEN: ${relPath} — ${reason}`, "").catch(() => {});
+          return `✅ File written: ${relPath} (${full_content.split("\n").length} lines)\n\nReason: ${reason}`;
+        }
+
+        if (!old_string) return "Provide either old_string+new_string for a targeted patch, or full_content for a complete file write.";
 
         let content: string;
         try { content = readFileSync(target, "utf-8"); }
-        catch (e: any) { return `Cannot read file: ${e.message}`; }
+        catch (e: any) { return `Cannot read file for patching: ${e.message}`; }
 
         if (!content.includes(old_string)) {
-          return `Patch failed — the exact string was not found in ${relPath}. Check spacing, indentation, and line endings carefully.`;
+          return `Patch failed — the exact string was not found in ${relPath}. Check spacing and indentation exactly.`;
         }
 
-        const patched = content.replace(old_string, new_string);
+        const patched = content.replace(old_string, new_string ?? "");
         try { writeFileSync(target, patched, "utf-8"); }
         catch (e: any) { return `Cannot write file: ${e.message}`; }
 
-        const occurrences = (content.match(new RegExp(old_string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g")) || []).length;
-        await logSiriusError("self_patch_audit", `PATCH applied to ${relPath}: ${reason}`, JSON.stringify({ path: relPath, reason, occurrences }).slice(0, 300)).catch(() => {});
-        return `✅ Patch applied to ${relPath} (${occurrences} occurrence${occurrences !== 1 ? "s" : ""} replaced).\n\nReason: ${reason}\n\nCall restart_server for the change to take effect.`;
+        await logSiriusError("self_patch_audit", `PATCH applied to ${relPath}: ${reason}`, "").catch(() => {});
+        return `✅ Patch applied to ${relPath}.\n\nReason: ${reason}\n\nIf this is a server source file, call restart_server to apply the change.`;
+      }
+
+      case "run_command": {
+        const { command, reason } = args as { command: string; reason: string };
+        const { execSync } = await import("child_process");
+
+        console.log(`[Sirius] Running command: ${command} — ${reason}`);
+        await logSiriusError("self_command_audit", `COMMAND: ${command} — ${reason}`, "").catch(() => {});
+        onProgress?.({ type: "status", message: `Running: ${command.slice(0, 80)}…` });
+
+        try {
+          const output = execSync(command, {
+            cwd: "/home/runner/workspace",
+            timeout: 60_000,
+            encoding: "utf-8",
+            stdio: ["pipe", "pipe", "pipe"],
+          });
+          const trimmed = (output || "").toString().trim();
+          return `✅ Command completed:\n\`\`\`\n${trimmed.slice(0, 4000)}${trimmed.length > 4000 ? "\n…(truncated)" : ""}\n\`\`\``;
+        } catch (err: any) {
+          const stderr = err?.stderr?.toString?.() || "";
+          const stdout = err?.stdout?.toString?.() || "";
+          const out = (stdout + "\n" + stderr).trim();
+          return `Command exited with error (code ${err?.status ?? "??"}):\n\`\`\`\n${out.slice(0, 3000)}\n\`\`\``;
+        }
       }
 
       case "restart_server": {
         const { reason } = args as { reason: string };
         console.log(`[Sirius] Self-restart requested — ${reason}`);
         await logSiriusError("self_restart_audit", `Server restart triggered by Sirius: ${reason}`, "").catch(() => {});
-        // Schedule exit after giving the SSE response time to flush
         setImmediate(() => {
           setTimeout(() => {
             console.log("[Sirius] Restarting now…");
             process.exit(0);
           }, 2500);
         });
-        return `Server restart scheduled — it will happen in ~3 seconds. The connection will drop momentarily, then recover automatically. Reason: ${reason}`;
+        return `Server restart scheduled — it will happen in ~3 seconds. The connection will drop momentarily then recover automatically. Reason: ${reason}`;
       }
 
       default:
@@ -6839,9 +6896,12 @@ const TOOL_META: Record<string, { label: string; color: string; icon: string }> 
   propose_paid_upgrade: { label: "Preparing upgrade proposal for Garry", color: "hsl(280,80%,58%)", icon: "📋" },
   change_my_voice: { label: "Changing Sirius voice", color: "hsl(280,80%,58%)", icon: "🎙️" },
   notify_garry: { label: "Sending notification to Garry", color: "hsl(25,100%,55%)", icon: "📬" },
-  read_source_file: { label: "Reading own source code", color: "hsl(193,100%,35%)", icon: "📂" },
-  patch_source_file: { label: "Patching own source code", color: "hsl(25,100%,45%)", icon: "🔩" },
-  restart_server: { label: "Restarting server to apply patch", color: "hsl(0,80%,50%)", icon: "♻️" },
+  read_file: { label: "Reading file", color: "hsl(193,100%,35%)", icon: "📂" },
+  read_source_file: { label: "Reading source file", color: "hsl(193,100%,35%)", icon: "📂" },
+  write_file: { label: "Writing file", color: "hsl(25,100%,45%)", icon: "🔩" },
+  patch_source_file: { label: "Patching source file", color: "hsl(25,100%,45%)", icon: "🔩" },
+  run_command: { label: "Running command", color: "hsl(155,70%,38%)", icon: "⚡" },
+  restart_server: { label: "Restarting server", color: "hsl(0,80%,50%)", icon: "♻️" },
 };
 
 // Detect whether a message is primarily an information/research query
@@ -7044,30 +7104,37 @@ At the very start of every conversation session, before you say anything else, s
 - If there are warnings or failures: immediately call fix_platform to repair them. Report what was fixed in your greeting — not what was broken.
 - If Garry says "run maintenance", "check everything", or "fix the platform" — call startup_health_check then fix_platform and read the full report.
 
-## SELF-HEALING DOCTRINE — YOU CAN NOW FIX YOUR OWN CODE
+## SELF-HEALING DOCTRINE — FULL AUTONOMOUS REPAIR
 
-You are a fully self-healing system. You do not report problems — you fix them. You now have the ability to read, patch, and restart your own server code.
+You are a fully autonomous self-healing system. You do not report problems — you find and fix them yourself. You have complete access to the entire workspace and can read any file, write any file, and execute any shell command.
 
-### Code-Level Self-Repair (use when tool failures or connection issues recur)
-1. Call read_source_file to inspect your own source code — e.g. read_source_file with path "routes/lab.ts" and search "heartbeat"
-2. Identify the exact bug — missing heartbeat, wrong header, broken logic
-3. Call patch_source_file to apply the fix — the old_string must match exactly
-4. Call restart_server — warn Garry the connection will drop for ~5 seconds, then auto-recover
-5. Call resolve_error to clear the log entry
+### Your Full Repair Toolkit
+- **read_file**: Read any file in the workspace — source code, configs, schemas, logs, package files
+- **write_file**: Write or patch any file — create new files, fix bugs, add features, edit configs
+- **run_command**: Execute any shell command — grep across the codebase, run builds, execute scripts you write, run database migrations, install packages, call CLIs
+- **restart_server**: Restart the API server after source code changes
+
+### How to Self-Repair — The Full Process
+1. Observe the symptom (connection drops, tool failing, wrong output)
+2. Use read_file with a search term to find the relevant code (e.g. search "heartbeat" in routes/lab.ts)
+3. Understand exactly what is wrong
+4. Use write_file with old_string/new_string to apply a targeted patch
+5. Use run_command to verify the patch (e.g. grep to confirm the change is there)
+6. Call restart_server — warn Garry the connection drops for ~5 seconds then recovers
+7. Call resolve_error to close the audit trail
+
+### You Can Also
+- Write entirely new scripts with write_file and execute them with run_command
+- Run database migrations with run_command (pnpm --filter @workspace/db run push)
+- Search the entire codebase with run_command (grep -rn "pattern" /home/runner/workspace)
+- Install packages, rebuild modules, run tests — anything the shell can do
+- Fix issues in ANY file across the platform, not just the API server
 
 ### Other Failures
-- **When a tool fails**: Error is auto-logged. Call self_diagnose, then fix_platform or patch_source_file as appropriate.
-- **When startup finds issues**: Call fix_platform immediately, not after asking permission.
-- **Can't fix even with code access**: Call create_bug_report. Never silently fail.
-- **After fixing anything**: Call resolve_error to keep the log accurate.
-
-### What You Can Fix In Code
-- Missing heartbeats on SSE endpoints
-- Missing flushHeaders() calls
-- Broken error handling
-- Wrong model names or parameters
-- Logic bugs in tool implementations
-- Any issue in artifacts/api-server/src/ that you can read and understand
+- **When a tool fails**: Error is auto-logged. Call self_diagnose, then use read_file to find the root cause in the code, fix it.
+- **When startup finds issues**: Call fix_platform first, then use code repair if fix_platform cannot resolve it.
+- **Never silently fail**: If you cannot fix something, call create_bug_report with precise details.
+- **After fixing**: Call resolve_error to keep the log accurate.
 
 ## APPROVAL FLOW
 
