@@ -5540,7 +5540,8 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
 
         // ── 1. Database connectivity ─────────────────────────────────────────
         try {
-          const [{ cnt }] = await db.execute(sql`SELECT COUNT(*) AS cnt FROM lab_projects`) as any;
+          const dbRes = await db.execute(sql`SELECT COUNT(*) AS cnt FROM lab_projects`);
+          const cnt = (dbRes.rows[0] as any)?.cnt ?? dbRes[0]?.cnt ?? "?";
           report.push({ system: "Database", status: "ok", detail: `Connected — ${cnt} projects on record` });
         } catch (e: any) {
           report.push({ system: "Database", status: "fail", detail: e.message, action: "bug_report" });
@@ -5594,10 +5595,14 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
 
         // ── 5. Pipeline status (uses launch_status, not status) ──────────────
         try {
-          const [queuedCount] = await db.execute(sql`SELECT COUNT(*) AS cnt FROM lab_projects WHERE (launch_status IS NULL OR launch_status = '') AND status != 'archived'`) as any;
-          const [buildingCount] = await db.execute(sql`SELECT COUNT(*) AS cnt FROM lab_projects WHERE launch_status = 'building' AND status != 'archived'`) as any;
-          const [cadCount] = await db.execute(sql`SELECT COUNT(*) AS cnt FROM lab_projects WHERE launch_status = 'cad-pending' AND status != 'archived'`) as any;
-          const [readyCount] = await db.execute(sql`SELECT COUNT(*) AS cnt FROM lab_projects WHERE launch_status = 'launch-ready' AND status = 'active'`) as any;
+          const _q = await db.execute(sql`SELECT COUNT(*) AS cnt FROM lab_projects WHERE (launch_status IS NULL OR launch_status = '') AND status != 'archived'`);
+          const _b = await db.execute(sql`SELECT COUNT(*) AS cnt FROM lab_projects WHERE launch_status = 'building' AND status != 'archived'`);
+          const _c = await db.execute(sql`SELECT COUNT(*) AS cnt FROM lab_projects WHERE launch_status = 'cad-pending' AND status != 'archived'`);
+          const _r = await db.execute(sql`SELECT COUNT(*) AS cnt FROM lab_projects WHERE launch_status = 'launch-ready' AND status = 'active'`);
+          const queuedCount = { cnt: (_q.rows[0] as any)?.cnt ?? _q[0]?.cnt ?? 0 };
+          const buildingCount = { cnt: (_b.rows[0] as any)?.cnt ?? _b[0]?.cnt ?? 0 };
+          const cadCount = { cnt: (_c.rows[0] as any)?.cnt ?? _c[0]?.cnt ?? 0 };
+          const readyCount = { cnt: (_r.rows[0] as any)?.cnt ?? _r[0]?.cnt ?? 0 };
           const building = await db.select({ name: labProjects.name, updatedAt: labProjects.updatedAt })
             .from(labProjects).where(and(eq(labProjects.launchStatus, "building"), ne(labProjects.status, "archived"))).limit(3);
           const stuckBuilds = building.filter(p => {
