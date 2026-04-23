@@ -7345,6 +7345,14 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
         if (delta) { finalText += delta; sendEvent({ type: "text", delta }); }
       }
 
+      // If Phase 2 produced no text (e.g. Sirius tried to call a tool that isn't
+      // available in Phase 2), send a brief acknowledgment so the frontend never
+      // triggers the "something went wrong" error message.
+      if (!finalText) {
+        const fallback = "On it — give me a moment.";
+        sendEvent({ type: "text", delta: fallback });
+      }
+
       // Background: auto-extract any additional facts from this exchange (owner only)
       if (role === "owner") setImmediate(async () => {
         try {
