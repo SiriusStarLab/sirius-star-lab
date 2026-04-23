@@ -96,6 +96,54 @@ app.get("/api/download/sirius-mobile", (req, res) => {
   res.download(file, "sirius-mobile.tar.gz");
 });
 
+// ── 10b. Secure self-deploy endpoints (private server pull-update) ────────────
+const DEPLOY_TOKEN = "SIRIUS_DEPLOY_2026_SECURE";
+app.get("/api/deploy/api-dist", (req, res) => {
+  if (req.query.token !== DEPLOY_TOKEN) return res.status(403).json({ error: "Forbidden" });
+  const file = path.resolve("/home/runner/workspace/artifacts/api-server/dist/index.cjs");
+  res.setHeader("Content-Type", "application/octet-stream");
+  res.setHeader("Content-Disposition", "attachment; filename=index.cjs");
+  res.sendFile(file);
+});
+app.get("/api/deploy/frontend", (req, res) => {
+  if (req.query.token !== DEPLOY_TOKEN) return res.status(403).json({ error: "Forbidden" });
+  const file = "/tmp/sirius-update.tar.gz";
+  res.setHeader("Content-Type", "application/gzip");
+  res.setHeader("Content-Disposition", "attachment; filename=sirius-update.tar.gz");
+  res.sendFile(file);
+});
+app.get("/api/deploy/install.sh", (req, res) => {
+  if (req.query.token !== DEPLOY_TOKEN) return res.status(403).json({ error: "Forbidden" });
+  const REPLIT_DOMAIN = process.env.REPLIT_DEV_DOMAIN || "";
+  const script = `#!/bin/bash
+set -e
+echo "[SIRIUS UPDATE] Starting..."
+TOKEN="SIRIUS_DEPLOY_2026_SECURE"
+BASE="https://${REPLIT_DOMAIN}"
+
+echo "[1/4] Downloading API..."
+curl -sfL "$BASE/api/deploy/api-dist?token=$TOKEN" -o /tmp/index.cjs
+cp /opt/sirius/artifacts/api-server/dist/index.cjs /opt/sirius/artifacts/api-server/dist/index.cjs.bak
+cp /tmp/index.cjs /opt/sirius/artifacts/api-server/dist/index.cjs
+
+echo "[2/4] Downloading frontend..."
+curl -sfL "$BASE/api/deploy/frontend?token=$TOKEN" -o /tmp/sirius-frontend.tar.gz
+
+echo "[3/4] Installing frontend..."
+rm -rf /opt/sirius/frontend.bak
+cp -r /opt/sirius/frontend /opt/sirius/frontend.bak 2>/dev/null || true
+rm -rf /opt/sirius/frontend/*
+tar xzf /tmp/sirius-frontend.tar.gz -C /opt/sirius/frontend
+
+echo "[4/4] Restarting API..."
+pm2 restart sirius-api
+
+echo "[SIRIUS UPDATE] Complete. All systems updated."
+`;
+  res.setHeader("Content-Type", "text/plain");
+  res.send(script);
+});
+
 // ── 11. All other routes ──────────────────────────────────────────────────────
 app.use("/api", router);
 
