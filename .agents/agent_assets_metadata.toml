@@ -30,3 +30,9 @@ id = "LPy9QPjA0vt7OmYvGAjRz"
 uri = "file://sirius-star-lab-export.tar.gz"
 type = "unspecified"
 title = "Sirius Star Lab — Full Source Code Export"
+
+[[outputs]]
+id = "tI0G2lkO4HTIDpyPMbD9N"
+uri = "file://sirius_migration_package.tar.gz"
+type = "unspecified"
+title = "Sirius Migration Package — DB + Setup Scripts"
