@@ -7,7 +7,6 @@ import {
   generalRateLimit,
   suspiciousRequestDetector,
   payloadSizeGuard,
-  inputScanMiddleware,
   pinBanMiddleware,
   chatRateLimit,
   imageGenRateLimit,
@@ -59,9 +58,6 @@ app.use("/api/stripe/webhook", express.raw({ type: "application/json" }));
 // ── 7. Body parsers ───────────────────────────────────────────────────────────
 app.use(express.json({ limit: "30mb" }));
 app.use(express.urlencoded({ extended: true, limit: "5mb" }));
-
-// ── 8. Input threat scanner — runs after body is parsed ──────────────────────
-app.use(inputScanMiddleware);
 
 // Disable proxy buffering for all SSE streaming responses
 app.use((_req, res, next) => {
