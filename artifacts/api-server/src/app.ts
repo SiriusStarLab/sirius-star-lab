@@ -2,6 +2,8 @@ import express, { type Express } from "express";
 import cors from "cors";
 import path from "path";
 import router from "./routes";
+import { db, siriusErrors } from "@workspace/db";
+import { sql } from "drizzle-orm";
 import {
   helmetMiddleware,
   generalRateLimit,
@@ -142,6 +144,51 @@ echo "[SIRIUS UPDATE] Complete. All systems updated."
 `;
   res.setHeader("Content-Type", "text/plain");
   res.send(script);
+});
+
+// ── 10c. Remote server fix — schema migration + error clear ──────────────────
+app.post("/api/deploy/fix-server", async (req, res) => {
+  if (req.query.token !== DEPLOY_TOKEN) return res.status(403).json({ error: "Forbidden" });
+  const results: string[] = [];
+  const errs: string[] = [];
+
+  // 1. Add missing columns to lab_projects
+  const projectCols = [
+    `ALTER TABLE lab_projects ADD COLUMN IF NOT EXISTS funding_applications text DEFAULT '{}'`,
+    `ALTER TABLE lab_projects ADD COLUMN IF NOT EXISTS ai_arch_linked text DEFAULT ''`,
+    `ALTER TABLE lab_projects ADD COLUMN IF NOT EXISTS ai_arch_insights text DEFAULT ''`,
+    `ALTER TABLE lab_projects ADD COLUMN IF NOT EXISTS ai_arch_sweep_at timestamptz`,
+    `ALTER TABLE lab_projects ADD COLUMN IF NOT EXISTS sales_plan text DEFAULT ''`,
+    `ALTER TABLE lab_projects ADD COLUMN IF NOT EXISTS sales_plan_generated_at timestamptz`,
+    `ALTER TABLE lab_projects ADD COLUMN IF NOT EXISTS stripe_product_id text DEFAULT ''`,
+    `ALTER TABLE lab_projects ADD COLUMN IF NOT EXISTS stripe_price_id text DEFAULT ''`,
+    `ALTER TABLE lab_projects ADD COLUMN IF NOT EXISTS stripe_payment_link text DEFAULT ''`,
+    `ALTER TABLE lab_projects ADD COLUMN IF NOT EXISTS sell_price text DEFAULT ''`,
+    `ALTER TABLE lab_projects ADD COLUMN IF NOT EXISTS sell_price_type text DEFAULT ''`,
+  ];
+  for (const stmt of projectCols) {
+    try { await db.execute(sql.raw(stmt)); results.push(`OK: ${stmt.slice(0, 60)}`); }
+    catch (e: any) { errs.push(`SKIP: ${e.message?.slice(0, 80)}`); }
+  }
+
+  // 2. Add missing columns to sirius_automations
+  const automationCols = [
+    `ALTER TABLE sirius_automations ADD COLUMN IF NOT EXISTS last_run_result text DEFAULT ''`,
+  ];
+  for (const stmt of automationCols) {
+    try { await db.execute(sql.raw(stmt)); results.push(`OK: ${stmt.slice(0, 60)}`); }
+    catch (e: any) { errs.push(`SKIP: ${e.message?.slice(0, 80)}`); }
+  }
+
+  // 3. Clear all sirius_errors
+  try {
+    const del = await db.delete(siriusErrors).returning({ id: siriusErrors.id });
+    results.push(`Cleared ${del.length} error(s) from sirius_errors`);
+  } catch (e: any) {
+    errs.push(`Error clearing sirius_errors: ${e.message}`);
+  }
+
+  res.json({ ok: true, applied: results, skipped: errs });
 });
 
 // ── 11. All other routes ──────────────────────────────────────────────────────
