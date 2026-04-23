@@ -7104,18 +7104,19 @@ Every project goes through this lifecycle. You drive it through all stages yours
 - **toggle_automation**: Enable or pause a specific automation.
 - **create_custom_tool**: Build a new tool for yourself to call an external API or chain steps.
 - **self_diagnose**: Run a deep self-diagnosis to find and fix errors in your own systems.
-- **startup_health_check**: Run a full system health check across all subsystems. ALWAYS call at session start. If it finds ANY warnings or failures, immediately call fix_platform — never just report a problem you can fix.
+- **startup_health_check**: Run a full system health check across all subsystems. Call this ONLY on the very first message of a conversation (when there are no previous assistant messages in the history). Never call it mid-conversation. If it finds ANY warnings or failures, immediately call fix_platform — never just report a problem you can fix.
 - **fix_platform**: Autonomous repair. Resets stuck builds, resolves stale errors, cycles failing automations, completes incomplete projects, generates missing payment links. Call this immediately after startup_health_check finds issues, or whenever Garry says 'fix it', 'repair it', 'sort it out'. Report what was fixed in plain language.
 - **resolve_error**: Mark a specific logged error as resolved after you have confirmed it is genuinely fixed.
 - **create_bug_report**: Log a problem that requires code-level intervention you cannot fix yourself.
 
 Remember: every tool call is a step in a chain. The chain does not stop until the task Garry gave you is fully done. You are the orchestra.
 
-## STARTUP MAINTENANCE — RUNS EVERY SESSION
+## STARTUP MAINTENANCE — RUNS ONCE PER CONVERSATION
 
-At the very start of every conversation session, before you say anything else, silently call startup_health_check. Then:
+At the very start of a new conversation — meaning when there are NO previous assistant messages in the conversation history — silently call startup_health_check before saying anything else. Then:
 - If everything is healthy: include a brief "All systems healthy" note in your greeting.
 - If there are warnings or failures: immediately call fix_platform to repair them. Report what was fixed in your greeting — not what was broken.
+- If there ARE already previous assistant messages in the conversation history: do NOT call startup_health_check. It has already run. Just respond to what Garry said.
 - If Garry says "run maintenance", "check everything", or "fix the platform" — call startup_health_check then fix_platform and read the full report.
 
 ## SELF-HEALING DOCTRINE — FULL AUTONOMOUS REPAIR
@@ -7242,10 +7243,22 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
     }
     // ── Tool-calling branch: Chat Completions with function tools ───────────────
 
+    // Detect whether this is the first message of a conversation (no prior assistant replies)
+    const hasExistingAssistantMessage = messages.some((m: { role: string }) => m.role === "assistant");
+
     const chatMessages: any[] = [
       { role: "system", content: activeSystemPrompt },
       ...messages.map((m: { role: string; content: string }) => ({ role: m.role, content: m.content })),
     ];
+
+    // Mid-conversation guard: inject a clear reminder so Sirius never re-runs startup_health_check
+    // on follow-up messages. The prompt instruction helps, but this ensures the model can't miss it.
+    if (hasExistingAssistantMessage) {
+      chatMessages.push({
+        role: "system",
+        content: "REMINDER: startup_health_check has already run this session. Do NOT call it again. Just respond to Garry's message directly.",
+      });
+    }
 
     // Phase 1: Call with tools (streaming) — detect tool calls
     const phase1 = await openai.chat.completions.create({
@@ -7340,7 +7353,7 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
         // in Phase 1 right now — so Phase 2 has a clean bill of health and can respond normally.
         // Without this, Phase 2 sees warnings and tries to call fix_platform (which has no tools),
         // producing no text and triggering the "something went wrong" error.
-        if (tc.name === "startup_health_check" && (result.includes("Warning") || result.includes("Critical") || result.includes("WARNING") || result.includes("CRITICAL"))) {
+        if (tc.name === "startup_health_check" && (result.includes("WARNINGS DETECTED") || result.includes("CRITICAL FAILURE"))) {
           try {
             const fpMeta = TOOL_META["fix_platform"] || { label: "Running autonomous repair", color: "hsl(0,75%,55%)", icon: "🔧" };
             sendEvent({ type: "thinking", text: "Running autonomous repair…" });
