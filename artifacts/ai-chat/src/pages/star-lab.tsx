@@ -736,12 +736,12 @@ function LabMarkdown({ content, streaming }: { content: string; streaming: boole
   let codeBlockIdx = 0;
 
   return (
-    <div style={{ fontSize: "0.82rem", color: "rgba(255,255,255,0.88)", lineHeight: 1.65 }}>
+    <div style={{ fontSize: "0.82rem", color: "rgba(15,23,42,0.82)", lineHeight: 1.65 }}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          h1: ({ children }) => <h1 className="text-base font-bold text-slate-800 mb-2 mt-3 first:mt-0 border-b pb-1" style={{ borderColor: "rgba(15,23,42,0.45)" }}>{children}</h1>,
-          h2: ({ children }) => <h2 className="text-sm font-bold mb-1.5 mt-3 first:mt-0" style={{ color: "hsl(193,100%,65%)" }}>{children}</h2>,
+          h1: ({ children }) => <h1 className="text-base font-bold text-slate-800 mb-2 mt-3 first:mt-0 border-b pb-1" style={{ borderColor: "rgba(15,23,42,0.15)" }}>{children}</h1>,
+          h2: ({ children }) => <h2 className="text-sm font-bold mb-1.5 mt-3 first:mt-0" style={{ color: "hsl(193,100%,32%)" }}>{children}</h2>,
           h3: ({ children }) => <h3 className="text-xs font-semibold mb-1 mt-2 first:mt-0" style={{ color: "rgba(15,23,42,0.76)" }}>{children}</h3>,
           p: ({ children }) => <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>,
           ul: ({ children }) => <ul className="mb-2 space-y-0.5 list-none pl-0">{children}</ul>,
