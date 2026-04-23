@@ -6768,10 +6768,15 @@ router.post("/lab/chat", async (req, res): Promise<void> => {
   if (!Array.isArray(messages) || messages.length === 0) { res.status(400).json({ error: "messages required" }); return; }
 
   res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
+  res.setHeader("X-Accel-Buffering", "no");
   res.setHeader("Connection", "keep-alive");
+  res.flushHeaders();
 
   const sendEvent = (data: object) => res.write(`data: ${JSON.stringify(data)}\n\n`);
+
+  // Heartbeat — keeps the SSE connection alive during long tool operations (complete_project etc.)
+  const heartbeat = setInterval(() => { try { res.write(": heartbeat\n\n"); } catch {} }, 10_000);
 
   try {
     const profileRows = await db.select().from(userProfilesTable).where(eq(userProfilesTable.userId, BRAIN_USER));
@@ -7202,9 +7207,11 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
       });
     }
 
+    clearInterval(heartbeat);
     res.write("data: [DONE]\n\n");
     res.end();
   } catch (err: any) {
+    clearInterval(heartbeat);
     sendEvent({ type: "error", message: err?.message || "Something went wrong" });
     res.write("data: [DONE]\n\n");
     res.end();
