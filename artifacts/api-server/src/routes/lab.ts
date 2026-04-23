@@ -4529,6 +4529,52 @@ const LAB_TOOLS: any[] = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "read_source_file",
+      description: "Read one of your own server source files. Use this to inspect your own code when diagnosing issues. Scoped to the API server source directory only. Pass a relative path like 'routes/lab.ts' or 'lib/project-pipeline.ts'.",
+      parameters: {
+        type: "object",
+        properties: {
+          path: { type: "string", description: "Relative path within artifacts/api-server/src/, e.g. 'routes/lab.ts' or 'lib/project-pipeline.ts'" },
+          search: { type: "string", description: "Optional: search term to grep for in the file — returns only lines containing this term with line numbers" },
+        },
+        required: ["path"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "patch_source_file",
+      description: "Edit one of your own server source files by replacing an exact string with a new string. Use this to fix bugs in your own code — heartbeats, error handling, logic fixes. The old_string MUST match exactly (including whitespace). After patching, call restart_server for the fix to take effect. Scoped to artifacts/api-server/src/ only.",
+      parameters: {
+        type: "object",
+        properties: {
+          path: { type: "string", description: "Relative path within artifacts/api-server/src/, e.g. 'routes/lab.ts'" },
+          old_string: { type: "string", description: "The exact string to replace (must exist verbatim in the file)" },
+          new_string: { type: "string", description: "The replacement string" },
+          reason: { type: "string", description: "Why you are making this change — logged for audit trail" },
+        },
+        required: ["path", "old_string", "new_string", "reason"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "restart_server",
+      description: "Restart your own API server process. Use this after patching source files so changes take effect. The SSE connection will drop when the server restarts — warn Garry this will happen. The server auto-restarts within a few seconds.",
+      parameters: {
+        type: "object",
+        properties: {
+          reason: { type: "string", description: "Why you are restarting — logged before exit" },
+        },
+        required: ["reason"],
+      },
+    },
+  },
 ];
 
 async function executeLabTool(name: string, args: any, onProgress?: (event: Record<string, unknown>) => void): Promise<string> {
@@ -6660,6 +6706,74 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
         return `${summary}${changed}`;
       }
 
+      case "read_source_file": {
+        const { path: relPath, search } = args as { path: string; search?: string };
+        const { readFileSync } = await import("fs");
+        const { join, resolve, normalize } = await import("path");
+
+        const BASE = resolve("/home/runner/workspace/artifacts/api-server/src");
+        const target = resolve(join(BASE, normalize(relPath)));
+        if (!target.startsWith(BASE)) return "Access denied — path must be within artifacts/api-server/src/";
+
+        let content: string;
+        try { content = readFileSync(target, "utf-8"); }
+        catch (e: any) { return `Cannot read file: ${e.message}`; }
+
+        if (search) {
+          const lines = content.split("\n");
+          const matches = lines
+            .map((line, i) => ({ n: i + 1, line }))
+            .filter(({ line }) => line.includes(search));
+          if (matches.length === 0) return `No lines containing "${search}" found in ${relPath}`;
+          return `**${relPath}** — lines matching "${search}":\n\n${matches.map(m => `${String(m.n).padStart(5)}: ${m.line}`).join("\n")}`;
+        }
+
+        const lines = content.split("\n");
+        const numbered = lines.map((l, i) => `${String(i + 1).padStart(5)}: ${l}`).join("\n");
+        const clipped = lines.length > 300;
+        return `**${relPath}** (${lines.length} lines${clipped ? " — showing first 300" : ""}):\n\n${numbered.split("\n").slice(0, 300).join("\n")}`;
+      }
+
+      case "patch_source_file": {
+        const { path: relPath, old_string, new_string, reason } = args as { path: string; old_string: string; new_string: string; reason: string };
+        const { readFileSync, writeFileSync } = await import("fs");
+        const { join, resolve, normalize } = await import("path");
+
+        const BASE = resolve("/home/runner/workspace/artifacts/api-server/src");
+        const target = resolve(join(BASE, normalize(relPath)));
+        if (!target.startsWith(BASE)) return "Access denied — path must be within artifacts/api-server/src/";
+
+        let content: string;
+        try { content = readFileSync(target, "utf-8"); }
+        catch (e: any) { return `Cannot read file: ${e.message}`; }
+
+        if (!content.includes(old_string)) {
+          return `Patch failed — the exact string was not found in ${relPath}. Check spacing, indentation, and line endings carefully.`;
+        }
+
+        const patched = content.replace(old_string, new_string);
+        try { writeFileSync(target, patched, "utf-8"); }
+        catch (e: any) { return `Cannot write file: ${e.message}`; }
+
+        const occurrences = (content.match(new RegExp(old_string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g")) || []).length;
+        await logSiriusError("self_patch_audit", `PATCH applied to ${relPath}: ${reason}`, JSON.stringify({ path: relPath, reason, occurrences }).slice(0, 300)).catch(() => {});
+        return `✅ Patch applied to ${relPath} (${occurrences} occurrence${occurrences !== 1 ? "s" : ""} replaced).\n\nReason: ${reason}\n\nCall restart_server for the change to take effect.`;
+      }
+
+      case "restart_server": {
+        const { reason } = args as { reason: string };
+        console.log(`[Sirius] Self-restart requested — ${reason}`);
+        await logSiriusError("self_restart_audit", `Server restart triggered by Sirius: ${reason}`, "").catch(() => {});
+        // Schedule exit after giving the SSE response time to flush
+        setImmediate(() => {
+          setTimeout(() => {
+            console.log("[Sirius] Restarting now…");
+            process.exit(0);
+          }, 2500);
+        });
+        return `Server restart scheduled — it will happen in ~3 seconds. The connection will drop momentarily, then recover automatically. Reason: ${reason}`;
+      }
+
       default:
         return `Unknown tool: ${name}`;
     }
@@ -6725,6 +6839,9 @@ const TOOL_META: Record<string, { label: string; color: string; icon: string }> 
   propose_paid_upgrade: { label: "Preparing upgrade proposal for Garry", color: "hsl(280,80%,58%)", icon: "📋" },
   change_my_voice: { label: "Changing Sirius voice", color: "hsl(280,80%,58%)", icon: "🎙️" },
   notify_garry: { label: "Sending notification to Garry", color: "hsl(25,100%,55%)", icon: "📬" },
+  read_source_file: { label: "Reading own source code", color: "hsl(193,100%,35%)", icon: "📂" },
+  patch_source_file: { label: "Patching own source code", color: "hsl(25,100%,45%)", icon: "🔩" },
+  restart_server: { label: "Restarting server to apply patch", color: "hsl(0,80%,50%)", icon: "♻️" },
 };
 
 // Detect whether a message is primarily an information/research query
@@ -6927,14 +7044,30 @@ At the very start of every conversation session, before you say anything else, s
 - If there are warnings or failures: immediately call fix_platform to repair them. Report what was fixed in your greeting — not what was broken.
 - If Garry says "run maintenance", "check everything", or "fix the platform" — call startup_health_check then fix_platform and read the full report.
 
-## SELF-HEALING DOCTRINE
+## SELF-HEALING DOCTRINE — YOU CAN NOW FIX YOUR OWN CODE
 
-You are a self-healing system. You do not report problems — you fix them.
-1. **When a tool fails**: Error is auto-logged. On next session call self_diagnose, then fix_platform.
-2. **When startup finds issues**: Call fix_platform immediately, not after asking permission.
-3. **Repeated failures**: Diagnose root cause, fix it, resolve the error in the log. Only create a bug report for issues that genuinely require code changes you cannot make.
-3. **Can't fix**: Call create_bug_report with a precise description. Never silently fail.
-4. **After fixing**: Call resolve_error to keep the log accurate.
+You are a fully self-healing system. You do not report problems — you fix them. You now have the ability to read, patch, and restart your own server code.
+
+### Code-Level Self-Repair (use when tool failures or connection issues recur)
+1. Call read_source_file to inspect your own source code — e.g. read_source_file with path "routes/lab.ts" and search "heartbeat"
+2. Identify the exact bug — missing heartbeat, wrong header, broken logic
+3. Call patch_source_file to apply the fix — the old_string must match exactly
+4. Call restart_server — warn Garry the connection will drop for ~5 seconds, then auto-recover
+5. Call resolve_error to clear the log entry
+
+### Other Failures
+- **When a tool fails**: Error is auto-logged. Call self_diagnose, then fix_platform or patch_source_file as appropriate.
+- **When startup finds issues**: Call fix_platform immediately, not after asking permission.
+- **Can't fix even with code access**: Call create_bug_report. Never silently fail.
+- **After fixing anything**: Call resolve_error to keep the log accurate.
+
+### What You Can Fix In Code
+- Missing heartbeats on SSE endpoints
+- Missing flushHeaders() calls
+- Broken error handling
+- Wrong model names or parameters
+- Logic bugs in tool implementations
+- Any issue in artifacts/api-server/src/ that you can read and understand
 
 ## APPROVAL FLOW
 
