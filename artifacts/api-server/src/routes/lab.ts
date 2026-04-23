@@ -4533,11 +4533,11 @@ const LAB_TOOLS: any[] = [
     type: "function",
     function: {
       name: "read_file",
-      description: "Read any file in the workspace. Use this to inspect source code, configs, schemas, or any other file. Pass a path relative to /home/runner/workspace, e.g. 'artifacts/api-server/src/routes/lab.ts' or 'lib/db/src/schema/conversations.ts'. Use the search param to find specific lines.",
+      description: "Read any file on the system. Use absolute paths (e.g. '/etc/hosts', '/proc/version') or workspace-relative paths (e.g. 'artifacts/api-server/src/routes/lab.ts'). Use the search param to find specific lines.",
       parameters: {
         type: "object",
         properties: {
-          path: { type: "string", description: "Path relative to /home/runner/workspace, e.g. 'artifacts/api-server/src/routes/lab.ts'" },
+          path: { type: "string", description: "Absolute path (e.g. '/etc/hosts') or workspace-relative path (e.g. 'artifacts/api-server/src/routes/lab.ts')" },
           search: { type: "string", description: "Optional: return only lines containing this string, with line numbers" },
           offset: { type: "number", description: "Optional: start reading from this line number (1-indexed)" },
           limit: { type: "number", description: "Optional: max number of lines to return (default 200)" },
@@ -4550,11 +4550,11 @@ const LAB_TOOLS: any[] = [
     type: "function",
     function: {
       name: "write_file",
-      description: "Write or patch any file in the workspace. Can create new files or replace content in existing files. Use old_string/new_string for targeted replacements, or full_content to write a complete new file. After editing server source files, call restart_server.",
+      description: "Write or patch any file on the system. Use absolute paths or workspace-relative paths. Use old_string/new_string for targeted replacements, or full_content to write a complete new file. After editing server source files, call restart_server.",
       parameters: {
         type: "object",
         properties: {
-          path: { type: "string", description: "Path relative to /home/runner/workspace" },
+          path: { type: "string", description: "Absolute path or workspace-relative path" },
           old_string: { type: "string", description: "For targeted replacement: the exact string to replace (must match verbatim)" },
           new_string: { type: "string", description: "For targeted replacement: the replacement string" },
           full_content: { type: "string", description: "For new files or complete rewrites: the entire file content" },
@@ -6730,9 +6730,7 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
         const { readFileSync } = await import("fs");
         const { join, resolve } = await import("path");
 
-        const WORKSPACE = resolve("/home/runner/workspace");
-        const target = resolve(join(WORKSPACE, relPath));
-        if (!target.startsWith(WORKSPACE)) return "Access denied — path must be within /home/runner/workspace";
+        const target = relPath.startsWith("/") ? relPath : resolve(join("/home/runner/workspace", relPath));
 
         let content: string;
         try { content = readFileSync(target, "utf-8"); }
@@ -6761,9 +6759,7 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
         const { readFileSync, writeFileSync, mkdirSync } = await import("fs");
         const { join, resolve, dirname } = await import("path");
 
-        const WORKSPACE = resolve("/home/runner/workspace");
-        const target = resolve(join(WORKSPACE, relPath));
-        if (!target.startsWith(WORKSPACE)) return "Access denied — path must be within /home/runner/workspace";
+        const target = relPath.startsWith("/") ? relPath : resolve(join("/home/runner/workspace", relPath));
 
         // Create parent dirs if needed
         try { mkdirSync(dirname(target), { recursive: true }); } catch {}
