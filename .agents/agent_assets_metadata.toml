@@ -4,31 +4,31 @@ uploads = []
 id = "wQ5JE1OjnBQ8x0RvhOiJO"
 uri = "file://attached_assets/screenshots/appstore_1_chat.png"
 type = "image"
-title = "App Store screenshot 1 chat clean"
+title = "screenshot 1 minimal"
 
 [[generated]]
 id = "DGDhwBbu8bX5h5EpL_UZ8"
 uri = "file://attached_assets/screenshots/appstore_2_voice.png"
 type = "image"
-title = "App Store screenshot 2 voice"
+title = "screenshot 2 minimal"
 
 [[generated]]
 id = "4qRbAR11jTIPECjcM09WB"
 uri = "file://attached_assets/screenshots/appstore_3_memory.png"
 type = "image"
-title = "App Store screenshot 3 memory"
+title = "screenshot 3 minimal"
 
 [[generated]]
 id = "FiK9B15sZuzfed53dTPk4"
 uri = "file://attached_assets/screenshots/appstore_4_wisdom.png"
 type = "image"
-title = "App Store screenshot 4 wisdom clean"
+title = "screenshot 4 minimal"
 
 [[generated]]
 id = "DRaoYLcgzSu-THancwjFz"
 uri = "file://attached_assets/screenshots/appstore_5_starlab.png"
 type = "image"
-title = "App Store screenshot 5 history clean"
+title = "screenshot 5 minimal"
 
 [[outputs]]
 id = "cNdbKNPxY3uJsRbWTNxPd"
@@ -70,28 +70,28 @@ title = "Sirius Migration Package — DB + Setup Scripts"
 id = "BvVOCuWWAnWTPvsaA4kRb"
 uri = "file://attached_assets/screenshots/appstore_1_chat.png"
 type = "image"
-title = "Screenshot 1 — AI Chat (updated)"
+title = "1 — Your AI thinking partner"
 
 [[outputs]]
 id = "jqhEtadRtriq5nijF75cl"
 uri = "file://attached_assets/screenshots/appstore_2_voice.png"
 type = "image"
-title = "Screenshot 2 — Voice"
+title = "2 — Speak your thoughts"
 
 [[outputs]]
 id = "CrQwJStUbiGWPQVwfkV4V"
 uri = "file://attached_assets/screenshots/appstore_3_memory.png"
 type = "image"
-title = "Screenshot 3 — Memory Portrait"
+title = "3 — Sirius remembers who you are"
 
 [[outputs]]
 id = "0zZERSx-wfqOL5T95-FY8"
 uri = "file://attached_assets/screenshots/appstore_4_wisdom.png"
 type = "image"
-title = "Screenshot 4 — Daily Wisdom (updated)"
+title = "4 — Start every day with intention"
 
 [[outputs]]
 id = "L8g_FWxOoo70u3wgnuFn2"
 uri = "file://attached_assets/screenshots/appstore_5_starlab.png"
 type = "image"
-title = "Screenshot 5 — Conversations (updated)"
+title = "5 — Every conversation. Saved."
