@@ -80,14 +80,25 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
 
   useEffect(() => { setLinked(isOwner()); }, [isOpen]);
 
-  const handleLinkPin = () => {
-    if (pinInput.trim() === "169323") {
-      localStorage.setItem("sirius_user_id", "garry");
-      setPinState("success");
-      setLinked(true);
-      setPinInput("");
-      setTimeout(() => { setPinState("idle"); window.location.reload(); }, 1200);
-    } else {
+  const handleLinkPin = async () => {
+    try {
+      const base = `${import.meta.env.BASE_URL?.replace(/\/$/, "") ?? ""}/api/`;
+      const res = await fetch(`${base}openai/link-device`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin: pinInput.trim() }),
+      });
+      if (res.ok) {
+        localStorage.setItem("sirius_user_id", "garry");
+        setPinState("success");
+        setLinked(true);
+        setPinInput("");
+        setTimeout(() => { setPinState("idle"); window.location.reload(); }, 1200);
+      } else {
+        setPinState("error");
+        setTimeout(() => setPinState("idle"), 2000);
+      }
+    } catch {
       setPinState("error");
       setTimeout(() => setPinState("idle"), 2000);
     }

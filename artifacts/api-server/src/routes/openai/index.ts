@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db, conversations as conversationsTable, messages as messagesTable, userProfilesTable } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import {
@@ -840,6 +840,18 @@ router.get("/openai/conversations/:id/messages", async (req, res): Promise<void>
   res.json(messages);
 });
 
+// POST /api/openai/link-device — server-side PIN validation for device linking
+// PIN never goes to the client; validated against STAR_LAB_PIN env var only
+router.post("/openai/link-device", async (req, res): Promise<void> => {
+  const { pin } = req.body as { pin?: string };
+  const validPin = process.env.STAR_LAB_PIN;
+  if (!validPin || !pin || pin.trim() !== validPin.trim()) {
+    res.status(401).json({ linked: false, error: "Incorrect PIN" });
+    return;
+  }
+  res.json({ linked: true });
+});
+
 router.get("/openai/profiles/:userId", async (req, res): Promise<void> => {
   const { userId } = req.params;
 
@@ -1051,13 +1063,24 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
       // Save assistant message and extract memories
       await db.insert(messagesTable).values({ conversationId, role: "assistant", content: fullResponse });
       if (userId && fullResponse) {
+        // Atomic conditional increment — prevents race condition
+        await db.execute(sql`
+          UPDATE ${userProfilesTable}
+          SET
+            daily_message_count = CASE
+              WHEN daily_message_reset IS NULL OR DATE(daily_message_reset) != CURRENT_DATE
+              THEN '1'
+              ELSE CAST(CAST(daily_message_count AS INTEGER) + 1 AS TEXT)
+            END,
+            daily_message_reset = CASE
+              WHEN daily_message_reset IS NULL OR DATE(daily_message_reset) != CURRENT_DATE
+              THEN NOW()
+              ELSE daily_message_reset
+            END
+          WHERE user_id = ${userId}
+        `).catch(() => {});
         const [dbProfile] = await db.select().from(userProfilesTable).where(eq(userProfilesTable.userId, userId));
         if (dbProfile) {
-          const now = new Date();
-          const resetDate = dbProfile.dailyMessageReset ? new Date(dbProfile.dailyMessageReset) : null;
-          const needsReset = !resetDate || resetDate.toDateString() !== now.toDateString();
-          const currentCount = needsReset ? 0 : parseInt(dbProfile.dailyMessageCount || "0", 10);
-          await db.update(userProfilesTable).set({ dailyMessageCount: String(currentCount + 1), dailyMessageReset: now }).where(eq(userProfilesTable.userId, userId));
           extractAndSaveMemories(userId, [{ role: "user", content: body.data.content }, { role: "assistant", content: fullResponse }], dbProfile.memories || "");
         }
       }
@@ -1173,22 +1196,22 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
     ];
     extractAndSaveMemories(userId, conversationForMemory as any, profile.memories).catch(() => {});
 
-    // Increment daily message count
-    db.select().from(userProfilesTable).where(eq(userProfilesTable.userId, userId))
-      .then(([current]) => {
-        if (!current) return;
-        const now = new Date();
-        const resetDate = current.dailyMessageReset ? new Date(current.dailyMessageReset) : null;
-        const needsReset = !resetDate || resetDate.toDateString() !== now.toDateString();
-        const newCount = needsReset ? 1 : parseInt(current.dailyMessageCount || "0", 10) + 1;
-        return db.update(userProfilesTable)
-          .set({
-            dailyMessageCount: String(newCount),
-            dailyMessageReset: needsReset ? now : current.dailyMessageReset ?? now,
-          })
-          .where(eq(userProfilesTable.userId, userId));
-      })
-      .catch(() => {});
+    // Increment daily message count — atomic conditional update to prevent race conditions
+    db.execute(sql`
+      UPDATE ${userProfilesTable}
+      SET
+        daily_message_count = CASE
+          WHEN daily_message_reset IS NULL OR DATE(daily_message_reset) != CURRENT_DATE
+          THEN '1'
+          ELSE CAST(CAST(daily_message_count AS INTEGER) + 1 AS TEXT)
+        END,
+        daily_message_reset = CASE
+          WHEN daily_message_reset IS NULL OR DATE(daily_message_reset) != CURRENT_DATE
+          THEN NOW()
+          ELSE daily_message_reset
+        END
+      WHERE user_id = ${userId}
+    `).catch(() => {});
   }
 });
 
