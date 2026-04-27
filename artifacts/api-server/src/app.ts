@@ -98,6 +98,15 @@ app.get("/api/download/sirius-mobile", (req, res) => {
   res.download(file, "sirius-mobile.tar.gz");
 });
 
+// ── 10b-1. Mobile project download ───────────────────────────────────────────
+app.get("/api/deploy/sirius-mobile-build", (req, res) => {
+  if (req.query.token !== DEPLOY_TOKEN) return res.status(403).json({ error: "Forbidden" });
+  const file = "/tmp/sirius-mobile-build.tar.gz";
+  res.setHeader("Content-Type", "application/gzip");
+  res.setHeader("Content-Disposition", "attachment; filename=sirius-mobile-build.tar.gz");
+  res.sendFile(file);
+});
+
 // ── 10b. Secure self-deploy endpoints (private server pull-update) ────────────
 const DEPLOY_TOKEN = "SIRIUS_DEPLOY_2026_SECURE";
 app.get("/api/deploy/api-dist", (req, res) => {
