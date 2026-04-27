@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Sirius Star Lab",
+    "name": "Sirius",
     "slug": "sirius-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -51,7 +51,7 @@
       [
         "expo-router",
         {
-          "origin": "https://replit.com/"
+          "origin": "https://sirius-ai.live/"
         }
       ],
       "expo-font",

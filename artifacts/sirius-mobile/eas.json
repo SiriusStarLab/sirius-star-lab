@@ -16,6 +16,9 @@
     },
     "production": {
       "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_DOMAIN": "sirius-ai.live"
+      },
       "ios": {
         "resourceClass": "m-medium"
       },
