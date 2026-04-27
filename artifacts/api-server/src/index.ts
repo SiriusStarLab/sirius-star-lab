@@ -7,6 +7,16 @@ import { tickAutomations } from "./lib/sirius-automation.js";
 import { runInvestmentRule } from "./lib/investment-rule.js";
 import { startProactiveEngine } from "./lib/sirius-proactive.js";
 
+// Global crash protection — log unhandled errors instead of silently crashing
+process.on("unhandledRejection", (reason) => {
+  console.error("[UNHANDLED REJECTION]", reason);
+});
+process.on("uncaughtException", (err) => {
+  console.error("[UNCAUGHT EXCEPTION]", err);
+  // Give the logger a moment to flush, then exit so the process manager can restart
+  setTimeout(() => process.exit(1), 500);
+});
+
 const rawPort = process.env["PORT"];
 if (!rawPort) {
   throw new Error("PORT environment variable is required but was not provided.");

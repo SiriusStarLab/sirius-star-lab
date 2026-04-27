@@ -258,9 +258,19 @@ router.post("/stripe/webhook", async (req, res) => {
       case "invoice.payment_succeeded": {
         const invoice = event.data.object as Stripe.Invoice;
         const customerId = (invoice as any).customer as string;
+        const amountPence = (invoice as any).amount_paid as number ?? 0;
+        // Determine tier by invoice amount (500p = £5 Plus, 1200p = £12 Pro)
+        const newTier: "plus" | "pro" | null =
+          amountPence >= 1200 ? "pro" :
+          amountPence >= 500 ? "plus" : null;
+        if (!newTier) break;
         const [profile] = await db.select({ userId: userProfilesTable.userId, subscriptionTier: userProfilesTable.subscriptionTier }).from(userProfilesTable).where(eq(userProfilesTable.stripeCustomerId, customerId));
-        if (profile?.userId && profile.subscriptionTier === "free") {
-          await db.update(userProfilesTable).set({ subscriptionTier: "plus" }).where(eq(userProfilesTable.userId, profile.userId));
+        // Only upgrade, never silently downgrade an existing higher tier
+        const tierRank = { free: 0, plus: 1, pro: 2 };
+        const currentRank = tierRank[(profile?.subscriptionTier as keyof typeof tierRank) ?? "free"] ?? 0;
+        const newRank = tierRank[newTier];
+        if (profile?.userId && newRank > currentRank) {
+          await db.update(userProfilesTable).set({ subscriptionTier: newTier }).where(eq(userProfilesTable.userId, profile.userId));
         }
         break;
       }
