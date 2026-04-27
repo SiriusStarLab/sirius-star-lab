@@ -28,7 +28,7 @@
     "production": {
       "ios": {
         "appleId": "garryboy@icloud.com",
-        "ascAppId": "REPLACE_WITH_NUMERIC_APP_ID_FROM_APP_STORE_CONNECT",
+        "ascAppId": "6761296916",
         "appleTeamId": "REPLACE_WITH_10_CHAR_TEAM_ID_FROM_DEVELOPER_APPLE_COM",
         "language": "en-GB",
         "sku": "com.siriusai.app",
