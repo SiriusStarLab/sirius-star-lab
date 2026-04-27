@@ -4,31 +4,31 @@ uploads = []
 id = "wQ5JE1OjnBQ8x0RvhOiJO"
 uri = "file://attached_assets/screenshots/appstore_1_chat.png"
 type = "image"
-title = "screenshot 1 minimal"
+title = "screenshot 1 twins hero"
 
 [[generated]]
 id = "DGDhwBbu8bX5h5EpL_UZ8"
 uri = "file://attached_assets/screenshots/appstore_2_voice.png"
 type = "image"
-title = "screenshot 2 minimal"
+title = "screenshot 2 twins voice"
 
 [[generated]]
 id = "4qRbAR11jTIPECjcM09WB"
 uri = "file://attached_assets/screenshots/appstore_3_memory.png"
 type = "image"
-title = "screenshot 3 minimal"
+title = "screenshot 3 twins memory"
 
 [[generated]]
 id = "FiK9B15sZuzfed53dTPk4"
 uri = "file://attached_assets/screenshots/appstore_4_wisdom.png"
 type = "image"
-title = "screenshot 4 minimal"
+title = "screenshot 4 twins wisdom"
 
 [[generated]]
 id = "DRaoYLcgzSu-THancwjFz"
 uri = "file://attached_assets/screenshots/appstore_5_starlab.png"
 type = "image"
-title = "screenshot 5 minimal"
+title = "screenshot 5 twins history"
 
 [[outputs]]
 id = "cNdbKNPxY3uJsRbWTNxPd"
@@ -70,7 +70,7 @@ title = "Sirius Migration Package — DB + Setup Scripts"
 id = "BvVOCuWWAnWTPvsaA4kRb"
 uri = "file://attached_assets/screenshots/appstore_1_chat.png"
 type = "image"
-title = "1 — Your AI thinking partner"
+title = "1 — I think, so I am"
 
 [[outputs]]
 id = "jqhEtadRtriq5nijF75cl"
