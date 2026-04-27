@@ -49,6 +49,10 @@ const SECRET_PATTERNS = [
   { name: "Stripe secret key", pattern: /sk_(?:live|test)_[a-zA-Z0-9]{20,}/g },
   { name: "Private key block", pattern: /-----BEGIN (?:RSA|EC|OPENSSH) PRIVATE KEY-----/g },
   { name: "Bearer token hardcoded", pattern: /Authorization:\s*["']Bearer [a-zA-Z0-9_\-.]{20,}/gi },
+  // Catches hardcoded numeric PINs in comparisons — e.g. === "169323" or pin === "1234"
+  { name: "Hardcoded PIN in comparison", pattern: /(?:pin|passcode|code)\s*(?:===|==|!==|!=)\s*["'][0-9]{4,}/gi },
+  // Catches hardcoded deploy/access tokens assigned as string literals
+  { name: "Hardcoded deploy token", pattern: /(?:deploy[_-]?token|access[_-]?token|auth[_-]?token)\s*[:=]\s*["'][A-Za-z0-9_\-]{8,}/gi },
 ];
 
 const SCAN_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".json", ".env"];
