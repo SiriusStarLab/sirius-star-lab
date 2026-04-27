@@ -107,6 +107,18 @@ app.get("/api/deploy/sirius-mobile-build", (req, res) => {
   res.sendFile(file);
 });
 
+// ── 10b-2. App Store screenshot downloads ────────────────────────────────────
+app.get("/api/deploy/screenshot/:name", (req, res) => {
+  if (req.query.token !== "SIRIUS_DEPLOY_2026_SECURE") return res.status(403).json({ error: "Forbidden" });
+  const allowed = ["appstore_1_chat.png","appstore_2_voice.png","appstore_3_memory.png","appstore_4_wisdom.png","appstore_5_starlab.png"];
+  const name = req.params.name;
+  if (!allowed.includes(name)) return res.status(404).json({ error: "Not found" });
+  const file = path.resolve(`/home/runner/workspace/attached_assets/screenshots/${name}`);
+  res.setHeader("Content-Type", "image/png");
+  res.setHeader("Content-Disposition", `attachment; filename=${name}`);
+  res.sendFile(file);
+});
+
 // ── 10b. Secure self-deploy endpoints (private server pull-update) ────────────
 const DEPLOY_TOKEN = "SIRIUS_DEPLOY_2026_SECURE";
 app.get("/api/deploy/api-dist", (req, res) => {
