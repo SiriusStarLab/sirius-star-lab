@@ -1,5 +1,34 @@
 uploads = []
-generated = []
+
+[[generated]]
+id = "wQ5JE1OjnBQ8x0RvhOiJO"
+uri = "file://attached_assets/screenshots/appstore_1_chat.png"
+type = "image"
+title = "App Store screenshot 1 chat hero"
+
+[[generated]]
+id = "DGDhwBbu8bX5h5EpL_UZ8"
+uri = "file://attached_assets/screenshots/appstore_2_voice.png"
+type = "image"
+title = "App Store screenshot 2 voice"
+
+[[generated]]
+id = "4qRbAR11jTIPECjcM09WB"
+uri = "file://attached_assets/screenshots/appstore_3_memory.png"
+type = "image"
+title = "App Store screenshot 3 memory"
+
+[[generated]]
+id = "FiK9B15sZuzfed53dTPk4"
+uri = "file://attached_assets/screenshots/appstore_4_wisdom.png"
+type = "image"
+title = "App Store screenshot 4 daily wisdom"
+
+[[generated]]
+id = "DRaoYLcgzSu-THancwjFz"
+uri = "file://attached_assets/screenshots/appstore_5_starlab.png"
+type = "image"
+title = "App Store screenshot 5 star lab"
 
 [[outputs]]
 id = "cNdbKNPxY3uJsRbWTNxPd"
@@ -36,3 +65,33 @@ id = "tI0G2lkO4HTIDpyPMbD9N"
 uri = "file://sirius_migration_package.tar.gz"
 type = "unspecified"
 title = "Sirius Migration Package — DB + Setup Scripts"
+
+[[outputs]]
+id = "BvVOCuWWAnWTPvsaA4kRb"
+uri = "file://attached_assets/screenshots/appstore_1_chat.png"
+type = "image"
+title = "Screenshot 1 — AI Chat (Hero)"
+
+[[outputs]]
+id = "jqhEtadRtriq5nijF75cl"
+uri = "file://attached_assets/screenshots/appstore_2_voice.png"
+type = "image"
+title = "Screenshot 2 — Voice"
+
+[[outputs]]
+id = "CrQwJStUbiGWPQVwfkV4V"
+uri = "file://attached_assets/screenshots/appstore_3_memory.png"
+type = "image"
+title = "Screenshot 3 — Memory Portrait"
+
+[[outputs]]
+id = "0zZERSx-wfqOL5T95-FY8"
+uri = "file://attached_assets/screenshots/appstore_4_wisdom.png"
+type = "image"
+title = "Screenshot 4 — Daily Wisdom"
+
+[[outputs]]
+id = "L8g_FWxOoo70u3wgnuFn2"
+uri = "file://attached_assets/screenshots/appstore_5_starlab.png"
+type = "image"
+title = "Screenshot 5 — Star Lab"
