@@ -60,6 +60,14 @@ interface SettingsPanelProps {
 
 export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
   const { profile, isLoading, isSaving, saveProfile } = useProfile();
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [isOpen, onClose]);
+
   const [aiName, setAiName] = useState("");
   const [aiPersonality, setAiPersonality] = useState("");
   const [preferredLanguage, setPreferredLanguage] = useState("auto");
@@ -150,7 +158,7 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
                   <p className="text-xs text-muted-foreground">Shape your partnership</p>
                 </div>
               </div>
-              <Button variant="ghost" size="icon" onClick={onClose}>
+              <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close settings">
                 <X className="w-5 h-5" />
               </Button>
             </div>
