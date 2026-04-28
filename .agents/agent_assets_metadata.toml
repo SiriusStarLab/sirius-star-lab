@@ -95,3 +95,9 @@ id = "L8g_FWxOoo70u3wgnuFn2"
 uri = "file://attached_assets/screenshots/appstore_5_starlab.png"
 type = "image"
 title = "Screen 5 — Star Lab"
+
+[[outputs]]
+id = "QVxCuGHEC_MC1i0wA2pSX"
+uri = "file://attached_assets/sirius_appstore_screenshots.tar.gz"
+type = "unspecified"
+title = "Sirius App Store Screenshots — All Sizes"
