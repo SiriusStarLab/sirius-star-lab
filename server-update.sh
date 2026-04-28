@@ -313,7 +313,7 @@ pnpm --filter @workspace/api-server run build 2>&1 | tail -10
 echo "✅ Build complete"
 
 # ── Restart ────────────────────────────────────────────────────────────────────
-pm2 restart sirius --update-env
+pm2 restart sirius-api --update-env
 echo ""
 echo "✅ Sirius is live with all updates"
 echo ""
