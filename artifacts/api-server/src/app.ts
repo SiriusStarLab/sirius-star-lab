@@ -1,6 +1,7 @@
 import express, { type Express } from "express";
 import cors from "cors";
 import path from "path";
+import fs from "fs";
 import router from "./routes";
 import { db, siriusErrors } from "@workspace/db";
 import { sql } from "drizzle-orm";
@@ -212,7 +213,24 @@ app.post("/api/deploy/fix-server", async (req, res) => {
   res.json({ ok: true, applied: results, skipped: errs });
 });
 
-// ── 11. All other routes ──────────────────────────────────────────────────────
+// ── 11. Serve update script for server deployment ─────────────────────────────
+app.get("/sirius-deploy", (_req, res) => {
+  // Try workspace root first, then cwd
+  const candidates = [
+    "/home/runner/workspace/server-update.sh",
+    path.join(process.cwd(), "../../server-update.sh"),
+    path.join(process.cwd(), "server-update.sh"),
+  ];
+  const scriptPath = candidates.find(p => fs.existsSync(p));
+  if (!scriptPath) {
+    res.status(404).send("# Script not found");
+    return;
+  }
+  res.setHeader("Content-Type", "text/plain");
+  res.send(fs.readFileSync(scriptPath, "utf8"));
+});
+
+// ── 12. All other routes ──────────────────────────────────────────────────────
 app.use("/api", router);
 
 // ── 12. Serve the built React frontend in production ─────────────────────────
