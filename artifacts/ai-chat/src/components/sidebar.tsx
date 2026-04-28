@@ -472,19 +472,6 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession }: Sid
           </span>
         </button>
 
-        <button
-          onClick={() => setIsSettingsOpen(true)}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-all duration-200 text-sm"
-        >
-          <Settings size={15} />
-          <span className="text-[13px]">Configure {aiName}</span>
-          {profile.aiPersonality && (
-            <span className="ml-auto text-[9px] font-mono uppercase tracking-wider px-2 py-0.5 rounded"
-              style={{ background: "hsl(193 100% 52% / 0.1)", color: "hsl(193 100% 52%)", border: "1px solid hsl(193 100% 52% / 0.2)" }}>
-              Custom
-            </span>
-          )}
-        </button>
 
         {/* Legal links */}
         <div className="flex items-center gap-3 px-3 pt-2 pb-1">

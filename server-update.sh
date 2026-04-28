@@ -351,6 +351,31 @@ else:
     print("ℹ️  Dream Lab exit button already patched or pattern not found — skipping")
 PYEOF
 
+# ── Patch Sidebar — remove Configure button ────────────────────────────────────
+python3 - artifacts/ai-chat/src/components/sidebar.tsx << 'PYEOF'
+import sys
+path = sys.argv[1]
+src = open(path).read()
+old = '''        <button
+          onClick={() => setIsSettingsOpen(true)}
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-all duration-200 text-sm"
+        >
+          <Settings size={15} />
+          <span className="text-[13px]">Configure {aiName}</span>
+          {profile.aiPersonality && (
+            <span className="ml-auto text-[9px] font-mono uppercase tracking-wider px-2 py-0.5 rounded"
+              style={{ background: "hsl(193 100% 52% / 0.1)", color: "hsl(193 100% 52%)", border: "1px solid hsl(193 100% 52% / 0.2)" }}>
+              Custom
+            </span>
+          )}
+        </button>'''
+if old in src:
+    open(path, 'w').write(src.replace(old, '', 1))
+    print("✅ Configure button removed from sidebar")
+else:
+    print("ℹ️  Configure button already removed or not found — skipping")
+PYEOF
+
 # ── Build ──────────────────────────────────────────────────────────────────────
 echo "Building API server..."
 pnpm --filter @workspace/api-server run build 2>&1 | tail -10
