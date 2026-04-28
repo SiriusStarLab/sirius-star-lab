@@ -822,12 +822,16 @@ function CompleteAllModal({ project, pin, onClose, onDone }: { project: Project;
   const [running, setRunning] = useState(false);
   const [finished, setFinished] = useState(false);
   const base = getApiBase();
+  const abortRef = useRef<AbortController | null>(null);
 
   const run = async () => {
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
     setRunning(true);
     try {
       const res = await fetch(`${base}lab/projects/${project.id}/complete-all`, {
         method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+        signal: ctrl.signal,
       });
       const reader = res.body!.getReader(); const decoder = new TextDecoder();
       let buf = "";
@@ -857,7 +861,7 @@ function CompleteAllModal({ project, pin, onClose, onDone }: { project: Project;
     setRunning(false);
   };
 
-  useEffect(() => { run(); }, []);
+  useEffect(() => { run(); return () => { abortRef.current?.abort(); }; }, []);
 
   const statusIcon = (status: string) => {
     if (status === "done") return <Check className="w-3.5 h-3.5" style={{ color: "hsl(155,70%,55%)" }} />;
@@ -883,7 +887,7 @@ function CompleteAllModal({ project, pin, onClose, onDone }: { project: Project;
           </div>
           <div className="flex items-center gap-2">
             {finished && <button onClick={() => { onDone(); onClose(); }} className="text-xs px-3 py-1.5 rounded-lg text-slate-800" style={{ background: "hsl(193,100%,35%)" }}>Done</button>}
-            <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors hover:bg-slate-100" title="Close">
+            <button onClick={() => { abortRef.current?.abort(); onClose(); }} className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors hover:bg-slate-100" title="Cancel and close">
               <X className="w-4 h-4 text-slate-400" />
             </button>
           </div>
@@ -16357,7 +16361,6 @@ export function StarLabPage() {
             onNavigate={m => setNavMode(m as NavMode)}
             onOpenProject={id => {
               loadProject(id);
-              setNavMode("projects");
             }}
             onNavigateAndBuild={(section, prompt) => {
               setAppBuilderPreload(prompt);

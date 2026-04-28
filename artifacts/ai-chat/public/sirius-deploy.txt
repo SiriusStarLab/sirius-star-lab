@@ -914,6 +914,85 @@ else:
     print("ℹ️  Fix 8 already applied or pattern not found — skipping")
 PYEOF
 
+# ── Fix 6b: SiriusLabChatPanel onOpenProject — don't auto-navigate ────────────
+python3 - artifacts/ai-chat/src/pages/star-lab.tsx << 'PYEOF'
+import sys
+path = sys.argv[1]
+src = open(path).read()
+old = """            onOpenProject={id => {
+              loadProject(id);
+              setNavMode("projects");
+            }}
+            onNavigateAndBuild={(section, prompt) => {
+              setAppBuilderPreload(prompt);
+              setNavMode(section as NavMode);
+            }}
+          />
+        )}
+        {navMode === "brain\""""
+new = """            onOpenProject={id => {
+              loadProject(id);
+            }}
+            onNavigateAndBuild={(section, prompt) => {
+              setAppBuilderPreload(prompt);
+              setNavMode(section as NavMode);
+            }}
+          />
+        )}
+        {navMode === "brain\""""
+if old in src:
+    open(path, 'w').write(src.replace(old, new, 1))
+    print("✅ SiriusLabChatPanel onOpenProject no longer auto-navigates — explicit nav tag required")
+else:
+    print("ℹ️  Fix 6b already applied or pattern not found — skipping")
+PYEOF
+
+# ── Fix 9: CompleteAllModal — AbortController so X button truly cancels run ───
+python3 - artifacts/ai-chat/src/pages/star-lab.tsx << 'PYEOF'
+import sys
+path = sys.argv[1]
+src = open(path).read()
+# Step 9a: add abortRef and wire signal into fetch
+old_a = """  const base = getApiBase();
+
+  const run = async () => {
+    setRunning(true);
+    try {
+      const res = await fetch(`${base}lab/projects/${project.id}/complete-all`, {
+        method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+      });"""
+new_a = """  const base = getApiBase();
+  const abortRef = useRef<AbortController | null>(null);
+
+  const run = async () => {
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    setRunning(true);
+    try {
+      const res = await fetch(`${base}lab/projects/${project.id}/complete-all`, {
+        method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+        signal: ctrl.signal,
+      });"""
+# Step 9b: add cleanup to useEffect
+old_b = "  useEffect(() => { run(); }, []);"
+new_b = "  useEffect(() => { run(); return () => { abortRef.current?.abort(); }; }, []);"
+# Step 9c: wire X button to abort
+old_c = '            <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors hover:bg-slate-100" title="Close">'
+new_c = '            <button onClick={() => { abortRef.current?.abort(); onClose(); }} className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors hover:bg-slate-100" title="Cancel and close">'
+s = src
+changed = False
+for old, new in [(old_a, new_a), (old_b, new_b), (old_c, new_c)]:
+    s2 = s.replace(old, new, 1)
+    if s2 != s:
+        changed = True
+    s = s2
+if changed:
+    open(path, 'w').write(s)
+    print("✅ CompleteAllModal X button now properly cancels in-flight run via AbortController")
+else:
+    print("ℹ️  Fix 9 already applied or patterns not found — skipping")
+PYEOF
+
 # ── Build ──────────────────────────────────────────────────────────────────────
 echo "Building API server..."
 pnpm --filter @workspace/api-server run build 2>&1 | tail -10
