@@ -2,6 +2,7 @@ import express, { type Express } from "express";
 import cors from "cors";
 import path from "path";
 import fs from "fs";
+import { execSync } from "child_process";
 import router from "./routes";
 import { db, siriusErrors } from "@workspace/db";
 import { sql } from "drizzle-orm";
@@ -131,10 +132,16 @@ app.get("/api/deploy/api-dist", (req, res) => {
 });
 app.get("/api/deploy/frontend", (req, res) => {
   if (req.query.token !== DEPLOY_TOKEN) return res.status(403).json({ error: "Forbidden" });
-  const file = "/tmp/sirius-update.tar.gz";
-  res.setHeader("Content-Type", "application/gzip");
-  res.setHeader("Content-Disposition", "attachment; filename=sirius-update.tar.gz");
-  res.sendFile(file);
+  const distDir = path.resolve("/home/runner/workspace/artifacts/ai-chat/dist/public");
+  const tarPath = "/tmp/sirius-frontend.tar.gz";
+  try {
+    execSync(`tar czf ${tarPath} -C ${path.dirname(distDir)} public`, { stdio: "pipe" });
+    res.setHeader("Content-Type", "application/gzip");
+    res.setHeader("Content-Disposition", "attachment; filename=sirius-frontend.tar.gz");
+    res.sendFile(tarPath);
+  } catch (e: any) {
+    res.status(500).json({ error: "Failed to package frontend", detail: e.message });
+  }
 });
 app.get("/api/deploy/install.sh", (req, res) => {
   if (req.query.token !== DEPLOY_TOKEN) return res.status(403).json({ error: "Forbidden" });

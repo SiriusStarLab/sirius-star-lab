@@ -1048,9 +1048,17 @@ else
   echo "⚠️  Replit unreachable — using locally-built API (may be missing recent changes)"
 fi
 
-echo "Building frontend..."
-pnpm --filter @workspace/ai-chat run build 2>&1 | tail -10
-echo "✅ Frontend build complete"
+echo "Downloading pre-built frontend from Replit..."
+if curl -sfL --max-time 60 "${REPLIT_BASE}/api/deploy/frontend?token=${DEPLOY_TOKEN}" -o /tmp/sirius-frontend.tar.gz; then
+  rm -rf artifacts/ai-chat/dist/public
+  mkdir -p artifacts/ai-chat/dist
+  tar xzf /tmp/sirius-frontend.tar.gz -C artifacts/ai-chat/dist/
+  echo "✅ Pre-built frontend installed (all latest fixes included)"
+else
+  echo "⚠️  Frontend download failed — building from source..."
+  pnpm --filter @workspace/ai-chat run build 2>&1 | tail -10
+  echo "✅ Frontend built from source"
+fi
 
 # ── Restart ────────────────────────────────────────────────────────────────────
 pm2 restart sirius-api --update-env
