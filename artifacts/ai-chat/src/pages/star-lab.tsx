@@ -12753,6 +12753,7 @@ function LabFloatingChat({ pin, navMode, activeProject, onNavigate, onOpenProjec
   const [unread, setUnread] = React.useState(false);
   const [voicePhase, setVoicePhase] = React.useState<"idle" | "listening" | "speaking">("idle");
   const [waveTick, setWaveTick] = React.useState(0);
+  const [pendingOpen, setPendingOpen] = React.useState<{ id: number; name: string } | null>(null);
   const [floatTextInput, setFloatTextInput] = React.useState("");
   const [queuedFloatMsg, setQueuedFloatMsg] = React.useState("");
   const floatInputRef = React.useRef<HTMLInputElement>(null);
@@ -12904,6 +12905,7 @@ function LabFloatingChat({ pin, navMode, activeProject, onNavigate, onOpenProjec
   const sendVoice = async (text: string) => {
     if (!text) return;
     if (streaming) { setQueuedFloatMsg(text); return; }
+    setPendingOpen(null);
     // Always stop any existing voice recognition before sending so sessions don't collide
     stopListeningNow();
     const newMsg = { role: "user" as const, content: text };
@@ -12940,7 +12942,7 @@ function LabFloatingChat({ pin, navMode, activeProject, onNavigate, onOpenProjec
           const projects = Array.isArray(data) ? data : (data.projects ?? []);
           if (projects.length > 0) {
             const found = projects[0];
-            const reply = `Opening "${found.name}" now.`;
+            const reply = `Found "${found.name}". Open it?`;
             setMessages(prev => [...prev.slice(0, -1), { role: "assistant", content: reply }]);
             stoppedRef.current = true;
             stopListeningNow();
@@ -12948,8 +12950,7 @@ function LabFloatingChat({ pin, navMode, activeProject, onNavigate, onOpenProjec
             setVoicePhase("speaking");
             speakText(reply, () => {
               setVoicePhase("idle");
-              onNavigate("projects");
-              setTimeout(() => { onOpenProject!(found.id); setOpen(false); }, 300);
+              setPendingOpen({ id: found.id, name: found.name });
             });
             return;
           }
@@ -13038,8 +13039,12 @@ VOICE STYLE: Short, direct sentences. No bullet points or markdown. Report what 
                 stoppedRef.current = true;
                 stopListeningNow();
                 onNavigate(evt.section as NavMode);
-                if (evt.projectId && onOpenProject) setTimeout(() => onOpenProject!(evt.projectId), 300);
-                setTimeout(() => setOpen(false), 600);
+                if (evt.projectId && onOpenProject) {
+                  const pName = streamText.match(/"([^"]+)"/)?.[1] ?? `project #${evt.projectId}`;
+                  setPendingOpen({ id: evt.projectId, name: pName });
+                } else {
+                  setTimeout(() => setOpen(false), 600);
+                }
               }
             }
             if (evt.type === "navigate_and_build") {
@@ -13193,6 +13198,37 @@ VOICE STYLE: Short, direct sentences. No bullet points or markdown. Report what 
             )}
             <div ref={bottomRef} />
           </div>
+
+          {/* Pending open-project confirmation */}
+          {pendingOpen && (
+            <div className="flex-shrink-0 mx-3 mb-2 px-3 py-2.5 rounded-xl flex items-center justify-between gap-3"
+              style={{ background: "rgba(0,198,255,0.07)", border: "1px solid rgba(0,198,255,0.2)" }}>
+              <div className="flex items-center gap-2 min-w-0">
+                <FolderOpen className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "hsl(193,100%,40%)" }} />
+                <p className="text-xs font-medium truncate" style={{ color: "rgba(15,23,42,0.8)" }}>
+                  Open "{pendingOpen.name}"?
+                </p>
+              </div>
+              <div className="flex gap-1.5 flex-shrink-0">
+                <button
+                  onClick={() => {
+                    if (onOpenProject) onOpenProject(pendingOpen.id);
+                    setPendingOpen(null);
+                    setTimeout(() => setOpen(false), 400);
+                  }}
+                  className="text-xs px-3 py-1 rounded-lg font-semibold text-white transition-all active:scale-95"
+                  style={{ background: "hsl(193,100%,35%)" }}>
+                  Open
+                </button>
+                <button
+                  onClick={() => setPendingOpen(null)}
+                  className="text-xs px-2 py-1 rounded-lg transition-all active:scale-95"
+                  style={{ background: "rgba(15,23,42,0.06)", color: "rgba(15,23,42,0.5)" }}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Combined input bar: text field + voice button */}
           <div className="flex-shrink-0" style={{ background: "#fff", borderTop: "1px solid rgba(15,23,42,0.07)" }}>

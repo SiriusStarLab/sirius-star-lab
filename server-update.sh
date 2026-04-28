@@ -990,6 +990,47 @@ else:
     print("ℹ️  Fix 9 already applied or patterns not found — skipping")
 PYEOF
 
+# ── Fix 10: Confirm before opening project (Tasks 5+6 — voice & AI tool guard) ─
+python3 - artifacts/ai-chat/src/pages/star-lab.tsx << 'PYEOF'
+import sys
+path = sys.argv[1]
+src = open(path).read()
+patches = [
+  (
+    '  const [waveTick, setWaveTick] = React.useState(0);\n  const [floatTextInput, setFloatTextInput] = React.useState("");',
+    '  const [waveTick, setWaveTick] = React.useState(0);\n  const [pendingOpen, setPendingOpen] = React.useState<{ id: number; name: string } | null>(null);\n  const [floatTextInput, setFloatTextInput] = React.useState("");'
+  ),
+  (
+    '  const sendVoice = async (text: string) => {\n    if (!text) return;\n    if (streaming) { setQueuedFloatMsg(text); return; }\n    // Always stop any existing voice recognition before sending so sessions don\'t collide\n    stopListeningNow();',
+    '  const sendVoice = async (text: string) => {\n    if (!text) return;\n    if (streaming) { setQueuedFloatMsg(text); return; }\n    setPendingOpen(null);\n    // Always stop any existing voice recognition before sending so sessions don\'t collide\n    stopListeningNow();'
+  ),
+  (
+    '            const reply = `Opening "${found.name}" now.`;\n            setMessages(prev => [...prev.slice(0, -1), { role: "assistant", content: reply }]);\n            stoppedRef.current = true;\n            stopListeningNow();\n            setStreaming(false);\n            setVoicePhase("speaking");\n            speakText(reply, () => {\n              setVoicePhase("idle");\n              onNavigate("projects");\n              setTimeout(() => { onOpenProject!(found.id); setOpen(false); }, 300);\n            });\n            return;',
+    '            const reply = `Found "${found.name}". Open it?`;\n            setMessages(prev => [...prev.slice(0, -1), { role: "assistant", content: reply }]);\n            stoppedRef.current = true;\n            stopListeningNow();\n            setStreaming(false);\n            setVoicePhase("speaking");\n            speakText(reply, () => {\n              setVoicePhase("idle");\n              setPendingOpen({ id: found.id, name: found.name });\n            });\n            return;'
+  ),
+  (
+    '            if (evt.type === "navigate") {\n              if (evt.section) {\n                stoppedRef.current = true;\n                stopListeningNow();\n                onNavigate(evt.section as NavMode);\n                if (evt.projectId && onOpenProject) setTimeout(() => onOpenProject!(evt.projectId), 300);\n                setTimeout(() => setOpen(false), 600);\n              }\n            }',
+    '            if (evt.type === "navigate") {\n              if (evt.section) {\n                stoppedRef.current = true;\n                stopListeningNow();\n                onNavigate(evt.section as NavMode);\n                if (evt.projectId && onOpenProject) {\n                  const pName = streamText.match(/"([^"]+)"/)?.[1] ?? `project #${evt.projectId}`;\n                  setPendingOpen({ id: evt.projectId, name: pName });\n                } else {\n                  setTimeout(() => setOpen(false), 600);\n                }\n              }\n            }'
+  ),
+  (
+    '          {/* Combined input bar: text field + voice button */}\n          <div className="flex-shrink-0" style={{ background: "#fff", borderTop: "1px solid rgba(15,23,42,0.07)" }}>\n            {/* Text input row */}\n            <div className="flex items-center gap-2 px-3 py-2">',
+    '          {/* Pending open-project confirmation */}\n          {pendingOpen && (\n            <div className="flex-shrink-0 mx-3 mb-2 px-3 py-2.5 rounded-xl flex items-center justify-between gap-3"\n              style={{ background: "rgba(0,198,255,0.07)", border: "1px solid rgba(0,198,255,0.2)" }}>\n              <div className="flex items-center gap-2 min-w-0">\n                <FolderOpen className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "hsl(193,100%,40%)" }} />\n                <p className="text-xs font-medium truncate" style={{ color: "rgba(15,23,42,0.8)" }}>\n                  Open "{pendingOpen.name}"?\n                </p>\n              </div>\n              <div className="flex gap-1.5 flex-shrink-0">\n                <button\n                  onClick={() => {\n                    if (onOpenProject) onOpenProject(pendingOpen.id);\n                    setPendingOpen(null);\n                    setTimeout(() => setOpen(false), 400);\n                  }}\n                  className="text-xs px-3 py-1 rounded-lg font-semibold text-white transition-all active:scale-95"\n                  style={{ background: "hsl(193,100%,35%)" }}>\n                  Open\n                </button>\n                <button\n                  onClick={() => setPendingOpen(null)}\n                  className="text-xs px-2 py-1 rounded-lg transition-all active:scale-95"\n                  style={{ background: "rgba(15,23,42,0.06)", color: "rgba(15,23,42,0.5)" }}>\n                  Cancel\n                </button>\n              </div>\n            </div>\n          )}\n\n          {/* Combined input bar: text field + voice button */}\n          <div className="flex-shrink-0" style={{ background: "#fff", borderTop: "1px solid rgba(15,23,42,0.07)" }}>\n            {/* Text input row */}\n            <div className="flex items-center gap-2 px-3 py-2">'
+  ),
+]
+s = src
+changed = False
+for old, new in patches:
+    s2 = s.replace(old, new, 1)
+    if s2 != s:
+        changed = True
+    s = s2
+if changed:
+    open(path, 'w').write(s)
+    print("✅ Fix 10: Floating chat now asks 'Open it?' before navigating to any project")
+else:
+    print("ℹ️  Fix 10 already applied or patterns not found — skipping")
+PYEOF
+
 # ── Build ──────────────────────────────────────────────────────────────────────
 echo "Building API server..."
 pnpm --filter @workspace/api-server run build 2>&1 | tail -10
