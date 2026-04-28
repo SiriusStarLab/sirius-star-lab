@@ -1,7 +1,7 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { db } from "@workspace/db";
 import { paymentRequestsTable, userProfilesTable, siriusNotifications } from "@workspace/db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and, inArray } from "drizzle-orm";
 
 const router = Router();
 
@@ -43,13 +43,49 @@ router.post("/payment/request", async (req, res) => {
     if (!userId || !tier || !PRICES[tier]) {
       return res.status(400).json({ error: "userId and valid tier required" });
     }
-    const price = PRICES[tier];
-    const reference = `SIRIUS-${userId.substring(0, 8).toUpperCase()}-${tier.toUpperCase()}`;
 
+    const price = PRICES[tier];
+    const who = name ? `${name}${email ? ` (${email})` : ""}` : email || `User ${userId.substring(0, 8)}`;
+
+    // ── Abuse checks ────────────────────────────────────────────────────────────
+
+    // Pull the full payment history for this userId
+    const history = await db.select().from(paymentRequestsTable)
+      .where(eq(paymentRequestsTable.userId, userId))
+      .orderBy(desc(paymentRequestsTable.createdAt));
+
+    // 1. Block if they already have an active unconfirmed payment right now
+    const activePayment = history.find(p => p.status === "activated");
+    if (activePayment) {
+      return res.status(400).json({
+        error: "You already have a pending subscription request. Your account will be activated once your transfer is confirmed, or automatically cancelled after 48 hours if no payment arrives.",
+      });
+    }
+
+    // 2. Count how many times they've had payments expire or get rejected
+    const badHistory = history.filter(p => p.status === "expired" || p.status === "rejected");
+
+    // Hard block — two or more failures → locked out, Garry notified
+    if (badHistory.length >= 2) {
+      await db.insert(siriusNotifications).values({
+        title: `🚫 Blocked subscription attempt — repeat offender`,
+        message: `${who} (userId: ${userId.substring(0, 8)}) tried to sign up for ${price.label} but has been blocked.\n\nThey have ${badHistory.length} previous expired/rejected payment(s) on record. Their account has NOT been upgraded.\n\nIf this is a genuine customer, you can manually confirm a payment in Star Lab to unlock them.`,
+        type: "payment",
+        urgency: "high",
+        read: false,
+        sentEmail: false,
+      });
+      return res.status(403).json({
+        error: "We were unable to process your subscription request. Please contact support.",
+      });
+    }
+
+    // ── All checks passed — proceed with activation ──────────────────────────
+
+    const reference = `SIRIUS-${userId.substring(0, 8).toUpperCase()}-${tier.toUpperCase()}`;
     const now = new Date();
     const expiresAt = new Date(now.getTime() + EXPIRY_HOURS * 60 * 60 * 1000);
 
-    // Log the request with 48-hour expiry window
     await db.insert(paymentRequestsTable).values({
       userId, tier, amount: price.amount, name, email, note, reference,
       status: "activated",
@@ -65,13 +101,19 @@ router.post("/payment/request", async (req, res) => {
         set: { subscriptionTier: tier },
       });
 
-    // Star Lab notification for Garry
-    const who = name ? `${name}${email ? ` (${email})` : ""}` : email || `User ${userId.substring(0, 8)}`;
+    // Star Lab notification — flag if this is a first-time suspect (1 prior failure)
+    const isFirstOffender = badHistory.length === 1;
+    const warningLine = isFirstOffender
+      ? `\n\n⚠️ WARNING: This user had a previous payment that expired or was rejected. Watch this one closely.`
+      : "";
+
     await db.insert(siriusNotifications).values({
-      title: `💰 New subscription — ${price.label}`,
-      message: `${who} has subscribed to ${price.label} (${price.amount}/month).\n\nReference: ${reference}\nCheck your Mettle account and confirm the transfer in Star Lab within 48 hours, or their account will automatically revert to free.`,
+      title: isFirstOffender
+        ? `⚠️ New subscription (flagged) — ${price.label}`
+        : `💰 New subscription — ${price.label}`,
+      message: `${who} has subscribed to ${price.label} (${price.amount}/month).\n\nReference: ${reference}\nCheck your Mettle account and confirm the transfer in Star Lab within 48 hours, or their account will automatically revert to free.${warningLine}`,
       type: "payment",
-      urgency: "high",
+      urgency: isFirstOffender ? "high" : "high",
       read: false,
       sentEmail: false,
     });
@@ -100,6 +142,11 @@ router.post("/payment/:id/confirm", labPinGuard, async (req, res) => {
       .set({ status: "confirmed", confirmedAt: new Date() })
       .where(eq(paymentRequestsTable.id, id));
 
+    // If the account was expired/downgraded, restore it now that Garry confirmed manually
+    await db.update(userProfilesTable)
+      .set({ subscriptionTier: payment.tier })
+      .where(eq(userProfilesTable.userId, payment.userId));
+
     return res.json({ ok: true });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
@@ -118,7 +165,7 @@ router.get("/payment/all", labPinGuard, async (_req, res) => {
   }
 });
 
-// GET /api/payment/pending — kept for backwards compat (now returns "activated" ones for review), PIN-protected
+// GET /api/payment/pending — kept for backwards compat, PIN-protected
 router.get("/payment/pending", labPinGuard, async (_req, res) => {
   try {
     const rows = await db.select().from(paymentRequestsTable)
