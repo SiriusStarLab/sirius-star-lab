@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Colors from "@/constants/colors";
-import { Conversation, deleteConversation, fetchConversations } from "@/lib/api";
+import { Conversation, deleteConversation, fetchConversations, getUserId } from "@/lib/api";
 
 function ConversationItem({
   item,
@@ -69,7 +69,10 @@ export default function HistoryScreen() {
 
   const { data: conversations = [], isLoading, refetch, isRefetching } = useQuery({
     queryKey: ["conversations"],
-    queryFn: fetchConversations,
+    queryFn: async () => {
+      const uid = await getUserId();
+      return fetchConversations(uid);
+    },
     staleTime: 30_000,
   });
 

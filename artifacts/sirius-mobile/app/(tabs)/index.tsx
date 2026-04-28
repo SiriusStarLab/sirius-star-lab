@@ -99,7 +99,7 @@ export default function ChatScreen() {
     try {
       let activeId = conversationId;
       if (!activeId) {
-        const convo = await createConversation(text.slice(0, 60));
+        const convo = await createConversation(text.slice(0, 60), userId ?? undefined);
         activeId = convo.id;
         setConversationId(activeId);
       }
@@ -120,6 +120,17 @@ export default function ChatScreen() {
         }
       );
 
+      if (response.status === 429) {
+        const errData = await response.json().catch(() => ({}));
+        const tier = (errData as any)?.tier ?? "free";
+        const limitMsg = tier === "free"
+          ? "You've reached your 30 free messages today. Upgrade to Plus for 200/day, or Pro for unlimited."
+          : "You've reached your daily message limit. Upgrade to Pro for unlimited messages.";
+        setMessages(prev => [...prev, { id: generateId(), role: "assistant" as const, content: limitMsg }]);
+        setIsStreaming(false);
+        setShowTyping(false);
+        return;
+      }
       if (!response.ok) throw new Error("Stream failed");
 
       const reader = response.body?.getReader();

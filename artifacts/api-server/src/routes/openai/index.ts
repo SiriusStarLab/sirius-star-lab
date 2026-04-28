@@ -755,12 +755,18 @@ Rules:
   }
 }
 
-router.get("/openai/conversations", async (_req, res): Promise<void> => {
-  const conversations = await db
-    .select()
-    .from(conversationsTable)
-    .orderBy(conversationsTable.createdAt);
-  res.json(conversations);
+router.get("/openai/conversations", async (req, res): Promise<void> => {
+  const userId = req.query.userId as string | undefined;
+  const query = db.select().from(conversationsTable);
+  if (userId) {
+    const conversations = await query
+      .where(eq(conversationsTable.userId, userId))
+      .orderBy(conversationsTable.createdAt);
+    res.json(conversations);
+  } else {
+    const conversations = await query.orderBy(conversationsTable.createdAt);
+    res.json(conversations);
+  }
 });
 
 router.post("/openai/conversations", async (req, res): Promise<void> => {
@@ -770,9 +776,10 @@ router.post("/openai/conversations", async (req, res): Promise<void> => {
     return;
   }
 
+  const userId = (req.body as any).userId as string | undefined;
   const [conversation] = await db
     .insert(conversationsTable)
-    .values({ title: parsed.data.title })
+    .values({ title: parsed.data.title, userId: userId ?? null })
     .returning();
 
   res.status(201).json(conversation);

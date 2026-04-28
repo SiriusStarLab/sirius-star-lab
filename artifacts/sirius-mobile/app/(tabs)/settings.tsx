@@ -396,7 +396,7 @@ export default function SettingsScreen() {
                   ["Account number", BANK.account],
                   ["Sort code", BANK.sortCode],
                   ["Amount", PRICES[payTier]],
-                  ["Reference", `SIRIUS-${userId.substring(0, 8).toUpperCase()}-${payTier.toUpperCase()}`],
+                  ["Reference", `SIRIUS-${(userId ?? "GUEST").substring(0, 8).toUpperCase()}-${payTier.toUpperCase()}`],
                 ].map(([label, value]) => (
                   <View key={label} style={{
                     flexDirection: "row", justifyContent: "space-between",

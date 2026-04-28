@@ -52,19 +52,22 @@ export interface Conversation {
   createdAt: string;
 }
 
-export async function fetchConversations(): Promise<Conversation[]> {
+export async function fetchConversations(userId?: string): Promise<Conversation[]> {
   const base = getApiBase();
-  const res = await fetch(`${base}openai/conversations`);
+  const url = userId
+    ? `${base}openai/conversations?userId=${encodeURIComponent(userId)}`
+    : `${base}openai/conversations`;
+  const res = await fetch(url);
   if (!res.ok) throw new Error("Failed to fetch conversations");
   return res.json();
 }
 
-export async function createConversation(title: string): Promise<Conversation> {
+export async function createConversation(title: string, userId?: string): Promise<Conversation> {
   const base = getApiBase();
   const res = await fetch(`${base}openai/conversations`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ title }),
+    body: JSON.stringify({ title, userId }),
   });
   if (!res.ok) throw new Error("Failed to create conversation");
   return res.json();
