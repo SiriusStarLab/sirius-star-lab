@@ -13545,7 +13545,7 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
         setTimeout(() => onNavigate!(navTagMatch[1].trim() as NavMode), 200);
       }
       if (openProjectMatches.length > 0) {
-        // Open the first mentioned project — do NOT auto-navigate away from current page
+        if (onNavigate) setTimeout(() => onNavigate!("projects"), 200);
         if (onOpenProject) {
           const firstId = parseInt(openProjectMatches[0][1], 10);
           if (!isNaN(firstId)) setTimeout(() => onOpenProject!(firstId), 500);

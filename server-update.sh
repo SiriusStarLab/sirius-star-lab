@@ -770,6 +770,32 @@ else:
     print("ℹ️  Panel state fix already applied or pattern not found — skipping")
 PYEOF
 
+# ── Fix 5b: Restore project navigation (onNavigate + onOpenProject together) ───
+python3 - artifacts/ai-chat/src/pages/star-lab.tsx << 'PYEOF'
+import sys
+path = sys.argv[1]
+src = open(path).read()
+old = '''      if (openProjectMatches.length > 0) {
+        // Open the first mentioned project — do NOT auto-navigate away from current page
+        if (onOpenProject) {
+          const firstId = parseInt(openProjectMatches[0][1], 10);
+          if (!isNaN(firstId)) setTimeout(() => onOpenProject!(firstId), 500);
+        }
+      }'''
+new = '''      if (openProjectMatches.length > 0) {
+        if (onNavigate) setTimeout(() => onNavigate!("projects"), 200);
+        if (onOpenProject) {
+          const firstId = parseInt(openProjectMatches[0][1], 10);
+          if (!isNaN(firstId)) setTimeout(() => onOpenProject!(firstId), 500);
+        }
+      }'''
+if old in src:
+    open(path, 'w').write(src.replace(old, new, 1))
+    print("✅ Project navigation restored")
+else:
+    print("ℹ️  Project navigation already restored or pattern not found — skipping")
+PYEOF
+
 # ── Fix 5: Chat uses localStorage so conversations survive browser close ────────
 python3 - artifacts/ai-chat/src/pages/star-lab.tsx << 'PYEOF'
 import sys, re
