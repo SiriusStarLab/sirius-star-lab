@@ -6,6 +6,7 @@ import {
   Settings, ArrowLeft, Zap, Moon, Sun, Target, TrendingUp, Smile,
   Globe, RefreshCw, Edit3, Check, Wand2
 } from "lucide-react";
+import { useLocation } from "wouter";
 import { getUserId } from "@/lib/user-id";
 import { getApiBase } from "@/lib/api-base";
 
@@ -125,6 +126,7 @@ function useApi() {
 type DreamView = "board" | "idea-detail" | "manifestations" | "journal" | "settings" | "chat" | "onboard";
 
 export function DreamLabPage() {
+  const [, setLocation] = useLocation();
   const [profile, setProfile] = useState<DreamProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<DreamView>("board");
@@ -183,7 +185,14 @@ export function DreamLabPage() {
         style={{ borderBottom: `1px solid ${T.border}`, background: `rgba(0,0,0,${isPearl ? "0.03" : "0.3"})`, backdropFilter: "blur(20px)" }}>
 
         <div className="flex items-center gap-3">
-          {(view !== "board" && view !== "onboard") && (
+          {(view === "board" || view === "onboard") ? (
+            <button onClick={() => setLocation("/")}
+              title="Back to Sirius"
+              className="flex items-center justify-center w-8 h-8 rounded-xl transition-all"
+              style={{ background: T.soft, color: T.accent }}>
+              <X className="w-4 h-4" />
+            </button>
+          ) : (
             <button onClick={() => { setView("board"); setSelectedIdea(null); }}
               className="flex items-center justify-center w-8 h-8 rounded-xl transition-all"
               style={{ background: T.soft, color: T.accent }}>

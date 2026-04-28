@@ -307,10 +307,58 @@ cd lib/db && npm run push 2>&1 | tail -5
 cd /opt/sirius
 echo "✅ DB schema pushed"
 
+# ── Patch Dream Lab — exit button ──────────────────────────────────────────────
+DREAM=artifacts/ai-chat/src/pages/dream-lab.tsx
+
+# 1. Add wouter import if not already present
+grep -q 'from "wouter"' "$DREAM" || \
+  sed -i 's|import { getUserId } from "@/lib/user-id";|import { useLocation } from "wouter";\nimport { getUserId } from "@/lib/user-id";|' "$DREAM"
+
+# 2. Add useLocation hook inside DreamLabPage if not already present
+grep -q 'setLocation' "$DREAM" || \
+  sed -i 's|export function DreamLabPage() {|export function DreamLabPage() {\n  const [, setLocation] = useLocation();|' "$DREAM"
+
+# 3. Replace the old conditional back button with exit+back logic
+python3 - "$DREAM" << 'PYEOF'
+import sys, re
+path = sys.argv[1]
+src = open(path).read()
+old = '''          {(view !== "board" && view !== "onboard") && (
+            <button onClick={() => { setView("board"); setSelectedIdea(null); }}
+              className="flex items-center justify-center w-8 h-8 rounded-xl transition-all"
+              style={{ background: T.soft, color: T.accent }}>
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+          )}'''
+new = '''          {(view === "board" || view === "onboard") ? (
+            <button onClick={() => setLocation("/")}
+              title="Back to Sirius"
+              className="flex items-center justify-center w-8 h-8 rounded-xl transition-all"
+              style={{ background: T.soft, color: T.accent }}>
+              <X className="w-4 h-4" />
+            </button>
+          ) : (
+            <button onClick={() => { setView("board"); setSelectedIdea(null); }}
+              className="flex items-center justify-center w-8 h-8 rounded-xl transition-all"
+              style={{ background: T.soft, color: T.accent }}>
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+          )}'''
+if old in src:
+    open(path, 'w').write(src.replace(old, new, 1))
+    print("✅ Dream Lab exit button patched")
+else:
+    print("ℹ️  Dream Lab exit button already patched or pattern not found — skipping")
+PYEOF
+
 # ── Build ──────────────────────────────────────────────────────────────────────
-echo "Building..."
+echo "Building API server..."
 pnpm --filter @workspace/api-server run build 2>&1 | tail -10
-echo "✅ Build complete"
+echo "✅ API build complete"
+
+echo "Building frontend..."
+pnpm --filter @workspace/ai-chat run build 2>&1 | tail -10
+echo "✅ Frontend build complete"
 
 # ── Restart ────────────────────────────────────────────────────────────────────
 pm2 restart sirius-api --update-env
