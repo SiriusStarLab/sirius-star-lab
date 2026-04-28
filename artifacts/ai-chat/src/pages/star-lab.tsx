@@ -16,6 +16,7 @@ import {
   LayoutDashboard, ArrowLeft, Clock, Award, Layers3, Share, Keyboard, CornerDownLeft, Search,
   Archive
 } from "lucide-react";
+import { useLocation } from "wouter";
 import { getApiBase } from "@/lib/api-base";
 import { AiArchContent } from "@/pages/ai-architecture";
 
@@ -15606,6 +15607,7 @@ function AiArchLabPanel({ pin, projects, onNavigate, onOpenProject }: {
 type FundingAlert = { id: string; projectName: string; count: number; timestamp: number };
 
 export function StarLabPage() {
+  const [, setLocation] = useLocation();
   const [unlocked, setUnlocked] = useState(false);
   const [showGreeting, setShowGreeting] = useState(false);
   const [pin, setPin] = useState("");
@@ -16044,6 +16046,16 @@ export function StarLabPage() {
               }
             </div>
             {!isGuest && <NotificationBell pin={pin} />}
+            <button
+              onClick={() => setLocation("/")}
+              title="Back to Sirius"
+              className="flex items-center justify-center w-7 h-7 rounded-lg transition-all flex-shrink-0"
+              style={{ background: "rgba(15,23,42,0.05)", color: "rgba(15,23,42,0.35)" }}
+              onMouseEnter={e => { e.currentTarget.style.background = "rgba(15,23,42,0.1)"; e.currentTarget.style.color = "rgba(15,23,42,0.7)"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "rgba(15,23,42,0.05)"; e.currentTarget.style.color = "rgba(15,23,42,0.35)"; }}
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
           </div>
           {isGuest && (
             <div className="mt-2.5 px-2 py-1.5 rounded-lg text-xs leading-snug" style={{ background: "hsl(45,90%,45%,0.1)", border: "1px solid hsl(45,90%,45%,0.2)", color: "hsl(45,90%,65%)" }}>

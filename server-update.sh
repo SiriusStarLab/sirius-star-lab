@@ -351,6 +351,42 @@ else:
     print("ℹ️  Dream Lab exit button already patched or pattern not found — skipping")
 PYEOF
 
+# ── Patch Star Lab — add exit button ───────────────────────────────────────────
+STARLAB=artifacts/ai-chat/src/pages/star-lab.tsx
+
+# 1. Add wouter import
+grep -q 'from "wouter"' "$STARLAB" || \
+  sed -i 's|import { getApiBase } from "@/lib/api-base";|import { useLocation } from "wouter";\nimport { getApiBase } from "@/lib/api-base";|' "$STARLAB"
+
+# 2. Add useLocation hook
+grep -q 'setLocation.*useLocation' "$STARLAB" || \
+  sed -i 's|export function StarLabPage() {|export function StarLabPage() {\n  const [, setLocation] = useLocation();|' "$STARLAB"
+
+# 3. Add exit button next to NotificationBell
+python3 - "$STARLAB" << 'PYEOF'
+import sys
+path = sys.argv[1]
+src = open(path).read()
+old = '            {!isGuest && <NotificationBell pin={pin} />}\n          </div>'
+new = '''            {!isGuest && <NotificationBell pin={pin} />}
+            <button
+              onClick={() => setLocation("/")}
+              title="Back to Sirius"
+              className="flex items-center justify-center w-7 h-7 rounded-lg transition-all flex-shrink-0"
+              style={{ background: "rgba(15,23,42,0.05)", color: "rgba(15,23,42,0.35)" }}
+              onMouseEnter={e => { e.currentTarget.style.background = "rgba(15,23,42,0.1)"; e.currentTarget.style.color = "rgba(15,23,42,0.7)"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "rgba(15,23,42,0.05)"; e.currentTarget.style.color = "rgba(15,23,42,0.35)"; }}
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>'''
+if old in src:
+    open(path, 'w').write(src.replace(old, new, 1))
+    print("✅ Star Lab exit button added")
+else:
+    print("ℹ️  Star Lab exit button already present or pattern not found — skipping")
+PYEOF
+
 # ── Patch Sidebar — remove Configure button ────────────────────────────────────
 python3 - artifacts/ai-chat/src/components/sidebar.tsx << 'PYEOF'
 import sys
