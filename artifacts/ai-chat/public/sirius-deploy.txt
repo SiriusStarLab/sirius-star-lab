@@ -810,6 +810,110 @@ else:
     print("ℹ️  Chat localStorage fix already applied — skipping")
 PYEOF
 
+# ── Fix 6: Remove redundant onNavigate("projects") from openProjectMatches ──────
+python3 - artifacts/ai-chat/src/pages/star-lab.tsx << 'PYEOF'
+import sys
+path = sys.argv[1]
+src = open(path).read()
+old = """      if (openProjectMatches.length > 0) {
+        if (onNavigate) setTimeout(() => onNavigate!("projects"), 200);
+        if (onOpenProject) {
+          const firstId = parseInt(openProjectMatches[0][1], 10);
+          if (!isNaN(firstId)) setTimeout(() => onOpenProject!(firstId), 500);
+        }
+      }"""
+new = """      if (openProjectMatches.length > 0) {
+        if (onOpenProject) {
+          const firstId = parseInt(openProjectMatches[0][1], 10);
+          if (!isNaN(firstId)) setTimeout(() => onOpenProject!(firstId), 500);
+        }
+      }"""
+if old in src:
+    open(path, 'w').write(src.replace(old, new, 1))
+    print("✅ Removed redundant onNavigate from openProjectMatches — floating chat no longer hijacks nav")
+else:
+    print("ℹ️  Fix 6 already applied or pattern not found — skipping")
+PYEOF
+
+# ── Fix 7: AppBuilderPanel CSS display (preserves build state on nav change) ────
+python3 - artifacts/ai-chat/src/pages/star-lab.tsx << 'PYEOF'
+import sys
+path = sys.argv[1]
+src = open(path).read()
+old = """        {navMode === "appbuilder" && (
+          <AppBuilderPanel
+            pin={pin}
+            preloadPrompt={appBuilderPreload}
+            onPreloadConsumed={() => setAppBuilderPreload(null)}
+            onViewProject={(id) => { loadProject(id); setNavMode("projects"); }}
+          />
+        )}"""
+new = """        <div style={{ display: navMode === "appbuilder" ? "flex" : "none", flex: 1, flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
+          <AppBuilderPanel
+            pin={pin}
+            preloadPrompt={appBuilderPreload}
+            onPreloadConsumed={() => setAppBuilderPreload(null)}
+            onViewProject={(id) => { loadProject(id); setNavMode("projects"); }}
+          />
+        </div>"""
+if old in src:
+    open(path, 'w').write(src.replace(old, new, 1))
+    print("✅ AppBuilderPanel now uses CSS display — build state preserved on nav change")
+else:
+    print("ℹ️  Fix 7 already applied or pattern not found — skipping")
+PYEOF
+
+# ── Fix 8: ProjectWorkspace CSS display (preserves project editing state) ────────
+python3 - artifacts/ai-chat/src/pages/star-lab.tsx << 'PYEOF'
+import sys
+path = sys.argv[1]
+src = open(path).read()
+old_open = """        {navMode === "projects" && (
+          activeProject
+            ? <ProjectWorkspace
+                project={activeProject}
+                pin={pin}
+                onUpdate={p => setActiveProject(p)}
+                onBack={() => setActiveProject(null)}
+                allProjects={projects}
+                onNavigateProject={id => loadProject(id)}
+              />
+            : (
+              <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative" style={{ background: "#F8FAFC" }}>"""
+new_open = """        <div style={{ display: (navMode === "projects" && !!activeProject) ? "flex" : "none", flex: 1, flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
+          {activeProject && <ProjectWorkspace
+            project={activeProject}
+            pin={pin}
+            onUpdate={p => setActiveProject(p)}
+            onBack={() => setActiveProject(null)}
+            allProjects={projects}
+            onNavigateProject={id => loadProject(id)}
+          />}
+        </div>
+        {navMode === "projects" && !activeProject && (
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative" style={{ background: "#F8FAFC" }}>"""
+old_close = """              </div>
+            )
+        )}
+      </div>
+
+      {/* Persistent floating twin chat"""
+new_close = """              </div>
+        )}
+      </div>
+
+      {/* Persistent floating twin chat"""
+src2 = src.replace(old_open, new_open, 1)
+changed = src2 != src
+src3 = src2.replace(old_close, new_close, 1)
+changed = changed or src3 != src2
+if changed:
+    open(path, 'w').write(src3)
+    print("✅ ProjectWorkspace now uses CSS display — project editing state preserved on nav change")
+else:
+    print("ℹ️  Fix 8 already applied or pattern not found — skipping")
+PYEOF
+
 # ── Build ──────────────────────────────────────────────────────────────────────
 echo "Building API server..."
 pnpm --filter @workspace/api-server run build 2>&1 | tail -10

@@ -13545,7 +13545,6 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
         setTimeout(() => onNavigate!(navTagMatch[1].trim() as NavMode), 200);
       }
       if (openProjectMatches.length > 0) {
-        if (onNavigate) setTimeout(() => onNavigate!("projects"), 200);
         if (onOpenProject) {
           const firstId = parseInt(openProjectMatches[0][1], 10);
           if (!isNaN(firstId)) setTimeout(() => onOpenProject!(firstId), 500);
@@ -16401,29 +16400,29 @@ export function StarLabPage() {
           </div>
         )}
         {navMode === "upgrades" && <UpgradesPanel pin={pin} />}
-        {navMode === "appbuilder" && (
+        <div style={{ display: navMode === "appbuilder" ? "flex" : "none", flex: 1, flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
           <AppBuilderPanel
             pin={pin}
             preloadPrompt={appBuilderPreload}
             onPreloadConsumed={() => setAppBuilderPreload(null)}
             onViewProject={(id) => { loadProject(id); setNavMode("projects"); }}
           />
-        )}
+        </div>
         {navMode === "ai-arch" && (
           <AiArchLabPanel pin={pin} projects={projects} onNavigate={setNavMode} onOpenProject={(p) => { setActiveProject(p); setNavMode("projects"); }} />
         )}
-        {navMode === "projects" && (
-          activeProject
-            ? <ProjectWorkspace
-                project={activeProject}
-                pin={pin}
-                onUpdate={p => setActiveProject(p)}
-                onBack={() => setActiveProject(null)}
-                allProjects={projects}
-                onNavigateProject={id => loadProject(id)}
-              />
-            : (
-              <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative" style={{ background: "#F8FAFC" }}>
+        <div style={{ display: (navMode === "projects" && !!activeProject) ? "flex" : "none", flex: 1, flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
+          {activeProject && <ProjectWorkspace
+            project={activeProject}
+            pin={pin}
+            onUpdate={p => setActiveProject(p)}
+            onBack={() => setActiveProject(null)}
+            allProjects={projects}
+            onNavigateProject={id => loadProject(id)}
+          />}
+        </div>
+        {navMode === "projects" && !activeProject && (
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative" style={{ background: "#F8FAFC" }}>
 
                 {/* ─── Quick Wins Overlay Panel ───────────────────────────────── */}
                 <AnimatePresence>
@@ -16717,7 +16716,6 @@ export function StarLabPage() {
                   </div>
                 )}
               </div>
-            )
         )}
       </div>
 
