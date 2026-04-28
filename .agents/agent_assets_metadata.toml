@@ -101,3 +101,33 @@ id = "QVxCuGHEC_MC1i0wA2pSX"
 uri = "file://attached_assets/sirius_appstore_screenshots.tar.gz"
 type = "unspecified"
 title = "Sirius App Store Screenshots — All Sizes"
+
+[[outputs]]
+id = "8EvHaJQKD-UXZcMO3CmJB"
+uri = "file://attached_assets/screenshots/iphone_6_9/appstore_1_chat.png"
+type = "image"
+title = "1 — Hero"
+
+[[outputs]]
+id = "S3DpTevCDWMM3Du8X_l7q"
+uri = "file://attached_assets/screenshots/iphone_6_9/appstore_2_voice.png"
+type = "image"
+title = "2 — Voice"
+
+[[outputs]]
+id = "NhYYnjyTmgs_BRxVm80Ec"
+uri = "file://attached_assets/screenshots/iphone_6_9/appstore_3_memory.png"
+type = "image"
+title = "3 — Memory"
+
+[[outputs]]
+id = "ZLOwdpyWs2qGRhxWWn--p"
+uri = "file://attached_assets/screenshots/iphone_6_9/appstore_4_wisdom.png"
+type = "image"
+title = "4 — Wisdom"
+
+[[outputs]]
+id = "g0n13RhHMxRjjL0AZhjL4"
+uri = "file://attached_assets/screenshots/iphone_6_9/appstore_5_starlab.png"
+type = "image"
+title = "5 — Star Lab"
