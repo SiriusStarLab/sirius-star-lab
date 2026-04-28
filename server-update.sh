@@ -770,6 +770,20 @@ else:
     print("ℹ️  Panel state fix already applied or pattern not found — skipping")
 PYEOF
 
+# ── Fix 5: Chat uses localStorage so conversations survive browser close ────────
+python3 - artifacts/ai-chat/src/pages/star-lab.tsx << 'PYEOF'
+import sys, re
+path = sys.argv[1]
+src = open(path).read()
+# Replace sessionStorage with localStorage only for CHAT_STORAGE_KEY usages
+patched = re.sub(r'sessionStorage(\.(getItem|setItem|removeItem)\(CHAT_STORAGE_KEY)', r'localStorage\1', src)
+if patched != src:
+    open(path, 'w').write(patched)
+    print("✅ Chat messages now use localStorage (persist across sessions)")
+else:
+    print("ℹ️  Chat localStorage fix already applied — skipping")
+PYEOF
+
 # ── Build ──────────────────────────────────────────────────────────────────────
 echo "Building API server..."
 pnpm --filter @workspace/api-server run build 2>&1 | tail -10

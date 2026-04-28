@@ -12735,12 +12735,12 @@ function LabFloatingChat({ pin, navMode, activeProject, onNavigate, onOpenProjec
 }) {
   const CHAT_STORAGE_KEY = `lab_chat_${accessLevel}`;
 
-  // Load messages from the shared sessionStorage (same key as SiriusLabChatPanel)
+  // Load messages from localStorage (persists across sessions)
   const [open, setOpen] = React.useState(() => {
-    try { const s = sessionStorage.getItem(CHAT_STORAGE_KEY); return s ? JSON.parse(s).length > 0 : false; } catch { return false; }
+    try { const s = localStorage.getItem(CHAT_STORAGE_KEY); return s ? JSON.parse(s).length > 0 : false; } catch { return false; }
   });
   const [messages, setMessages] = React.useState<{ role: "user" | "assistant"; content: string; actions?: { label: string; color: string; icon?: string }[] }[]>(() => {
-    try { const s = sessionStorage.getItem(CHAT_STORAGE_KEY); return s ? JSON.parse(s) : []; } catch { return []; }
+    try { const s = localStorage.getItem(CHAT_STORAGE_KEY); return s ? JSON.parse(s) : []; } catch { return []; }
   });
   const [streaming, setStreaming] = React.useState(false);
   const [streamText, setStreamText] = React.useState("");
@@ -12767,16 +12767,16 @@ function LabFloatingChat({ pin, navMode, activeProject, onNavigate, onOpenProjec
     }
   }, [streaming]);
 
-  // Persist messages to shared sessionStorage so SiriusLabChatPanel can also read them
+  // Persist messages to localStorage so they survive page refresh and tab close
   React.useEffect(() => {
-    try { sessionStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages)); } catch {}
+    try { localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages)); } catch {}
   }, [messages, CHAT_STORAGE_KEY]);
 
   // When returning from the full labchat screen, re-sync messages and auto-open
   React.useEffect(() => {
     if (prevNavModeRef.current === "labchat" && navMode !== "labchat") {
       try {
-        const saved = sessionStorage.getItem(CHAT_STORAGE_KEY);
+        const saved = localStorage.getItem(CHAT_STORAGE_KEY);
         if (saved) {
           const parsed = JSON.parse(saved);
           if (parsed.length > 0) { setMessages(parsed); setOpen(true); }
@@ -13287,7 +13287,7 @@ function SiriusLabChatPanel({ pin, accessLevel, navMode, activeProject, onNaviga
   const CHAT_STORAGE_KEY = `lab_chat_${accessLevel}`;
   const [messages, setMessages] = useState<LabChatMsg[]>(() => {
     try {
-      const saved = sessionStorage.getItem(CHAT_STORAGE_KEY);
+      const saved = localStorage.getItem(CHAT_STORAGE_KEY);
       return saved ? JSON.parse(saved) : [];
     } catch { return []; }
   });
@@ -13319,7 +13319,7 @@ function SiriusLabChatPanel({ pin, accessLevel, navMode, activeProject, onNaviga
   // Keep ref in sync for stale-closure-safe reads
   useEffect(() => {
     messagesRef.current = messages;
-    try { sessionStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages)); } catch {}
+    try { localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages)); } catch {}
   }, [messages, CHAT_STORAGE_KEY]);
 
   // Auto-send queued message once streaming finishes
@@ -13714,7 +13714,7 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
         </div>
         <div className="flex items-center gap-2">
           {messages.length > 0 && (
-            <button onClick={() => { setMessages([]); stoppedRef.current = true; stopListeningNow(); window.speechSynthesis?.cancel(); try { sessionStorage.removeItem(CHAT_STORAGE_KEY); } catch {} setTimeout(() => { stoppedRef.current = false; hasGreetedRef.current = false; }, 100); }}
+            <button onClick={() => { setMessages([]); stoppedRef.current = true; stopListeningNow(); window.speechSynthesis?.cancel(); try { localStorage.removeItem(CHAT_STORAGE_KEY); } catch {} setTimeout(() => { stoppedRef.current = false; hasGreetedRef.current = false; }, 100); }}
               className="text-xs px-2 py-1 rounded-lg transition-all hover:bg-slate-900/5"
               style={{ color: "rgba(15,23,42,0.4)" }}>
               Clear
