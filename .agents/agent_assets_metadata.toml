@@ -131,3 +131,33 @@ id = "g0n13RhHMxRjjL0AZhjL4"
 uri = "file://attached_assets/screenshots/iphone_6_9/appstore_5_starlab.png"
 type = "image"
 title = "5 — Star Lab"
+
+[[outputs]]
+id = "6b7iJpUujBbT_ik2c5ieo"
+uri = "file://artifacts/sirius-mobile/store-metadata/ios/screenshots/iphone_6_9/01.png"
+type = "image"
+title = "Screenshot 1 — Chat"
+
+[[outputs]]
+id = "GQeeXAw4gR-rKRk8ggLMM"
+uri = "file://artifacts/sirius-mobile/store-metadata/ios/screenshots/iphone_6_9/02.png"
+type = "image"
+title = "Screenshot 2 — Voice"
+
+[[outputs]]
+id = "D1ZNDho0Kiw_7_Nj7hUUe"
+uri = "file://artifacts/sirius-mobile/store-metadata/ios/screenshots/iphone_6_9/03.png"
+type = "image"
+title = "Screenshot 3 — Memory"
+
+[[outputs]]
+id = "GyqVPGZcFSjmBV5UIdLhA"
+uri = "file://artifacts/sirius-mobile/store-metadata/ios/screenshots/iphone_6_9/04.png"
+type = "image"
+title = "Screenshot 4 — Wisdom"
+
+[[outputs]]
+id = "HaviJdgRx5d0754UMfGdv"
+uri = "file://artifacts/sirius-mobile/store-metadata/ios/screenshots/iphone_6_9/05.png"
+type = "image"
+title = "Screenshot 5 — Star Lab"
