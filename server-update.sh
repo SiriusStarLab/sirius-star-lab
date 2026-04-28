@@ -412,6 +412,119 @@ else:
     print("ℹ️  Configure button already removed or not found — skipping")
 PYEOF
 
+# ── Fix 1: Remove unintended auto-navigation in Star Lab floating chat ─────────
+python3 - artifacts/ai-chat/src/pages/star-lab.tsx << 'PYEOF'
+import sys
+path = sys.argv[1]
+src = open(path).read()
+old = '''      if (openProjectMatches.length > 0) {
+        // Navigate to projects + open first mentioned project
+        if (!navTagMatch && onNavigate) setTimeout(() => onNavigate!("projects"), 200);
+        if (onOpenProject) {
+          const firstId = parseInt(openProjectMatches[0][1], 10);
+          if (!isNaN(firstId)) setTimeout(() => onOpenProject!(firstId), 500);
+        }
+      }'''
+new = '''      if (openProjectMatches.length > 0) {
+        // Open the first mentioned project — do NOT auto-navigate away from current page
+        if (onOpenProject) {
+          const firstId = parseInt(openProjectMatches[0][1], 10);
+          if (!isNaN(firstId)) setTimeout(() => onOpenProject!(firstId), 500);
+        }
+      }'''
+if old in src:
+    open(path, 'w').write(src.replace(old, new, 1))
+    print("✅ Unintended navigation bug fixed")
+else:
+    print("ℹ️  Navigation fix already applied or pattern not found — skipping")
+PYEOF
+
+# ── Fix 2: Add X button to CompleteAllModal ────────────────────────────────────
+python3 - artifacts/ai-chat/src/pages/star-lab.tsx << 'PYEOF'
+import sys
+path = sys.argv[1]
+src = open(path).read()
+old = '''          {finished && <button onClick={() => { onDone(); onClose(); }} className="text-xs px-3 py-1.5 rounded-lg text-slate-800" style={{ background: "hsl(193,100%,35%)" }}>Done</button>}
+        </div>
+        <div className="p-4 space-y-2">'''
+new = '''          <div className="flex items-center gap-2">
+            {finished && <button onClick={() => { onDone(); onClose(); }} className="text-xs px-3 py-1.5 rounded-lg text-slate-800" style={{ background: "hsl(193,100%,35%)" }}>Done</button>}
+            <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors hover:bg-slate-100" title="Close">
+              <X className="w-4 h-4 text-slate-400" />
+            </button>
+          </div>
+        </div>
+        <div className="p-4 space-y-2">'''
+if old in src:
+    open(path, 'w').write(src.replace(old, new, 1))
+    print("✅ CompleteAllModal X button added")
+else:
+    print("ℹ️  CompleteAllModal X button already added or pattern not found — skipping")
+PYEOF
+
+# ── Fix 3: Add X button to SMTP modal ─────────────────────────────────────────
+python3 - artifacts/ai-chat/src/pages/star-lab.tsx << 'PYEOF'
+import sys
+path = sys.argv[1]
+src = open(path).read()
+old = '''                        className="w-full max-w-md rounded-2xl p-6 space-y-4" style={{ background: "#F8FAFC", border: "1px solid rgba(15,23,42,0.12)" }}>
+                        <p className="text-slate-800 font-semibold text-sm">SMTP Settings — Launch Campaign</p>'''
+new = '''                        className="w-full max-w-md rounded-2xl p-6 space-y-4" style={{ background: "#F8FAFC", border: "1px solid rgba(15,23,42,0.12)" }}>
+                        <div className="flex items-center justify-between">
+                          <p className="text-slate-800 font-semibold text-sm">SMTP Settings — Launch Campaign</p>
+                          <button onClick={() => setShowSmtp(false)} className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors hover:bg-slate-100">
+                            <X className="w-4 h-4 text-slate-400" />
+                          </button>
+                        </div>'''
+if old in src:
+    open(path, 'w').write(src.replace(old, new, 1))
+    print("✅ SMTP modal X button added")
+else:
+    print("ℹ️  SMTP modal X button already added or pattern not found — skipping")
+PYEOF
+
+# ── Fix 4: Keep AutoLab + Orchestrate panels mounted (preserve task state) ─────
+python3 - artifacts/ai-chat/src/pages/star-lab.tsx << 'PYEOF'
+import sys
+path = sys.argv[1]
+src = open(path).read()
+old = '''        {navMode === "autolab" && (
+          <AutoLabPanel
+            pin={pin}
+            projects={projects}
+            onSelectProject={p => { setActiveProject(p); setNavMode("projects"); }}
+            onFocusProject={p => setActiveProject(p)}
+          />
+        )}
+        {navMode === "orchestrate" && (
+          <OrchestratorPanel pin={pin} onOpenProject={(id) => {
+            const found = projects.find(p => p.id === id);
+            if (found) { setActiveProject(found); setNavMode("projects"); }
+            else { setNavMode("projects"); }
+          }} />
+        )}'''
+new = '''        <div style={{ display: navMode === "autolab" ? "flex" : "none", flex: 1, flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
+          <AutoLabPanel
+            pin={pin}
+            projects={projects}
+            onSelectProject={p => { setActiveProject(p); setNavMode("projects"); }}
+            onFocusProject={p => setActiveProject(p)}
+          />
+        </div>
+        <div style={{ display: navMode === "orchestrate" ? "flex" : "none", flex: 1, flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
+          <OrchestratorPanel pin={pin} onOpenProject={(id) => {
+            const found = projects.find(p => p.id === id);
+            if (found) { setActiveProject(found); setNavMode("projects"); }
+            else { setNavMode("projects"); }
+          }} />
+        </div>'''
+if old in src:
+    open(path, 'w').write(src.replace(old, new, 1))
+    print("✅ AutoLab + Orchestrate panels kept mounted across navigation")
+else:
+    print("ℹ️  Panel state fix already applied or pattern not found — skipping")
+PYEOF
+
 # ── Build ──────────────────────────────────────────────────────────────────────
 echo "Building API server..."
 pnpm --filter @workspace/api-server run build 2>&1 | tail -10
