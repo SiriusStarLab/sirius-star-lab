@@ -136,28 +136,28 @@ title = "5 — Star Lab"
 id = "6b7iJpUujBbT_ik2c5ieo"
 uri = "file://artifacts/sirius-mobile/store-metadata/ios/screenshots/iphone_6_9/01.png"
 type = "image"
-title = "Screenshot 1 — SIRIUS star (NEW first)"
+title = "1 — SIRIUS star"
 
 [[outputs]]
 id = "GQeeXAw4gR-rKRk8ggLMM"
 uri = "file://artifacts/sirius-mobile/store-metadata/ios/screenshots/iphone_6_9/02.png"
 type = "image"
-title = "Screenshot 2 — I think, so I am"
+title = "2 — I think, so I am"
 
 [[outputs]]
 id = "D1ZNDho0Kiw_7_Nj7hUUe"
 uri = "file://artifacts/sirius-mobile/store-metadata/ios/screenshots/iphone_6_9/03.png"
 type = "image"
-title = "Screenshot 3 — Memory"
+title = "3 — Speak your thoughts"
 
 [[outputs]]
 id = "GyqVPGZcFSjmBV5UIdLhA"
 uri = "file://artifacts/sirius-mobile/store-metadata/ios/screenshots/iphone_6_9/04.png"
 type = "image"
-title = "Screenshot 4 — Wisdom"
+title = "4 — Sirius remembers"
 
 [[outputs]]
 id = "HaviJdgRx5d0754UMfGdv"
 uri = "file://artifacts/sirius-mobile/store-metadata/ios/screenshots/iphone_6_9/05.png"
 type = "image"
-title = "Screenshot 5 — Star Lab"
+title = "5 — Start every day"
