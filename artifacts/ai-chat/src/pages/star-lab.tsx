@@ -13494,6 +13494,11 @@ NAVIGATION RULES — CRITICAL:
 - To go back to the projects list: call navigate_to with section="projects" (no project_id).
 - To build an app: use start_app_build TOOL.
 
+PROJECT OPENING — CRITICAL:
+- Only open or navigate to a project when the user explicitly uses words like "open", "go to", "show me", "load", "take me to", or "switch to" a project.
+- If the user merely asks about, mentions, discusses, or references a project by name (e.g. "tell me about project Alpha", "what's the status of Alpha", "how is Alpha going"), do NOT open or navigate to it. Just answer the question in text.
+- Casual project mentions in conversation context must NEVER trigger <<OPEN_PROJECT:N>> or a navigate_to call with a project_id.
+
 VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sentences.`,
     };
     const messagesWithContext = [contextSystemMsg, ...apiMessages.filter(m => m.role !== "system")];
