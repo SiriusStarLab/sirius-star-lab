@@ -6,6 +6,7 @@ import { startProjectPipeline, advanceCadPendingWithNotes } from "./lib/project-
 import { tickAutomations } from "./lib/sirius-automation.js";
 import { runInvestmentRule } from "./lib/investment-rule.js";
 import { startProactiveEngine } from "./lib/sirius-proactive.js";
+import { startPaymentExpiryJob } from "./lib/payment-expiry.js";
 
 // Global crash protection — log unhandled errors instead of silently crashing
 process.on("unhandledRejection", (reason) => {
@@ -48,4 +49,7 @@ app.listen(port, () => {
   // Sirius proactive engine — MANUAL ONLY (disabled auto-enrichment to conserve credits)
   // startProactiveEngine(15);
   console.log("[Sirius] Lean mode active — market scans & proactive enrichment are manual-only. Use chat commands to trigger.");
+  // Payment expiry — downgrade unconfirmed subscribers after 48 hours
+  startPaymentExpiryJob();
+  console.log("[Payment Expiry] Watching for unconfirmed payments — auto-expire after 48 hours");
 });

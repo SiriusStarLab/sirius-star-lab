@@ -12,4 +12,6 @@ export const paymentRequestsTable = pgTable("payment_requests", {
   note: text("note"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   activatedAt: timestamp("activated_at"),
+  expiresAt: timestamp("expires_at"),
+  confirmedAt: timestamp("confirmed_at"),
 });

@@ -5,6 +5,8 @@ import { eq, desc } from "drizzle-orm";
 
 const router = Router();
 
+const EXPIRY_HOURS = 48;
+
 function labPinGuard(req: Request, res: Response, next: NextFunction) {
   const pin = req.headers["x-lab-pin"] as string;
   const expected = process.env.STAR_LAB_PIN || "2025";
@@ -44,11 +46,15 @@ router.post("/payment/request", async (req, res) => {
     const price = PRICES[tier];
     const reference = `SIRIUS-${userId.substring(0, 8).toUpperCase()}-${tier.toUpperCase()}`;
 
-    // Log the request
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + EXPIRY_HOURS * 60 * 60 * 1000);
+
+    // Log the request with 48-hour expiry window
     await db.insert(paymentRequestsTable).values({
       userId, tier, amount: price.amount, name, email, note, reference,
       status: "activated",
-      activatedAt: new Date(),
+      activatedAt: now,
+      expiresAt,
     });
 
     // Auto-activate immediately — the user said they've paid
@@ -63,7 +69,7 @@ router.post("/payment/request", async (req, res) => {
     const who = name ? `${name}${email ? ` (${email})` : ""}` : email || `User ${userId.substring(0, 8)}`;
     await db.insert(siriusNotifications).values({
       title: `💰 New subscription — ${price.label}`,
-      message: `${who} has subscribed to ${price.label} (${price.amount}/month).\n\nReference: ${reference}\nThey should see a bank transfer in your Mettle account soon.`,
+      message: `${who} has subscribed to ${price.label} (${price.amount}/month).\n\nReference: ${reference}\nCheck your Mettle account and confirm the transfer in Star Lab within 48 hours, or their account will automatically revert to free.`,
       type: "payment",
       urgency: "high",
       read: false,
@@ -74,6 +80,29 @@ router.post("/payment/request", async (req, res) => {
   } catch (err: any) {
     console.error("Payment request error:", err.message);
     return res.status(500).json({ error: "Failed to process payment request" });
+  }
+});
+
+// POST /api/payment/:id/confirm — Garry confirms the bank transfer arrived (PIN-protected)
+router.post("/payment/:id/confirm", labPinGuard, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id as string);
+    if (isNaN(id)) return res.status(400).json({ error: "Invalid payment ID" });
+
+    const [payment] = await db.select().from(paymentRequestsTable)
+      .where(eq(paymentRequestsTable.id, id))
+      .limit(1);
+
+    if (!payment) return res.status(404).json({ error: "Payment not found" });
+    if (payment.confirmedAt) return res.json({ ok: true, alreadyConfirmed: true });
+
+    await db.update(paymentRequestsTable)
+      .set({ status: "confirmed", confirmedAt: new Date() })
+      .where(eq(paymentRequestsTable.id, id));
+
+    return res.json({ ok: true });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
   }
 });
 

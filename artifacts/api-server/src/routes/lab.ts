@@ -3847,18 +3847,18 @@ const LAB_TOOLS: any[] = [
     type: "function" as const,
     function: {
       name: "pending_payments",
-      description: "View recent bank transfer subscription sign-ups. Users are auto-activated immediately when they submit the payment form — this just shows you who has subscribed and expects a bank transfer to arrive in your Mettle account. Check this to see new subscribers.",
+      description: "View recent bank transfer subscription sign-ups and manage them. Users are auto-activated immediately when they submit the payment form. They have 48 hours before their account auto-expires if Garry hasn't confirmed the transfer arrived in Mettle. Use action=confirm with an ID once you've seen the money in Mettle — this locks in the subscription permanently.",
       parameters: {
         type: "object",
         properties: {
           action: {
             type: "string",
-            enum: ["list", "activate", "reject"],
-            description: "list = show all pending requests. activate = upgrade a user's account. reject = mark a request as rejected.",
+            enum: ["list", "confirm", "reject"],
+            description: "list = show all payment records with expiry countdowns. confirm = mark a transfer as received in Mettle (prevents auto-expiry). reject = mark a request as rejected and downgrade user.",
           },
           id: {
             type: "number",
-            description: "The ID of the payment request to activate or reject.",
+            description: "The ID of the payment request to confirm or reject.",
           },
         },
         required: ["action"],
@@ -6679,17 +6679,65 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
       }
 
       case "pending_payments": {
+        const { action, id } = args as { action: string; id?: number };
+
+        if (action === "confirm") {
+          if (!id) return `❌ Please provide the ID of the payment to confirm.`;
+          const [payment] = await db.select().from(paymentRequestsTable)
+            .where(eq(paymentRequestsTable.id, id)).limit(1);
+          if (!payment) return `❌ Payment ID ${id} not found.`;
+          if (payment.confirmedAt) return `✅ Payment #${id} was already confirmed.`;
+          await db.update(paymentRequestsTable)
+            .set({ status: "confirmed", confirmedAt: new Date() })
+            .where(eq(paymentRequestsTable.id, id));
+          const who = payment.name || payment.email || `User ${payment.userId.substring(0, 8)}`;
+          return `✅ Payment #${id} confirmed — **${who}**'s ${payment.tier.toUpperCase()} subscription is locked in. Their account is safe from auto-expiry.`;
+        }
+
+        if (action === "reject") {
+          if (!id) return `❌ Please provide the ID of the payment to reject.`;
+          const [payment] = await db.select().from(paymentRequestsTable)
+            .where(eq(paymentRequestsTable.id, id)).limit(1);
+          if (!payment) return `❌ Payment ID ${id} not found.`;
+          await db.update(paymentRequestsTable)
+            .set({ status: "rejected" })
+            .where(eq(paymentRequestsTable.id, id));
+          await db.update(userProfilesTable)
+            .set({ subscriptionTier: "free" })
+            .where(eq(userProfilesTable.userId, payment.userId));
+          const who = payment.name || payment.email || `User ${payment.userId.substring(0, 8)}`;
+          return `❌ Payment #${id} rejected. **${who}** has been returned to the free tier.`;
+        }
+
+        // action === "list"
         const rows = await db.select().from(paymentRequestsTable)
           .orderBy(desc(paymentRequestsTable.createdAt))
           .limit(50);
         if (!rows.length) return `✅ No subscription sign-ups yet.`;
-        const lines = [`💰 **Recent Subscriptions (${rows.length})**`, ``, `Users are auto-activated on sign-up. Check your Mettle account for incoming transfers.`, ``];
+
+        const now = Date.now();
+        const lines = [`💰 **Subscriptions (${rows.length})**`, ``, `Unconfirmed payments auto-expire 48 hours after sign-up. Confirm once you see the transfer in Mettle.`, ``];
         for (const r of rows) {
           const who = r.name || r.email || `Anonymous (${r.userId.substring(0, 8)})`;
-          lines.push(`**${who}** → **${r.tier.toUpperCase()}** (${r.amount}/month)`);
+          const statusEmoji = r.status === "confirmed" ? "✅" : r.status === "expired" ? "💀" : r.status === "rejected" ? "❌" : "⏳";
+
+          lines.push(`${statusEmoji} **[#${r.id}] ${who}** → **${r.tier.toUpperCase()}** (${r.amount}/month) — ${r.status.toUpperCase()}`);
           if (r.email) lines.push(`  📧 ${r.email}`);
           lines.push(`  Reference: \`${r.reference}\``);
           lines.push(`  Signed up: ${new Date(r.createdAt).toLocaleString("en-GB")}`);
+
+          if (r.status === "activated" && r.expiresAt) {
+            const msLeft = new Date(r.expiresAt).getTime() - now;
+            if (msLeft > 0) {
+              const hoursLeft = Math.floor(msLeft / (1000 * 60 * 60));
+              const minsLeft = Math.floor((msLeft % (1000 * 60 * 60)) / (1000 * 60));
+              lines.push(`  ⚠️ **Auto-expires in ${hoursLeft}h ${minsLeft}m** — confirm once you see it in Mettle`);
+            } else {
+              lines.push(`  🚨 **Overdue — expiry job will cancel this soon**`);
+            }
+          } else if (r.status === "confirmed" && r.confirmedAt) {
+            lines.push(`  Confirmed: ${new Date(r.confirmedAt).toLocaleString("en-GB")}`);
+          }
           lines.push(``);
         }
         return lines.join("\n");
