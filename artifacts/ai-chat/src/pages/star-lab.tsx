@@ -881,7 +881,12 @@ function CompleteAllModal({ project, pin, onClose, onDone }: { project: Project;
             </h3>
             <p className="text-xs mt-0.5" style={{ color: "rgba(15,23,42,0.45)" }}>Generating all missing sections with full AI depth</p>
           </div>
-          {finished && <button onClick={() => { onDone(); onClose(); }} className="text-xs px-3 py-1.5 rounded-lg text-slate-800" style={{ background: "hsl(193,100%,35%)" }}>Done</button>}
+          <div className="flex items-center gap-2">
+            {finished && <button onClick={() => { onDone(); onClose(); }} className="text-xs px-3 py-1.5 rounded-lg text-slate-800" style={{ background: "hsl(193,100%,35%)" }}>Done</button>}
+            <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors hover:bg-slate-100" title="Close">
+              <X className="w-4 h-4 text-slate-400" />
+            </button>
+          </div>
         </div>
         <div className="p-4 space-y-2">
           {progress.map(p => (
@@ -9303,7 +9308,12 @@ function OutreachHubPanel({ pin }: { pin: string }) {
                       <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
                         onClick={e => e.stopPropagation()}
                         className="w-full max-w-md rounded-2xl p-6 space-y-4" style={{ background: "#F8FAFC", border: "1px solid rgba(15,23,42,0.12)" }}>
-                        <p className="text-slate-800 font-semibold text-sm">SMTP Settings — Launch Campaign</p>
+                        <div className="flex items-center justify-between">
+                          <p className="text-slate-800 font-semibold text-sm">SMTP Settings — Launch Campaign</p>
+                          <button onClick={() => setShowSmtp(false)} className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors hover:bg-slate-100">
+                            <X className="w-4 h-4 text-slate-400" />
+                          </button>
+                        </div>
                         {[
                           { label: "SMTP Host", val: smtpHost, set: setSmtpHost, ph: "smtp.gmail.com" },
                           { label: "SMTP Port", val: smtpPort, set: setSmtpPort, ph: "587" },
@@ -13535,8 +13545,7 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
         setTimeout(() => onNavigate!(navTagMatch[1].trim() as NavMode), 200);
       }
       if (openProjectMatches.length > 0) {
-        // Navigate to projects + open first mentioned project
-        if (!navTagMatch && onNavigate) setTimeout(() => onNavigate!("projects"), 200);
+        // Open the first mentioned project — do NOT auto-navigate away from current page
         if (onOpenProject) {
           const firstId = parseInt(openProjectMatches[0][1], 10);
           if (!isNaN(firstId)) setTimeout(() => onOpenProject!(firstId), 500);
@@ -16371,21 +16380,21 @@ export function StarLabPage() {
           />
         )}
         {navMode === "outreach" && <OutreachHubPanel pin={pin} />}
-        {navMode === "autolab" && (
+        <div style={{ display: navMode === "autolab" ? "flex" : "none", flex: 1, flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
           <AutoLabPanel
             pin={pin}
             projects={projects}
             onSelectProject={p => { setActiveProject(p); setNavMode("projects"); }}
             onFocusProject={p => setActiveProject(p)}
           />
-        )}
-        {navMode === "orchestrate" && (
+        </div>
+        <div style={{ display: navMode === "orchestrate" ? "flex" : "none", flex: 1, flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
           <OrchestratorPanel pin={pin} onOpenProject={(id) => {
             const found = projects.find(p => p.id === id);
             if (found) { setActiveProject(found); setNavMode("projects"); }
             else { setNavMode("projects"); }
           }} />
-        )}
+        </div>
         {navMode === "sysaudit" && (
           <div className="flex-1 overflow-y-auto" style={{ background: "#F8FAFC" }}>
             <SystemAuditPanel pin={pin} />

@@ -16,7 +16,7 @@ I prefer detailed explanations for complex architectural decisions.
 I prefer to use simple language.
 I like functional programming.
 Do not make changes to the folder `lib/api-spec`.
-Do not make changes to the file `artifacts/ai-chat/src/pages/star-lab.tsx`.
+Changes to `artifacts/ai-chat/src/pages/star-lab.tsx` are permitted — Garry explicitly approved this. The previous restriction is lifted.
 
 ## System Architecture
 The project is a pnpm workspace monorepo using Node.js 24 and TypeScript 5.9.
