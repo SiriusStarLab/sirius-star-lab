@@ -1,9 +1,19 @@
-import { Router } from "express";
+import { Router, type Request, type Response, type NextFunction } from "express";
 import { db } from "@workspace/db";
 import { paymentRequestsTable, userProfilesTable, siriusNotifications } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 
 const router = Router();
+
+function labPinGuard(req: Request, res: Response, next: NextFunction) {
+  const pin = req.headers["x-lab-pin"] as string;
+  const expected = process.env.STAR_LAB_PIN || "2025";
+  if (!pin || pin !== expected) {
+    res.status(401).json({ error: "Unauthorised" });
+    return;
+  }
+  next();
+}
 
 const BANK = {
   name: "GCTH Supplies Ltd",
@@ -67,8 +77,8 @@ router.post("/payment/request", async (req, res) => {
   }
 });
 
-// GET /api/payment/all — list all payment records (Star Lab)
-router.get("/payment/all", async (_req, res) => {
+// GET /api/payment/all — list all payment records (Star Lab, PIN-protected)
+router.get("/payment/all", labPinGuard, async (_req, res) => {
   try {
     const rows = await db.select().from(paymentRequestsTable)
       .orderBy(desc(paymentRequestsTable.createdAt))
@@ -79,8 +89,8 @@ router.get("/payment/all", async (_req, res) => {
   }
 });
 
-// GET /api/payment/pending — kept for backwards compat (now returns "activated" ones for review)
-router.get("/payment/pending", async (_req, res) => {
+// GET /api/payment/pending — kept for backwards compat (now returns "activated" ones for review), PIN-protected
+router.get("/payment/pending", labPinGuard, async (_req, res) => {
   try {
     const rows = await db.select().from(paymentRequestsTable)
       .orderBy(desc(paymentRequestsTable.createdAt))

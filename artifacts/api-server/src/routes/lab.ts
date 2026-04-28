@@ -6679,8 +6679,9 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
       }
 
       case "pending_payments": {
-        const res = await fetch(`http://localhost:${process.env.PORT || 8080}/api/payment/all`);
-        const rows = await res.json() as any[];
+        const rows = await db.select().from(paymentRequestsTable)
+          .orderBy(desc(paymentRequestsTable.createdAt))
+          .limit(50);
         if (!rows.length) return `✅ No subscription sign-ups yet.`;
         const lines = [`💰 **Recent Subscriptions (${rows.length})**`, ``, `Users are auto-activated on sign-up. Check your Mettle account for incoming transfers.`, ``];
         for (const r of rows) {
