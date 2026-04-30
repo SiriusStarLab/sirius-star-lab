@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Sirius",
+    "name": "Sirius Star Lab",
     "slug": "sirius-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -8,7 +8,7 @@
     "scheme": "siriusai",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
-    "description": "Sirius is your personal AI intelligence partner — always thinking, so you can live with clarity. Enjoy streaming conversations, voice I/O, image analysis, smart web search, memory, and daily wisdom. Available on a free plan with subscription upgrades.",
+    "description": "Sirius Star Lab is your personal AI intelligence partner — always thinking, so you can live with clarity. Enjoy streaming conversations, voice I/O, image analysis, smart web search, memory, and daily wisdom. Free to use.",
     "primaryColor": "#00b4d8",
     "splash": {
       "image": "./assets/images/splash-icon.png",
@@ -21,10 +21,10 @@
       "buildNumber": "1",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSMicrophoneUsageDescription": "Sirius uses your microphone to let you speak your messages using voice input.",
-        "NSSpeechRecognitionUsageDescription": "Sirius uses speech recognition to convert your voice into text messages.",
-        "NSCameraUsageDescription": "Sirius uses your camera so you can share images directly in your conversations.",
-        "NSPhotoLibraryUsageDescription": "Sirius accesses your photo library so you can attach images to your conversations."
+        "NSMicrophoneUsageDescription": "Sirius Star Lab uses your microphone to let you speak your messages using voice input.",
+        "NSSpeechRecognitionUsageDescription": "Sirius Star Lab uses speech recognition to convert your voice into text messages.",
+        "NSCameraUsageDescription": "Sirius Star Lab uses your camera so you can share images directly in your conversations.",
+        "NSPhotoLibraryUsageDescription": "Sirius Star Lab accesses your photo library so you can attach images to your conversations."
       },
       "privacyManifests": {
         "NSPrivacyAccessedAPITypes": []
