@@ -121,11 +121,15 @@ export default function ChatScreen() {
       );
 
       if (response.status === 429) {
-        const errData = await response.json().catch(() => ({}));
-        const tier = (errData as any)?.tier ?? "free";
-        const limitMsg = tier === "free"
-          ? "You've reached your 30 free messages today. Upgrade to Plus for 200/day, or Pro for unlimited."
-          : "You've reached your daily message limit. Upgrade to Pro for unlimited messages.";
+        const limitMsg = Platform.OS === "ios"
+          ? "You've reached your daily message limit. It resets at midnight — come back tomorrow."
+          : (() => {
+              const errData = {};
+              const tier = (errData as any)?.tier ?? "free";
+              return tier === "free"
+                ? "You've reached your 30 free messages today. Upgrade to Plus for 200/day, or Pro for unlimited."
+                : "You've reached your daily message limit. Upgrade to Pro for unlimited messages.";
+            })();
         setMessages(prev => [...prev, { id: generateId(), role: "assistant" as const, content: limitMsg }]);
         setIsStreaming(false);
         setShowTyping(false);

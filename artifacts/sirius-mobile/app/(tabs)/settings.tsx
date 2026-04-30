@@ -306,86 +306,41 @@ export default function SettingsScreen() {
       </View>
 
       {/* Upgrade section — free users */}
-      {isFree && (
+      {isFree && !isIOS && (
         <View style={styles.upgradeSection}>
           <Text style={styles.upgradeHeading}>Get more from Sirius</Text>
           <Text style={styles.upgradeSubheading}>
-            {isIOS ? "Subscribe at sirius-ai.live to unlock Plus or Pro." : "Pay by bank transfer — no card or account needed."}
+            Pay by bank transfer — no card or account needed.
           </Text>
 
-          {isIOS ? (
-            <>
-              <View style={[styles.plusCard, { opacity: 1 }]}>
-                <View style={styles.plusCardInner}>
-                  <View style={styles.plusIconWrap}>
-                    <Feather name="zap" size={22} color={Colors.background} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.plusCardTitle}>Sirius Plus — £5/month</Text>
-                    <Text style={styles.plusCardDesc}>200 messages/day · Image analysis · Sirius remembers you</Text>
-                  </View>
-                </View>
+          <Pressable
+            onPress={() => handleUpgrade("plus")}
+            style={({ pressed }) => [styles.plusCard, { opacity: pressed ? 0.9 : 1 }]}
+          >
+            <View style={styles.plusCardInner}>
+              <View style={styles.plusIconWrap}>
+                <Feather name="zap" size={22} color={Colors.background} />
               </View>
-
-              <View style={[styles.proCard, { opacity: 1 }]}>
-                <Feather name="award" size={18} color="#f59e0b" />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.proCardTitle}>Sirius Pro — £12/month</Text>
-                  <Text style={styles.proCardDesc}>Unlimited everything · Deep memory · Priority speed</Text>
-                </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.plusCardTitle}>Start Plus — £5/month</Text>
+                <Text style={styles.plusCardDesc}>200 messages/day · Image analysis · Sirius remembers you</Text>
               </View>
+              <Feather name="arrow-right" size={18} color={Colors.background} />
+            </View>
+            <Text style={styles.plusCardNote}>Bank transfer · Cancel any time</Text>
+          </Pressable>
 
-              <Pressable
-                onPress={() => Linking.openURL(`${WEB_URL}/pricing`)}
-                style={({ pressed }) => ({
-                  marginTop: 12,
-                  backgroundColor: Colors.primary,
-                  borderRadius: 14,
-                  padding: 16,
-                  alignItems: "center",
-                  opacity: pressed ? 0.85 : 1,
-                })}
-              >
-                <Text style={{ fontSize: 15, fontWeight: "700", color: Colors.background }}>
-                  Subscribe at sirius-ai.live
-                </Text>
-                <Text style={{ fontSize: 12, color: "rgba(8,12,26,0.6)", marginTop: 3 }}>
-                  Opens in Safari · Cancel any time
-                </Text>
-              </Pressable>
-            </>
-          ) : (
-            <>
-              <Pressable
-                onPress={() => handleUpgrade("plus")}
-                style={({ pressed }) => [styles.plusCard, { opacity: pressed ? 0.9 : 1 }]}
-              >
-                <View style={styles.plusCardInner}>
-                  <View style={styles.plusIconWrap}>
-                    <Feather name="zap" size={22} color={Colors.background} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.plusCardTitle}>Start Plus — £5/month</Text>
-                    <Text style={styles.plusCardDesc}>200 messages/day · Image analysis · Sirius remembers you</Text>
-                  </View>
-                  <Feather name="arrow-right" size={18} color={Colors.background} />
-                </View>
-                <Text style={styles.plusCardNote}>Bank transfer · Cancel any time</Text>
-              </Pressable>
-
-              <Pressable
-                onPress={() => handleUpgrade("pro")}
-                style={({ pressed }) => [styles.proCard, { opacity: pressed ? 0.9 : 1 }]}
-              >
-                <Feather name="award" size={18} color="#f59e0b" />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.proCardTitle}>Go Pro — £12/month</Text>
-                  <Text style={styles.proCardDesc}>Unlimited everything · Deep memory · Priority speed</Text>
-                </View>
-                <Feather name="chevron-right" size={16} color="rgba(245,158,11,0.5)" />
-              </Pressable>
-            </>
-          )}
+          <Pressable
+            onPress={() => handleUpgrade("pro")}
+            style={({ pressed }) => [styles.proCard, { opacity: pressed ? 0.9 : 1 }]}
+          >
+            <Feather name="award" size={18} color="#f59e0b" />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.proCardTitle}>Go Pro — £12/month</Text>
+              <Text style={styles.proCardDesc}>Unlimited everything · Deep memory · Priority speed</Text>
+            </View>
+            <Feather name="chevron-right" size={16} color="rgba(245,158,11,0.5)" />
+          </Pressable>
         </View>
       )}
 
