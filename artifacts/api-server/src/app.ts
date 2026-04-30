@@ -254,8 +254,7 @@ app.post("/api/deploy/fix-server", async (req, res) => {
 });
 
 // ── 11. Serve update script for server deployment ─────────────────────────────
-app.get("/sirius-deploy", (_req, res) => {
-  // Try workspace root first, then cwd
+function serveDeployScript(_req: any, res: any) {
   const candidates = [
     "/home/runner/workspace/server-update.sh",
     path.join(process.cwd(), "../../server-update.sh"),
@@ -268,7 +267,9 @@ app.get("/sirius-deploy", (_req, res) => {
   }
   res.setHeader("Content-Type", "text/plain");
   res.send(fs.readFileSync(scriptPath, "utf8"));
-});
+}
+app.get("/api/sirius-deploy", serveDeployScript);
+app.get("/sirius-deploy", serveDeployScript);
 
 // ── 12. All other routes ──────────────────────────────────────────────────────
 app.use("/api", router);
