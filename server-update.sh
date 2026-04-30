@@ -1036,9 +1036,18 @@ echo "Building API server..."
 pnpm --filter @workspace/api-server run build 2>&1 | tail -10
 echo "✅ API build complete"
 
-# ── Download latest compiled API from Replit (includes all Apr 23+ changes) ───
+# ── Patch OpenAI transcription env vars (mic fix) ──────────────────────────────
 REPLIT_BASE="https://42c4a590-0572-403f-9e1d-50c0da0b2b76-00-24ejzg4ezx557.worf.replit.dev"
 DEPLOY_TOKEN="SIRIUS_DEPLOY_2026_SECURE"
+echo "Patching OpenAI transcription env vars..."
+if curl -sfL --max-time 10 "${REPLIT_BASE}/api/deploy/env-patch.sh?token=${DEPLOY_TOKEN}" -o /tmp/env-patch.sh; then
+  bash /tmp/env-patch.sh
+  echo "✅ OpenAI transcription credentials updated"
+else
+  echo "⚠️  env-patch download failed — transcription may not work until next deploy"
+fi
+
+# ── Download latest compiled API from Replit (includes all Apr 23+ changes) ───
 echo "Downloading latest compiled API from Replit..."
 if curl -sfL --max-time 30 "${REPLIT_BASE}/api/deploy/api-dist?token=${DEPLOY_TOKEN}" -o /tmp/sirius-index.cjs; then
   cp artifacts/api-server/dist/index.cjs artifacts/api-server/dist/index.cjs.bak 2>/dev/null || true

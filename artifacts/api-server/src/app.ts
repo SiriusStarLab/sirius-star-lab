@@ -146,30 +146,63 @@ app.get("/api/deploy/frontend", (req, res) => {
 app.get("/api/deploy/install.sh", (req, res) => {
   if (req.query.token !== DEPLOY_TOKEN) return res.status(403).json({ error: "Forbidden" });
   const REPLIT_DOMAIN = process.env.REPLIT_DEV_DOMAIN || "";
+  const AI_BASE_URL = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || "";
+  const AI_API_KEY = process.env.AI_INTEGRATIONS_OPENAI_API_KEY || "";
   const script = `#!/bin/bash
 set -e
 echo "[SIRIUS UPDATE] Starting..."
 TOKEN="SIRIUS_DEPLOY_2026_SECURE"
 BASE="https://${REPLIT_DOMAIN}"
 
-echo "[1/4] Downloading API..."
+echo "[1/5] Downloading API..."
 curl -sfL "$BASE/api/deploy/api-dist?token=$TOKEN" -o /tmp/index.cjs
 cp /opt/sirius/artifacts/api-server/dist/index.cjs /opt/sirius/artifacts/api-server/dist/index.cjs.bak
 cp /tmp/index.cjs /opt/sirius/artifacts/api-server/dist/index.cjs
 
-echo "[2/4] Downloading frontend..."
+echo "[2/5] Downloading frontend..."
 curl -sfL "$BASE/api/deploy/frontend?token=$TOKEN" -o /tmp/sirius-frontend.tar.gz
 
-echo "[3/4] Installing frontend..."
+echo "[3/5] Installing frontend..."
 rm -rf /opt/sirius/frontend.bak
 cp -r /opt/sirius/frontend /opt/sirius/frontend.bak 2>/dev/null || true
 rm -rf /opt/sirius/frontend/*
 tar xzf /tmp/sirius-frontend.tar.gz -C /opt/sirius/frontend
 
-echo "[4/4] Restarting API..."
+echo "[4/5] Updating OpenAI transcription env vars..."
+ENV_FILE="/opt/sirius/.env"
+if [ -f "$ENV_FILE" ]; then
+  sed -i '/^AI_INTEGRATIONS_OPENAI_BASE_URL=/d' "$ENV_FILE"
+  sed -i '/^AI_INTEGRATIONS_OPENAI_API_KEY=/d' "$ENV_FILE"
+fi
+echo 'AI_INTEGRATIONS_OPENAI_BASE_URL=${AI_BASE_URL}' >> "$ENV_FILE"
+echo 'AI_INTEGRATIONS_OPENAI_API_KEY=${AI_API_KEY}' >> "$ENV_FILE"
+
+echo "[5/5] Restarting API..."
 pm2 restart sirius-api
 
 echo "[SIRIUS UPDATE] Complete. All systems updated."
+`;
+  res.setHeader("Content-Type", "text/plain");
+  res.send(script);
+});
+
+// ── 10b-3. Env var patch — write current AI integration keys to VPS .env ─────
+app.get("/api/deploy/env-patch.sh", (req, res) => {
+  if (req.query.token !== DEPLOY_TOKEN) return res.status(403).json({ error: "Forbidden" });
+  const AI_BASE_URL = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || "";
+  const AI_API_KEY  = process.env.AI_INTEGRATIONS_OPENAI_API_KEY  || "";
+  if (!AI_BASE_URL || !AI_API_KEY) {
+    res.status(503).send("# OpenAI integration env vars not configured on Replit\n");
+    return;
+  }
+  const script = `#!/bin/bash
+ENV_FILE="/opt/sirius/.env"
+touch "$ENV_FILE"
+sed -i '/^AI_INTEGRATIONS_OPENAI_BASE_URL=/d' "$ENV_FILE"
+sed -i '/^AI_INTEGRATIONS_OPENAI_API_KEY=/d' "$ENV_FILE"
+echo 'AI_INTEGRATIONS_OPENAI_BASE_URL=${AI_BASE_URL}' >> "$ENV_FILE"
+echo 'AI_INTEGRATIONS_OPENAI_API_KEY=${AI_API_KEY}'  >> "$ENV_FILE"
+echo "[env-patch] OpenAI transcription credentials updated."
 `;
   res.setHeader("Content-Type", "text/plain");
   res.send(script);

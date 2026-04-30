@@ -1301,17 +1301,37 @@ router.post("/openai/generate-image", async (req, res): Promise<void> => {
 });
 
 router.post("/openai/transcribe", async (req, res): Promise<void> => {
-  const { audioBase64, mimeType } = req.body ?? {};
+  const { audioBase64 } = req.body ?? {};
   if (!audioBase64 || typeof audioBase64 !== "string") {
     res.status(400).json({ error: "audioBase64 is required" });
     return;
   }
   try {
-    const buffer = Buffer.from(audioBase64, "base64");
-    const file = new File([buffer], "recording.webm", { type: mimeType || "audio/webm" });
-    const transcript = await openai.audio.transcriptions.create({
+    const rawBuffer = Buffer.from(audioBase64, "base64");
+
+    // Determine OpenAI base URL and key — prefer AI Integrations proxy, fall back to direct key
+    const baseURL = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
+    const apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+
+    if (!apiKey) {
+      res.status(503).json({ error: "Transcription unavailable — no OpenAI key configured." });
+      return;
+    }
+
+    // Detect format from magic bytes (iOS records m4a/mp4, browser records webm)
+    let ext = "wav";
+    if (rawBuffer[0] === 0x1a && rawBuffer[1] === 0x45) ext = "webm";
+    else if (rawBuffer[4] === 0x66 && rawBuffer[5] === 0x74 && rawBuffer[6] === 0x79 && rawBuffer[7] === 0x70) ext = "mp4";
+    else if (rawBuffer[0] === 0x52 && rawBuffer[1] === 0x49 && rawBuffer[2] === 0x46 && rawBuffer[3] === 0x46) ext = "wav";
+    else if ((rawBuffer[0] === 0xff && rawBuffer[1] === 0xfb) || (rawBuffer[0] === 0x49 && rawBuffer[1] === 0x44)) ext = "mp3";
+
+    const { default: OpenAI, toFile } = await import("openai");
+    const client = new OpenAI({ apiKey, ...(baseURL ? { baseURL } : {}) });
+
+    const file = await toFile(rawBuffer, `recording.${ext}`, { type: `audio/${ext === "mp4" ? "mp4" : ext}` });
+    const transcript = await client.audio.transcriptions.create({
       file,
-      model: "whisper-1",
+      model: "gpt-4o-mini-transcribe",
     });
     res.json({ text: transcript.text });
   } catch (err: any) {
