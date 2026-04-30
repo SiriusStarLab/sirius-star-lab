@@ -280,12 +280,32 @@ export default function ChatScreen() {
     handleSend(pick);
   };
 
+  const handleNewChat = useCallback(() => {
+    Speech.stop();
+    setMessages([]);
+    setConversationId(null);
+    setIsStreaming(false);
+    setShowTyping(false);
+  }, []);
+
   return (
     <KeyboardAvoidingView
       style={[styles.root, { backgroundColor: Colors.background }]}
       behavior="padding"
       keyboardVerticalOffset={0}
     >
+      {messages.length > 0 && (
+        <View style={[styles.chatHeader, { paddingTop: topPad }]}>
+          <Pressable
+            onPress={handleNewChat}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            style={({ pressed }) => [styles.newChatBtn, pressed && { opacity: 0.6 }]}
+          >
+            <Feather name="edit" size={18} color={Colors.primary} />
+            <Text style={styles.newChatText}>New chat</Text>
+          </Pressable>
+        </View>
+      )}
       {messages.length === 0 ? (
         <ScrollView
           style={{ flex: 1 }}
@@ -368,7 +388,7 @@ export default function ChatScreen() {
           ListHeaderComponent={showTyping ? <TypingIndicator /> : null}
           keyboardDismissMode="interactive"
           keyboardShouldPersistTaps="handled"
-          contentContainerStyle={{ paddingTop: topPad + 8, paddingBottom: 12 }}
+          contentContainerStyle={{ paddingTop: 8, paddingBottom: 12 }}
           showsVerticalScrollIndicator={false}
         />
       )}
@@ -429,6 +449,31 @@ export default function ChatScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
+  },
+
+  /* ── Chat header (shown when in conversation) ── */
+  chatHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.05)",
+  },
+  newChatBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: "rgba(0,180,216,0.12)",
+  },
+  newChatText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: Colors.primary,
   },
 
   /* ── Landing screen ── */
