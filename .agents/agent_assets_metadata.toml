@@ -70,31 +70,31 @@ title = "Sirius Migration Package — DB + Setup Scripts"
 id = "BvVOCuWWAnWTPvsaA4kRb"
 uri = "file://attached_assets/screenshots/appstore_1_chat.png"
 type = "image"
-title = "Screen 1 — Hero"
+title = "Screenshot 1 — Chat"
 
 [[outputs]]
 id = "jqhEtadRtriq5nijF75cl"
 uri = "file://attached_assets/screenshots/appstore_2_voice.png"
 type = "image"
-title = "Screen 2 — Voice"
+title = "Screenshot 2 — Voice"
 
 [[outputs]]
 id = "CrQwJStUbiGWPQVwfkV4V"
 uri = "file://attached_assets/screenshots/appstore_3_memory.png"
 type = "image"
-title = "Screen 3 — Memory"
+title = "Screenshot 3 — Memory"
 
 [[outputs]]
 id = "0zZERSx-wfqOL5T95-FY8"
 uri = "file://attached_assets/screenshots/appstore_4_wisdom.png"
 type = "image"
-title = "Screen 4 — Wisdom"
+title = "Screenshot 4 — Wisdom"
 
 [[outputs]]
 id = "L8g_FWxOoo70u3wgnuFn2"
 uri = "file://attached_assets/screenshots/appstore_5_starlab.png"
 type = "image"
-title = "Screen 5 — Star Lab"
+title = "Screenshot 5 — Star Lab"
 
 [[outputs]]
 id = "QVxCuGHEC_MC1i0wA2pSX"
