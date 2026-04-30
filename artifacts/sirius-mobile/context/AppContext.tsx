@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { AppState, AppStateStatus } from "react-native";
+import { AppState, AppStateStatus, Platform } from "react-native";
 import React, {
   createContext,
   useCallback,
@@ -37,6 +37,15 @@ const defaultProfile: AppProfile = {
   canSendMessage: true,
 };
 
+const iosProfile: AppProfile = {
+  aiName: "Sirius",
+  userName: "",
+  subscriptionTier: "free",
+  dailyMessageCount: 0,
+  dailyLimit: null,
+  canSendMessage: true,
+};
+
 const AppContext = createContext<AppContextValue>({
   userId: null,
   profile: defaultProfile,
@@ -62,6 +71,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const refreshProfile = useCallback(async () => {
+    if (Platform.OS === "ios") {
+      const saved = await AsyncStorage.getItem(PROFILE_KEY);
+      if (saved) {
+        const local = JSON.parse(saved);
+        setProfile(prev => ({ ...iosProfile, aiName: local.aiName ?? prev.aiName, userName: local.userName ?? prev.userName }));
+      }
+      return;
+    }
     const id = userId || (await initUser());
     try {
       const data = await fetchSubscription(id);
@@ -85,8 +102,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     (async () => {
       setLoading(true);
-      const id = await initUser();
+      await initUser();
+      if (Platform.OS === "ios") {
+        const saved = await AsyncStorage.getItem(PROFILE_KEY);
+        if (saved) {
+          const local = JSON.parse(saved);
+          setProfile({ ...iosProfile, aiName: local.aiName ?? iosProfile.aiName, userName: local.userName ?? iosProfile.userName });
+        } else {
+          setProfile(iosProfile);
+        }
+        setLoading(false);
+        return;
+      }
       try {
+        const id = await initUser();
         const data = await fetchSubscription(id);
         setProfile(data);
       } catch {
