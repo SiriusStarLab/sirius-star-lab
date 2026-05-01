@@ -19,9 +19,6 @@
       "env": {
         "EXPO_PUBLIC_DOMAIN": "sirius-ai.live"
       },
-      "ios": {
-        "resourceClass": "m-medium"
-      },
       "android": {
         "buildType": "app-bundle"
       }
