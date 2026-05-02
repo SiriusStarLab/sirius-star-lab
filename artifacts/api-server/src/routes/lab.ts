@@ -4301,12 +4301,13 @@ const LAB_TOOLS: any[] = [
     type: "function" as const,
     function: {
       name: "run_portfolio_cull",
-      description: "Score and rank every project in the portfolio against strict commercial criteria, then identify the top N to keep and the rest to archive. Returns the ranked shortlist with scores and reasoning BEFORE archiving anything — Garry must confirm before any archiving happens. Use when Garry says 'cull the portfolio', 'cut to the best 20', 'rank everything', 'focus on the top projects', 'remove the weak ones', or 'trim the portfolio'. A second call with confirm=true executes the archiving.",
+      description: "Score and rank every project in the portfolio against strict commercial criteria, then identify the top N to keep and the rest to archive. Returns the ranked shortlist with scores and reasoning BEFORE archiving anything — Garry must confirm before any archiving happens. Use when Garry says 'cull the portfolio', 'cut to the best 20', 'rank everything', 'focus on the top projects', 'remove the weak ones', or 'trim the portfolio'. A second call with confirm=true executes the archiving. SAFETY: will refuse to archive more than max_archive (default 100) projects at once — you must set max_archive explicitly if a larger cull is requested.",
       parameters: {
         type: "object",
         properties: {
           keep_top: { type: "number", description: "How many projects to keep. Default 20." },
           confirm: { type: "boolean", description: "If true, actually archive the projects outside the top N. If false (default), just show the ranking and what would be archived — no changes made." },
+          max_archive: { type: "number", description: "Maximum number of projects to archive in one run. Default 100. Safety cap — set explicitly if a larger cull is needed and Garry has confirmed the count." },
         },
         required: [],
       },
@@ -6036,6 +6037,7 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
       case "run_portfolio_cull": {
         const keepTop = args.keep_top || 20;
         const confirm = !!args.confirm;
+        const maxArchive: number = typeof args.max_archive === "number" ? args.max_archive : 100;
         onProgress?.({ type: "status", message: `Scoring all approved projects — finding the top ${keepTop}…` });
 
         const allProjects = await db.select({
@@ -6093,6 +6095,10 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
         if (confirm) {
           // Actually archive the bottom projects
           if (toLose.length === 0) return "Nothing to archive — all projects are in the top group.";
+          // Safety cap — refuse to archive more than maxArchive projects at once
+          if (toLose.length > maxArchive) {
+            return `⚠️ SAFETY BLOCK — This cull would archive ${toLose.length} projects but the current limit is ${maxArchive}.\n\nTo proceed, explicitly set max_archive=${toLose.length} in your next call and confirm again. This prevents accidental mass-archives.`;
+          }
           const idsToArchive = toLose.map(p => p.id);
           // Batch archive in chunks to avoid query size limits
           const chunkSize = 50;
@@ -10001,6 +10007,27 @@ router.post("/lab/code/agent", authMiddleware, async (req: Request, res: Respons
   }
 
   try { res.end(); } catch { /* closed */ }
+});
+
+// ── Admin: bulk-restore approved projects that were mass-archived without investment data ──
+router.post("/lab/admin/restore-archived", authMiddleware, async (_req: Request, res: Response) => {
+  try {
+    const before = await db.select({ count: sql<number>`count(*)` }).from(labProjects)
+      .where(eq(labProjects.status, "archived"));
+    const result = await db.update(labProjects)
+      .set({ status: "active", updatedAt: new Date() })
+      .where(and(
+        eq(labProjects.status, "archived"),
+        eq(labProjects.approvalStatus, "approved"),
+        isNull(labProjects.investmentRequired),
+      ))
+      .returning({ id: labProjects.id });
+    const after = await db.select({ count: sql<number>`count(*)` }).from(labProjects)
+      .where(eq(labProjects.status, "archived"));
+    res.json({ ok: true, restored: result.length, archivedBefore: Number(before[0].count), archivedAfter: Number(after[0].count) });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 export default router;
