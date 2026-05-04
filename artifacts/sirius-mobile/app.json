@@ -18,7 +18,10 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.siriusai.app",
-      "buildNumber": "1",
+      "buildNumber": "2",
+      "entitlements": {
+        "com.apple.developer.applesignin": ["Default"]
+      },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSMicrophoneUsageDescription": "Sirius Star Lab uses your microphone to let you speak your messages using voice input.",
@@ -55,7 +58,8 @@
         }
       ],
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-apple-authentication"
     ],
     "experiments": {
       "typedRoutes": true,

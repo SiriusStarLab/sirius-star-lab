@@ -59,11 +59,12 @@
   },
   "dependencies": {
     "@react-navigation/bottom-tabs": "^7.15.9",
+    "expo": "~54.0.33",
+    "expo-apple-authentication": "^55.0.13",
     "expo-av": "^16.0.8",
     "expo-file-system": "^19.0.21",
-    "react-native-markdown-display": "^7.0.2",
-    "expo": "~54.0.33",
     "react": "19.1.0",
-    "react-native": "0.81.5"
+    "react-native": "0.81.5",
+    "react-native-markdown-display": "^7.0.2"
   }
 }
