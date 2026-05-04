@@ -64,7 +64,7 @@ title = "Sirius Star Lab — Full Source Code Export"
 id = "tI0G2lkO4HTIDpyPMbD9N"
 uri = "file://sirius_migration_package.tar.gz"
 type = "unspecified"
-title = "Sirius Migration Package — DB + Setup Scripts"
+title = "Sirius Migration Package"
 
 [[outputs]]
 id = "BvVOCuWWAnWTPvsaA4kRb"
