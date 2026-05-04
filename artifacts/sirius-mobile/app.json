@@ -17,7 +17,7 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.siriusai.app",
+      "bundleIdentifier": "live.siriusai.app",
       "buildNumber": "2",
       "entitlements": {
         "com.apple.developer.applesignin": ["Default"]
@@ -35,7 +35,7 @@
     },
     "android": {
       "backgroundColor": "#080c1a",
-      "package": "com.siriusai.app",
+      "package": "live.siriusai.app",
       "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
