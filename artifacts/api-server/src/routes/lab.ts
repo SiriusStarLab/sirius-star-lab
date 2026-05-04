@@ -7276,7 +7276,7 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
         ];
 
         const searchController = new AbortController();
-        const searchTimeout = setTimeout(() => searchController.abort(), 90_000);
+        let searchTimer = setTimeout(() => searchController.abort(), 30_000);
         const searchStream = await openai.chat.completions.create({
           model: "anthropic/claude-sonnet-4.6",
           messages: chatMsgsForSearch,
@@ -7286,10 +7286,11 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
         }, { signal: searchController.signal });
 
         for await (const chunk of searchStream) {
-          clearTimeout(searchTimeout);
+          clearTimeout(searchTimer); searchTimer = setTimeout(() => searchController.abort(), 30_000);
           const delta = chunk.choices[0]?.delta?.content || "";
           if (delta) sendEvent({ type: "text", delta });
         }
+        clearTimeout(searchTimer);
 
         sendEvent({ type: "done" });
         res.end();
@@ -7320,7 +7321,7 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
 
     // Phase 1: Call with tools (streaming) — detect tool calls
     const p1Controller = new AbortController();
-    const p1Timeout = setTimeout(() => p1Controller.abort(), 90_000);
+    let p1Timer = setTimeout(() => p1Controller.abort(), 30_000);
     const phase1 = await openai.chat.completions.create({
       model: "anthropic/claude-sonnet-4.6",
       messages: chatMessages,
@@ -7336,7 +7337,7 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
     let finishReason = "";
 
     for await (const chunk of phase1) {
-      clearTimeout(p1Timeout);
+      clearTimeout(p1Timer); p1Timer = setTimeout(() => p1Controller.abort(), 30_000);
       const choice = chunk.choices?.[0];
       if (!choice) continue;
       finishReason = choice.finish_reason || finishReason;
@@ -7357,6 +7358,7 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
       }
     }
 
+    clearTimeout(p1Timer);
     const toolCallsList = Object.values(toolCallBuffers);
 
     if (finishReason === "tool_calls" && toolCallsList.length > 0) {
@@ -7438,7 +7440,7 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
       ];
 
       const p2Controller = new AbortController();
-      const p2Timeout = setTimeout(() => p2Controller.abort(), 90_000);
+      let p2Timer = setTimeout(() => p2Controller.abort(), 30_000);
       const phase2 = await openai.chat.completions.create({
         model: "anthropic/claude-sonnet-4.6",
         messages: phase2Messages,
@@ -7449,10 +7451,11 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
 
       let finalText = "";
       for await (const chunk of phase2) {
-        clearTimeout(p2Timeout);
+        clearTimeout(p2Timer); p2Timer = setTimeout(() => p2Controller.abort(), 30_000);
         const delta = chunk.choices?.[0]?.delta?.content;
         if (delta) { finalText += delta; sendEvent({ type: "text", delta }); }
       }
+      clearTimeout(p2Timer);
 
       // If Phase 2 produced no text (e.g. Sirius tried to call a tool that isn't
       // available in Phase 2), send a brief acknowledgment so the frontend never
