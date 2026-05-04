@@ -7275,15 +7275,18 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
           ...inputMsgs,
         ];
 
+        const searchController = new AbortController();
+        const searchTimeout = setTimeout(() => searchController.abort(), 90_000);
         const searchStream = await openai.chat.completions.create({
           model: "anthropic/claude-sonnet-4.6",
           messages: chatMsgsForSearch,
           stream: true,
           max_tokens: 3000,
           temperature: 0.6,
-        });
+        }, { signal: searchController.signal });
 
         for await (const chunk of searchStream) {
+          clearTimeout(searchTimeout);
           const delta = chunk.choices[0]?.delta?.content || "";
           if (delta) sendEvent({ type: "text", delta });
         }
@@ -7316,6 +7319,8 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
     }
 
     // Phase 1: Call with tools (streaming) — detect tool calls
+    const p1Controller = new AbortController();
+    const p1Timeout = setTimeout(() => p1Controller.abort(), 90_000);
     const phase1 = await openai.chat.completions.create({
       model: "anthropic/claude-sonnet-4.6",
       messages: chatMessages,
@@ -7324,13 +7329,14 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
       temperature: 0.75,
       max_tokens: 2000,
       stream: true,
-    });
+    }, { signal: p1Controller.signal });
 
     let contentBuffer = "";
     const toolCallBuffers: Record<number, { id: string; name: string; arguments: string }> = {};
     let finishReason = "";
 
     for await (const chunk of phase1) {
+      clearTimeout(p1Timeout);
       const choice = chunk.choices?.[0];
       if (!choice) continue;
       finishReason = choice.finish_reason || finishReason;
@@ -7431,16 +7437,19 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
         ...toolResults,
       ];
 
+      const p2Controller = new AbortController();
+      const p2Timeout = setTimeout(() => p2Controller.abort(), 90_000);
       const phase2 = await openai.chat.completions.create({
         model: "anthropic/claude-sonnet-4.6",
         messages: phase2Messages,
         temperature: 0.75,
         max_tokens: 1500,
         stream: true,
-      });
+      }, { signal: p2Controller.signal });
 
       let finalText = "";
       for await (const chunk of phase2) {
+        clearTimeout(p2Timeout);
         const delta = chunk.choices?.[0]?.delta?.content;
         if (delta) { finalText += delta; sendEvent({ type: "text", delta }); }
       }

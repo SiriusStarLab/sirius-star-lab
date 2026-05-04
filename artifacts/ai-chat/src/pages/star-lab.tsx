@@ -12992,20 +12992,29 @@ VOICE STYLE: Short, direct sentences. No bullet points or markdown. Report what 
 
     try {
       const apiMessages = [contextMessage, ...messages.map(m => ({ role: m.role, content: m.content })), { role: "user" as const, content: text }];
+      const fetchController = new AbortController();
+      const fetchTimeout = setTimeout(() => fetchController.abort(), 120_000);
       const res = await fetch(`${base}lab/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-lab-pin": pin },
         body: JSON.stringify({ messages: apiMessages }),
+        signal: fetchController.signal,
       });
-      if (!res.ok || !res.body) throw new Error("Chat failed");
+      if (!res.ok || !res.body) { clearTimeout(fetchTimeout); throw new Error("Chat failed"); }
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let buf = "";
       let full = "";
       const liveActions: { label: string; color: string; icon?: string; detail?: string }[] = [];
+      let lastActivity = Date.now();
+      const activityTimeout = setInterval(() => {
+        if (Date.now() - lastActivity > 90_000) { clearInterval(activityTimeout); reader.cancel().catch(() => {}); }
+      }, 5_000);
 
       while (true) {
         const { done, value } = await reader.read();
+        lastActivity = Date.now();
+        clearTimeout(fetchTimeout);
         if (done) break;
         buf += decoder.decode(value, { stream: true });
         const lines = buf.split("\n");
@@ -13058,6 +13067,8 @@ VOICE STYLE: Short, direct sentences. No bullet points or markdown. Report what 
           } catch {}
         }
       }
+
+      clearInterval(activityTimeout);
 
       if (full) {
         const cleanText = full.replace(/<<[^>]+>>/g, "").replace(/[*#>`_~]/g, "").trim();
