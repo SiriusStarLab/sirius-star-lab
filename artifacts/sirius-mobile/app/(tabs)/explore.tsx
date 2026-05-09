@@ -150,25 +150,33 @@ export default function ExploreScreen() {
   }, [userId]);
 
   const handleBriefing = useCallback(async () => {
-    if (!userId) return;
-    setBriefingLoading(true);
     setBriefingVisible(true);
+    if (!userId) {
+      setBriefingText("Sign in to generate your personalised daily briefing.");
+      return;
+    }
+    setBriefingLoading(true);
     setBriefingText(null);
     try {
       const result = await generateBriefing(userId);
       setBriefingText(result.briefing ?? null);
       setBriefingDate(result.date ?? null);
     } catch {
-      setBriefingText("Unable to generate your briefing right now.");
+      setBriefingText("Unable to generate your briefing right now. Please try again.");
     }
     setBriefingLoading(false);
   }, [userId]);
 
   const handleResearch = useCallback(async () => {
-    if (!userId || !researchTopic.trim() || researchLoading) return;
+    if (!researchTopic.trim() || researchLoading) return;
     setResearchLoading(true);
     setResearchVisible(true);
     setResearchText("");
+    if (!userId) {
+      setResearchText("Sign in to use Deep Research.");
+      setResearchLoading(false);
+      return;
+    }
     await streamResearch(
       researchTopic.trim(),
       userId,

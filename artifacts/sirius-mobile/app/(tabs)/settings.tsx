@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   Alert,
   Linking,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -214,8 +215,9 @@ export default function SettingsScreen() {
   const isIOS = Platform.OS === "ios";
 
   return (
+    <View style={{ flex: 1, backgroundColor: Colors.background }}>
     <ScrollView
-      style={[styles.root, { backgroundColor: Colors.background }]}
+      style={styles.root}
       contentContainerStyle={[
         styles.content,
         { paddingTop: topPad + 8, paddingBottom: bottomPad + 24 },
@@ -417,125 +419,6 @@ export default function SettingsScreen() {
         </View>
       )}
 
-      {/* Bank transfer payment modal — Android only */}
-      {!isIOS && showPayment && (
-        <View style={{
-          position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
-          backgroundColor: "rgba(8,12,26,0.92)", zIndex: 100,
-          justifyContent: "flex-end",
-        }}>
-          <View style={{
-            backgroundColor: "#0c1020",
-            borderTopLeftRadius: 24, borderTopRightRadius: 24,
-            padding: 24, paddingBottom: bottomPad + 24,
-            borderTopWidth: 1, borderTopColor: "rgba(0,212,255,0.15)",
-          }}>
-            {payStep === "details" ? (
-              <>
-                <Text style={{ fontSize: 20, fontWeight: "800", color: "#fff", marginBottom: 4 }}>
-                  Pay by bank transfer
-                </Text>
-                <Text style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", marginBottom: 20 }}>
-                  {payTier === "plus" ? "Sirius Plus · £5/month" : "Sirius Pro · £12/month"}
-                </Text>
-
-                {[
-                  ["Pay to", BANK.name],
-                  ["Bank", BANK.bank],
-                  ["Account number", BANK.account],
-                  ["Sort code", BANK.sortCode],
-                  ["Amount", PRICES[payTier]],
-                  ["Reference", `SIRIUS-${(userId ?? "GUEST").substring(0, 8).toUpperCase()}-${payTier.toUpperCase()}`],
-                ].map(([label, value]) => (
-                  <View key={label} style={{
-                    flexDirection: "row", justifyContent: "space-between",
-                    paddingVertical: 8,
-                    borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)",
-                  }}>
-                    <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.35)" }}>{label}</Text>
-                    <Text style={{ fontSize: 13, fontWeight: "600", color: "#fff" }}>{value}</Text>
-                  </View>
-                ))}
-
-                <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", marginTop: 16, marginBottom: 12, lineHeight: 18 }}>
-                  Make the transfer in your banking app using the details above, then tap the button below. We'll upgrade your account within a few hours.
-                </Text>
-
-                <TextInput
-                  placeholder="Your name (optional)"
-                  placeholderTextColor="rgba(255,255,255,0.25)"
-                  value={payName}
-                  onChangeText={setPayName}
-                  style={{
-                    backgroundColor: "rgba(255,255,255,0.05)",
-                    borderRadius: 10, padding: 12,
-                    color: "#fff", fontSize: 14, marginBottom: 8,
-                    borderWidth: 1, borderColor: "rgba(255,255,255,0.1)",
-                  }}
-                />
-                <TextInput
-                  placeholder="Email for confirmation (optional)"
-                  placeholderTextColor="rgba(255,255,255,0.25)"
-                  value={payEmail}
-                  onChangeText={setPayEmail}
-                  keyboardType="email-address"
-                  style={{
-                    backgroundColor: "rgba(255,255,255,0.05)",
-                    borderRadius: 10, padding: 12,
-                    color: "#fff", fontSize: 14, marginBottom: 16,
-                    borderWidth: 1, borderColor: "rgba(255,255,255,0.1)",
-                  }}
-                />
-
-                <Pressable
-                  onPress={handlePayConfirm}
-                  disabled={payLoading}
-                  style={({ pressed }) => ({
-                    backgroundColor: payLoading ? "rgba(0,212,255,0.2)" : "#00d4ff",
-                    borderRadius: 12, padding: 16,
-                    alignItems: "center", marginBottom: 12,
-                    opacity: pressed ? 0.9 : 1,
-                  })}
-                >
-                  {payLoading
-                    ? <ActivityIndicator color="#00d4ff" />
-                    : <Text style={{ fontSize: 15, fontWeight: "700", color: "#080c1a" }}>I've made the transfer</Text>}
-                </Pressable>
-                <Pressable onPress={() => setShowPayment(false)} style={{ alignItems: "center", padding: 8 }}>
-                  <Text style={{ fontSize: 14, color: "rgba(255,255,255,0.35)" }}>Cancel</Text>
-                </Pressable>
-              </>
-            ) : (
-              <>
-                <Text style={{ fontSize: 36, textAlign: "center", marginBottom: 12 }}>🎉</Text>
-                <Text style={{ fontSize: 20, fontWeight: "800", color: "#fff", textAlign: "center", marginBottom: 8 }}>
-                  You're upgraded!
-                </Text>
-                <Text style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", textAlign: "center", lineHeight: 20, marginBottom: 20 }}>
-                  Your account is now active. Just complete the bank transfer and you're all set — no waiting needed.
-                </Text>
-                {!!payRef && (
-                  <View style={{
-                    backgroundColor: "rgba(0,212,255,0.08)",
-                    borderRadius: 10, padding: 12, marginBottom: 20,
-                    borderWidth: 1, borderColor: "rgba(0,212,255,0.2)",
-                    alignItems: "center",
-                  }}>
-                    <Text style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", marginBottom: 2 }}>Your reference</Text>
-                    <Text style={{ fontSize: 14, fontWeight: "700", color: "#00d4ff" }}>{payRef}</Text>
-                  </View>
-                )}
-                <Pressable
-                  onPress={() => setShowPayment(false)}
-                  style={{ backgroundColor: "rgba(255,255,255,0.07)", borderRadius: 12, padding: 14, alignItems: "center" }}
-                >
-                  <Text style={{ fontSize: 14, color: "rgba(255,255,255,0.6)" }}>Close</Text>
-                </Pressable>
-              </>
-            )}
-          </View>
-        </View>
-      )}
 
       <View style={styles.card}>
         <SectionHeader title="ACCOUNT" />
@@ -596,6 +479,140 @@ export default function SettingsScreen() {
 
       <Text style={styles.versionText}>Sirius Star Lab · v1.0</Text>
     </ScrollView>
+
+    {/* Bank transfer payment modal — Android/Web only, uses RN Modal for correct OS-level z-stacking */}
+    {!isIOS && (
+      <Modal
+        visible={showPayment}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowPayment(false)}
+      >
+        <View style={{
+          flex: 1,
+          backgroundColor: "rgba(8,12,26,0.92)",
+          justifyContent: "flex-end",
+        }}>
+          <View style={{
+            backgroundColor: "#0c1020",
+            borderTopLeftRadius: 24, borderTopRightRadius: 24,
+            borderTopWidth: 1, borderTopColor: "rgba(0,212,255,0.15)",
+            maxHeight: "90%",
+          }}>
+          <ScrollView
+            contentContainerStyle={{ padding: 24, paddingBottom: bottomPad + 24 }}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+          {payStep === "details" ? (
+            <>
+              <Text style={{ fontSize: 20, fontWeight: "800", color: "#fff", marginBottom: 4 }}>
+                Pay by bank transfer
+              </Text>
+              <Text style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", marginBottom: 20 }}>
+                {payTier === "plus" ? "Sirius Plus · £5/month" : "Sirius Pro · £12/month"}
+              </Text>
+
+              {[
+                ["Pay to", BANK.name],
+                ["Bank", BANK.bank],
+                ["Account number", BANK.account],
+                ["Sort code", BANK.sortCode],
+                ["Amount", PRICES[payTier]],
+                ["Reference", `SIRIUS-${(userId ?? "GUEST").substring(0, 8).toUpperCase()}-${payTier.toUpperCase()}`],
+              ].map(([label, value]) => (
+                <View key={label} style={{
+                  flexDirection: "row", justifyContent: "space-between",
+                  paddingVertical: 8,
+                  borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)",
+                }}>
+                  <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.35)" }}>{label}</Text>
+                  <Text style={{ fontSize: 13, fontWeight: "600", color: "#fff" }}>{value}</Text>
+                </View>
+              ))}
+
+              <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", marginTop: 16, marginBottom: 12, lineHeight: 18 }}>
+                Make the transfer in your banking app using the details above, then tap the button below. We'll upgrade your account within a few hours.
+              </Text>
+
+              <TextInput
+                placeholder="Your name (optional)"
+                placeholderTextColor="rgba(255,255,255,0.25)"
+                value={payName}
+                onChangeText={setPayName}
+                style={{
+                  backgroundColor: "rgba(255,255,255,0.05)",
+                  borderRadius: 10, padding: 12,
+                  color: "#fff", fontSize: 14, marginBottom: 8,
+                  borderWidth: 1, borderColor: "rgba(255,255,255,0.1)",
+                }}
+              />
+              <TextInput
+                placeholder="Email for confirmation (optional)"
+                placeholderTextColor="rgba(255,255,255,0.25)"
+                value={payEmail}
+                onChangeText={setPayEmail}
+                keyboardType="email-address"
+                style={{
+                  backgroundColor: "rgba(255,255,255,0.05)",
+                  borderRadius: 10, padding: 12,
+                  color: "#fff", fontSize: 14, marginBottom: 16,
+                  borderWidth: 1, borderColor: "rgba(255,255,255,0.1)",
+                }}
+              />
+
+              <Pressable
+                onPress={handlePayConfirm}
+                disabled={payLoading}
+                style={({ pressed }) => ({
+                  backgroundColor: payLoading ? "rgba(0,212,255,0.2)" : "#00d4ff",
+                  borderRadius: 12, padding: 16,
+                  alignItems: "center", marginBottom: 12,
+                  opacity: pressed ? 0.9 : 1,
+                })}
+              >
+                {payLoading
+                  ? <ActivityIndicator color="#00d4ff" />
+                  : <Text style={{ fontSize: 15, fontWeight: "700", color: "#080c1a" }}>I've made the transfer</Text>}
+              </Pressable>
+              <Pressable onPress={() => setShowPayment(false)} style={{ alignItems: "center", padding: 8 }}>
+                <Text style={{ fontSize: 14, color: "rgba(255,255,255,0.35)" }}>Cancel</Text>
+              </Pressable>
+            </>
+          ) : (
+            <>
+              <Text style={{ fontSize: 36, textAlign: "center", marginBottom: 12 }}>🎉</Text>
+              <Text style={{ fontSize: 20, fontWeight: "800", color: "#fff", textAlign: "center", marginBottom: 8 }}>
+                You're upgraded!
+              </Text>
+              <Text style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", textAlign: "center", lineHeight: 20, marginBottom: 20 }}>
+                Your account is now active. Just complete the bank transfer and you're all set — no waiting needed.
+              </Text>
+              {!!payRef && (
+                <View style={{
+                  backgroundColor: "rgba(0,212,255,0.08)",
+                  borderRadius: 10, padding: 12, marginBottom: 20,
+                  borderWidth: 1, borderColor: "rgba(0,212,255,0.2)",
+                  alignItems: "center",
+                }}>
+                  <Text style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", marginBottom: 2 }}>Your reference</Text>
+                  <Text style={{ fontSize: 14, fontWeight: "700", color: "#00d4ff" }}>{payRef}</Text>
+                </View>
+              )}
+              <Pressable
+                onPress={() => setShowPayment(false)}
+                style={{ backgroundColor: "rgba(255,255,255,0.07)", borderRadius: 12, padding: 14, alignItems: "center" }}
+              >
+                <Text style={{ fontSize: 14, color: "rgba(255,255,255,0.6)" }}>Close</Text>
+              </Pressable>
+            </>
+          )}
+        </ScrollView>
+        </View>
+        </View>
+      </Modal>
+    )}
+    </View>
   );
 }
 
