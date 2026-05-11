@@ -1538,7 +1538,7 @@ function DreamLabInfoOverlay({ T, onClose }: { T: typeof THEMES.cosmic; onClose:
               <p className="text-xs" style={{ color: `${T.text}60` }}>Your private space to grow, reflect, and manifest</p>
             </div>
           </div>
-          <button onClick={onClose}
+          <button onClick={onClose} aria-label="Close"
             className="w-9 h-9 rounded-xl flex items-center justify-center transition-all"
             style={{ background: T.soft, color: T.accent }}>
             <X className="w-4 h-4" />
