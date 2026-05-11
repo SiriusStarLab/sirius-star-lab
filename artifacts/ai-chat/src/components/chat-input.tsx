@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, KeyboardEvent, useState, useCallback } from "react";
-import { Send, Square, Mic, MicOff, Paperclip, X, Loader2, Zap, FileText, HelpCircle, Volume2, VolumeX, Keyboard } from "lucide-react";
+import { Send, Square, Mic, MicOff, X, Loader2, Zap, FileText, ImageIcon, HelpCircle, Volume2, VolumeX, Keyboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useSubscription } from "@/hooks/use-subscription";
@@ -105,7 +105,8 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
   };
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const docInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
 
@@ -145,48 +146,33 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
     }
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    const lowerName = file.name.toLowerCase();
-    const isDocument =
-      file.type === "application/pdf" ||
-      file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
-      file.type === "application/msword" ||
-      file.type === "text/plain" ||
-      file.type === "text/csv" ||
-      file.type === "text/markdown" ||
-      file.type === "application/json" ||
-      lowerName.endsWith(".pdf") ||
-      lowerName.endsWith(".docx") ||
-      lowerName.endsWith(".doc") ||
-      lowerName.endsWith(".txt") ||
-      lowerName.endsWith(".csv") ||
-      lowerName.endsWith(".md") ||
-      lowerName.endsWith(".json");
+    reader.onload = (ev) => {
+      const result = ev.target?.result as string;
+      setImageBase64(result.split(",")[1]);
+      setImagePreview(result);
+      setDocumentBase64(null);
+      setDocumentName(null);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
 
-    if (isDocument) {
-      reader.onload = (ev) => {
-        const result = ev.target?.result as string;
-        const base64 = result.split(",")[1];
-        setDocumentBase64(base64);
-        setDocumentName(file.name);
-        setImageBase64(null);
-        setImagePreview(null);
-      };
-      reader.readAsDataURL(file);
-    } else {
-      reader.onload = (ev) => {
-        const result = ev.target?.result as string;
-        const base64 = result.split(",")[1];
-        setImageBase64(base64);
-        setImagePreview(result);
-        setDocumentBase64(null);
-        setDocumentName(null);
-      };
-      reader.readAsDataURL(file);
-    }
+  const handleDocSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const result = ev.target?.result as string;
+      setDocumentBase64(result.split(",")[1]);
+      setDocumentName(file.name);
+      setImageBase64(null);
+      setImagePreview(null);
+    };
+    reader.readAsDataURL(file);
     e.target.value = "";
   };
 
@@ -462,19 +448,37 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
             opacity: (input || imageBase64) ? 1 : 0
           }} />
 
-        {/* Image upload button */}
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          className="flex-shrink-0 self-end mb-3 ml-3 flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200"
-          style={{
-            background: (imageBase64 || documentBase64) ? "hsl(193 100% 52% / 0.15)" : "transparent",
-            color: (imageBase64 || documentBase64) ? "hsl(193 100% 52%)" : "hsl(220 14% 38%)",
-          }}
-          title="Attach image or document (PDF, Word, CSV, TXT)"
-        >
-          <Paperclip size={16} />
-        </button>
-        <input ref={fileInputRef} type="file" accept="image/*,.pdf,.docx,.doc,.txt,.csv,.md,.json,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,text/plain,text/csv,text/markdown,application/json" className="hidden" onChange={handleFileSelect} />
+        {/* Attachment tab buttons */}
+        <div className="flex-shrink-0 self-end mb-2.5 ml-2.5 flex items-center gap-1.5">
+          <button
+            onClick={() => imageInputRef.current?.click()}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all duration-200"
+            style={{
+              background: imageBase64 ? "hsl(193 100% 52% / 0.18)" : "hsl(210 25% 94%)",
+              color: imageBase64 ? "hsl(193 100% 35%)" : "hsl(220 14% 45%)",
+              border: imageBase64 ? "1px solid hsl(193 100% 52% / 0.4)" : "1px solid hsl(210 25% 87%)",
+            }}
+            title="Attach an image"
+          >
+            <ImageIcon size={12} />
+            Image
+          </button>
+          <button
+            onClick={() => docInputRef.current?.click()}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all duration-200"
+            style={{
+              background: documentBase64 ? "hsl(193 100% 52% / 0.18)" : "hsl(210 25% 94%)",
+              color: documentBase64 ? "hsl(193 100% 35%)" : "hsl(220 14% 45%)",
+              border: documentBase64 ? "1px solid hsl(193 100% 52% / 0.4)" : "1px solid hsl(210 25% 87%)",
+            }}
+            title="Attach a document (PDF, Word, CSV, TXT)"
+          >
+            <FileText size={12} />
+            Document
+          </button>
+        </div>
+        <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageSelect} />
+        <input ref={docInputRef} type="file" accept=".pdf,.docx,.doc,.txt,.csv,.md,.json,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,text/plain,text/csv,text/markdown,application/json" className="hidden" onChange={handleDocSelect} />
 
         <Textarea
           ref={textareaRef}
