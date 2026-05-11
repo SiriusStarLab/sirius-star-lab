@@ -2,6 +2,7 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { eq, desc, gte, lte, and, or, like, sql, isNull, ne } from "drizzle-orm";
 import { db, labProjects, labMessages, scoutReports, cadFiles, techDocs, labScanHistory, userProfilesTable, mediaOutlets, appBuilderSessions, voiceJournalTable, siriusConfig, siriusAutomations, siriusCustomTools, siriusErrors, cadJobs, siriusUpgrades, siriusNotifications } from "@workspace/db";
 import { getSiriusConfigValue, setSiriusConfigValue, executeCustomTool, runAutomation, logSiriusError } from "../lib/sirius-automation.js";
+import { extractAndSaveMemories } from "../lib/memory.js";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { generateImageBuffer } from "@workspace/integrations-openai-ai-server/image";
 import { ObjectStorageService } from "../lib/objectStorage";
@@ -7465,66 +7466,24 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
         sendEvent({ type: "text", delta: fallback });
       }
 
-      // Background: auto-extract any additional facts from this exchange (owner only)
-      if (role === "owner") setImmediate(async () => {
-        try {
-          const lastUserMsg = messages[messages.length - 1]?.content || "";
-          const extraction = await openai.chat.completions.create({
-            model: "anthropic/claude-haiku-4.5",
-            messages: [{
-              role: "system",
-              content: `Extract NEW factual information the user revealed in this message that is worth remembering long-term. Only extract genuinely new, specific, non-obvious facts. Return JSON: {"facts": [{"fact": string, "category": "Business"|"Goals"|"Clients"|"Products"|"Personal"|"Strategy"|"Decision"|"Finance"|"General"}]}. Return {"facts": []} if nothing new.`
-            }, {
-              role: "user",
-              content: `User said: "${lastUserMsg}"\n\nAlready known context:\n${brainContext}`
-            }],
-            response_format: { type: "json_object" },
-            max_tokens: 300,
-            temperature: 0.3,
-          });
-          const extracted = JSON.parse(extraction.choices[0]?.message?.content || '{"facts":[]}');
-          if (extracted.facts?.length > 0) {
-            const currentRows = await db.select().from(userProfilesTable).where(eq(userProfilesTable.userId, BRAIN_USER));
-            const currentMemories = currentRows[0]?.memories || "";
-            const newFacts = extracted.facts.map((f: any) => `[${f.category}] ${f.fact}`).join("\n");
-            const updated = currentMemories ? `${currentMemories}\n${newFacts}` : newFacts;
-            await db.insert(userProfilesTable)
-              .values({ userId: BRAIN_USER, aiName: "Sirius", memories: updated })
-              .onConflictDoUpdate({ target: userProfilesTable.userId, set: { memories: updated, updatedAt: new Date() } });
-          }
-        } catch { /* silently fail — background task */ }
+      // Background: auto-extract facts from this exchange using the canonical memory engine
+      if (role === "owner") setImmediate(() => {
+        const currentMemories = p?.memories || "";
+        const exchange = [
+          ...(messages as Array<{ role: string; content: string }>),
+          { role: "assistant", content: finalText },
+        ];
+        extractAndSaveMemories(BRAIN_USER, exchange, currentMemories).catch(() => {});
       });
 
     } else {
       // No tools used — already streamed in phase 1. Background extraction (owner only).
-      if (role === "owner") setImmediate(async () => {
-        try {
-          const lastUserMsg = messages[messages.length - 1]?.content || "";
-          if (lastUserMsg.length < 20) return;
-          const extraction = await openai.chat.completions.create({
-            model: "anthropic/claude-haiku-4.5",
-            messages: [{
-              role: "system",
-              content: `Extract NEW factual information the user revealed. Only specific, worth-remembering facts. Return JSON: {"facts": [{"fact": string, "category": "Business"|"Goals"|"Clients"|"Products"|"Personal"|"Strategy"|"Decision"|"Finance"|"General"}]}. Return {"facts": []} if nothing new.`
-            }, {
-              role: "user",
-              content: `User said: "${lastUserMsg}"\n\nAlready known:\n${brainContext}`
-            }],
-            response_format: { type: "json_object" },
-            max_tokens: 300,
-            temperature: 0.3,
-          });
-          const extracted = JSON.parse(extraction.choices[0]?.message?.content || '{"facts":[]}');
-          if (extracted.facts?.length > 0) {
-            const currentRows = await db.select().from(userProfilesTable).where(eq(userProfilesTable.userId, BRAIN_USER));
-            const currentMemories = currentRows[0]?.memories || "";
-            const newFacts = extracted.facts.map((f: any) => `[${f.category}] ${f.fact}`).join("\n");
-            const updated = currentMemories ? `${currentMemories}\n${newFacts}` : newFacts;
-            await db.insert(userProfilesTable)
-              .values({ userId: BRAIN_USER, aiName: "Sirius", memories: updated })
-              .onConflictDoUpdate({ target: userProfilesTable.userId, set: { memories: updated, updatedAt: new Date() } });
-          }
-        } catch { /* silently fail */ }
+      if (role === "owner") setImmediate(() => {
+        const lastUserMsg = messages[messages.length - 1]?.content || "";
+        if (typeof lastUserMsg === "string" && lastUserMsg.length < 20) return;
+        const currentMemories = p?.memories || "";
+        const exchange = messages as Array<{ role: string; content: string }>;
+        extractAndSaveMemories(BRAIN_USER, exchange, currentMemories).catch(() => {});
       });
     }
 
