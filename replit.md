@@ -18,6 +18,18 @@ I like functional programming.
 Do not make changes to the folder `lib/api-spec`.
 Changes to `artifacts/ai-chat/src/pages/star-lab.tsx` are permitted — Garry explicitly approved this. The previous restriction is lifted.
 
+## How to Approach Every Change (Non-Negotiable)
+
+Before making any change:
+1. **Map the blast radius first.** Identify every file, route, component, or feature that could be affected by the change — not just the thing being changed. If touching a shared file (App.tsx, security.ts, a Zod schema, a shared hook), list everything that uses it.
+2. **Think through side effects out loud.** Ask: "If I change X, what breaks?" before writing a single line.
+3. **Make the change minimally.** Do only what is needed. Do not change syntax, style, or structure unless directly required.
+
+After making any change:
+4. **Test as a real user would** — not by reading code, but by actually using the app. Click every button and route that could have been affected, not just the one that was changed.
+5. **Check adjacent features.** If you changed routing, check all routes. If you changed a shared schema, check all endpoints using it. If you changed a shared component, check every page that renders it.
+6. **Do not tell the user something works unless you have verified it behaves correctly end-to-end.**
+
 ## System Architecture
 The project is a pnpm workspace monorepo using Node.js 24 and TypeScript 5.9.
 
