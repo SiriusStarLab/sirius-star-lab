@@ -16,6 +16,7 @@ import {
   chatRateLimit,
   imageGenRateLimit,
   scanTriggerRateLimit,
+  dreamLabAiRateLimit,
 } from "./middlewares/security.js";
 
 const app: Express = express();
@@ -96,6 +97,11 @@ app.use("/api/lab/projects/:id/render", imageGenRateLimit);
 
 // Scan trigger — max 3 manual runs per hour
 app.use("/api/lab/auto-scan/trigger", scanTriggerRateLimit);
+
+// Dream Lab AI — 30 AI requests per hour per IP (free feature, protected from abuse)
+app.use("/api/dream-lab/sirius-chat", dreamLabAiRateLimit);
+app.use("/api/dream-lab/ideas/:id/sirius", dreamLabAiRateLimit);
+app.use("/api/dream-lab/generate-affirmations", dreamLabAiRateLimit);
 
 // ── 10. Mobile app download ───────────────────────────────────────────────────
 app.get("/api/download/sirius-mobile", (req, res) => {

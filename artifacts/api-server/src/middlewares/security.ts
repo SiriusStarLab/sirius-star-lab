@@ -127,6 +127,23 @@ export const scanTriggerRateLimit = rateLimit({
   },
 });
 
+// Dream Lab AI endpoints — 30 AI calls per hour per IP (generous but protected)
+export const dreamLabAiRateLimit = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => getClientIp(req),
+  handler: (req, res) => {
+    securityLog("RATE_LIMIT_DREAM_LAB", req);
+    res.status(429).json({
+      error: "Rate limit reached",
+      message: "You've reached the Dream Lab AI limit for this hour (30 requests). Take a breath and come back soon ✨",
+      retryAfter: 3600,
+    });
+  },
+});
+
 // ── 3. PIN brute-force protection ─────────────────────────────────────────────
 
 type BanRecord = { failures: number; firstFailure: number; bannedUntil: number | null };

@@ -38,9 +38,7 @@ function Router() {
       <Route path="/star-lab">
         <LabAuthGate><StarLabPage /></LabAuthGate>
       </Route>
-      <Route path="/dream-lab">
-        <LabAuthGate><DreamLabPage /></LabAuthGate>
-      </Route>
+      <Route path="/dream-lab" component={DreamLabPage} />
       <Route path="/universe">
         <LabAuthGate><UniversePage /></LabAuthGate>
       </Route>

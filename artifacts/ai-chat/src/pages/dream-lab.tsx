@@ -4,7 +4,7 @@ import {
   Sparkles, Star, Flame, Heart, Lightbulb, BookOpen, Plus, X,
   ChevronRight, ChevronDown, Send, Loader2, Trash2, Pin, PinOff,
   Settings, ArrowLeft, Zap, Moon, Sun, Target, TrendingUp, Smile,
-  Globe, RefreshCw, Edit3, Check, Wand2
+  Globe, RefreshCw, Edit3, Check, Wand2, HelpCircle
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { getUserId } from "@/lib/user-id";
@@ -132,6 +132,7 @@ export function DreamLabPage() {
   const [view, setView] = useState<DreamView>("board");
   const [selectedIdea, setSelectedIdea] = useState<Idea | null>(null);
   const [theme, setTheme] = useState<string>("cosmic");
+  const [showInfo, setShowInfo] = useState(false);
   const api = useApi();
 
   useEffect(() => {
@@ -235,8 +236,18 @@ export function DreamLabPage() {
             style={{ background: view === "settings" ? T.accent : T.soft, color: view === "settings" ? "#fff" : T.accent }}>
             <Settings className="w-3.5 h-3.5" />
           </button>
+          <button onClick={() => setShowInfo(true)} title="What is Dream Lab?"
+            className="flex items-center justify-center w-8 h-8 rounded-xl transition-all"
+            style={{ background: T.soft, color: T.accent }}>
+            <HelpCircle className="w-3.5 h-3.5" />
+          </button>
         </div>
       </div>
+
+      {/* Info overlay */}
+      <AnimatePresence>
+        {showInfo && <DreamLabInfoOverlay T={T} onClose={() => setShowInfo(false)} />}
+      </AnimatePresence>
 
       {/* Body */}
       <div className="flex-1 overflow-hidden">
@@ -1449,6 +1460,143 @@ function SettingsView({ T, profile, theme, onSave }: { T: typeof THEMES.cosmic; 
         {saving ? "Saving…" : "Save my Dream Lab"}
       </button>
     </div>
+  );
+}
+
+// ── Dream Lab Info Overlay ─────────────────────────────────────────────────────
+
+function DreamLabInfoOverlay({ T, onClose }: { T: typeof THEMES.cosmic; onClose: () => void }) {
+  const isPearl = T.bg === THEMES.pearl.bg;
+
+  const features = [
+    {
+      icon: Lightbulb,
+      emoji: "💡",
+      title: "Idea Board",
+      description: "Capture every idea before it slips away. Add ideas across any category — business, personal, creative, health, finance, relationships, spiritual. Rate your energy for each one, pin your favourites, and track them from seed through to manifested.",
+    },
+    {
+      icon: Sparkles,
+      emoji: "✨",
+      title: "Sirius AI Enhancement",
+      description: "On any idea, tap the Sirius button and she analyses it personally — what makes it powerful, what unique strengths you bring to it, the hidden opportunity inside, three tailored daily affirmations, and one concrete action you can take today.",
+    },
+    {
+      icon: Zap,
+      emoji: "⚡",
+      title: "Manifestations",
+      description: "Build your personal practice. Generate affirmations tailored to your profile and goals, or write your own. Save the ones that resonate and return to them daily. Covers affirmations, intentions, mantras, and visualisations.",
+    },
+    {
+      icon: BookOpen,
+      emoji: "📖",
+      title: "Dream Journal",
+      description: "A private space to write freely. Capture thoughts, reflections, gratitude, and visions with a mood tag. Your entries are yours alone — they help you spot patterns and stay connected to what matters most.",
+    },
+    {
+      icon: Moon,
+      emoji: "💬",
+      title: "Chat with Sirius",
+      description: "Have a real conversation about your dreams, goals, and ideas. Sirius knows your profile — your personality, your values, your big dream — so every conversation goes deeper than a generic AI chat.",
+    },
+    {
+      icon: Settings,
+      emoji: "🎨",
+      title: "Your Personal Space",
+      description: "Dream Lab remembers you. Set your name, describe your personality and lifestyle, share your core values and biggest dream, and pick your visual theme. The more Sirius knows about you, the more personalised every experience becomes.",
+    },
+  ];
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(12px)" }}
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        transition={{ type: "spring", damping: 25, stiffness: 300 }}
+        className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl"
+        style={{ background: T.gradient, border: `1px solid ${T.border}` }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="sticky top-0 flex items-center justify-between px-6 pt-6 pb-4"
+          style={{ background: isPearl ? "rgba(248,250,252,0.95)" : "rgba(0,0,0,0.4)", backdropFilter: "blur(20px)", borderBottom: `1px solid ${T.border}` }}>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl flex items-center justify-center"
+              style={{ background: `linear-gradient(135deg, ${T.accent}, ${T.accent}88)` }}>
+              <Star className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold" style={{ color: T.text }}>Welcome to Dream Lab</h2>
+              <p className="text-xs" style={{ color: `${T.text}60` }}>Your private space to grow, reflect, and manifest</p>
+            </div>
+          </div>
+          <button onClick={onClose}
+            className="w-9 h-9 rounded-xl flex items-center justify-center transition-all"
+            style={{ background: T.soft, color: T.accent }}>
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Intro */}
+        <div className="px-6 py-5">
+          <div className="rounded-2xl p-5 mb-6"
+            style={{ background: `${T.accent}18`, border: `1px solid ${T.accent}30` }}>
+            <p className="text-sm leading-relaxed" style={{ color: T.text }}>
+              Dream Lab is your personal creative and growth space — completely separate from the business side of Sirius.
+              It's where you capture ideas, build daily practices, journal your thoughts, and have deep one-on-one conversations
+              with Sirius about the life you're building. Everything here is personal to you, remembered by Sirius, and always free.
+            </p>
+          </div>
+
+          {/* Feature grid */}
+          <div className="space-y-3">
+            {features.map((f, i) => (
+              <motion.div
+                key={f.title}
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.06 }}
+                className="flex gap-4 p-4 rounded-2xl"
+                style={{ background: isPearl ? "rgba(255,255,255,0.8)" : "rgba(255,255,255,0.07)", border: `1px solid ${T.border}` }}
+              >
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-xl">
+                  {f.emoji}
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm mb-1" style={{ color: T.text }}>{f.title}</h3>
+                  <p className="text-xs leading-relaxed" style={{ color: `${T.text}70` }}>{f.description}</p>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+
+          {/* Footer note */}
+          <div className="mt-6 flex items-start gap-3 p-4 rounded-2xl"
+            style={{ background: T.soft, border: `1px solid ${T.border}` }}>
+            <Heart className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: T.accent }} />
+            <p className="text-xs leading-relaxed" style={{ color: `${T.text}70` }}>
+              <span className="font-semibold" style={{ color: T.text }}>Dream Lab is always free.</span>
+              {" "}No subscription needed. Sirius AI features include a generous usage limit to keep the experience great for everyone.
+              Your ideas, journal, and profile are private to you and never shared.
+            </p>
+          </div>
+
+          <button onClick={onClose}
+            className="w-full mt-5 py-3.5 rounded-2xl font-bold text-sm"
+            style={{ background: `linear-gradient(135deg, ${T.accent}, ${T.accent}cc)`, color: "#fff" }}>
+            Enter my Dream Lab ✨
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
   );
 }
 
