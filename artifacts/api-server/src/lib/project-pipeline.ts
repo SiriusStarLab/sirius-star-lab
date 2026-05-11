@@ -14,7 +14,7 @@
  * Bulk triggering is disabled — the scanner only queues projects; this manages them.
  */
 
-import { eq, isNull, or, and, asc, ne, sql } from "drizzle-orm";
+import { eq, isNull, or, and, asc, ne, sql, inArray } from "drizzle-orm";
 import { db, labProjects, appBuilderSessions, cadFiles } from "@workspace/db";
 import { triggerAutoBuildForProject, isSoftwareBuildable } from "./lab-auto-scan.js";
 import { openai } from "@workspace/integrations-openai-ai-server";
@@ -375,7 +375,7 @@ export async function advanceCadPendingWithNotes(): Promise<void> {
           and(
             eq(labProjects.launchStatus, "cad-pending"),
             ne(labProjects.status, "archived"),
-            sql`${labProjects.id} = ANY(${sql.raw(`ARRAY[${ids.join(",")}]::int[]`)})`,
+            inArray(labProjects.id, ids),
           )
         );
       console.log(`[Pipeline] ✅ Migration: advanced ${withNotes.length} cad-pending → launch-ready (drawing notes present)`);
@@ -390,7 +390,7 @@ export async function advanceCadPendingWithNotes(): Promise<void> {
           and(
             eq(labProjects.launchStatus, "cad-pending"),
             ne(labProjects.status, "archived"),
-            sql`${labProjects.id} = ANY(${sql.raw(`ARRAY[${ids.join(",")}]::int[]`)})`,
+            inArray(labProjects.id, ids),
           )
         );
       console.log(`[Pipeline] ✅ Migration: advanced ${withBriefOnly.length} cad-pending → launch-ready (brief present, build was attempted)`);

@@ -11,6 +11,7 @@ import {
   generalRateLimit,
   suspiciousRequestDetector,
   payloadSizeGuard,
+  inputScanMiddleware,
   pinBanMiddleware,
   chatRateLimit,
   imageGenRateLimit,
@@ -56,6 +57,9 @@ app.use(suspiciousRequestDetector);
 // ── 5. Payload size guard — before body parsers ───────────────────────────────
 app.use(payloadSizeGuard);
 
+// ── 5b. Input threat scanner — blocks SQL injection, XSS, path traversal ─────
+app.use(inputScanMiddleware);
+
 // ── 6. Raw body for Stripe webhook — must come before JSON parser ─────────────
 app.use("/api/stripe/webhook", express.raw({ type: "application/json" }));
 
@@ -82,6 +86,7 @@ app.use("/api/lab", pinBanMiddleware);
 
 // Chat / streaming endpoints
 app.use("/api/openai/conversations/:id/messages", chatRateLimit);
+app.use("/api/lab/chat", chatRateLimit);
 app.use("/api/lab/projects/:id/chat", chatRateLimit);
 app.use("/api/lab/projects/:id/complete-all", chatRateLimit);
 
@@ -122,7 +127,7 @@ app.get("/api/deploy/screenshot/:name", (req, res) => {
 });
 
 // ── 10b. Secure self-deploy endpoints (private server pull-update) ────────────
-const DEPLOY_TOKEN = "SIRIUS_DEPLOY_2026_SECURE";
+const DEPLOY_TOKEN = process.env.DEPLOY_TOKEN || "";
 app.get("/api/deploy/api-dist", (req, res) => {
   if (req.query.token !== DEPLOY_TOKEN) return res.status(403).json({ error: "Forbidden" });
   const file = path.resolve("/home/runner/workspace/artifacts/api-server/dist/index.cjs");
@@ -151,7 +156,7 @@ app.get("/api/deploy/install.sh", (req, res) => {
   const script = `#!/bin/bash
 set -e
 echo "[SIRIUS UPDATE] Starting..."
-TOKEN="SIRIUS_DEPLOY_2026_SECURE"
+TOKEN="${DEPLOY_TOKEN}"
 BASE="https://${REPLIT_DOMAIN}"
 
 echo "[1/5] Downloading API..."
@@ -253,8 +258,9 @@ app.post("/api/deploy/fix-server", async (req, res) => {
   res.json({ ok: true, applied: results, skipped: errs });
 });
 
-// ── 11. Serve update script for server deployment ─────────────────────────────
-function serveDeployScript(_req: any, res: any) {
+// ── 11. Serve update script for server deployment (token-protected) ───────────
+function serveDeployScript(req: any, res: any) {
+  if (req.query.token !== DEPLOY_TOKEN) return res.status(403).json({ error: "Forbidden" });
   const candidates = [
     "/home/runner/workspace/server-update.sh",
     path.join(process.cwd(), "../../server-update.sh"),

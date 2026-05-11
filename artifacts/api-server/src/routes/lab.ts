@@ -3659,7 +3659,15 @@ router.post("/lab/brain/memory", async (req, res): Promise<void> => {
   try {
     const rows = await db.select({ memories: userProfilesTable.memories }).from(userProfilesTable).where(eq(userProfilesTable.userId, BRAIN_USER));
     const current = rows[0]?.memories || "";
-    const newEntry = `[${category || "General"}] ${fact}`;
+    // Map category to canonical prefix format used by the shared memory engine
+    const categoryMap: Record<string, string> = {
+      personal: "(P)", personal_preference: "(P)", preference: "(P)",
+      social: "(S)", relationship: "(S)",
+      emotional: "(E)", mood: "(E)",
+      general: "(R)", knowledge: "(R)",
+    };
+    const prefix = categoryMap[(category || "general").toLowerCase()] ?? "(P)";
+    const newEntry = `${prefix} ${fact}`;
     const updated = current ? `${current}\n${newEntry}` : newEntry;
     await db.insert(userProfilesTable).values({ userId: BRAIN_USER, aiName: "Sirius", memories: updated })
       .onConflictDoUpdate({ target: userProfilesTable.userId, set: { memories: updated, updatedAt: new Date() } });
@@ -8766,7 +8774,7 @@ router.post("/lab/app-builder/share", authMiddleware, async (req: Request, res: 
 });
 
 // ─── Session View — load session without PIN (read-only share) ─────────────────
-router.get("/lab/app-builder/view/:id", async (req: Request, res: Response) => {
+router.get("/lab/app-builder/view/:id", authMiddleware, async (req: Request, res: Response) => {
   try {
     const session = await db.select({ id: appBuilderSessions.id, appName: appBuilderSessions.appName, phase: appBuilderSessions.phase, status: appBuilderSessions.status, files: appBuilderSessions.files })
       .from(appBuilderSessions).where(eq(appBuilderSessions.id, parseInt(req.params.id as string))).limit(1);
