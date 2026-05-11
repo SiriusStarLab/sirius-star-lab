@@ -9,4 +9,8 @@
 export interface SendOpenaiMessageBody {
   content: string;
   userId?: string;
+  imageBase64?: string;
+  mode?: string;
+  documentBase64?: string;
+  documentName?: string;
 }
