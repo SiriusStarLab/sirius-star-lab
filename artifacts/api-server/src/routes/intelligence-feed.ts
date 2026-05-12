@@ -1,24 +1,15 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { eq, desc, and } from "drizzle-orm";
 import { db, aiDiscoveries, aiSweepLog } from "@workspace/db";
-import { runIntelligenceSweep, isSweepRunning } from "./intelligence-sweep.js";
+import { runIntelligenceSweep, isSweepRunning } from "../lib/intelligence-sweep.js";
+import { getLabPin, sseHeaders } from "../lib/lab-auth.js";
 
 const router: IRouter = Router();
 
-const LAB_PIN = process.env.STAR_LAB_PIN || "2025";
-
 function authMiddleware(req: Request, res: Response, next: () => void) {
   const pin = req.headers["x-lab-pin"] as string;
-  if (pin !== LAB_PIN) { res.status(401).json({ error: "Unauthorised" }); return; }
+  if (pin !== getLabPin()) { res.status(401).json({ error: "Unauthorised" }); return; }
   next();
-}
-
-function sseHeaders(res: Response) {
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache, no-transform");
-  res.setHeader("X-Accel-Buffering", "no");
-  res.setHeader("Connection", "keep-alive");
-  res.flushHeaders();
 }
 
 // GET /api/feed/discoveries — get all discoveries, newest first

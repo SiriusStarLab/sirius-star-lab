@@ -3,14 +3,13 @@ import Stripe from "stripe";
 import { db, labReports, labCommissions, labBlueprints, labBlueprintPurchases, labProjects } from "@workspace/db";
 import { eq, desc, sum, count, and } from "drizzle-orm";
 import { openai } from "@workspace/integrations-openai-ai-server";
+import { getLabPin, getBaseUrl } from "../lib/lab-auth.js";
 
 const router = Router();
 
-const LAB_PIN = process.env.STAR_LAB_PIN || "2025";
-
 function authMiddleware(req: Request, res: Response, next: NextFunction) {
   const pin = req.headers["x-lab-pin"] as string;
-  if (pin !== LAB_PIN) { res.status(401).json({ error: "Unauthorised" }); return; }
+  if (pin !== getLabPin()) { res.status(401).json({ error: "Unauthorised" }); return; }
   next();
 }
 
@@ -18,12 +17,6 @@ function getStripe(): Stripe {
   const key = (process.env.STRIPE_SECRET_KEY ?? "").trim();
   if (!key) throw new Error("STRIPE_SECRET_KEY not set");
   return new Stripe(key, { apiVersion: "2025-03-31.basil" as any });
-}
-
-function getBaseUrl(req: Request): string {
-  const proto = (req.headers["x-forwarded-proto"] as string) || req.protocol;
-  const host = (req.headers["x-forwarded-host"] as string) || req.get("host");
-  return `${proto}://${host}`;
 }
 
 

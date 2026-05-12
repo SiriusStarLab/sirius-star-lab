@@ -7,13 +7,13 @@ import {
 } from "@workspace/db/schema";
 import { eq, desc, inArray, and } from "drizzle-orm";
 import nodemailer from "nodemailer";
+import { getLabPin } from "../lib/lab-auth.js";
 
 const router: IRouter = Router();
-const LAB_PIN = process.env.STAR_LAB_PIN || "2025";
 
 function authMiddleware(req: Request, res: Response, next: () => void) {
   const pin = req.headers["x-lab-pin"] as string;
-  if (pin !== LAB_PIN) { res.status(401).json({ error: "Unauthorised" }); return; }
+  if (pin !== getLabPin()) { res.status(401).json({ error: "Unauthorised" }); return; }
   next();
 }
 

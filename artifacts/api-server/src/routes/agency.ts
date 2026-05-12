@@ -1,21 +1,14 @@
 import { Router, type Request, type Response } from "express";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import Stripe from "stripe";
+import { getLabPin, sseHeaders } from "../lib/lab-auth.js";
 
 const router = Router();
-const LAB_PIN = process.env.STAR_LAB_PIN || "2025";
 
 function authMiddleware(req: Request, res: Response, next: () => void) {
   const pin = req.headers["x-lab-pin"] as string;
-  if (pin !== LAB_PIN) { res.status(401).json({ error: "Unauthorised" }); return; }
+  if (pin !== getLabPin()) { res.status(401).json({ error: "Unauthorised" }); return; }
   next();
-}
-
-function sseHeaders(res: Response) {
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
-  res.setHeader("Connection", "keep-alive");
-  res.flushHeaders();
 }
 
 // ─── Service Packages ──────────────────────────────────────────────
