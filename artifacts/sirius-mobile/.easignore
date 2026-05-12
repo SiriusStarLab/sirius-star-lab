@@ -11,8 +11,10 @@ dist/
 screenshots/
 artifacts/fitstack-crm/
 artifacts/ai-chat/
+artifacts/api-server/
 artifacts/mockup-sandbox/
-artifacts/api-server/dist/
-artifacts/api-server/node_modules/
 attached_assets/
 .local/
+lib/
+pnpm-lock.yaml
+*.log
