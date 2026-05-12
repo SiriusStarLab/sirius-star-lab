@@ -299,6 +299,14 @@ export default function ChatScreen() {
           <Pressable
             onPress={handleNewChat}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.6 }]}
+          >
+            <Feather name="chevron-left" size={22} color={Colors.primary} />
+            <Text style={styles.backBtnText}>Home</Text>
+          </Pressable>
+          <Pressable
+            onPress={handleNewChat}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             style={({ pressed }) => [styles.newChatBtn, pressed && { opacity: 0.6 }]}
           >
             <Feather name="edit" size={18} color={Colors.primary} />
@@ -455,11 +463,24 @@ const styles = StyleSheet.create({
   chatHeader: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "flex-end",
+    justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingBottom: 8,
     borderBottomWidth: 1,
     borderBottomColor: "rgba(255,255,255,0.05)",
+  },
+  backBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  backBtnText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: Colors.primary,
   },
   newChatBtn: {
     flexDirection: "row",
