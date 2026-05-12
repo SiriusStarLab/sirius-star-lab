@@ -30,6 +30,12 @@ uri = "file://attached_assets/screenshots/appstore_5_starlab.png"
 type = "image"
 title = "screenshot 5 sirius star history"
 
+[[generated]]
+id = "cyFRJBDag4lQyZ0Suzw4i"
+uri = "file://artifacts/sirius-mobile/assets/images/icon.png"
+type = "image"
+title = "sirius-star-lab-icon"
+
 [[outputs]]
 id = "cNdbKNPxY3uJsRbWTNxPd"
 uri = "file://attached_assets/sirius-logo-v1.png"

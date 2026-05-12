@@ -1,0 +1,107 @@
+Hello, 
+
+We noticed this is your first app submission and want to congratulate you on joining the Apple Developer Program. We look forward to working together on your submissions.
+
+When App Review identifies an issue with a submission, we’ll contact you with a message in App Store Connect with details about what we found and how to resolve the issue. Learn more about App Review and tips for a smooth review experience. 
+
+See below for additional information about the issues that require your attention for this submission. If you have any questions, we are here to help. Reply to this message in App Store Connect and let us know.
+
+Review Environment
+
+Submission ID: e60d26ed-8f06-49e4-9d5e-8189a4221c78
+Review date: May 12, 2026
+Review Device: iPhone 17 Pro Max
+Version reviewed: 1.0 (9)
+
+Guideline 4.3(a) - Design
+
+
+Issue Description
+
+We noticed that the app icon is identical to the icons of other apps already submitted to the App Store.
+
+Apps that use the same icon make it difficult for users to find apps and are considered a form of spam.
+
+Next Steps
+
+To resolve this issue, please revise the app icon to ensure it is unique and does not duplicate the icon of another app.
+
+Otherwise, you may revise these apps' Availability settings in App Store Connect so they do not have overlapping storefronts. Learn how to manage the app's availability. 
+
+Resources 
+
+Learn more about our requirements to prevent spam in guideline 4.3.
+Guideline 2.1 - Information Needed
+
+
+We need more information to continue the review.
+
+Next Steps
+
+Provide detailed answers to the following questions:
+
+1. What is the difference between 'Sirius AI' app and this app?
+
+
+Guideline 5.1.2(i) - Legal - Privacy - Data Use and Sharing
+
+
+Issue Description
+
+The app privacy information provided in App Store Connect indicates the app collects data in order to track the user, including Name. However, the app does not use App Tracking Transparency to request the user's permission before tracking their activity.
+
+Apps need to receive the user’s permission through the AppTrackingTransparency framework before collecting data used to track them. This requirement protects the privacy of users.
+
+Next Steps
+
+Here are three ways to resolve this issue:
+
+- If the app does not currently track, update the app privacy information in App Store Connect. You must have the Account Holder or Admin role to update app privacy information. If you are unable to change the privacy label, reply to this message in App Store Connect, and make sure your App Privacy Information in App Store Connect is up to date before submitting your next update for review.
+
+- If this app does not track on the platform associated with this submission, but tracks on other platforms, notify App Review by replying to the rejection in App Store Connect. You should also reply if this app does not track on the platform associated with this submission but tracks on other Apple platforms this app is available on.
+
+- If the app tracks users on all supported platforms, the app must use App Tracking Transparency to request permission before collecting data used to track. When resubmitting, indicate in the Review Notes where the permission request is located.
+
+Note that if the app behaves differently in different countries or regions, you should provide a way for App Review to review these variations in the app submission. Additionally, these differences should be documented in the Review Notes section of App Store Connect.
+
+Resources
+
+- Tracking is linking data collected from the app with third-party data for advertising purposes, or sharing the collected data with a data broker. Learn more about tracking. 
+- See Frequently Asked Questions about the requirements for apps that track users.
+- Learn more about designing appropriate permission requests.
+Guideline 2.1(a) - Performance - App Completeness
+
+Issue Description
+
+The app exhibited one or more bugs that would negatively impact users.
+
+Bug description: The app showed an error message on launch.
+
+Review device details:
+
+- Device type: iPad Air 11-inch (M3) 
+- OS version: iPadOS 26.4.2
+- Internet Connection: Active
+
+Next Steps
+
+Test the app on supported devices to identify and resolve bugs and stability issues before submitting for review.
+
+If the bug cannot be reproduced, try the following:
+
+- For new apps, uninstall all previous versions of the app from a device, then install and follow the steps to reproduce.
+- For app updates, install the new version as an update to the previous version, then follow the steps to reproduce.
+
+Note that users expect apps they download to function on all the devices where they are available. For example, apps that may be downloaded onto iPad devices should function as expected for iPad users. 
+
+Resources
+
+- For information about testing apps and preparing them for review, see Testing a Release Build.
+- To learn about troubleshooting networking issues, see Networking Overview.
+
+
+Support
+
+- Reply to this message in your preferred language if you need assistance. If you need additional support, use the Contact Us module.
+- Consult with fellow developers and Apple engineers on the Apple Developer Forums.
+- Provide feedback on this message and your review experience by completing a short survey.
