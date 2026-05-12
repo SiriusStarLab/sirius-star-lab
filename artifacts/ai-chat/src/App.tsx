@@ -39,7 +39,7 @@ function Router() {
         <LabAuthGate><StarLabPage /></LabAuthGate>
       </Route>
       <Route path="/dream-lab">
-        <DreamLabPage />
+        <LabAuthGate><DreamLabPage /></LabAuthGate>
       </Route>
       <Route path="/universe">
         <LabAuthGate><UniversePage /></LabAuthGate>
