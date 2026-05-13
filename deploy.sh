@@ -13,19 +13,24 @@ echo "=== Sirius Deploy — $(date '+%H:%M %d/%m/%Y') ==="
 echo ""
 
 # ── 1. Set up SSH key ──────────────────────────────────────────────────────────
-if [ -z "$SSH_DEPLOY_KEY" ]; then
-  echo "❌ SSH_DEPLOY_KEY environment variable not set. Cannot deploy."
+KEY_FILE=".local/sirius_deploy.key"
+
+if [ ! -f "$KEY_FILE" ] && [ -n "$SSH_DEPLOY_KEY" ]; then
+  mkdir -p ~/.ssh
+  echo "$SSH_DEPLOY_KEY" > ~/.ssh/sirius_deploy
+  chmod 600 ~/.ssh/sirius_deploy
+  KEY_FILE="~/.ssh/sirius_deploy"
+elif [ ! -f "$KEY_FILE" ]; then
+  echo "❌ No SSH key found. Add .local/sirius_deploy.key or set SSH_DEPLOY_KEY secret."
   exit 1
 fi
 
-mkdir -p ~/.ssh
-echo "$SSH_DEPLOY_KEY" > ~/.ssh/sirius_deploy
-chmod 600 ~/.ssh/sirius_deploy
+chmod 600 "$KEY_FILE"
 
 # Accept server host key automatically (safe for known server)
 ssh-keyscan -p $SERVER_PORT -H 185.247.118.196 >> ~/.ssh/known_hosts 2>/dev/null
 
-SSH_OPTS="-i ~/.ssh/sirius_deploy -o StrictHostKeyChecking=no -p $SERVER_PORT"
+SSH_OPTS="-i $KEY_FILE -o StrictHostKeyChecking=no -p $SERVER_PORT"
 
 echo "🔑 SSH key ready"
 
