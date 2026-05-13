@@ -7405,28 +7405,28 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
       ];
 
       const p2Controller = new AbortController();
-      let p2Timer = setTimeout(() => p2Controller.abort(), 30_000);
+      let p2Timer = setTimeout(() => p2Controller.abort(), 60_000);
       const phase2 = await openai.chat.completions.create({
         model: "anthropic/claude-sonnet-4.6",
         messages: phase2Messages,
         temperature: 0.75,
-        max_tokens: 1500,
+        max_tokens: 3000,
         stream: true,
       }, { signal: p2Controller.signal });
 
       let finalText = "";
       for await (const chunk of phase2) {
-        clearTimeout(p2Timer); p2Timer = setTimeout(() => p2Controller.abort(), 30_000);
+        clearTimeout(p2Timer); p2Timer = setTimeout(() => p2Controller.abort(), 60_000);
         const delta = chunk.choices?.[0]?.delta?.content;
         if (delta) { finalText += delta; sendEvent({ type: "text", delta }); }
       }
       clearTimeout(p2Timer);
 
-      // If Phase 2 produced no text (e.g. Sirius tried to call a tool that isn't
-      // available in Phase 2), send a brief acknowledgment so the frontend never
-      // triggers the "something went wrong" error message.
+      // If Phase 2 produced no text, summarise the tool results directly rather
+      // than showing a generic "On it" that makes Sirius appear stuck.
       if (!finalText) {
-        const fallback = "On it — give me a moment.";
+        const toolNames = toolCallsList.map(tc => tc.name.replace(/_/g, " ")).join(", ");
+        const fallback = `Done — ran ${toolNames}. The results are in. Ask me anything specific about what I found.`;
         sendEvent({ type: "text", delta: fallback });
       }
 
