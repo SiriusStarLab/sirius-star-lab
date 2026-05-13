@@ -7284,60 +7284,82 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
       });
     }
 
-    // Phase 1: Call with tools (streaming) — detect tool calls
-    const p1Controller = new AbortController();
-    let p1Timer = setTimeout(() => p1Controller.abort(), 30_000);
-    const phase1 = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.6",
-      messages: chatMessages,
-      tools: activeTools,
-      tool_choice: "auto",
-      temperature: 0.75,
-      max_tokens: 2000,
-      stream: true,
-    }, { signal: p1Controller.signal });
+    // ── Agentic loop — runs until Sirius produces a text response or hits MAX_ROUNDS ──
+    // Replaces the old 2-phase system. Sirius can now call tools across multiple rounds
+    // (check → fix → verify → respond) without getting stuck mid-sequence.
+    const MAX_TOOL_ROUNDS = 6;
+    const MAX_TOOL_RESULT_CHARS = 8000; // truncate huge results to prevent context overflow
 
-    let contentBuffer = "";
-    const toolCallBuffers: Record<number, { id: string; name: string; arguments: string }> = {};
-    let finishReason = "";
+    let loopMessages: any[] = [...chatMessages];
+    let roundCount = 0;
+    let finalText = "";
 
-    for await (const chunk of phase1) {
-      clearTimeout(p1Timer); p1Timer = setTimeout(() => p1Controller.abort(), 30_000);
-      const choice = chunk.choices?.[0];
-      if (!choice) continue;
-      finishReason = choice.finish_reason || finishReason;
+    while (roundCount < MAX_TOOL_ROUNDS) {
+      roundCount++;
+      const isLastRound = roundCount >= MAX_TOOL_ROUNDS;
 
-      if (choice.delta?.content) {
-        contentBuffer += choice.delta.content;
-        sendEvent({ type: "text", delta: choice.delta.content });
-      }
+      const loopController = new AbortController();
+      // First round: 45s (tool selection is fast). Later rounds: 90s (tool results can be large).
+      let loopTimer = setTimeout(() => loopController.abort(), roundCount === 1 ? 45_000 : 90_000);
 
-      if (choice.delta?.tool_calls) {
-        for (const tc of choice.delta.tool_calls) {
-          const idx = tc.index ?? 0;
-          if (!toolCallBuffers[idx]) toolCallBuffers[idx] = { id: "", name: "", arguments: "" };
-          if (tc.id) toolCallBuffers[idx].id = tc.id;
-          if (tc.function?.name) toolCallBuffers[idx].name = tc.function.name;
-          if (tc.function?.arguments) toolCallBuffers[idx].arguments += tc.function.arguments;
+      const loopStream = await openai.chat.completions.create({
+        model: "anthropic/claude-sonnet-4.6",
+        messages: loopMessages,
+        // Last round: force a plain text response — no more tool calls allowed
+        ...(isLastRound ? {} : { tools: activeTools, tool_choice: "auto" }),
+        temperature: 0.75,
+        // First round needs fewer tokens (just picking tools). Later rounds need room to write.
+        max_tokens: roundCount === 1 ? 2000 : 4000,
+        stream: true,
+      }, { signal: loopController.signal });
+
+      let contentBuffer = "";
+      const toolCallBuffers: Record<number, { id: string; name: string; arguments: string }> = {};
+      let finishReason = "";
+
+      for await (const chunk of loopStream) {
+        clearTimeout(loopTimer); loopTimer = setTimeout(() => loopController.abort(), 30_000);
+        const choice = chunk.choices?.[0];
+        if (!choice) continue;
+        finishReason = choice.finish_reason || finishReason;
+
+        if (choice.delta?.content) {
+          contentBuffer += choice.delta.content;
+          sendEvent({ type: "text", delta: choice.delta.content });
+        }
+
+        if (choice.delta?.tool_calls) {
+          for (const tc of choice.delta.tool_calls) {
+            const idx = tc.index ?? 0;
+            if (!toolCallBuffers[idx]) toolCallBuffers[idx] = { id: "", name: "", arguments: "" };
+            if (tc.id) toolCallBuffers[idx].id = tc.id;
+            if (tc.function?.name) toolCallBuffers[idx].name = tc.function.name;
+            if (tc.function?.arguments) toolCallBuffers[idx].arguments += tc.function.arguments;
+          }
         }
       }
-    }
+      clearTimeout(loopTimer);
 
-    clearTimeout(p1Timer);
-    const toolCallsList = Object.values(toolCallBuffers);
+      const toolCallsList = Object.values(toolCallBuffers);
 
-    if (finishReason === "tool_calls" && toolCallsList.length > 0) {
-      // Execute each tool and send action events
+      // If the model responded with text (no tool calls), we're done
+      if (finishReason !== "tool_calls" || toolCallsList.length === 0) {
+        finalText = contentBuffer;
+        break;
+      }
+
+      // ── Execute all tool calls for this round ────────────────────────────────
       const toolResults: any[] = [];
+
       for (const tc of toolCallsList) {
         let args: any = {};
         try { args = JSON.parse(tc.arguments); } catch { /* ignore */ }
         sendEvent({ type: "thinking", text: `Using ${tc.name.replace(/_/g, " ")}…` });
-        const result = await executeLabTool(tc.name, args, sendEvent);
+        const rawResult = await executeLabTool(tc.name, args, sendEvent);
 
-        // Special: navigate_to returns NAVIGATE_ACTION: — intercept and send navigation event
-        if (result.startsWith("NAVIGATE_ACTION:")) {
-          const payload = result.slice("NAVIGATE_ACTION:".length);
+        // Special: navigate_to returns NAVIGATE_ACTION:
+        if (rawResult.startsWith("NAVIGATE_ACTION:")) {
+          const payload = rawResult.slice("NAVIGATE_ACTION:".length);
           const [section, projectPart] = payload.split(" | ");
           const projectId = projectPart?.startsWith("open_project:")
             ? parseInt(projectPart.slice("open_project:".length), 10) || null
@@ -7349,9 +7371,9 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
           continue;
         }
 
-        // Special: start_app_build returns NAVIGATE_AND_BUILD: — navigate to App Builder AND auto-start pipeline
-        if (result.startsWith("NAVIGATE_AND_BUILD:")) {
-          const payload = result.slice("NAVIGATE_AND_BUILD:".length);
+        // Special: start_app_build returns NAVIGATE_AND_BUILD:
+        if (rawResult.startsWith("NAVIGATE_AND_BUILD:")) {
+          const payload = rawResult.slice("NAVIGATE_AND_BUILD:".length);
           const parts = payload.split(" | ");
           const section = parts[0] || "appbuilder";
           const buildPrompt = parts.find(p => p.startsWith("prompt:"))?.slice("prompt:".length) || "";
@@ -7360,11 +7382,15 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
           sendEvent({ type: "navigate_and_build", section: section.trim(), prompt: buildPrompt, projectId: newProjectId });
           const meta = TOOL_META["start_app_build"];
           sendEvent({ type: "action", tool: tc.name, label: "Project created & queued", detail: buildPrompt.slice(0, 60) + (buildPrompt.length > 60 ? "…" : ""), color: meta.color, icon: meta.icon });
-          // Include project ID in the tool result so Sirius can immediately call complete_project
           const pidNote = newProjectId ? ` Project created with ID #${newProjectId}. NOW immediately call complete_project with projectId: ${newProjectId} to generate all documentation, research, business case, brochure, pitch and social posts for this project right now — do not wait, do not ask.` : "";
           toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: `Project created and queued for the pipeline.${pidNote}` });
           continue;
         }
+
+        // Truncate large results to prevent context window overflow
+        const result = rawResult.length > MAX_TOOL_RESULT_CHARS
+          ? rawResult.slice(0, MAX_TOOL_RESULT_CHARS) + "\n\n[Output truncated — ask for specifics if you need more detail]"
+          : rawResult;
 
         const meta = TOOL_META[tc.name] || { label: tc.name, color: "hsl(193,100%,40%)", icon: "⚡" };
         const detail = tc.name === "save_memory" ? args.fact
@@ -7376,80 +7402,34 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
           : "";
         sendEvent({ type: "action", tool: tc.name, label: meta.label, detail, color: meta.color, icon: meta.icon, result });
         toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: result });
-
-        // If startup_health_check found warnings or failures, automatically run fix_platform
-        // in Phase 1 right now — so Phase 2 has a clean bill of health and can respond normally.
-        // Without this, Phase 2 sees warnings and tries to call fix_platform (which has no tools),
-        // producing no text and triggering the "something went wrong" error.
-        if (tc.name === "startup_health_check" && (result.includes("WARNINGS DETECTED") || result.includes("CRITICAL FAILURE"))) {
-          try {
-            const fpMeta = TOOL_META["fix_platform"] || { label: "Running autonomous repair", color: "hsl(0,75%,55%)", icon: "🔧" };
-            sendEvent({ type: "thinking", text: "Running autonomous repair…" });
-            const fpResult = await executeLabTool("fix_platform", {}, sendEvent);
-            sendEvent({ type: "action", tool: "fix_platform", label: fpMeta.label, detail: "", color: fpMeta.color, icon: fpMeta.icon, result: fpResult });
-            // Inject as a synthetic tool call + result so Phase 2 sees the full picture
-            const fpId = `auto_fix_${Date.now()}`;
-            toolResults.push({ role: "assistant" as const, content: null, tool_calls: [{ id: fpId, type: "function" as const, function: { name: "fix_platform", arguments: "{}" } }] } as any);
-            toolResults.push({ role: "tool" as const, tool_call_id: fpId, content: fpResult });
-          } catch (fpErr) {
-            // Non-fatal — proceed without fix_platform result
-          }
-        }
       }
 
-      // Phase 2: Stream the final response with tool results incorporated
-      const phase2Messages = [
-        ...chatMessages,
-        { role: "assistant" as const, content: contentBuffer || null, tool_calls: toolCallsList.map(tc => ({ id: tc.id, type: "function" as const, function: { name: tc.name, arguments: tc.arguments } })) },
+      // Append this round to the message history and loop
+      loopMessages = [
+        ...loopMessages,
+        {
+          role: "assistant" as const,
+          content: contentBuffer || null,
+          tool_calls: toolCallsList.map(tc => ({ id: tc.id, type: "function" as const, function: { name: tc.name, arguments: tc.arguments } })),
+        },
         ...toolResults,
       ];
-
-      const p2Controller = new AbortController();
-      let p2Timer = setTimeout(() => p2Controller.abort(), 60_000);
-      const phase2 = await openai.chat.completions.create({
-        model: "anthropic/claude-sonnet-4.6",
-        messages: phase2Messages,
-        temperature: 0.75,
-        max_tokens: 3000,
-        stream: true,
-      }, { signal: p2Controller.signal });
-
-      let finalText = "";
-      for await (const chunk of phase2) {
-        clearTimeout(p2Timer); p2Timer = setTimeout(() => p2Controller.abort(), 60_000);
-        const delta = chunk.choices?.[0]?.delta?.content;
-        if (delta) { finalText += delta; sendEvent({ type: "text", delta }); }
-      }
-      clearTimeout(p2Timer);
-
-      // If Phase 2 produced no text, summarise the tool results directly rather
-      // than showing a generic "On it" that makes Sirius appear stuck.
-      if (!finalText) {
-        const toolNames = toolCallsList.map(tc => tc.name.replace(/_/g, " ")).join(", ");
-        const fallback = `Done — ran ${toolNames}. The results are in. Ask me anything specific about what I found.`;
-        sendEvent({ type: "text", delta: fallback });
-      }
-
-      // Background: auto-extract facts from this exchange using the canonical memory engine
-      if (role === "owner") setImmediate(() => {
-        const currentMemories = p?.memories || "";
-        const exchange = [
-          ...(messages as Array<{ role: string; content: string }>),
-          { role: "assistant", content: finalText },
-        ];
-        extractAndSaveMemories(BRAIN_USER, exchange, currentMemories).catch(() => {});
-      });
-
-    } else {
-      // No tools used — already streamed in phase 1. Background extraction (owner only).
-      if (role === "owner") setImmediate(() => {
-        const lastUserMsg = messages[messages.length - 1]?.content || "";
-        if (typeof lastUserMsg === "string" && lastUserMsg.length < 20) return;
-        const currentMemories = p?.memories || "";
-        const exchange = messages as Array<{ role: string; content: string }>;
-        extractAndSaveMemories(BRAIN_USER, exchange, currentMemories).catch(() => {});
-      });
     }
+
+    // If Sirius never produced a text response (hit round limit or all rounds were tool calls)
+    if (!finalText) {
+      sendEvent({ type: "text", delta: "All done — checks complete. What would you like to know from what I found?" });
+    }
+
+    // Background: auto-extract facts from this exchange (owner only)
+    if (role === "owner") setImmediate(() => {
+      const currentMemories = p?.memories || "";
+      const exchange = [
+        ...(messages as Array<{ role: string; content: string }>),
+        { role: "assistant", content: finalText },
+      ];
+      extractAndSaveMemories(BRAIN_USER, exchange, currentMemories).catch(() => {});
+    });
 
     clearInterval(heartbeat);
     res.write("data: [DONE]\n\n");
