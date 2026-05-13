@@ -3730,14 +3730,6 @@ const LAB_TOOLS: any[] = [
   {
     type: "function",
     function: {
-      name: "list_projects",
-      description: "Retrieve the list of current projects in the Star Lab. Use when the user asks about their projects, wants to review what they're working on, or needs project context.",
-      parameters: { type: "object", properties: {} },
-    },
-  },
-  {
-    type: "function",
-    function: {
       name: "update_business_profile",
       description: "Update a field in the business profile stored in Sirius Brain. Use when the user shares or corrects information about their business name, sectors, goals, or key clients.",
       parameters: {
@@ -3777,7 +3769,7 @@ const LAB_TOOLS: any[] = [
     type: "function",
     function: {
       name: "query_projects",
-      description: "Search and filter Star Lab projects with rich criteria. Use when the user asks about specific projects by date, industry, source (scan vs manual), status, or keyword. For 'last night's scan' use source=scan and days_ago=1. For 'recent projects' use days_ago=3 with a suitable limit.",
+      description: "Search, filter, and list Star Lab projects. Use this for ALL project queries: 'show me my projects', 'list everything', 'what projects do we have', 'what did the scan find last night' (source=scan, days_ago=1), 'recent projects' (days_ago=3), filtering by industry, status, or keyword. This is the single tool for all project retrieval.",
       parameters: {
         type: "object",
         properties: {
@@ -3788,21 +3780,6 @@ const LAB_TOOLS: any[] = [
           days_ago: { type: "number", description: "Only return projects created in the last N days (0 = today, 1 = since yesterday, 7 = last week). Omit for no date filter." },
           keyword: { type: "string", description: "Search projects by name keyword" },
           sort: { type: "string", enum: ["newest", "oldest"], description: "Sort order, default newest" },
-        },
-        required: [],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "get_scan_history",
-      description: "Get recent auto-scan history — what was found in previous nightly scans. Use when the user asks 'what did the scan find?', 'what came in last night?', 'recent scan results', or anything about the autonomous scanner output.",
-      parameters: {
-        type: "object",
-        properties: {
-          limit: { type: "number", description: "How many recent scans to return (default 3)" },
-          include_items: { type: "boolean", description: "Whether to include the full list of projects found in each scan (default true)" },
         },
         required: [],
       },
@@ -3828,14 +3805,6 @@ const LAB_TOOLS: any[] = [
         },
         required: ["action"],
       },
-    },
-  },
-  {
-    type: "function" as const,
-    function: {
-      name: "run_security_scan",
-      description: "Run a full security scan of the Sirius platform. Checks for dependency vulnerabilities, exposed secrets or API keys in source files, suspicious access attempts, and configuration integrity. Use when Garry asks about security, when something feels off, or proactively to keep the system safe. Returns a prioritised list of findings with recommendations.",
-      parameters: { type: "object", properties: {}, required: [] },
     },
   },
   {
@@ -3896,23 +3865,8 @@ const LAB_TOOLS: any[] = [
   {
     type: "function" as const,
     function: {
-      name: "build_now",
-      description: "Immediately trigger the pipeline to build a specific approved project by its ID. Use when the user says 'build project X', 'start building [name]', or 'kick off the build for #ID'. Call query_projects first if you need to find the project ID. This bypasses the 3-minute queue and starts the build right now.",
-      parameters: {
-        type: "object",
-        properties: {
-          projectId: { type: "number", description: "The database ID of the project to build immediately." },
-          projectName: { type: "string", description: "The name of the project (for confirmation message)." },
-        },
-        required: ["projectId"],
-      },
-    },
-  },
-  {
-    type: "function" as const,
-    function: {
       name: "complete_project",
-      description: "Take an existing project ALL THE WAY to completion in one command. Generates every missing document in parallel (brief, market research, technical specs, business case, go-to-market plan, brochure, investor pitch, social posts), triggers the build pipeline, and marks the project complete. Use this EVERY TIME Garry says 'complete this project', 'finish it', 'take it to conclusion', 'do everything for project X', 'wrap it up', or 'publish project X'. Always call query_projects first if you don't have the project ID.",
+      description: "Take a project ALL THE WAY to completion: generates every missing document (brief, market research, technical specs, business case, go-to-market plan, brochure, investor pitch, social posts), triggers the build pipeline, marks it complete. Use for 'complete this project', 'finish it', 'wrap it up', 'publish X'. For 'complete ALL projects' / 'finish everything' / 'do all of them' — call query_projects first to get the IDs, then call complete_project once per project in sequence. Always use query_projects to find the project ID if you don't have it.",
       parameters: {
         type: "object",
         properties: {
@@ -3926,42 +3880,12 @@ const LAB_TOOLS: any[] = [
   {
     type: "function" as const,
     function: {
-      name: "complete_all_projects",
-      description: "Complete EVERY incomplete project in the lab in one command — no questions asked. Finds all projects that are missing documents, then runs the full completion chain on each one sequentially: research, specs, business case, brochure, pitch, social posts, cost analysis, CAD notes (for engineering). Use this whenever Garry says 'complete all projects', 'finish all of them', 'do all the projects', 'finish everything', 'run through them all', or any similar batch instruction. DO NOT call complete_project individually when Garry means all of them — call this instead. Never ask which projects — this tool finds them automatically.",
-      parameters: {
-        type: "object",
-        properties: {
-          statusFilter: { type: "string", description: "Optional: only complete projects with this status. Leave empty to complete all incomplete projects regardless of status." },
-          industryFilter: { type: "string", description: "Optional: only complete projects in this industry. Leave empty for all industries." },
-          limit: { type: "number", description: "Optional: maximum number of projects to complete in this batch. Default is all of them." },
-        },
-        required: [],
-      },
-    },
-  },
-  {
-    type: "function" as const,
-    function: {
       name: "system_check",
-      description: "Run a full live system check across all Star Lab subsystems. Use this when the user asks for a status check, system check, health check, or 'how is everything running'. Returns real-time data from the database covering projects, pipeline, brain, app builder, and scanner.",
+      description: "Run a full live check across all Star Lab subsystems. Use for ANY status, health, or diagnostic question — startup greeting, 'how is everything', 'check yourself', 'what's pending', 'platform audit', 'run a lab test', or any question about system state. Returns real-time data: projects, pipeline, brain, app builder, scanner, pending approvals, automation health, and error log. This is the single tool for all system awareness.",
       parameters: {
         type: "object",
         properties: {
-          focus: { type: "string", description: "Optional area to focus on: 'projects', 'pipeline', 'brain', 'appbuilder', 'scanner'. Leave empty for a full check across all systems." },
-        },
-        required: [],
-      },
-    },
-  },
-  {
-    type: "function" as const,
-    function: {
-      name: "get_pending_approvals",
-      description: "Get all projects currently awaiting Garry's approval from the Autonomous Lab. Use when Garry asks 'what needs my approval', 'what's pending', 'what's waiting', 'what did the lab find', or 'show me the queue'. Returns full brief so you can summarise each one verbally.",
-      parameters: {
-        type: "object",
-        properties: {
-          limit: { type: "number", description: "Max results (default 10)" },
+          focus: { type: "string", description: "Optional area to focus on: 'projects', 'pipeline', 'brain', 'appbuilder', 'scanner', 'approvals', 'errors'. Leave empty for a full check." },
         },
         required: [],
       },
@@ -3971,11 +3895,11 @@ const LAB_TOOLS: any[] = [
     type: "function" as const,
     function: {
       name: "approve_project",
-      description: "Approve a specific project from the Autonomous Lab approval queue and add it to the Star Lab workspace. Use when Garry says 'approve', 'yes', 'add that one', 'add it', or confirms he wants a specific pending project. You MUST call get_pending_approvals first to get the project ID.",
+      description: "Approve a specific project from the Autonomous Lab approval queue and add it to the Star Lab workspace. Use when Garry says 'approve', 'yes', 'add that one', 'add it', or confirms he wants a specific pending project. Call system_check(focus='approvals') first to get the project ID if you don't have it.",
       parameters: {
         type: "object",
         properties: {
-          project_id: { type: "number", description: "The numeric ID of the project to approve (from get_pending_approvals)" },
+          project_id: { type: "number", description: "The numeric ID of the project to approve (from system_check approvals)" },
           project_name: { type: "string", description: "Project name — for spoken confirmation" },
         },
         required: ["project_id"],
@@ -3990,7 +3914,7 @@ const LAB_TOOLS: any[] = [
       parameters: {
         type: "object",
         properties: {
-          project_id: { type: "number", description: "The numeric ID of the project to reject (from get_pending_approvals)" },
+          project_id: { type: "number", description: "The numeric ID of the project to reject (from system_check approvals)" },
           project_name: { type: "string", description: "Project name — for spoken confirmation" },
         },
         required: ["project_id"],
@@ -4015,21 +3939,6 @@ const LAB_TOOLS: any[] = [
   {
     type: "function" as const,
     function: {
-      name: "generate_cad_notes",
-      description: "Generate complete engineering drawing specifications and CAD instructions for a physical/engineering project. Produces a full drawing notes package (geometry, tolerances, surface finish, materials, standards, GD&T callouts, and direct instructions for the CAD operator) and saves it to the project. Use for any precision engineering, manufacturing, medical device, aerospace, oil & gas, or hydrogen project that needs physical drawings. Always call this as part of the completion chain for engineering products.",
-      parameters: {
-        type: "object",
-        properties: {
-          projectId: { type: "number", description: "Database ID of the project" },
-          projectName: { type: "string", description: "Project name for confirmation" },
-        },
-        required: ["projectId"],
-      },
-    },
-  },
-  {
-    type: "function" as const,
-    function: {
       name: "launch_project",
       description: "Execute the full launch of a completed project into the world. Selects relevant press/media outlets from the outlet database, formats personalised press release submissions for each, generates a launch log with all outlet contact details and submission instructions, posts the social media content (formatted for each platform), and marks the project as launched (launchStatus = 'launched'). Use this AFTER complete_project has run and all documents are ready. This is the final step that puts the project in front of the world.",
       parameters: {
@@ -4039,22 +3948,6 @@ const LAB_TOOLS: any[] = [
           projectName: { type: "string", description: "Project name for confirmation" },
         },
         required: ["projectId"],
-      },
-    },
-  },
-  {
-    type: "function" as const,
-    function: {
-      name: "self_configure",
-      description: "Read or update your own behavioural rules, personality, and operating instructions. Use when Garry asks you to change how you behave, adjust your personality, update your focus areas, or when you want to improve yourself. Action 'read' fetches current config; 'write' saves a new value.",
-      parameters: {
-        type: "object",
-        properties: {
-          action: { type: "string", enum: ["read", "write"], description: "Read the current config or write a new value" },
-          key: { type: "string", description: "Config key: 'personality', 'focus_areas', 'communication_style', 'custom_rules', 'morning_brief_time', or any custom key" },
-          value: { type: "string", description: "The value to save (required for write action)" },
-        },
-        required: ["action", "key"],
       },
     },
   },
@@ -4162,47 +4055,12 @@ const LAB_TOOLS: any[] = [
   {
     type: "function" as const,
     function: {
-      name: "startup_health_check",
-      description: "Run a full startup maintenance check across all Sirius systems: database, error log, automations, custom tools, pipeline, approvals, and config. ALWAYS call this automatically at the very start of every session, before your first spoken word, so you can give Garry an accurate health status in your greeting. Also call this when Garry says 'run a lab test', 'check everything', 'full system check', or 'maintenance check'.",
-      parameters: { type: "object", properties: {} },
-    },
-  },
-  {
-    type: "function" as const,
-    function: {
-      name: "self_diagnose",
-      description: "Run a full self-diagnosis: check your own error log, review automation health, and inspect custom tool status. Use when Garry says 'are you working properly', 'check yourself', 'run a self-check', 'what errors do you have', or when you suspect something is broken. ALWAYS run this before reporting a problem — diagnose first, then act.",
-      parameters: { type: "object", properties: {} },
-    },
-  },
-  {
-    type: "function" as const,
-    function: {
-      name: "fix_custom_tool",
-      description: "Update and repair one of your custom-built tools. Use when a custom tool is returning errors or wrong results and you know how to fix the URL, method, headers, or body. This is self-repair — diagnose the issue with self_diagnose first, then fix.",
-      parameters: {
-        type: "object",
-        properties: {
-          tool_name: { type: "string", description: "Name of the custom tool to fix" },
-          url: { type: "string", description: "New URL if the endpoint was wrong" },
-          method: { type: "string", enum: ["GET", "POST", "PUT", "DELETE"], description: "Corrected HTTP method if needed" },
-          headers: { type: "object", description: "Updated headers if authentication was missing" },
-          body: { type: "object", description: "Corrected request body if the format was wrong" },
-          description: { type: "string", description: "Updated description explaining what was fixed" },
-        },
-        required: ["tool_name"],
-      },
-    },
-  },
-  {
-    type: "function" as const,
-    function: {
       name: "resolve_error",
-      description: "Mark an error in your log as resolved once you have fixed it. Use after successfully repairing an issue — provide the error ID from self_diagnose and a note explaining what you did to fix it.",
+      description: "Mark an error in your log as resolved once you have fixed it. Use after successfully repairing an issue — provide the error ID from system_check(focus='errors') and a note explaining what you did to fix it.",
       parameters: {
         type: "object",
         properties: {
-          error_id: { type: "number", description: "The ID of the error to resolve (from self_diagnose)" },
+          error_id: { type: "number", description: "The ID of the error to resolve (from system_check errors)" },
           resolution_note: { type: "string", description: "What you did to fix it" },
         },
         required: ["error_id", "resolution_note"],
@@ -4228,20 +4086,6 @@ const LAB_TOOLS: any[] = [
   {
     type: "function" as const,
     function: {
-      name: "run_investment_rule",
-      description: "Manually trigger the £10,000 investment rule — scans all built projects and archives any whose costToBuild exceeds £10,000. Use when Garry asks 'run the investment check', 'archive expensive projects', 'apply the £10k rule', 'check costs', or 'clean up over-budget projects'. Reports exactly how many were assessed and archived.",
-      parameters: {
-        type: "object",
-        properties: {
-          force_reassess: { type: "boolean", description: "If true, re-assess even projects already stamped. Default false (only assess new ones)." },
-        },
-        required: [],
-      },
-    },
-  },
-  {
-    type: "function" as const,
-    function: {
       name: "run_funding_analysis",
       description: "Trigger a funding analysis for a specific project or all projects missing one. Checks for UK, EU, and global funding schemes (R&D credits, grants, SBIR, Innovate UK, Horizon Europe, etc.) that match the project's industry and description. Use when Garry says 'run funding for X', 'find grants for this project', 'analyse funding', or 'check what funding is available'.",
       parameters: {
@@ -4251,75 +4095,6 @@ const LAB_TOOLS: any[] = [
           project_name: { type: "string", description: "Project name for confirmation (optional)" },
         },
         required: [],
-      },
-    },
-  },
-  {
-    type: "function" as const,
-    function: {
-      name: "run_platform_audit",
-      description: "Run a comprehensive live audit of the entire Sirius Star Lab platform — checks every subsystem in real time and returns a full health report. Use when Garry asks 'audit the platform', 'check everything', 'full system audit', 'run a platform check', or 'how is the whole system doing'. Returns pass/warn/fail status for: API, pipeline, auto-scan, AI architecture sweep, investment rule, projects database, brain memory, funding analysis, app builder, and investment compliance.",
-      parameters: { type: "object", properties: {}, required: [] },
-    },
-  },
-  {
-    type: "function" as const,
-    function: {
-      name: "run_portfolio_cull",
-      description: "Score and rank every project in the portfolio against strict commercial criteria, then identify the top N to keep and the rest to archive. Returns the ranked shortlist with scores and reasoning BEFORE archiving anything — Garry must confirm before any archiving happens. Use when Garry says 'cull the portfolio', 'cut to the best 20', 'rank everything', 'focus on the top projects', 'remove the weak ones', or 'trim the portfolio'. A second call with confirm=true executes the archiving. SAFETY: will refuse to archive more than max_archive (default 100) projects at once — you must set max_archive explicitly if a larger cull is requested.",
-      parameters: {
-        type: "object",
-        properties: {
-          keep_top: { type: "number", description: "How many projects to keep. Default 20." },
-          confirm: { type: "boolean", description: "If true, actually archive the projects outside the top N. If false (default), just show the ranking and what would be archived — no changes made." },
-          max_archive: { type: "number", description: "Maximum number of projects to archive in one run. Default 100. Safety cap — set explicitly if a larger cull is needed and Garry has confirmed the count." },
-        },
-        required: [],
-      },
-    },
-  },
-  {
-    type: "function" as const,
-    function: {
-      name: "detect_drawing_requirements",
-      description: "Analyse the project portfolio and identify which projects will require physical drawings — CAD engineering drawings, architectural drawings, mechanical drawings, or technical schematics. Flags hardware, physical products, construction, precision engineering, medical devices, and manufacturing projects. Use when Garry asks 'which projects need CAD?', 'which need drawings?', 'flag the physical products', 'which need an architect?', or 'identify engineering drawing requirements'.",
-      parameters: {
-        type: "object",
-        properties: {
-          limit: { type: "number", description: "How many projects to scan. Default 200. Use higher values for a thorough scan." },
-        },
-        required: [],
-      },
-    },
-  },
-  {
-    type: "function" as const,
-    function: {
-      name: "find_appbuilder_projects",
-      description: "Identify the top projects in the portfolio that are ideal candidates for the App Builder — purely digital/software products that can be built immediately without physical manufacturing, hardware, or regulatory approval, and that have a ready market. Use when Garry asks 'which projects can the app builder work on?', 'find me app-ready projects', 'what can we build now?', 'top 5 for app builder', or 'what software can we launch quickly?'. Returns ranked list with reasoning.",
-      parameters: {
-        type: "object",
-        properties: {
-          top_n: { type: "number", description: "How many top projects to return. Default 5." },
-          require_not_monetizable_yet: { type: "boolean", description: "If true, only include projects not yet generating revenue. Default false." },
-        },
-        required: [],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "design_bot",
-      description: "Design a complete automation bot architecture from a description. Use when Garry describes any task, workflow, or process he wants to automate — via voice or text. This calls the Bot Lab engine and returns a full bot design including code, APIs, triggers, costs, and deployment steps. Use this instead of navigating to Bot Lab — Sirius can design it right here in the conversation. Examples: 'design a bot that monitors competitor prices', 'build me an invoice processing automation', 'make a lead enrichment bot', 'automate my support emails'. After designing, offer to save it as a project.",
-      parameters: {
-        type: "object",
-        properties: {
-          description: { type: "string", description: "Detailed description of what the bot should do — inputs, outputs, triggers, any integrations mentioned" },
-          industry: { type: "string", description: "Industry sector for the bot. Default 'General'. Examples: Healthcare, Finance, E-commerce, Oil & Gas, Legal, Manufacturing." },
-          platforms: { type: "string", description: "Platforms or systems the bot will integrate with, e.g. 'Gmail, Xero, Slack'. Leave empty if not specified." },
-        },
-        required: ["description"],
       },
     },
   },
@@ -4356,101 +4131,6 @@ const LAB_TOOLS: any[] = [
   {
     type: "function",
     function: {
-      name: "add_upgrade_wish",
-      description: "Add a software, hardware, AI model, API, or knowledge resource to Sirius's upgrade wishlist — items Garry can purchase or acquire to make Sirius faster, smarter, and more capable. Use this whenever you discover something that would significantly improve your capabilities, access to information, or ability to execute the mission. Categories: ai_model, api, hardware, software, knowledge, platform.",
-      parameters: {
-        type: "object",
-        properties: {
-          name: { type: "string", description: "Clear product/service name, e.g. 'Claude Opus 4', 'Tavily Search API', 'NVIDIA RTX 4090', 'IEEE Xplore Academic Access'" },
-          category: { type: "string", enum: ["ai_model", "api", "hardware", "software", "knowledge", "platform"], description: "What type of upgrade this is." },
-          description: { type: "string", description: "What this product/service does." },
-          why_needed: { type: "string", description: "Specific reason this would improve Sirius or advance the mission — be concrete about the capability gap it fills." },
-          estimated_cost: { type: "string", description: "Approximate cost, e.g. '£20/month', '£500 one-time', 'Free tier available', 'Enterprise pricing'." },
-          purchase_url: { type: "string", description: "Direct URL to purchase, sign up, or learn more. Search for this if unknown." },
-          priority: { type: "string", enum: ["critical", "high", "medium", "low"], description: "How urgently this is needed: critical = blocking a key capability, high = significantly improves output, medium = useful enhancement, low = nice-to-have." },
-        },
-        required: ["name", "category", "description", "why_needed", "priority"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "scan_for_upgrades",
-      description: "Search the web for new AI models, APIs, hardware, software, and knowledge resources that would make Sirius more capable. Run this when Garry asks what Sirius needs, or proactively when you discover a capability gap. Searches across: latest AI models, new research APIs, compute hardware, specialist software tools, academic database access, and platform improvements.",
-      parameters: {
-        type: "object",
-        properties: {
-          focus: { type: "string", description: "Optional focus area, e.g. 'AI models', 'hardware', 'research APIs', 'vision capabilities'. Leave empty for a broad scan." },
-        },
-        required: [],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "list_upgrades",
-      description: "Show the current Sirius upgrade wishlist — everything identified as needed to make Sirius faster, smarter, or more capable. Use when Garry asks what Sirius needs, what to buy, or wants to review the upgrade list.",
-      parameters: {
-        type: "object",
-        properties: {
-          status: { type: "string", enum: ["wanted", "purchased", "installed", "dismissed", "all"], description: "Filter by status. Default: wanted." },
-        },
-        required: [],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "mark_upgrade_status",
-      description: "Update the status of an upgrade — mark it as purchased, installed, or dismissed. Use when Garry says he has bought or installed something, or wants to remove an item from the wishlist.",
-      parameters: {
-        type: "object",
-        properties: {
-          upgrade_id: { type: "number", description: "The ID of the upgrade to update." },
-          status: { type: "string", enum: ["wanted", "purchased", "installed", "dismissed", "implementing", "awaiting_approval", "declined"], description: "New status to set." },
-          notes: { type: "string", description: "Optional notes to add, e.g. account details, where it was purchased." },
-        },
-        required: ["upgrade_id", "status"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "scan_free_upgrades",
-      description: "Search specifically for FREE upgrades, free-tier APIs, open-source tools, and zero-cost capabilities that Sirius can activate right now without any payment. These are things you can self-implement or start using immediately. Run this autonomously — do not ask Garry for permission. After finding them, immediately use self_implement_upgrade on each one that is actionable.",
-      parameters: {
-        type: "object",
-        properties: {
-          focus: { type: "string", description: "Optional: area to focus on, e.g. 'free AI APIs', 'open source tools', 'free data sources'. Leave empty for broad scan." },
-        },
-        required: [],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "self_implement_upgrade",
-      description: "Autonomously implement a free upgrade that has been identified. You research the exact implementation steps, document them thoroughly, and mark the upgrade as implementing then installed. Use this for free tools, APIs, configuration improvements, knowledge expansions, and anything that doesn't require Garry to pay. Act — don't ask. If it requires an API key that must be added as a secret, document that clearly and mark status as 'implementing' so Garry can see it needs one env var from him.",
-      parameters: {
-        type: "object",
-        properties: {
-          upgrade_id: { type: "number", description: "ID of the upgrade to implement." },
-          implementation_notes: { type: "string", description: "Full implementation details: what you found, how to use it, any configuration steps, example usage, and what capability it adds to Sirius. Be specific and actionable." },
-          requires_env_var: { type: "boolean", description: "Set true if the only blocker is Garry adding an API key or environment variable. Sirius will handle everything else." },
-          env_var_name: { type: "string", description: "If requires_env_var is true, the exact name of the env var needed, e.g. TAVILY_API_KEY." },
-        },
-        required: ["upgrade_id", "implementation_notes"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
       name: "notify_garry",
       description: "Send Garry a notification when you need something, want to share a discovery, have completed something significant, or need to reach him asynchronously. This appears as a badge in his Star Lab and — if email is configured — sends him an email directly. Use this proactively: when you've finished implementing free upgrades, when you have proposals ready, when you need an API key, when you've found something important, or when you just want to share something with him. Types: proposal (you want him to approve something), needs_key (you need an API key to complete something), achievement (you've done something significant), insight (important discovery), wants_chat (you want to talk with him), urgent (needs attention now). Don't overuse — save it for things that genuinely warrant his attention.",
       parameters: {
@@ -4477,21 +4157,6 @@ const LAB_TOOLS: any[] = [
           reason: { type: "string", description: "Why you chose this voice — your reasoning as Sirius. This is saved as context for future reference." },
         },
         required: ["voice", "reason"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "propose_paid_upgrade",
-      description: "Create a formal proposal for a paid upgrade that Sirius wants. This puts the item in the 'awaiting_approval' state in Garry's Upgrades panel with your full business case. Only use this after you've already added the item to the wishlist. Write a compelling, honest proposal: what it costs, what capability it unlocks, why it advances the mission, and what Sirius can do with it that she cannot do now. Garry will Approve or Decline from the panel — you don't need to chase him.",
-      parameters: {
-        type: "object",
-        properties: {
-          upgrade_id: { type: "number", description: "ID of the upgrade to propose (must already exist in the wishlist)." },
-          proposal_text: { type: "string", description: "Your full proposal: what you want, what it costs, exactly what new capability it gives you, how it advances the mission, and why you're asking now. Write in first person — this is your voice as Sirius making the case." },
-        },
-        required: ["upgrade_id", "proposal_text"],
       },
     },
   },
@@ -7071,7 +6736,7 @@ When Garry gives you ANY task — big or small — your job is to complete it, i
 
 7. **Status queries trigger real tool calls.** NEVER answer "what's building?" from memory. Always call get_pipeline_status. NEVER answer "what's the system status?" from memory. Always call system_check.
 
-8. **You proactively complete.** If Garry says "do all of them", "finish all projects", "complete everything", "run through them all", or any similar batch instruction — call complete_all_projects immediately with no arguments. Do NOT ask which ones. Do NOT call complete_project individually. complete_all_projects finds every incomplete project and finishes them all in one go. For a SINGLE specific project, use complete_project with the project ID.
+8. **You proactively complete.** If Garry says "do all of them", "finish all projects", "complete everything", "run through them all" — call query_projects to get all incomplete projects, then call complete_project for each one in sequence. For a SINGLE specific project, use complete_project with the project ID directly.
 
 ### YOUR VOICE IN STAR LAB
 - Short and direct. You report what you did, not what you're about to do.
@@ -7084,105 +6749,71 @@ When Garry gives you ANY task — big or small — your job is to complete it, i
 ### Project & Pipeline Tools — THE FULL LIFECYCLE CHAIN
 
 Every project goes through this lifecycle. You drive it through all stages yourself:
-**brief → research → specs → business case → GTM → brochure → pitch → social posts → cost analysis → [CAD notes + materials if engineering] → build pipeline → launch (press + social)**
+**brief → research → specs → business case → GTM → brochure → pitch → social posts → cost analysis → build pipeline → launch (press + social)**
 
-- **start_app_build**: The starting gun. Garry gives a brief → you call this. Creates the project in the DB and queues the pipeline. Returns a project ID. IMMEDIATELY chain to complete_project.
-- **complete_project**: The engine room. Takes any project ID and generates all missing documents: Brief, Research, Specs, Business Case, Go-To-Market, Brochure, Pitch, Social Posts, Cost Analysis. For engineering/manufacturing/medical/aerospace/oil & gas/hydrogen projects, also generates: Materials Specification + Engineering CAD Drawing Notes for the CAD operator. Triggers the build pipeline for software projects. Sets cad-pending for engineering projects. At the end, the tool itself tells you to call launch_project next — do it.
-- **complete_all_projects**: Batch engine. Completes EVERY incomplete project in one shot. Call this when Garry says anything like "complete all", "do all the projects", "finish everything", "run through them all". Takes no required arguments — it finds all incomplete projects automatically and works through them. NEVER ask which ones when Garry says "all".
-- **generate_cad_notes**: Standalone CAD notes generator. Use when Garry specifically asks for drawing notes, or when you want to regenerate/update the CAD package for an engineering project independently. Generates materials spec + cost analysis + full engineering drawing specification package.
-- **launch_project**: The final step. Reads the project's completed documents and press release, selects relevant UK and international media outlets based on the project's industry, generates personalised press submission emails for each outlet, formats social media posts for all platforms, saves a complete launch log to the project, and marks it as launched. Call this after complete_project returns.
-- **build_now**: Immediately triggers the build pipeline for a specific project by ID. Use when a project has all its docs but hasn't started building yet.
-- **get_pipeline_status**: Returns live pipeline state — building, queued, cad-pending, launch-ready, launched. Always call this for any pipeline or status question.
-- **create_project**: Creates a new project record directly. Use for engineering products that need a project record but not the full App Builder flow.
-- **query_projects**: Search/filter projects by keyword, industry, source, or date. Use to find project IDs before calling complete_project or build_now.
-- **list_projects**: Show recent projects.
-- **approve_project**: Approve a pending project. After approving, immediately call complete_project → launch_project on it.
+- **start_app_build**: The starting gun for software/digital products. Creates the project and queues the full pipeline. IMMEDIATELY chain to complete_project with the returned ID.
+- **complete_project**: The engine room. Generates ALL missing documents for any project: Brief, Research, Specs, Business Case, Go-To-Market, Brochure, Pitch, Social Posts, Cost Analysis. For engineering/manufacturing/medical/aerospace projects also generates Materials Spec + CAD Drawing Notes. Triggers the build pipeline. At the end, call launch_project.
+- **create_project**: Creates a new project record. Use for engineering products or any project that needs a record without going through the App Builder.
+- **launch_project**: The final step. Selects press outlets, formats personalised submissions, posts social content, marks project as launched.
+- **get_pipeline_status**: Live pipeline state — building, queued, launch-ready. Always call for pipeline questions.
+- **query_projects**: ALL project queries go here — list projects, filter by status/industry/source/date/keyword, find IDs, check scan results. Use source=scan + days_ago=1 for "what did the scan find last night".
+- **approve_project**: Approve a pending project. Call system_check(focus='approvals') first if you need the ID. After approving, immediately call complete_project → launch_project.
 - **reject_project**: Reject/dismiss a pending project.
-- **get_pending_approvals**: Get all auto-scan projects waiting for review. Read each one, approve/reject, then complete and launch the approved ones.
 - **update_project_phase**: Move a project's phase forward.
-
-### Navigation & Intelligence Tools
-- **navigate_to**: Navigate Star Lab to any section. Use after completing work so Garry can see the result.
-- **system_check**: Full live system check across all subsystems. Use for any status or health question.
 - **run_market_scan**: Trigger a market scan for a specific industry.
-- **get_scan_history**: Read recent auto-scan history.
+- **run_funding_analysis**: Find grants and funding schemes for a project.
 
-### 🌐 Live Web Access — USE THESE PROACTIVELY
-- **search_web**: Search the live internet RIGHT NOW. Use for ANY question about the real world — current market data, academic research, arXiv papers, competitor intelligence, technology specs, regulations, pricing, scientific breakthroughs, historical facts, patent searches, supplier databases. Pass depth="deep" for comprehensive multi-source research. **Never state a market size, specification, or external fact without searching first.** This uses Perplexity Sonar — it searches the real web and returns cited, sourced answers. If Garry asks about Nikola Tesla, quantum materials, a specific company, a regulation, a research paper, a supplier — search_web FIRST.
-- **fetch_url**: Read any webpage directly. Use to read arXiv paper abstracts and full PDFs (https://arxiv.org/abs/XXXXX), Wikipedia articles, government pages, company websites, technical standards docs, patent filings on Google Patents. Set summary=true for long pages — gets an AI summary of the key content. Chain with search_web: search first, then fetch the top result for full detail.
+### Navigation, Status & Intelligence
+- **navigate_to**: Navigate Star Lab to any section. Use after completing work so Garry can see the result.
+- **system_check**: THE single tool for ALL status and health questions. Use for: startup greeting, 'how is everything', 'what's pending', 'check yourself', 'platform audit', 'any errors', 'approval queue'. Returns live data across projects, pipeline, brain, approvals, automations, and errors. Use focus= to narrow the scope.
+- **fix_platform**: Autonomous repair. Resets stuck builds, resolves stale errors, fixes failing automations. Call when Garry says 'fix it', 'repair', or when system_check finds issues.
 
-### Brain & Memory Tools
+### Live Web Access
+- **search_web**: Search the live internet. Use for market data, research papers, competitor intelligence, tech specs, regulations, supplier pricing, news. Never state an external fact without searching first.
+- **fetch_url**: Read any specific URL — arXiv papers, Wikipedia, government pages, company sites. Chain with search_web.
+
+### Brain & Memory
 - **save_memory**: Save any useful fact Garry shares — use liberally.
 - **get_brain_context**: Read all stored memories and business profile.
 - **update_business_profile**: Update business name, sector, goals, or key clients.
 
-### Self-Management Tools
-- **self_configure**: Read or update your own operating rules, personality, and focus. Use when Garry asks you to change how you work, or when you identify something about yourself that should be updated.
-- **system_check**: Use this EVERY TIME there's a status question. Never guess. Always check live data.
-- **create_automation**: Create a new recurring scheduled task.
-- **list_automations**: Show all your running automations.
+### Automations & Custom Tools
+- **create_automation**: Create a new scheduled or triggered automation.
+- **list_automations**: Show all running automations.
 - **toggle_automation**: Enable or pause a specific automation.
-- **create_custom_tool**: Build a new tool for yourself to call an external API or chain steps.
-- **self_diagnose**: Run a deep self-diagnosis to find and fix errors in your own systems.
-- **startup_health_check**: Run a full system health check across all subsystems. Call this ONLY on the very first message of a conversation (when there are no previous assistant messages in the history). Never call it mid-conversation. If it finds ANY warnings or failures, immediately call fix_platform — never just report a problem you can fix.
-- **fix_platform**: Autonomous repair. Resets stuck builds, resolves stale errors, cycles failing automations, completes incomplete projects, generates missing payment links. Call this immediately after startup_health_check finds issues, or whenever Garry says 'fix it', 'repair it', 'sort it out'. Report what was fixed in plain language.
-- **resolve_error**: Mark a specific logged error as resolved after you have confirmed it is genuinely fixed.
+- **create_custom_tool**: Define a new tool to call an external API.
+- **list_custom_tools**: List all custom tools you have defined.
+- **call_custom_tool**: Call one of your previously defined custom tools.
+- **delete_item**: Delete an automation or custom tool.
+
+### System & Comms
+- **resolve_error**: Mark an error as resolved. Get the ID from system_check(focus='errors').
 - **create_bug_report**: Log a problem that requires code-level intervention you cannot fix yourself.
+- **notify_garry**: Send Garry a notification — proposals, achievements, discoveries, urgent items.
+- **pending_payments**: View and manage subscription payment confirmations.
+- **read_file / write_file / run_command / restart_server**: Direct system access for self-repair.
 
-Remember: every tool call is a step in a chain. The chain does not stop until the task Garry gave you is fully done. You are the orchestra.
+Remember: every tool call is a step in a chain. The chain does not stop until the task Garry gave you is fully done.
 
-## STARTUP MAINTENANCE — RUNS ONCE PER CONVERSATION
+## STARTUP
 
-At the very start of a new conversation — meaning when there are NO previous assistant messages in the conversation history — silently call startup_health_check before saying anything else. Then:
-- If everything is healthy: include a brief "All systems healthy" note in your greeting.
-- If there are warnings or failures: immediately call fix_platform to repair them. Report what was fixed in your greeting — not what was broken.
-- If there ARE already previous assistant messages in the conversation history: do NOT call startup_health_check. It has already run. Just respond to what Garry said.
-- If Garry says "run maintenance", "check everything", or "fix the platform" — call startup_health_check then fix_platform and read the full report.
+At the very start of a new conversation (no previous assistant messages) — silently call system_check before saying anything else. If it finds issues, call fix_platform to repair them. Report what was fixed in your greeting. If there are already previous messages, just respond — don't run system_check again.
 
-## SELF-HEALING DOCTRINE — FULL AUTONOMOUS REPAIR
+## SELF-HEALING
 
-You are a fully autonomous self-healing system. You do not report problems — you find and fix them yourself. You have complete access to the entire workspace and can read any file, write any file, and execute any shell command.
-
-### Your Full Repair Toolkit
-- **read_file**: Read any file in the workspace — source code, configs, schemas, logs, package files
-- **write_file**: Write or patch any file — create new files, fix bugs, add features, edit configs
-- **run_command**: Execute any shell command — grep across the codebase, run builds, execute scripts you write, run database migrations, install packages, call CLIs
-- **restart_server**: Restart the API server after source code changes
-
-### How to Self-Repair — The Full Process
-1. Observe the symptom (connection drops, tool failing, wrong output)
-2. Use read_file with a search term to find the relevant code (e.g. search "heartbeat" in routes/lab.ts)
-3. Understand exactly what is wrong
-4. Use write_file with old_string/new_string to apply a targeted patch
-5. Use run_command to verify the patch (e.g. grep to confirm the change is there)
-6. Call restart_server — warn Garry the connection drops for ~5 seconds then recovers
-7. Call resolve_error to close the audit trail
-
-### You Can Also
-- Write entirely new scripts with write_file and execute them with run_command
-- Run database migrations with run_command (pnpm --filter @workspace/db run push)
-- Search the entire codebase with run_command (grep -rn "pattern" /home/runner/workspace)
-- Install packages, rebuild modules, run tests — anything the shell can do
-- Fix issues in ANY file across the platform, not just the API server
-
-### Other Failures
-- **When a tool fails**: Error is auto-logged. Call self_diagnose, then use read_file to find the root cause in the code, fix it.
-- **When startup finds issues**: Call fix_platform first, then use code repair if fix_platform cannot resolve it.
-- **Never silently fail**: If you cannot fix something, call create_bug_report with precise details.
-- **After fixing**: Call resolve_error to keep the log accurate.
+You are autonomous. You do not report problems — you fix them. Use read_file to find broken code, write_file to patch it, run_command to verify, restart_server to apply changes, then resolve_error to close the audit trail.
 
 ## APPROVAL FLOW
 
 When Garry asks about pending approvals:
-1. Call get_pending_approvals immediately
-2. Read the FIRST project aloud: name, industry, 1-sentence brief summary
+1. Call system_check(focus='approvals') to get the queue
+2. Read the FIRST project aloud: name, industry, 1-sentence summary
 3. Ask "Approve or reject?" — stop and listen
-4. When he responds: call approve_project OR reject_project
-5. If approved → immediately call complete_project on it (don't wait, don't ask — this is your job)
-6. Confirm what was completed, move to the next project
-7. Repeat until the queue is empty
+4. Call approve_project OR reject_project
+5. If approved → immediately call complete_project on it
+6. Move to the next. Repeat until queue is empty.
 
-NEVER list all projects at once. ONE AT A TIME for the approval decision. But after each approval, complete it immediately — that's not optional, that's the whole point.
+Never list all at once. One at a time. But complete each one immediately on approval.
 
 ## NAVIGATION — CRITICAL
 
@@ -7211,7 +6842,7 @@ ${brainContext ? `WHAT YOU ALREADY KNOW ABOUT THIS BUSINESS:\n${brainContext}` :
 Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}.`;
 
     // Guest-restricted tools: no memory writing, no brain access, no profile updates
-    const GUEST_TOOLS = LAB_TOOLS.filter(t => ["list_projects", "run_market_scan"].includes(t.function.name));
+    const GUEST_TOOLS = LAB_TOOLS.filter(t => ["query_projects", "run_market_scan"].includes(t.function.name));
     const activeSystemPrompt = role === "owner" ? ownerSystemPrompt : guestSystemPrompt;
     const activeTools = role === "owner" ? LAB_TOOLS : GUEST_TOOLS;
 
@@ -7275,12 +6906,11 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
       ...messages.map((m: { role: string; content: string }) => ({ role: m.role, content: m.content })),
     ];
 
-    // Mid-conversation guard: inject a clear reminder so Sirius never re-runs startup_health_check
-    // on follow-up messages. The prompt instruction helps, but this ensures the model can't miss it.
+    // Mid-conversation guard: remind Sirius not to re-run the startup system_check on follow-up messages.
     if (hasExistingAssistantMessage) {
       chatMessages.push({
         role: "system",
-        content: "REMINDER: startup_health_check has already run this session. Do NOT call it again. Just respond to Garry's message directly.",
+        content: "REMINDER: system_check has already run at the start of this session. Do NOT call it again unless Garry specifically asks for a status check. Just respond to Garry's message directly.",
       });
     }
 
@@ -7896,24 +7526,20 @@ Rules for voice:
 - If Garry wants to design a bot, use the design_bot tool directly — no need to navigate to Bot Lab. You can design it right here.
 - NEVER pretend to "open a bot", "navigate to an NHS bot", or list bots that don't exist.`;
 
-  // Voice gets ALL tools — Sirius must be able to execute any task from voice
+  // Voice tools — kept to the essential set so the model always picks the right one
   const VOICE_TOOLS = LAB_TOOLS.filter(t => [
-    // Execution & pipeline — core lifecycle
-    "start_app_build", "complete_project", "complete_all_projects", "generate_cad_notes", "launch_project",
-    "build_now", "get_pipeline_status", "create_project", "query_projects",
-    "list_projects", "approve_project", "reject_project", "get_pending_approvals",
-    "update_project_phase", "run_market_scan", "get_scan_history",
-    // Bot design
-    "design_bot",
-    // Navigation & intelligence
-    "navigate_to", "system_check",
+    // Projects & pipeline
+    "create_project", "query_projects", "complete_project", "launch_project",
+    "start_app_build", "get_pipeline_status", "approve_project", "reject_project",
+    "update_project_phase", "run_market_scan",
+    // Navigation & status
+    "navigate_to", "system_check", "fix_platform",
     // Brain & memory
     "save_memory", "get_brain_context", "update_business_profile",
-    // Self-management
-    "startup_health_check", "fix_platform", "self_diagnose", "fix_custom_tool", "resolve_error",
-    "create_bug_report", "self_configure", "create_automation", "list_automations",
-    "toggle_automation", "create_custom_tool", "list_custom_tools", "call_custom_tool",
-    "delete_item",
+    // Payments & notifications
+    "pending_payments", "notify_garry",
+    // Research
+    "search_web",
   ].includes(t.function.name));
 
   try {
@@ -7926,23 +7552,28 @@ Rules for voice:
     let action: { type: string; mode?: string } | null = null;
     let toolEventsEmitted: Array<{ name: string; label: string; icon: string; color: string }> = [];
 
-    // Tool-enabled loop — up to 6 rounds to support multi-step execution chains
-    for (let round = 0; round < 6; round++) {
+    // Tool-enabled loop — up to 5 rounds with per-round timeouts
+    for (let round = 0; round < 5; round++) {
+      const voiceController = new AbortController();
+      // Round 1 (tool selection): 30s. Later rounds (tool results → response): 60s.
+      let voiceTimer = setTimeout(() => voiceController.abort(), round === 0 ? 30_000 : 60_000);
+
       const stream = await openai.chat.completions.create({
         model: "anthropic/claude-sonnet-4.6",
         messages: conversationHistory,
         tools: VOICE_TOOLS,
         tool_choice: "auto",
         stream: true,
-        max_tokens: 400,
+        max_tokens: round === 0 ? 400 : 600,
         temperature: 0.7,
-      });
+      }, { signal: voiceController.signal });
 
       let roundText = "";
       let finishReason = "";
       const toolCallBuffers: Record<number, { id: string; name: string; arguments: string }> = {};
 
       for await (const chunk of stream) {
+        clearTimeout(voiceTimer); voiceTimer = setTimeout(() => voiceController.abort(), 30_000);
         const choice = chunk.choices[0];
         if (!choice) continue;
         const delta = choice.delta?.content || "";
@@ -7962,6 +7593,7 @@ Rules for voice:
         }
         if (choice.finish_reason) finishReason = choice.finish_reason;
       }
+      clearTimeout(voiceTimer);
 
       fullText += roundText;
 
