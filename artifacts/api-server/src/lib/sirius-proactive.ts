@@ -1,7 +1,6 @@
 import { db, labProjects } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { openai } from "@workspace/integrations-openai-ai-server";
-import { getUncachableStripeClient } from "../stripeClient.js";
 
 const ENGINEERING_SECTORS = [
   "oil_gas", "oil & gas", "aerospace", "medical", "medical_devices",
@@ -27,7 +26,7 @@ async function gen(sys: string, user: string, tokens = 500): Promise<string> {
 async function suggestSellPrice(costText: string, projName: string, industry: string): Promise<number | null> {
   try {
     const res = await openai.chat.completions.create({
-      model: "anthropic/claude-haiku-4.5",
+      model: "anthropic/claude-haiku-4-5",
       messages: [{
         role: "user",
         content: `Based on this cost analysis for "${projName}" (${industry}), suggest a realistic market sell price in GBP.
@@ -54,54 +53,6 @@ Rules:
   }
 }
 
-// ── Auto-create a Stripe payment link for a project ───────────────────────────
-async function autoCreatePaymentLink(proj: any): Promise<string | null> {
-  try {
-    // Skip if already has a payment link
-    if (proj.stripePaymentLink) return null;
-    // Need cost analysis to price it
-    if (!proj.costToBuild) return null;
-
-    const pricePence = await suggestSellPrice(proj.costToBuild, proj.name, proj.industry || "General");
-    if (!pricePence) return null;
-
-    const stripe = getUncachableStripeClient();
-
-    // Create Stripe product + price + payment link
-    const product = await stripe.products.create({
-      name: proj.name,
-      description: (proj.brief || "").slice(0, 255) || `${proj.industry || "Software"} product by Sirius Star Lab`,
-      metadata: { projectId: String(proj.id), industry: proj.industry || "General", source: "sirius_proactive" },
-    });
-
-    const price = await stripe.prices.create({
-      product: product.id,
-      unit_amount: pricePence,
-      currency: "gbp",
-    });
-
-    const paymentLink = await stripe.paymentLinks.create({
-      line_items: [{ price: price.id, quantity: 1 }],
-      metadata: { projectId: String(proj.id) },
-    });
-
-    // Save to project record
-    await db.update(labProjects).set({
-      stripePaymentLink: paymentLink.url,
-      stripeProductId: product.id,
-      stripePriceId: price.id,
-      sellPrice: pricePence,
-      sellPriceType: "one_time",
-      updatedAt: new Date(),
-    } as any).where(eq(labProjects.id, proj.id));
-
-    return paymentLink.url;
-  } catch (err: any) {
-    // Non-fatal — payment link generation failure should not stop project completion
-    console.error(`[Sirius Proactive] Payment link failed for #${proj.id}: ${err?.message}`);
-    return null;
-  }
-}
 
 async function completeProject(proj: any): Promise<string[]> {
   const isEngineering = ENGINEERING_SECTORS.some(s =>
@@ -176,12 +127,6 @@ export async function runProactiveEngine(): Promise<void> {
         const generated = await completeProject(proj);
         if (generated.length > 0) {
           console.log(`[Sirius Proactive] ✓ #${proj.id} "${proj.name}" — completed: ${generated.join(", ")}`);
-          // Reload the updated project and auto-generate a Stripe payment link
-          const [updated] = await db.select().from(labProjects).where(eq(labProjects.id, proj.id)).limit(1);
-          if (updated) {
-            const link = await autoCreatePaymentLink(updated);
-            if (link) console.log(`[Sirius Proactive] 💳 #${proj.id} payment link created: ${link}`);
-          }
         } else {
           console.log(`[Sirius Proactive] ○ #${proj.id} "${proj.name}" — already complete, skipped`);
         }

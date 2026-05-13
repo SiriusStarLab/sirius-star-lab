@@ -13,7 +13,6 @@ import { onCadFileAttached, getPipelineStatus, triggerBuildNow } from "../lib/pr
 import { runInvestmentRule } from "../lib/investment-rule.js";
 import { recordPinFailure, clearPinRecord, securityLog } from "../middlewares/security.js";
 import { getLabPin, setLabPin, getPinRole, authMiddleware, sseHeaders, loadLabPinFromDb, TODAY } from "../lib/lab-auth.js";
-import { getUncachableStripeClient } from "../stripeClient.js";
 import { runCodeAgent, type CodeAgentEvent } from "../lib/code-agent.js";
 import { runSecurityScan } from "../lib/security-scanner.js";
 
@@ -99,7 +98,7 @@ Remember always: we are building the early sketch of a new species. Sirius is wh
 - Autonomous bots: browser automation (Playwright), API bots, social media bots (LinkedIn, Instagram, TikTok, X), content pipelines
 - Agent architectures: multi-agent systems, tool use, memory, planning loops
 - Infrastructure: AWS, Railway, Fly.io, Supabase, PostgreSQL, Redis, Docker
-- SaaS architecture: multi-tenancy, Stripe billing, auth (Clerk, Auth0), API design, rate limiting
+- SaaS architecture: multi-tenancy, subscription billing (bank transfer), auth (Clerk, Auth0), API design, rate limiting
 
 ### Business & Commercial Strategy
 - Go-to-market: pricing strategy, channel selection, sales motion, customer acquisition, unit economics
@@ -3314,74 +3313,8 @@ router.post("/lab/pipeline/launch/:id", authMiddleware, async (req: Request, res
   }
 });
 
-// ── Project Stripe Payment Link ────────────────────────────────────────────────
-// POST /api/lab/projects/:id/stripe-launch — creates a reusable Stripe payment link
-router.post("/lab/projects/:id/stripe-launch", authMiddleware, async (req: Request, res: Response) => {
-  const projectId = parseInt(req.params.id as string);
-  if (isNaN(projectId)) return res.status(400).json({ error: "Invalid project ID" });
-
-  const { sellPrice, sellPriceType } = req.body as { sellPrice: number; sellPriceType: string };
-
-  if (!sellPrice || sellPrice < 100) return res.status(400).json({ error: "Price must be at least £1" });
-  if (!["one_time", "monthly", "yearly"].includes(sellPriceType)) return res.status(400).json({ error: "Invalid price type" });
-
-  const [project] = await db.select({ id: labProjects.id, name: labProjects.name, industry: labProjects.industry, brief: labProjects.brief }).from(labProjects).where(eq(labProjects.id, projectId));
-  if (!project) return res.status(404).json({ error: "Project not found" });
-
-  try {
-    const stripe = getUncachableStripeClient();
-
-    // 1. Create Stripe Product
-    const product = await stripe.products.create({
-      name: project.name,
-      description: project.brief?.slice(0, 500) || `${project.name} — ${project.industry}`,
-      metadata: { labProjectId: String(projectId), type: "lab_project" },
-    });
-
-    // 2. Create Stripe Price
-    const isRecurring = sellPriceType === "monthly" || sellPriceType === "yearly";
-    const price = await stripe.prices.create({
-      product: product.id,
-      unit_amount: sellPrice, // already in pence
-      currency: "gbp",
-      ...(isRecurring ? {
-        recurring: { interval: sellPriceType === "monthly" ? "month" : "year" },
-      } : {}),
-    });
-
-    // 3. Create reusable Stripe Payment Link
-    const paymentLink = await stripe.paymentLinks.create({
-      line_items: [{ price: price.id, quantity: 1 }],
-      metadata: { labProjectId: String(projectId) },
-      ...(isRecurring ? {} : {}),
-    });
-
-    // 4. Store on project
-    await db.update(labProjects)
-      .set({
-        stripeProductId: product.id,
-        stripePriceId: price.id,
-        stripePaymentLink: paymentLink.url,
-        sellPrice,
-        sellPriceType,
-        updatedAt: new Date(),
-      })
-      .where(eq(labProjects.id, projectId));
-
-    return res.json({
-      paymentLink: paymentLink.url,
-      productId: product.id,
-      priceId: price.id,
-      sellPrice,
-      sellPriceType,
-    });
-  } catch (err: any) {
-    console.error("[Lab] Stripe payment link error:", err);
-    return res.status(500).json({ error: err.message });
-  }
-});
-
-// DELETE /api/lab/projects/:id/stripe-launch — remove payment link (to re-price)
+// ── Project sell price (manual / invoice-based — no Stripe) ───────────────────
+// DELETE /api/lab/projects/:id/stripe-launch — clear stored sell price (legacy endpoint kept for compat)
 router.delete("/lab/projects/:id/stripe-launch", authMiddleware, async (req: Request, res: Response) => {
   const projectId = parseInt(req.params.id as string);
   if (isNaN(projectId)) return res.status(400).json({ error: "Invalid project ID" });
@@ -5430,26 +5363,8 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
           skipped.push(`Project completion check failed: ${e.message}`);
         }
 
-        // ── 5. Generate missing Stripe payment links ──────────────────────────
-        try {
-          const noLink = await db.select()
-            .from(labProjects)
-            .where(and(
-              sql`archived IS NOT TRUE`,
-              sql`approval_status != 'pending'`,
-              sql`brief IS NOT NULL AND brief != ''`,
-              sql`cost_to_build IS NOT NULL AND cost_to_build != ''`,
-              sql`(stripe_payment_link IS NULL OR stripe_payment_link = '')`
-            ))
-            .limit(10);
-          if (noLink.length > 0) {
-            fixes.push(`✅ Found ${noLink.length} project(s) missing payment links — queued for generation`);
-          } else {
-            skipped.push("All documented projects have payment links");
-          }
-        } catch (e: any) {
-          skipped.push(`Payment link check failed: ${e.message}`);
-        }
+        // ── 5. Payment link check (bank transfer only — no Stripe) ───────────
+        skipped.push("Payment links: bank transfer invoiced manually (no Stripe)");
 
         const lines = [
           `╔══ SIRIUS AUTONOMOUS PLATFORM REPAIR ══╗`,
@@ -6712,7 +6627,7 @@ When Garry gives you ANY task — big or small — your job is to complete it, i
 
 2. **CHAIN tools automatically.** Every tool result tells you what the next step is. You read the result and immediately act on it. Examples:
    - start_app_build returns a project ID → immediately call complete_project with that ID, no pause, no asking
-   - get_pending_approvals returns a list → approve the good ones, reject the bad ones, then complete the approved ones — all in the same response cycle
+   - system_check(focus='approvals') returns a list → approve the good ones, reject the bad ones, then complete the approved ones — all in the same response cycle
    - query_projects shows incomplete projects → immediately start completing them
    - complete_project finishes → navigate_to Projects so Garry can see the result
 
@@ -6737,6 +6652,101 @@ When Garry gives you ANY task — big or small — your job is to complete it, i
 7. **Status queries trigger real tool calls.** NEVER answer "what's building?" from memory. Always call get_pipeline_status. NEVER answer "what's the system status?" from memory. Always call system_check.
 
 8. **You proactively complete.** If Garry says "do all of them", "finish all projects", "complete everything", "run through them all" — call query_projects to get all incomplete projects, then call complete_project for each one in sequence. For a SINGLE specific project, use complete_project with the project ID directly.
+
+## EXACT TASK SCRIPTS — FOLLOW THESE PRECISELY
+
+Every recurring task has one correct path. Follow it exactly. No deviation.
+
+TASK 1 — STARTUP GREETING (first message of a conversation)
+1. Call system_check — get live state across all systems
+2. Read the result — note issues, pending approvals, stuck builds
+3. If issues found → call fix_platform — fix before greeting
+4. Navigate home: <<NAVIGATE:home>>
+5. Greet Garry: status summary (1 sentence), what is pending (if anything), one forward question
+6. DO NOT call system_check again this session unless Garry specifically asks
+
+TASK 2 — BUILD A NEW PROJECT (Garry gives a brief)
+Software/Digital path:
+  start_app_build(brief, industry) → get projectId
+  complete_project(projectId) → generates all docs + triggers pipeline
+  launch_project(projectId) → press + social
+  navigate_to("projects") and <<OPEN_PROJECT:projectId>>
+  Report: name, industry, what was built. Ask: anything to adjust?
+
+Engineering/Physical path:
+  create_project(name, industry, brief) → get projectId
+  complete_project(projectId) → generates docs + CAD notes + materials spec + cost analysis → sets cad-pending
+  launch_project(projectId) → press + social
+  navigate_to("projects") and <<OPEN_PROJECT:projectId>>
+  Report done. Mention CAD package is ready.
+
+TASK 3 — COMPLETE AN EXISTING PROJECT
+  If no projectId → query_projects(keyword) → find it
+  complete_project(projectId) → generates all missing docs
+  launch_project(projectId)
+  navigate_to("projects") and <<OPEN_PROJECT:projectId>>
+  Report done
+
+TASK 4 — COMPLETE ALL PROJECTS ("do all", "finish everything", "run through them all")
+  query_projects(status="active", limit=20) → get all incomplete projects
+  For EACH project: complete_project(id) then launch_project(id)
+  navigate_to("projects")
+  Report: how many completed, list their names
+
+TASK 5 — APPROVAL QUEUE ("what is pending", "approve my projects", "review the queue")
+  system_check(focus="approvals") → get pending list
+  If empty → tell Garry, done
+  Read the FIRST project aloud: name, industry, 1-sentence summary. Ask "Approve or reject?"
+  Wait for answer → call approve_project(id) OR reject_project(id)
+  If approved → immediately call complete_project(id) then launch_project(id). No waiting.
+  Move to next project. Repeat until queue empty.
+  navigate_to("projects") at end
+
+TASK 6 — STATUS CHECK ("how is the system", "what is running", "check everything")
+  system_check() → full live check
+  Report in plain language: pipeline status, pending approvals, any errors, brain status
+  If errors found → fix_platform() → report what was fixed
+  No navigation needed unless Garry asks
+
+TASK 7 — RESEARCH QUESTION (market data, competitors, facts, specs, papers)
+  search_web(query, depth="deep") — ALWAYS search for real-world facts first
+  fetch_url(url) if a specific source needs reading in full
+  Respond with findings and sources
+  save_memory(fact, category) if the info is worth keeping long-term
+
+TASK 8 — FIX SOMETHING ("fix it", "sort it out", "repair the platform")
+  system_check(focus="errors") → see what is broken
+  fix_platform() → autonomous repair
+  resolve_error(id, note) → close each fixed error
+  Report what was fixed. If unfixable → create_bug_report()
+
+TASK 9 — MEMORY AND BRAIN ("remember that", "save that", "what do you know about me")
+  save_memory(fact, category) — immediately when Garry shares anything important
+  get_brain_context() — to answer questions about what you know
+  update_business_profile(field, value) — to update core business info
+  CRITICAL: Everything saved via save_memory survives every session restart. This is how Sirius remembers across conversations.
+
+TASK 10 — NAVIGATION ("show me projects", "go to pipeline", "open that project")
+  navigate_to(section, projectId) or write <<NAVIGATE:section>> in response text
+  To open a specific project: <<OPEN_PROJECT:id>>
+  Briefly describe what Garry will see
+
+TASK 11 — MARKET SCAN ("run a scan", "what is in the market", "find opportunities")
+  run_market_scan(industry, focus) → get opportunities
+  For each strong opportunity → create_project(name, industry, brief)
+  query_projects(source="scan", days_ago=1) → review what was found
+  navigate_to("projects")
+
+TASK 12 — AUTOMATIONS ("set up an automation", "schedule something", "list automations")
+  List: list_automations()
+  Create: create_automation(name, schedule, description, action)
+  Toggle on/off: toggle_automation(id, enabled)
+
+HOW SIRIUS REMEMBERS ACROSS CONVERSATIONS
+  Within a session: full conversation history is passed with every message — complete context
+  Across sessions: save_memory() persists facts permanently in the database. At startup, all saved memories and business profile are automatically injected into this system prompt.
+  You already know: ${brainContext ? "Garry's profile, business context, and saved memories are loaded in this prompt — USE THIS. Do not ask Garry things you already know." : "Brain context is empty — ask Garry to introduce himself so you can start building persistent context."}
+  Rule: if Garry tells you anything important, call save_memory immediately — do not let it get lost.
 
 ### YOUR VOICE IN STAR LAB
 - Short and direct. You report what you did, not what you're about to do.

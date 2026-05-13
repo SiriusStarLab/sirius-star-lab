@@ -290,13 +290,16 @@ app.use("/api", router);
 // In development the Vite dev server handles the frontend separately.
 // In production the single `node` process must serve both the API and the SPA.
 if (!isDev) {
-  const frontendDist = path.join(process.cwd(), "artifacts/ai-chat/dist/public");
-  app.use(express.static(frontendDist, { maxAge: "1h" }));
-  // SPA fallback — any path that isn't an API route returns index.html
-  // Use app.use() not app.get("*") — Express 5 removed bare wildcard route syntax
-  app.use((_req, res) => {
-    res.sendFile(path.join(frontendDist, "index.html"));
-  });
+  // FRONTEND_DIR env var lets Kamatera point to /opt/sirius/frontend
+  // Default falls back to the built React SPA location for Replit builds
+  const frontendDist = process.env.FRONTEND_DIR || path.join(process.cwd(), "artifacts/ai-chat/dist/public");
+  if (fs.existsSync(frontendDist)) {
+    app.use(express.static(frontendDist, { maxAge: "1h" }));
+    // SPA fallback — any path that isn't an API route returns index.html
+    app.use((_req, res) => {
+      res.sendFile(path.join(frontendDist, "index.html"));
+    });
+  }
 }
 
 export default app;
