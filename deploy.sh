@@ -5,6 +5,7 @@
 set -e
 
 SERVER="root@185.247.118.196"
+SERVER_PORT="2222"
 SERVER_DIR="/opt/sirius"
 
 echo ""
@@ -22,9 +23,9 @@ echo "$SSH_DEPLOY_KEY" > ~/.ssh/sirius_deploy
 chmod 600 ~/.ssh/sirius_deploy
 
 # Accept server host key automatically (safe for known server)
-ssh-keyscan -H 185.247.118.196 >> ~/.ssh/known_hosts 2>/dev/null
+ssh-keyscan -p $SERVER_PORT -H 185.247.118.196 >> ~/.ssh/known_hosts 2>/dev/null
 
-SSH_OPTS="-i ~/.ssh/sirius_deploy -o StrictHostKeyChecking=no"
+SSH_OPTS="-i ~/.ssh/sirius_deploy -o StrictHostKeyChecking=no -p $SERVER_PORT"
 
 echo "🔑 SSH key ready"
 
@@ -63,7 +64,7 @@ cd lib/db && npm run push --force 2>&1 | tail -5
 cd /opt/sirius
 
 echo "  → Restarting app..."
-pm2 restart sirius --update-env
+pm2 restart sirius-api --update-env
 
 echo "  → Done."
 REMOTE
