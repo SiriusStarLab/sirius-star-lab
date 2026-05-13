@@ -261,105 +261,156 @@ function buildAgentPrompt(
   features: string[],
   existingFiles: Record<string, string>
 ): string {
-  const fileList = Object.keys(existingFiles).join(", ") || "none yet";
   const featureList = features.join(", ") || "standard features";
+  const fileList = Object.keys(existingFiles).join(", ") || "none yet";
+
+  // Each agent receives the actual content of the files most relevant to its work,
+  // so it can write consistent imports, types, and API contracts.
+  const relevantPatterns: Record<string, string[]> = {
+    architect:   [],
+    frontend:    ["package.json", "ARCHITECTURE.md", "tsconfig.json", ".env.example", "src/types"],
+    backend:     ["package.json", "ARCHITECTURE.md", "tsconfig.json", "src/types", "src/App", "src/pages"],
+    database:    ["package.json", "ARCHITECTURE.md", "src/routes", "src/services", "src/types"],
+    integration: ["package.json", "Dockerfile", "src/index", "docker-compose", "src/types"],
+    monitoring:  ["package.json", "src/index", "src/server", "src/routes", "src/types"],
+  };
+
+  const patterns = relevantPatterns[agentId] ?? [];
+  const contextFiles = Object.entries(existingFiles)
+    .filter(([name]) => patterns.some(p => name.includes(p)))
+    .slice(0, 6)
+    .map(([name, content]) =>
+      `### FILE: ${name} ###\n${content.slice(0, 1800)}${content.length > 1800 ? "\n// ... (truncated for context — full file exists)" : ""}\n### END FILE ###`
+    )
+    .join("\n\n");
+
   const base = `You are building "${appName}" — a ${appType} application.
 Description: ${description}
 Tech stack: ${techStack}
 Features required: ${featureList}
-Files already created: ${fileList}
 
-CRITICAL RULES:
-- Output ONLY code files, no explanation text outside files
-- Wrap every file exactly like this:
+All files created so far (filenames): ${fileList}
+
+${contextFiles ? `## Key existing files — READ CAREFULLY before writing. Your code MUST be consistent with these (same import paths, same type shapes, same env var names):\n\n${contextFiles}\n` : ""}
+## NON-NEGOTIABLE OUTPUT FORMAT:
+- Output ONLY code files. Zero prose, explanation, or markdown outside the file markers.
+- Wrap EVERY file exactly like this — no deviations:
   ### FILE: path/filename.ext ###
-  [full file content here]
+  [complete file content]
   ### END FILE ###
-- Write complete, production-quality code — no placeholders, no TODOs
-- Every file must be fully functional and immediately usable`;
+
+## NON-NEGOTIABLE QUALITY RULES — violations make the build unusable:
+1. COMPLETE FILES ONLY — every function must have a real, working implementation. No "// TODO", no "// implement this", no ellipsis (...), no stub bodies that just throw "Not implemented". If you run out of space, write fewer files but make each one complete.
+2. ZERO TypeScript "any" — use explicit interfaces, generics, or "unknown" with type guards. Import types from src/types/index.ts when they exist there.
+3. ALL IMPORTS MUST RESOLVE — only import from files that already exist in the project OR that you are creating in this very response. Do not import from a file another agent will create later.
+4. ENVIRONMENT VARIABLES — validate every env var at startup using zod or explicit checks that throw a descriptive error if missing. Never access process.env inline without validation.
+5. ERROR HANDLING — every async function needs try/catch. Every API route returns consistent JSON: { data } on success, { error: string, code: string } on failure with correct HTTP status codes.
+6. INPUT VALIDATION — every API route validates its request body/params with zod before processing. Never trust raw input.
+7. NO FAKE DATA IN PRODUCTION CODE — no Math.random() for IDs, no hardcoded "lorem ipsum", no placeholder arrays that pretend to be real data.
+8. AUTH ON PROTECTED ROUTES — any route that touches user data must go through auth middleware.`;
 
   const prompts: Record<string, string> = {
     architect: `${base}
 
 Your role: System Architect
-Create the complete project structure and foundational files:
-1. package.json (with all required dependencies and scripts)
-2. README.md (setup instructions, feature overview, env vars needed)
-3. .env.example (all environment variables with descriptions)
-4. A clear architecture overview file at ARCHITECTURE.md
+Output ALL of these files — each must be complete and production-ready:
 
-Think carefully about the full system. List every file that will be needed across all layers.`,
+1. package.json — include EVERY dependency the full app will need across all layers (frontend + backend + database + testing + monitoring). Think ahead to what each agent will need. Scripts must include: dev, build, start, test, lint, typecheck, db:push, db:migrate, db:seed
+2. tsconfig.json — strict mode: { "strict": true, "noUncheckedIndexedAccess": true, "exactOptionalPropertyTypes": true }
+3. .env.example — EVERY environment variable with a description comment and safe example value
+4. README.md — quick-start guide, feature list, all env vars documented, local dev instructions
+5. ARCHITECTURE.md — system overview, data flow diagram (ASCII), folder structure tree, key architectural decisions and why
+6. src/types/index.ts — ALL shared TypeScript interfaces and domain types for the entire app. Every other file imports from here. Include: User, API error/success shapes, all domain entities (infer from the feature list).
+
+Before writing package.json, mentally walk through every feature and list every package needed.`,
 
     frontend: `${base}
 
 Your role: Frontend Agent
-Build ALL frontend UI files. For React apps this includes:
-- src/App.tsx or src/App.jsx (main app shell with routing)
-- src/index.tsx or src/main.tsx (entry point)
-- src/pages/ — all page components (Home, Dashboard, Login, etc.)
-- src/components/ — reusable UI components
-- src/styles/ or index.css — all styling
-- tailwind.config.js or vite.config.ts if needed
+Output COMPLETE implementations for ALL of these — partial files will break the build:
 
-Make the UI beautiful, modern, and responsive. Use a dark theme with accent colors if appropriate for the app type.`,
+- src/main.tsx — entry point with all providers (QueryClient, Router, auth context, theme)
+- src/App.tsx — full routing with react-router-dom v6+, auth guards, layout wrapper, 404 route
+- src/lib/api.ts — typed API client with every endpoint the app needs, base URL from env, auth header injection, consistent error handling
+- src/hooks/useAuth.ts — auth state hook (login, logout, user, isLoading)
+- src/pages/ — EVERY page the app needs. Each page: real data fetching via the api.ts client, loading skeleton, error state, empty state
+- src/components/ — Navbar (with auth-aware links), any reusable form fields, modal, card, table/list components needed by the pages
+- src/styles/globals.css — base styles, CSS variables for the colour palette
+- vite.config.ts — full config with /api proxy pointing to backend, host: true
+
+UI requirements:
+- Dark theme unless the app concept specifically calls for light
+- Mobile-first responsive — works on 375px and 1440px
+- Every form: client-side zod validation with inline error messages, loading state on submit, success/error toast
+- Every data list: loading skeleton (not spinner), empty state with an action CTA, error retry button
+- Zero dead nav links — every page in the nav must have a corresponding page component`,
 
     backend: `${base}
 
-Your role: Backend Agent  
-Build ALL backend/server files:
-- src/index.ts or server.js (Express/FastAPI server entry)
-- src/routes/ — all API route files
-- src/middleware/ — auth, error handling, rate limiting
-- src/lib/ — utility functions, helpers
-- src/services/ — business logic layer
+Your role: Backend Agent
+Output COMPLETE implementations for ALL of these:
 
-Include proper error handling, input validation, and security headers.`,
+- src/lib/env.ts — zod schema that validates ALL env vars at startup and exports typed config. Throws a clear error if anything is missing.
+- src/index.ts — Express server entry: import env first, then attach middlewares in order (requestId → logger → cors → helmet → rateLimit → bodyParser → routes → errorHandler), graceful shutdown on SIGTERM/SIGINT, unhandledRejection/uncaughtException handlers that log and exit(1)
+- src/routes/index.ts — single router that mounts all feature routers
+- src/routes/auth.ts — register, login, logout, /me routes with full implementations (bcrypt for passwords, JWT or session)
+- src/routes/[feature].ts — one file per major feature, each route: validates input with zod, calls service layer, returns { data } or { error, code }
+- src/middleware/auth.ts — JWT/session verification middleware, attaches req.user
+- src/middleware/validate.ts — zod validation wrapper: validate(schema) returns middleware that sends 400 { error, code: "VALIDATION_ERROR" } on failure
+- src/middleware/errorHandler.ts — global Express error handler: logs full error, returns safe JSON to client (never leak stack traces)
+- src/services/ — one service file per domain with all business logic. Services throw typed errors that the routes catch.
+
+Every route handler signature: async (req: Request, res: Response, next: NextFunction)
+Every route must call next(err) on caught errors — never res.json() inside a catch block.`,
 
     database: `${base}
 
 Your role: Database Agent
-Build ALL data layer files:
-- Database schema/migrations
-- Models or ORM config (Drizzle, Prisma, SQLAlchemy, etc.)
-- Seed data file
-- Database connection utility
+Output COMPLETE implementations for ALL of these:
 
-Use appropriate DB for the stack. Write clean, indexed schemas.`,
+- src/db/schema.ts — complete schema: ALL tables with proper column types (not text for everything), createdAt/updatedAt on every table, explicit indexes on all FKs and commonly queried columns, unique constraints where needed, all relations defined
+- src/db/index.ts — DB client singleton with connection pooling and startup connection check
+- drizzle.config.ts (or prisma/schema.prisma) — complete ORM config pointing to DATABASE_URL from env
+- src/db/migrate.ts — migration runner script
+- src/db/seed.ts — realistic seed data using actual domain-appropriate values (proper names, real-looking emails, sensible dates — not "Test User 1" or random strings)
+
+Schema rules:
+- Use uuid or serial primary keys consistently across all tables
+- All foreign key columns must have explicit ON DELETE behaviour (CASCADE or RESTRICT)
+- Enum types for status/role columns rather than free-text strings
+- No nullable columns unless the business logic genuinely requires null`,
 
     integration: `${base}
 
 Your role: Integration Agent
-Review all the files created and produce the final integration files:
-- docker-compose.yml (full local dev environment)
-- Dockerfile (production build)
-- .github/workflows/deploy.yml (CI/CD pipeline)
-- scripts/setup.sh (one-command local setup script)
-- Any missing config files that tie the system together
+Output COMPLETE implementations for ALL of these — every file must actually work:
 
-Also write a final DEPLOYMENT.md with step-by-step deployment instructions for Vercel, Railway, or Fly.io depending on the tech stack.`,
+- docker-compose.yml — full local dev stack: app service + database + any other required services (Redis, etc.). Every service has a health check. App service depends_on DB with condition: service_healthy. Ports, env vars, and volume mounts are all correct and consistent with the rest of the codebase.
+- Dockerfile — multi-stage build: (1) builder stage installs deps + builds, (2) production stage copies only dist + node_modules. Runs as non-root user. HEALTHCHECK instruction included.
+- .dockerignore — excludes node_modules, .env, dist, .git
+- .github/workflows/ci.yml — runs on push/PR: checkout → setup-node → install → typecheck → lint → test → build
+- .github/workflows/deploy.yml — runs on push to main: build Docker image → push to registry → deploy to production (use Railway/Fly.io/Render based on what fits the stack)
+- scripts/setup.sh — #!/bin/bash + set -euo pipefail. Steps: check prerequisites, install deps, copy .env.example → .env with a notice, run migrations, seed DB, print "Ready — run pnpm dev"
+- DEPLOYMENT.md — step-by-step production deployment with exact commands, required env vars table, rollback instructions`,
 
     monitoring: `${base}
 
 Your role: Monitoring & Observability Agent
-Your job is to make this application production-observable and resilient. Create:
-1. src/middleware/logger.ts — structured request/response logging (using pino or winston)
-2. src/middleware/errorHandler.ts — global error handler with stack traces, error codes
-3. src/health.ts — health check endpoint at /health (checks DB, external deps, memory)
-4. src/metrics.ts — app metrics collection (request count, latency, error rate)
-5. monitoring/alerts.yml — alert rules for critical thresholds
-6. scripts/healthcheck.sh — CLI health check script
-7. MONITORING.md — guide to reading logs, setting up Grafana/Datadog/Sentry
+Output COMPLETE implementations for ALL of these — replace any earlier versions of the same file:
 
-Also add to the existing server entry:
-- Rate limiting middleware
-- Graceful shutdown handler (SIGTERM/SIGINT)
-- Uncaught exception / unhandled rejection handlers
-- Request correlation IDs for tracing
+1. src/lib/requestId.ts — Express middleware: generates UUID v4 per request, attaches to req.id and X-Request-ID response header
+2. src/middleware/logger.ts — pino or winston structured logger: logs every request with { requestId, method, path, statusCode, durationMs, userId? }. Separate error log for 5xx responses.
+3. src/middleware/errorHandler.ts — REPLACEMENT for any earlier version: categorises errors (operational vs programmer), logs full stack + requestId for programmer errors, returns { error: string, code: string, requestId: string } — never leak stack traces
+4. src/health.ts — GET /health: checks DB (run a SELECT 1), checks any external service deps, returns { status: "ok"|"degraded"|"down", uptime: number, memoryMb: number, checks: Record<string, "ok"|"fail"> }. Returns 200 for ok/degraded, 503 for down.
+5. scripts/healthcheck.sh — #!/bin/bash + set -euo pipefail. curl -f http://localhost:\${PORT:-3000}/health || exit 1
+6. MONITORING.md — structured guide: how to read JSON logs locally (pino-pretty), recommended Grafana dashboard setup, Sentry DSN configuration, alert thresholds for error rate/latency/memory
 
-Make the application production-hardened, not just functional.`,
+Output src/index.ts as a COMPLETE REPLACEMENT with these middlewares installed in the correct order:
+requestId → logger → cors → helmet → rateLimit → body-parser → routes → errorHandler
+Plus: graceful shutdown (drain in-flight requests before closing), process.on("uncaughtException") and process.on("unhandledRejection") that log with full context and exit(1).`,
   };
 
-  return prompts[agentId] || base;
+  return prompts[agentId] ?? base;
 }
 
 function parseAgentFiles(raw: string): Record<string, string> {
@@ -601,7 +652,7 @@ router.post("/lab/app-builder/test", authMiddleware, async (req: Request, res: R
 
   try {
     const fileSummary = Object.entries(files)
-      .map(([name, content]) => `### ${name}\n${content.slice(0, 600)}${content.length > 600 ? "\n...(truncated)" : ""}`)
+      .map(([name, content]) => `### ${name}\n${content.slice(0, 2000)}${content.length > 2000 ? "\n...(truncated)" : ""}`)
       .join("\n\n");
 
     send({ type: "test_start", message: "Initialising virtual test environment..." });
@@ -634,7 +685,7 @@ After all bugs, output:
 SUMMARY: Found X critical, Y high, Z medium, W low severity issues.`
       }],
       stream: true,
-      max_tokens: 2000,
+      max_tokens: 4000,
     });
 
     let buffer = "";
@@ -710,7 +761,7 @@ Output the COMPLETE corrected file, wrapped exactly as:
 Fix ALL listed bugs. Do not add new features. Output only the file, nothing else.`
         }],
         stream: true,
-        max_tokens: 3000,
+        max_tokens: 6000,
       });
 
       let buffer = "";
@@ -1040,7 +1091,7 @@ router.post("/lab/build-app", authMiddleware, async (req: Request, res: Response
           model: "anthropic/claude-sonnet-4.6",
           messages: [{ role: "user", content: prompt }],
           stream: true,
-          max_tokens: 4000,
+          max_tokens: 8000,
         });
 
         for await (const chunk of stream) {
