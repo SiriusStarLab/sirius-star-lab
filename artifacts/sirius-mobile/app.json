@@ -18,7 +18,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "live.siriusai.app",
-      "buildNumber": "3",
+      "buildNumber": "10",
       "entitlements": {
         "com.apple.developer.applesignin": ["Default"]
       },
