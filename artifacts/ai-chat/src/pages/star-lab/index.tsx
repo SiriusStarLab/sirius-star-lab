@@ -68,7 +68,12 @@ function speakText(text: string, onDone?: () => void, rate = 0.78) {
   if (chunks.length === 0) { onDone?.(); return; }
 
   const KNOWN_MALE = ["Daniel","Arthur","Malcolm","Google UK English Male","Microsoft David","Microsoft Mark","Microsoft George","Microsoft James","Alex","Fred","Ralph","Bruce","Junior"];
-  const FEMALE_ORDER = ["Microsoft Aria","Microsoft Jenny","Microsoft Sonia","Microsoft Libby","Microsoft Leah","Microsoft Nora","Microsoft Clara","Microsoft Mia","Microsoft Hazel","Microsoft Zira","Microsoft Susan","Samantha","Karen","Moira","Serena","Victoria","Fiona","Tessa","Google UK English Female","Google US English"];
+  const FEMALE_ORDER = [
+    "Microsoft Aria","Microsoft Jenny","Google UK English Female",
+    "Microsoft Sonia","Microsoft Libby","Microsoft Leah","Microsoft Nora",
+    "Microsoft Clara","Microsoft Mia","Microsoft Hazel","Microsoft Zira","Microsoft Susan",
+    "Samantha","Karen","Moira","Serena","Victoria","Fiona","Tessa","Google US English",
+  ];
   const pickVoice = () => {
     const v = window.speechSynthesis.getVoices();
     return v.find(x => FEMALE_ORDER.includes(x.name)) ||
@@ -98,8 +103,8 @@ function speakText(text: string, onDone?: () => void, rate = 0.78) {
       const chunk = chunks[idx++];
       const utter = new SpeechSynthesisUtterance(chunk);
       utter.rate   = rate;
-      utter.pitch  = 1.0;
-      utter.volume = 0.88;
+      utter.pitch  = 0.92;
+      utter.volume = 0.85;
       const preferred = pickVoice();
       if (preferred) utter.voice = preferred;
       utter.onend  = () => speakNext();
@@ -915,53 +920,8 @@ function ChatPanel({ project, pin, mode, onUpdate }: { project: Project; pin: st
       if (text.length > 1) {
         setVoicePhase("idle");
         rec.stop();
-        // Auto-send the voice input directly
-        setMessages(prev => [...prev, { role: "user", content: text }, { role: "assistant", content: "" }]);
-        setStreaming(true);
-        (async () => {
-          let assistant = "";
-          try {
-            const res = await fetch(`${base}lab/projects/${project.id}/chat`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json", "x-lab-pin": pin },
-              body: JSON.stringify({ message: text, tab: activeTab, mode: mode === "bot" ? "bot" : "engineering" }),
-            });
-            const reader = res.body!.getReader(); const decoder = new TextDecoder();
-            let buf = ""; let done = false;
-            while (!done) {
-              const { done: d, value } = await reader.read(); if (d) break;
-              buf += decoder.decode(value, { stream: true });
-              const lines = buf.split("\n"); buf = lines.pop() || "";
-              for (const line of lines) {
-                if (!line.startsWith("data: ")) continue;
-                try {
-                  const ev = JSON.parse(line.slice(6));
-                  if (ev.content) {
-                    assistant += ev.content;
-                    setMessages(prev => { const u = [...prev]; u[u.length - 1] = { role: "assistant", content: assistant }; return u; });
-                  }
-                  if (ev.type === "field_saved" && ev.field && ev.label) {
-                    setLastSaved({ field: ev.field, label: ev.label });
-                    setTimeout(() => setLastSaved(null), 3000);
-                    if (onUpdate && ev.preview !== undefined) onUpdate({ ...projectRef.current, [ev.field]: ev.preview + "…(saved)" });
-                  }
-                  if (ev.done) done = true;
-                } catch {}
-              }
-            }
-            reader.cancel().catch(() => {});
-            // Speak the response back
-            if (assistant && window.speechSynthesis) {
-              const utter = new SpeechSynthesisUtterance(assistant.replace(/[#*`_]/g, "").slice(0, 500));
-              utter.lang = "en-GB"; utter.rate = 1.05; utter.pitch = 1.0;
-              const voices = window.speechSynthesis.getVoices();
-              const preferred = voices.find(v => v.name.toLowerCase().includes("samantha") || v.name.toLowerCase().includes("karen") || (v.lang === "en-GB" && v.name.toLowerCase().includes("female"))) || voices.find(v => v.lang === "en-GB") || voices[0];
-              if (preferred) utter.voice = preferred;
-              window.speechSynthesis.speak(utter);
-            }
-          } catch {}
-          setStreaming(false);
-        })();
+        // Drop transcript into input box — user reviews and presses Send
+        setInput(text);
       }
     };
     rec.start();
