@@ -6,9 +6,10 @@ const SESSION_KEY = "lab_pin";
 
 interface Props {
   children: React.ReactNode;
+  title?: string;
 }
 
-export function LabAuthGate({ children }: Props) {
+export function LabAuthGate({ children, title = "Star Lab" }: Props) {
   const [status, setStatus] = useState<"checking" | "locked" | "unlocked">("checking");
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -119,7 +120,7 @@ export function LabAuthGate({ children }: Props) {
             letterSpacing: "-0.3px",
           }}
         >
-          Star Lab
+          {title}
         </h1>
         <p
           style={{

@@ -661,16 +661,16 @@ When asked what you can do, answer from this list specifically and honestly. Nev
 
 router.get("/openai/conversations", async (req, res): Promise<void> => {
   const userId = req.query.userId as string | undefined;
-  const query = db.select().from(conversationsTable);
-  if (userId) {
-    const conversations = await query
-      .where(eq(conversationsTable.userId, userId))
-      .orderBy(conversationsTable.createdAt);
-    res.json(conversations);
-  } else {
-    const conversations = await query.orderBy(conversationsTable.createdAt);
-    res.json(conversations);
+  if (!userId) {
+    res.json([]);
+    return;
   }
+  const conversations = await db
+    .select()
+    .from(conversationsTable)
+    .where(eq(conversationsTable.userId, userId))
+    .orderBy(conversationsTable.createdAt);
+  res.json(conversations);
 });
 
 router.post("/openai/conversations", async (req, res): Promise<void> => {
