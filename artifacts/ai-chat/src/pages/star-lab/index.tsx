@@ -1103,7 +1103,19 @@ function ChatPanel({ project, pin, mode, onUpdate }: { project: Project; pin: st
                 <div className="rounded-2xl px-3.5 py-3"
                   style={{ background: m.role === "user" ? "hsl(193,100%,30%)" : "#EEF2F8" }}>
                   {m.role === "assistant"
-                    ? <LabMarkdown content={m.content} streaming={streaming && i === messages.length - 1} />
+                    ? (streaming && i === messages.length - 1 && !m.content)
+                      ? (
+                        <div className="flex items-center gap-1 py-0.5">
+                          {[0, 1, 2].map(d => (
+                            <span key={d} className="w-2 h-2 rounded-full"
+                              style={{ background: "hsl(193,100%,45%)", display: "inline-block",
+                                animation: "thinkBounce 1.1s ease-in-out infinite",
+                                animationDelay: `${d * 0.18}s` }} />
+                          ))}
+                          <style>{`@keyframes thinkBounce { 0%,80%,100%{transform:translateY(0);opacity:0.4} 40%{transform:translateY(-5px);opacity:1} }`}</style>
+                        </div>
+                      )
+                      : <LabMarkdown content={m.content} streaming={streaming && i === messages.length - 1} />
                     : <p className="text-slate-800 text-xs leading-relaxed">{m.content}</p>}
                 </div>
                 {m.role === "assistant" && m.content && (
