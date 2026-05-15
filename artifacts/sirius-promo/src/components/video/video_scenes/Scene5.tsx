@@ -6,69 +6,63 @@ export function Scene5() {
 
   useEffect(() => {
     const timers = [
-      setTimeout(() => setPhase(1), 500),
-      setTimeout(() => setPhase(2), 1500),
-      setTimeout(() => setPhase(3), 2500),
-      setTimeout(() => setPhase(4), 4000),
+      setTimeout(() => setPhase(1), 400),
+      setTimeout(() => setPhase(2), 1600),
+      setTimeout(() => setPhase(3), 2800),
     ];
     return () => timers.forEach(t => clearTimeout(t));
   }, []);
 
   return (
     <motion.div
-      className="absolute inset-0 flex flex-col items-center justify-center p-8 z-10"
-      initial={{ opacity: 0, filter: 'blur(20px)' }}
-      animate={{ opacity: 1, filter: 'blur(0px)' }}
-      exit={{ opacity: 0, filter: 'blur(20px)' }}
-      transition={{ duration: 1.5, ease: [0.16, 1, 0.3, 1] }}
+      className="absolute inset-0 flex flex-col items-center justify-center p-8 z-10 text-center"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 1.2 }}
     >
-      <div className="flex flex-col items-center justify-center h-1/2">
-        <motion.h2
-          className="text-4xl text-white/80 font-light tracking-wide mb-4"
-          style={{ fontFamily: 'var(--font-display)' }}
-          initial={{ opacity: 0, y: 10 }}
-          animate={phase >= 1 ? { opacity: 1, y: 0 } : { opacity: 0, y: 10 }}
-          transition={{ duration: 0.8 }}
-        >
-          Dream it.
-        </motion.h2>
+      {/* Star icon */}
+      <motion.div
+        className="w-14 h-14 text-purple-300 mb-6"
+        initial={{ opacity: 0, rotate: -30, scale: 0.6 }}
+        animate={phase >= 1 ? { opacity: 1, rotate: 0, scale: 1 } : { opacity: 0, rotate: -30, scale: 0.6 }}
+        transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
+      >
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z" />
+        </svg>
+      </motion.div>
 
-        <motion.h2
-          className="text-4xl text-white/90 font-light tracking-wide mb-4"
-          style={{ fontFamily: 'var(--font-display)' }}
-          initial={{ opacity: 0, y: 10 }}
-          animate={phase >= 2 ? { opacity: 1, y: 0 } : { opacity: 0, y: 10 }}
-          transition={{ duration: 0.8 }}
-        >
-          Build it.
-        </motion.h2>
-
-        <motion.h2
-          className="text-5xl text-white font-medium tracking-wide text-glow"
-          style={{ fontFamily: 'var(--font-display)' }}
-          initial={{ opacity: 0, y: 10 }}
-          animate={phase >= 3 ? { opacity: 1, y: 0 } : { opacity: 0, y: 10 }}
-          transition={{ duration: 0.8 }}
-        >
-          Become it.
-        </motion.h2>
-      </div>
+      <motion.h1
+        className="text-3xl tracking-[0.2em] text-white font-light uppercase mb-3"
+        style={{ fontFamily: 'var(--font-display)' }}
+        initial={{ opacity: 0, y: 12 }}
+        animate={phase >= 1 ? { opacity: 1, y: 0 } : { opacity: 0, y: 12 }}
+        transition={{ duration: 1, ease: 'easeOut' }}
+      >
+        Sirius Star Lab
+      </motion.h1>
 
       <motion.div
-        className="mt-12 flex flex-col items-center"
+        className="mt-8 px-8 py-3 border border-purple-400/50 rounded-full"
+        style={{ background: 'rgba(139,92,246,0.12)' }}
         initial={{ opacity: 0, scale: 0.9 }}
-        animate={phase >= 4 ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.9 }}
-        transition={{ duration: 1.5, ease: "easeOut" }}
+        animate={phase >= 2 ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.9 }}
+        transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
       >
-        <div className="w-12 h-12 mb-4 text-purple-300">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 2l3 7 7 3-7 3-3 7-3-7-7-3 7-3 3-7z" />
-          </svg>
-        </div>
-        <h1 className="text-2xl tracking-[0.3em] text-white font-light uppercase">
-          Sirius Star Lab
-        </h1>
+        <span className="text-xl text-purple-200 tracking-[0.15em] uppercase font-light">
+          Coming Soon
+        </span>
       </motion.div>
+
+      <motion.p
+        className="mt-6 text-base text-white/40 tracking-widest"
+        initial={{ opacity: 0 }}
+        animate={phase >= 3 ? { opacity: 1 } : { opacity: 0 }}
+        transition={{ duration: 1.2 }}
+      >
+        siriusai.app
+      </motion.p>
     </motion.div>
   );
 }
