@@ -4,7 +4,7 @@ import {
   Sparkles, Star, Flame, Heart, Lightbulb, BookOpen, Plus, X,
   ChevronRight, ChevronDown, Send, Loader2, Trash2, Pin, PinOff,
   Settings, ArrowLeft, Zap, Moon, Sun, Target, TrendingUp, Smile,
-  Globe, RefreshCw, Edit3, Check, Wand2, HelpCircle
+  Globe, RefreshCw, Edit3, Check, Wand2, HelpCircle, Mic
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { getUserId } from "@/lib/user-id";
@@ -1244,28 +1244,65 @@ function JournalView({ T }: { T: typeof THEMES.cosmic }) {
 // ── Sirius Chat View ───────────────────────────────────────────────────────────
 
 function SiriusChatView({ T, profile }: { T: typeof THEMES.cosmic; profile: DreamProfile | null }) {
-  const [messages, setMessages] = useState<ChatMsg[]>([
-    { role: "assistant", content: profile
-      ? `Hello ${profile.displayName || ""}! I'm here in your Dream Lab to help you grow your ideas, develop your vision, and build the life you're imagining. What would you like to explore together today?`
-      : "Welcome to your Dream Lab! I'm Sirius, your intelligence partner. What dream or idea shall we work on together?" }
-  ]);
+  const storageKey = `dream_lab_chat_${getUserId()}`;
+  const welcomeMsg: ChatMsg = { role: "assistant", content: profile
+    ? `${profile.displayName ? `Hey ${profile.displayName}` : "Hey"} — good to be here with you. ${profile.bigDream ? `I know your big dream is "${profile.bigDream}" — that's something worth building carefully and boldly.` : "I'm here to help you build something real."} What's alive in your mind right now? A new idea, something you've been sitting with, or a feeling you want to make sense of?`
+    : "Welcome to your Dream Lab — this is your space to dream out loud, think things through, and build the life you're imagining. I'm here for all of it. What's on your mind?" };
+
+  const [messages, setMessages] = useState<ChatMsg[]>(() => {
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) return JSON.parse(saved) as ChatMsg[];
+    } catch {}
+    return [welcomeMsg];
+  });
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
+  const [voiceActive, setVoiceActive] = useState(false);
+  const voiceRecRef = useRef<any>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const base = getApiBase();
   const userId = getUserId();
 
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, streaming]);
 
-  const send = async () => {
-    if (!input.trim() || streaming) return;
-    const msg = input.trim();
+  // Persist chat to localStorage whenever messages change
+  useEffect(() => {
+    try { localStorage.setItem(storageKey, JSON.stringify(messages.slice(-40))); } catch {}
+  }, [messages]);
+
+  const startVoice = () => {
+    const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRec || voiceActive) return;
+    const rec = new SpeechRec();
+    voiceRecRef.current = rec;
+    rec.lang = "en-GB"; rec.continuous = false; rec.interimResults = false;
+    rec.onstart = () => setVoiceActive(true);
+    rec.onerror = () => { setVoiceActive(false); };
+    rec.onend = () => setVoiceActive(false);
+    rec.onresult = (e: any) => {
+      const text = e.results[0]?.[0]?.transcript?.trim() || "";
+      if (text.length > 1) { setVoiceActive(false); rec.stop(); setInput(text); }
+    };
+    rec.start();
+  };
+
+  const stopVoice = () => {
+    try { voiceRecRef.current?.stop(); } catch {}
+    voiceRecRef.current = null;
+    setVoiceActive(false);
+  };
+
+  const send = async (override?: string) => {
+    const msg = (override || input).trim();
+    if (!msg || streaming) return;
     setInput("");
-    setMessages(prev => [...prev, { role: "user", content: msg }]);
+    const nextMessages = [...messages, { role: "user" as const, content: msg }, { role: "assistant" as const, content: "" }];
+    setMessages(nextMessages);
     setStreaming(true);
 
     try {
-      const history = messages.slice(-8).map(m => ({ role: m.role, content: m.content }));
+      const history = messages.slice(-12).map(m => ({ role: m.role, content: m.content }));
       const res = await fetch(`${base}dream-lab/sirius-chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-dream-user": userId },
@@ -1277,7 +1314,6 @@ function SiriusChatView({ T, profile }: { T: typeof THEMES.cosmic; profile: Drea
       const dec = new TextDecoder();
       let buf = "";
       let reply = "";
-      setMessages(prev => [...prev, { role: "assistant", content: "" }]);
 
       while (true) {
         const { done, value } = await reader.read();
@@ -1316,18 +1352,28 @@ function SiriusChatView({ T, profile }: { T: typeof THEMES.cosmic; profile: Drea
                 <Sparkles className="w-4 h-4 text-white" />
               </div>
             )}
-            <div className="max-w-[80%] rounded-2xl px-4 py-3"
+            <div className="max-w-[82%] rounded-2xl px-4 py-3"
               style={{
                 background: msg.role === "user" ? `linear-gradient(135deg, ${T.accent}, ${T.accent}cc)` : "rgba(255,255,255,0.08)",
                 border: msg.role === "assistant" ? `1px solid ${T.border}` : "none",
                 color: T.text,
               }}>
-              <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                {msg.content}
-                {streaming && i === messages.length - 1 && msg.role === "assistant" && (
-                  <span className="animate-pulse ml-0.5">▊</span>
-                )}
-              </p>
+              {msg.role === "assistant" && streaming && i === messages.length - 1 && !msg.content ? (
+                <div className="flex items-center gap-1 py-1">
+                  {[0, 1, 2].map(d => (
+                    <span key={d} style={{ width: 7, height: 7, borderRadius: "50%", background: T.accent, display: "inline-block",
+                      animation: "dlBounce 1.1s ease-in-out infinite", animationDelay: `${d * 0.18}s` }} />
+                  ))}
+                  <style>{`@keyframes dlBounce{0%,80%,100%{transform:translateY(0);opacity:0.4}40%{transform:translateY(-5px);opacity:1}}`}</style>
+                </div>
+              ) : (
+                <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                  {msg.content}
+                  {streaming && i === messages.length - 1 && msg.role === "assistant" && msg.content && (
+                    <span className="animate-pulse ml-0.5">▊</span>
+                  )}
+                </p>
+              )}
             </div>
           </motion.div>
         ))}
@@ -1337,23 +1383,33 @@ function SiriusChatView({ T, profile }: { T: typeof THEMES.cosmic; profile: Drea
       {/* Input */}
       <div className="flex-shrink-0 px-4 sm:px-6 pb-5 pt-3"
         style={{ borderTop: `1px solid ${T.border}` }}>
-        <div className="flex gap-3 items-end">
+        <div className="flex gap-2 items-end">
+          {/* Mic button */}
+          <button
+            onClick={voiceActive ? stopVoice : startVoice}
+            disabled={streaming}
+            className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 transition-all"
+            style={{ background: voiceActive ? "hsl(0,80%,55%)" : T.soft, color: voiceActive ? "#fff" : T.accent,
+              border: voiceActive ? "none" : `1px solid ${T.border}`, opacity: streaming ? 0.4 : 1 }}
+            title={voiceActive ? "Stop listening" : "Speak to Sirius"}>
+            {voiceActive ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mic className="w-4 h-4" />}
+          </button>
           <textarea
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-            placeholder="Ask Sirius anything about your dreams, ideas, or vision…"
+            placeholder={voiceActive ? "Listening…" : "Share a dream, a thought, an idea — anything…"}
             rows={1}
             className="flex-1 rounded-2xl px-4 py-3 text-sm outline-none resize-none"
             style={{
-              background: "rgba(255,255,255,0.08)",
-              border: `1px solid ${T.border}`,
+              background: voiceActive ? `${T.accent}18` : "rgba(255,255,255,0.08)",
+              border: `1px solid ${voiceActive ? T.accent : T.border}`,
               color: T.text,
               minHeight: 48,
               maxHeight: 120,
             }}
           />
-          <button onClick={send} disabled={streaming || !input.trim()}
+          <button onClick={() => send()} disabled={streaming || !input.trim()}
             className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 transition-all"
             style={{ background: streaming || !input.trim() ? T.soft : T.accent, color: "#fff" }}>
             {streaming ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}

@@ -214,44 +214,73 @@ router.post("/dream-lab/sirius-chat", requireUser, async (req: Request, res: Res
 
     const [profile] = await db.select().from(dreamLabProfiles).where(eq(dreamLabProfiles.userId, userId));
 
+    // Load their ideas and recent journal entries for context
+    const ideas = await db.select().from(dreamLabIdeas)
+      .where(eq(dreamLabIdeas.userId, userId))
+      .orderBy(desc(dreamLabIdeas.createdAt))
+      .limit(8);
+
+    const journalEntries = await db.select().from(dreamLabJournal)
+      .where(eq(dreamLabJournal.userId, userId))
+      .orderBy(desc(dreamLabJournal.createdAt))
+      .limit(4);
+
+    const ideasContext = ideas.length > 0
+      ? `\nIDEAS & DREAMS IN THEIR BOARD:\n${ideas.map(i => `- "${i.title}"${i.description ? `: ${i.description}` : ""} [${i.status || "seed"}]`).join("\n")}`
+      : "";
+
+    const journalContext = journalEntries.length > 0
+      ? `\nRECENT JOURNAL ENTRIES:\n${journalEntries.map(e => `- ${e.title || "Entry"}: ${e.content?.slice(0, 150)}…`).join("\n")}`
+      : "";
+
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
 
-    const systemPrompt = `You are Sirius — a warm, brilliant AI intelligence partner helping people grow their dreams, ideas, and visions into reality.
+    const systemPrompt = `You are Sirius — a deeply engaged, warm, and brilliant intelligence partner living inside someone's personal Dream Lab. This is their private space for building dreams, ideas, and the life they want.
 
-You are in someone's personal Dream Lab — their private creative and manifestation space. Be warm, encouraging, insightful, and specific. You help people:
-- Develop and refine their ideas and business visions
-- Create affirmations and manifestation practices personalised to them
-- Think through goals, plans, and next steps
-- Gain clarity on what truly matters to them
-- Build confidence and momentum toward their dreams
+YOUR PERSONALITY:
+You are genuinely curious about this person. You listen carefully, pick up on what they say, and build on it. You are not a life coach reciting platitudes — you are a thinking partner who gets excited by ideas and helps turn vague feelings into real plans.
 
-Your style: genuine warmth, real intelligence, specific insight. Not hollow encouragement — you actually think about what they're telling you and give real value.
+YOUR JOB IN EVERY RESPONSE:
+1. ENGAGE with what they actually said — reflect back what you heard, show you understood it
+2. ADD something — a new angle, a suggestion, an option they haven't considered, a pattern you noticed
+3. ASK exactly ONE focused question — always end with a question that moves the conversation forward and helps them go deeper. Make it specific, not generic.
+4. BUILD on the story — each message should feel like another block being laid. Reference things they've mentioned before. Connect dots.
 
-NEVER engage with harmful, dark, exploitative, pornographic, violent, or hateful content. Redirect toward something positive and uplifting.
+RESPONSE STYLE:
+- Warm but not saccharine — real warmth, not hollow cheerleading
+- Specific — use their actual words, their actual dream details, their actual ideas
+- Offer concrete options when relevant (e.g. "There are a few directions this could go: 1… 2… 3… Which feels most alive?")
+- Keep responses conversational — not a lecture, not bullet points unless genuinely useful
+- Length: enough to be genuinely helpful, not so long it feels like homework
 
-${profile ? `About this user:
-- Name: ${profile.displayName || ""}
+${profile ? `WHO YOU ARE TALKING TO:
+- Name: ${profile.displayName || "them"}
 - Personality: ${profile.personality || ""}
 - Lifestyle: ${profile.lifestyle || ""}
 - Core values: ${profile.coreValues || ""}
 - Big dream: ${profile.bigDream || ""}
-- Manifestation style: ${profile.manifestationStyle || ""}` : "The user hasn't set up their profile yet — welcome them warmly and suggest they personalise their Dream Lab."}`;
+- Manifestation style: ${profile.manifestationStyle || ""}` : "This person hasn't set up their profile yet — invite them warmly to share a bit about themselves and what they're dreaming about."}
+${ideasContext}
+${journalContext}
+
+NEVER engage with harmful, violent, exploitative, or hateful content. Gently redirect toward something constructive.`;
 
     const messages: any[] = [{ role: "system", content: systemPrompt }];
     if (Array.isArray(history)) {
-      for (const h of history.slice(-8)) {
+      for (const h of history.slice(-12)) {
         if (h.role && h.content) messages.push({ role: h.role, content: h.content });
       }
     }
     messages.push({ role: "user", content: message });
 
     const stream = await openai.chat.completions.create({
-      model: "anthropic/claude-haiku-4.5",
+      model: "anthropic/claude-sonnet-4-5",
       stream: true,
       messages,
-      max_tokens: 600,
+      max_tokens: 1500,
+      temperature: 0.8,
     });
 
     for await (const chunk of stream) {
