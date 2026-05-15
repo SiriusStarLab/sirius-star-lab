@@ -3,17 +3,22 @@ import { router } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import React, { useRef, useState } from "react";
 import {
+  Animated,
   Dimensions,
   FlatList,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
+  TextInput,
   View,
   ViewToken,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors from "@/constants/colors";
+import { useApp } from "@/context/AppContext";
 
 const { width } = Dimensions.get("window");
 
@@ -46,16 +51,7 @@ const SLIDES = [
 
 const ONBOARDING_KEY = "onboarding_complete";
 
-async function completeOnboarding() {
-  await AsyncStorage.setItem(ONBOARDING_KEY, "1");
-  router.replace("/(tabs)");
-}
-
-function Slide({
-  item,
-}: {
-  item: (typeof SLIDES)[number];
-}) {
+function Slide({ item }: { item: (typeof SLIDES)[number] }) {
   return (
     <View style={[styles.slide, { width }]}>
       <View style={[styles.iconWrap, { borderColor: item.iconColor + "33" }]}>
@@ -69,8 +65,13 @@ function Slide({
 
 export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
+  const { updateLocalProfile } = useApp();
   const [activeIndex, setActiveIndex] = useState(0);
+  const [showNameInput, setShowNameInput] = useState(false);
+  const [name, setName] = useState("");
+  const fadeAnim = useRef(new Animated.Value(0)).current;
   const flatRef = useRef<FlatList>(null);
+  const inputRef = useRef<TextInput>(null);
 
   const onViewableItemsChanged = useRef(
     ({ viewableItems }: { viewableItems: ViewToken[] }) => {
@@ -80,25 +81,43 @@ export default function OnboardingScreen() {
     }
   ).current;
 
-  const viewabilityConfig = useRef({ viewAreaCoveragePercentThreshold: 50 }).current;
+  const viewabilityConfig = useRef({
+    viewAreaCoveragePercentThreshold: 50,
+  }).current;
 
   const isLast = activeIndex === SLIDES.length - 1;
 
+  const finishOnboarding = async (userName?: string) => {
+    if (userName?.trim()) {
+      await updateLocalProfile({ userName: userName.trim() });
+    }
+    await AsyncStorage.setItem(ONBOARDING_KEY, "1");
+    router.replace("/(tabs)");
+  };
+
   const handleNext = () => {
     if (isLast) {
-      completeOnboarding();
+      // Transition to name step
+      setShowNameInput(true);
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 280,
+        useNativeDriver: true,
+      }).start(() => inputRef.current?.focus());
     } else {
       flatRef.current?.scrollToIndex({ index: activeIndex + 1, animated: true });
     }
   };
 
+  const handleSkipOnboarding = () => finishOnboarding();
+
   return (
     <View style={[styles.root, { backgroundColor: Colors.background }]}>
-      {/* Skip — always visible, disappears on last slide */}
+      {/* Top bar */}
       <View style={[styles.topBar, { paddingTop: insets.top + 12 }]}>
-        {!isLast ? (
+        {!showNameInput && !isLast ? (
           <Pressable
-            onPress={completeOnboarding}
+            onPress={handleSkipOnboarding}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             style={({ pressed }) => [styles.skipBtn, pressed && { opacity: 0.5 }]}
           >
@@ -110,48 +129,103 @@ export default function OnboardingScreen() {
       </View>
 
       {/* Slides */}
-      <FlatList
-        ref={flatRef}
-        data={SLIDES}
-        keyExtractor={(_, i) => String(i)}
-        renderItem={({ item }) => <Slide item={item} />}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        onViewableItemsChanged={onViewableItemsChanged}
-        viewabilityConfig={viewabilityConfig}
-        scrollEventThrottle={16}
-        bounces={false}
-      />
+      {!showNameInput && (
+        <FlatList
+          ref={flatRef}
+          data={SLIDES}
+          keyExtractor={(_, i) => String(i)}
+          renderItem={({ item }) => <Slide item={item} />}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          onViewableItemsChanged={onViewableItemsChanged}
+          viewabilityConfig={viewabilityConfig}
+          scrollEventThrottle={16}
+          bounces={false}
+        />
+      )}
 
-      {/* Bottom area: dots + button */}
-      <View style={[styles.bottom, { paddingBottom: insets.bottom + 24 }]}>
-        {/* Dot indicators — hidden on last slide */}
-        {!isLast && (
-          <View style={styles.dots}>
-            {SLIDES.map((_, i) => (
-              <View
-                key={i}
-                style={[
-                  styles.dot,
-                  i === activeIndex
-                    ? { backgroundColor: Colors.primary, width: 20 }
-                    : { backgroundColor: Colors.border },
-                ]}
-              />
-            ))}
-          </View>
-        )}
+      {/* Name input — fades in after last slide */}
+      {showNameInput && (
+        <Animated.View style={[styles.nameContainer, { opacity: fadeAnim }]}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={styles.nameInner}
+          >
+            <View style={[styles.iconWrap, { borderColor: Colors.primary + "33" }]}>
+              <Feather name="smile" size={40} color={Colors.primary} />
+            </View>
 
-        {/* CTA button */}
-        <Pressable
-          onPress={handleNext}
-          style={({ pressed }) => [styles.cta, pressed && { opacity: 0.8 }]}
+            <Text style={styles.title}>What should Sirius{"\n"}call you?</Text>
+            <Text style={styles.body}>
+              You can always change this later in your settings.
+            </Text>
+
+            <TextInput
+              ref={inputRef}
+              value={name}
+              onChangeText={setName}
+              placeholder="Your name"
+              placeholderTextColor={Colors.textMuted}
+              style={styles.input}
+              autoCorrect={false}
+              maxLength={40}
+              returnKeyType="done"
+              onSubmitEditing={() => finishOnboarding(name)}
+            />
+          </KeyboardAvoidingView>
+        </Animated.View>
+      )}
+
+      {/* Bottom controls */}
+      {!showNameInput ? (
+        <View style={[styles.bottom, { paddingBottom: insets.bottom + 24 }]}>
+          {/* Dots — hidden on last slide */}
+          {!isLast && (
+            <View style={styles.dots}>
+              {SLIDES.map((_, i) => (
+                <View
+                  key={i}
+                  style={[
+                    styles.dot,
+                    i === activeIndex
+                      ? { backgroundColor: Colors.primary, width: 20 }
+                      : { backgroundColor: Colors.border },
+                  ]}
+                />
+              ))}
+            </View>
+          )}
+
+          <Pressable
+            onPress={handleNext}
+            style={({ pressed }) => [styles.cta, pressed && { opacity: 0.8 }]}
+          >
+            <Text style={styles.ctaText}>
+              {isLast ? "Let's go" : "Next"}
+            </Text>
+            {!isLast && (
+              <Feather name="arrow-right" size={18} color={Colors.background} />
+            )}
+          </Pressable>
+        </View>
+      ) : (
+        <Animated.View
+          style={[
+            styles.bottom,
+            { paddingBottom: insets.bottom + 24, opacity: fadeAnim },
+          ]}
         >
-          <Text style={styles.ctaText}>{isLast ? "Let's go" : "Next"}</Text>
-          {!isLast && <Feather name="arrow-right" size={18} color={Colors.background} />}
-        </Pressable>
-      </View>
+          <Pressable
+            onPress={() => finishOnboarding(name)}
+            style={({ pressed }) => [styles.cta, pressed && { opacity: 0.8 }]}
+          >
+            <Text style={styles.ctaText}>
+              {name.trim() ? "Start" : "Skip for now"}
+            </Text>
+          </Pressable>
+        </Animated.View>
+      )}
     </View>
   );
 }
@@ -206,6 +280,31 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     textAlign: "center",
     lineHeight: 26,
+  },
+
+  /* ── Name input ── */
+  nameContainer: {
+    flex: 1,
+  },
+  nameInner: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 40,
+    gap: 24,
+  },
+  input: {
+    width: "100%",
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    fontFamily: "Inter_400Regular",
+    fontSize: 17,
+    color: Colors.text,
+    marginTop: 8,
   },
 
   /* ── Bottom ── */
