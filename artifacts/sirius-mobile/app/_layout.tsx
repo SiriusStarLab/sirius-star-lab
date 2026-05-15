@@ -56,18 +56,18 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (!fontsLoaded && !fontError) return;
-
-    SplashScreen.hideAsync();
-
     if (navigationReady.current) return;
     navigationReady.current = true;
 
+    // Keep splash visible during the AsyncStorage check so there's no tabs flash
     AsyncStorage.getItem(ONBOARDING_KEY).then((done) => {
       if (!done) {
         router.replace("/onboarding");
       }
     }).catch(() => {
       // AsyncStorage unavailable — proceed to app normally
+    }).finally(() => {
+      SplashScreen.hideAsync();
     });
   }, [fontsLoaded, fontError]);
 

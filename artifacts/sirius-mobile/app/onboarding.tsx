@@ -126,20 +126,22 @@ export default function OnboardingScreen() {
 
       {/* Bottom area: dots + button */}
       <View style={[styles.bottom, { paddingBottom: insets.bottom + 24 }]}>
-        {/* Dot indicators */}
-        <View style={styles.dots}>
-          {SLIDES.map((_, i) => (
-            <View
-              key={i}
-              style={[
-                styles.dot,
-                i === activeIndex
-                  ? { backgroundColor: Colors.primary, width: 20 }
-                  : { backgroundColor: Colors.border },
-              ]}
-            />
-          ))}
-        </View>
+        {/* Dot indicators — hidden on last slide */}
+        {!isLast && (
+          <View style={styles.dots}>
+            {SLIDES.map((_, i) => (
+              <View
+                key={i}
+                style={[
+                  styles.dot,
+                  i === activeIndex
+                    ? { backgroundColor: Colors.primary, width: 20 }
+                    : { backgroundColor: Colors.border },
+                ]}
+              />
+            ))}
+          </View>
+        )}
 
         {/* CTA button */}
         <Pressable
