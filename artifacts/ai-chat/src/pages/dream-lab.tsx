@@ -580,8 +580,12 @@ function BoardView({ T, profile, theme, onSelectIdea }: { T: typeof THEMES.cosmi
       .sort((a, b) => Number(b.pinned) - Number(a.pinned)));
   };
 
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+
   const deleteIdea = async (id: number, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (confirmDeleteId !== id) { setConfirmDeleteId(id); setTimeout(() => setConfirmDeleteId(null), 3000); return; }
+    setConfirmDeleteId(null);
     await api.del(`dream-lab/ideas/${id}`);
     setIdeas(prev => prev.filter(i => i.id !== id));
   };
@@ -753,17 +757,23 @@ function BoardView({ T, profile, theme, onSelectIdea }: { T: typeof THEMES.cosmi
                     style={{ background: colour }} />
                 )}
 
-                {/* Actions */}
-                <div className="absolute top-3 right-3 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                {/* Actions — always visible on touch, hover on desktop */}
+                <div className="absolute top-3 right-3 flex gap-1.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                   <button onClick={e => togglePin(idea, e)}
                     className="w-6 h-6 rounded-lg flex items-center justify-center"
                     style={{ background: T.soft, color: idea.pinned ? colour : `${T.text}50` }}>
                     {idea.pinned ? <Pin className="w-3 h-3" /> : <PinOff className="w-3 h-3" />}
                   </button>
                   <button onClick={e => deleteIdea(idea.id, e)}
-                    className="w-6 h-6 rounded-lg flex items-center justify-center"
-                    style={{ background: "rgba(244,63,94,0.1)", color: "#f43f5e" }}>
-                    <Trash2 className="w-3 h-3" />
+                    className="rounded-lg flex items-center justify-center transition-all text-[10px] font-bold"
+                    style={{
+                      background: confirmDeleteId === idea.id ? "#f43f5e" : "rgba(244,63,94,0.1)",
+                      color: confirmDeleteId === idea.id ? "#fff" : "#f43f5e",
+                      width: confirmDeleteId === idea.id ? "auto" : 24,
+                      height: 24,
+                      padding: confirmDeleteId === idea.id ? "0 6px" : undefined,
+                    }}>
+                    {confirmDeleteId === idea.id ? "Sure?" : <Trash2 className="w-3 h-3" />}
                   </button>
                 </div>
 
@@ -825,6 +835,7 @@ function IdeaDetailView({ T, idea, onBack, onUpdate }: { T: typeof THEMES.cosmic
   const [editDesc, setEditDesc] = useState(idea.description);
   const [editStatus, setEditStatus] = useState(idea.status);
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const colour = IDEA_COLOURS[idea.colour] || T.accent;
   const cat = CATEGORIES.find(c => c.id === idea.category);
   const api = useApi();
@@ -863,7 +874,7 @@ function IdeaDetailView({ T, idea, onBack, onUpdate }: { T: typeof THEMES.cosmic
   const saveChanges = async () => {
     setSaving(true);
     const r = await api.put(`dream-lab/ideas/${idea.id}`, { ...idea, description: editDesc, status: editStatus });
-    if (r.ok) { const updated = await r.json(); onUpdate(updated); }
+    if (r.ok) { const updated = await r.json(); onUpdate(updated); setSaved(true); setTimeout(() => setSaved(false), 2500); }
     setSaving(false);
   };
 
@@ -926,10 +937,10 @@ function IdeaDetailView({ T, idea, onBack, onUpdate }: { T: typeof THEMES.cosmic
 
       {/* Save */}
       <button onClick={saveChanges} disabled={saving}
-        className="w-full py-3 rounded-2xl text-sm font-semibold mb-6 flex items-center justify-center gap-2"
-        style={{ background: `${colour}25`, border: `1px solid ${colour}50`, color: colour }}>
+        className="w-full py-3 rounded-2xl text-sm font-semibold mb-6 flex items-center justify-center gap-2 transition-all"
+        style={{ background: saved ? `${colour}35` : `${colour}25`, border: `1px solid ${saved ? colour : `${colour}50`}`, color: colour }}>
         {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-        Save changes
+        {saved ? "Saved ✓" : "Save changes"}
       </button>
 
       {/* Sirius section */}
@@ -976,6 +987,7 @@ function ManifestationsView({ T }: { T: typeof THEMES.cosmic }) {
   const [newText, setNewText] = useState("");
   const [newType, setNewType] = useState("affirmation");
   const [generated, setGenerated] = useState<string[]>([]);
+  const [addedIndices, setAddedIndices] = useState<Set<number>>(new Set());
   const api = useApi();
 
   useEffect(() => {
@@ -987,15 +999,20 @@ function ManifestationsView({ T }: { T: typeof THEMES.cosmic }) {
   const generateAffirmations = async () => {
     setGenerating(true);
     setGenerated([]);
+    setAddedIndices(new Set());
     try {
       const r = await api.post("dream-lab/generate-affirmations", { theme, count: 6 });
       if (r.ok) { const d = await r.json(); setGenerated(d.affirmations || []); }
     } finally { setGenerating(false); }
   };
 
-  const addManifestation = async (text: string, type: string = "affirmation") => {
+  const addManifestation = async (text: string, type: string = "affirmation", index?: number) => {
     const r = await api.post("dream-lab/manifestations", { text, type, frequency: "daily" });
-    if (r.ok) { const item = await r.json(); setItems(prev => [item, ...prev]); }
+    if (r.ok) {
+      const item = await r.json();
+      setItems(prev => [item, ...prev]);
+      if (index !== undefined) setAddedIndices(prev => new Set([...prev, index]));
+    }
   };
 
   const deleteItem = async (id: number) => {
@@ -1037,17 +1054,21 @@ function ManifestationsView({ T }: { T: typeof THEMES.cosmic }) {
         <AnimatePresence>
           {generated.length > 0 && (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-4 space-y-2">
-              {generated.map((aff, i) => (
-                <div key={i} className="flex items-start gap-3 p-3 rounded-xl"
-                  style={{ background: T.soft, border: `1px solid ${T.border}` }}>
-                  <p className="text-sm flex-1 leading-relaxed" style={{ color: T.text }}>{aff}</p>
-                  <button onClick={() => addManifestation(aff)}
-                    className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center transition-all"
-                    style={{ background: T.accent, color: "#fff" }}>
-                    <Plus className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              ))}
+              {generated.map((aff, i) => {
+                const wasAdded = addedIndices.has(i);
+                return (
+                  <div key={i} className="flex items-start gap-3 p-3 rounded-xl"
+                    style={{ background: T.soft, border: `1px solid ${wasAdded ? T.accent + "60" : T.border}` }}>
+                    <p className="text-sm flex-1 leading-relaxed" style={{ color: T.text }}>{aff}</p>
+                    <button onClick={() => !wasAdded && addManifestation(aff, "affirmation", i)}
+                      disabled={wasAdded}
+                      className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center transition-all"
+                      style={{ background: wasAdded ? T.accent + "30" : T.accent, color: wasAdded ? T.accent : "#fff" }}>
+                      {wasAdded ? <Check className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                );
+              })}
             </motion.div>
           )}
         </AnimatePresence>
@@ -1110,8 +1131,8 @@ function ManifestationsView({ T }: { T: typeof THEMES.cosmic }) {
                   <span className="text-[10px] mt-1 block" style={{ color: `${T.text}40` }}>{meta.label} · Daily</span>
                 </div>
                 <button onClick={() => deleteItem(item.id)}
-                  className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-                  style={{ color: "rgba(244,63,94,0.6)" }}>
+                  className="opacity-40 hover:opacity-100 transition-opacity flex-shrink-0"
+                  style={{ color: "rgba(244,63,94,0.8)" }}>
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </motion.div>
@@ -1133,7 +1154,19 @@ function JournalView({ T }: { T: typeof THEMES.cosmic }) {
   const [content, setContent] = useState("");
   const [mood, setMood] = useState("inspired");
   const [saving, setSaving] = useState(false);
+  const [confirmDeleteJournal, setConfirmDeleteJournal] = useState<number | null>(null);
   const api = useApi();
+
+  const deleteEntry = async (id: number) => {
+    if (confirmDeleteJournal !== id) {
+      setConfirmDeleteJournal(id);
+      setTimeout(() => setConfirmDeleteJournal(null), 3000);
+      return;
+    }
+    setConfirmDeleteJournal(null);
+    await api.del(`dream-lab/journal/${id}`);
+    setEntries(prev => prev.filter(e => e.id !== id));
+  };
 
   useEffect(() => {
     api.get("dream-lab/journal").then(async r => {
@@ -1219,7 +1252,7 @@ function JournalView({ T }: { T: typeof THEMES.cosmic }) {
               <div key={entry.id} className="rounded-2xl p-5"
                 style={{ background: "rgba(255,255,255,0.06)", border: `1px solid ${T.border}` }}>
                 <div className="flex items-start justify-between mb-2">
-                  <div>
+                  <div className="flex-1 min-w-0">
                     {entry.title && <h4 className="font-semibold text-sm mb-0.5" style={{ color: T.text }}>{entry.title}</h4>}
                     <div className="flex items-center gap-2">
                       {moodMeta && <span className="text-xs" style={{ color: `${T.text}60` }}>{moodMeta.emoji} {moodMeta.label}</span>}
@@ -1228,6 +1261,14 @@ function JournalView({ T }: { T: typeof THEMES.cosmic }) {
                       </span>
                     </div>
                   </div>
+                  <button onClick={() => deleteEntry(entry.id)}
+                    className="ml-3 flex-shrink-0 flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-bold transition-all"
+                    style={{
+                      background: confirmDeleteJournal === entry.id ? "#f43f5e" : "rgba(244,63,94,0.08)",
+                      color: confirmDeleteJournal === entry.id ? "#fff" : "rgba(244,63,94,0.5)",
+                    }}>
+                    {confirmDeleteJournal === entry.id ? "Sure?" : <Trash2 className="w-3 h-3" />}
+                  </button>
                 </div>
                 <p className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: `${T.text}85` }}>
                   {entry.content}

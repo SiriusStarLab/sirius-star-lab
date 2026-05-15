@@ -353,6 +353,18 @@ router.get("/dream-lab/journal", requireUser, async (req: Request, res: Response
   }
 });
 
+// ── DELETE /dream-lab/journal/:id ────────────────────────────────────────────
+router.delete("/dream-lab/journal/:id", requireUser, async (req: Request, res: Response) => {
+  try {
+    const userId = req.headers["x-dream-user"] as string;
+    const id = parseInt(req.params.id as string);
+    await db.delete(dreamLabJournal).where(and(eq(dreamLabJournal.id, id), eq(dreamLabJournal.userId, userId)));
+    res.json({ ok: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+
 // ── POST /dream-lab/journal ───────────────────────────────────────────────────
 router.post("/dream-lab/journal", requireUser, async (req: Request, res: Response) => {
   try {
