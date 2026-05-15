@@ -14,15 +14,29 @@ export function Scene1() {
 
   return (
     <motion.div
-      className="absolute inset-0 flex flex-col items-center justify-center p-8 z-10"
+      className="absolute inset-0 z-10"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0, filter: 'blur(16px)' }}
       transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
     >
-      <div className="text-center">
+      {/* App screenshot as full-bleed background */}
+      <motion.img
+        src={`${import.meta.env.BASE_URL}images/app-screenshot-chat.png`}
+        alt=""
+        className="absolute inset-0 w-full h-full object-cover"
+        initial={{ scale: 1.08, opacity: 0 }}
+        animate={{ scale: 1, opacity: 0.7 }}
+        transition={{ duration: 2.5, ease: [0.16, 1, 0.3, 1] }}
+      />
+
+      {/* Dark gradient overlay so text reads cleanly */}
+      <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/20 to-black/80" />
+
+      {/* Text */}
+      <div className="absolute inset-0 flex flex-col items-center justify-end pb-20 text-center px-8">
         <motion.p
-          className="text-2xl text-white/50 font-light tracking-widest uppercase mb-10"
+          className="text-xl text-white/60 font-light tracking-widest uppercase mb-6"
           style={{ fontFamily: 'var(--font-display)' }}
           initial={{ opacity: 0, y: 16 }}
           animate={phase >= 1 ? { opacity: 1, y: 0 } : { opacity: 0, y: 16 }}

@@ -6,9 +6,9 @@ export function Scene5() {
 
   useEffect(() => {
     const timers = [
-      setTimeout(() => setPhase(1), 400),
-      setTimeout(() => setPhase(2), 1600),
-      setTimeout(() => setPhase(3), 2800),
+      setTimeout(() => setPhase(1), 300),
+      setTimeout(() => setPhase(2), 1400),
+      setTimeout(() => setPhase(3), 2600),
     ];
     return () => timers.forEach(t => clearTimeout(t));
   }, []);
@@ -21,24 +21,23 @@ export function Scene5() {
       exit={{ opacity: 0 }}
       transition={{ duration: 1.2 }}
     >
-      {/* Star icon */}
-      <motion.div
-        className="w-14 h-14 text-purple-300 mb-6"
-        initial={{ opacity: 0, rotate: -30, scale: 0.6 }}
-        animate={phase >= 1 ? { opacity: 1, rotate: 0, scale: 1 } : { opacity: 0, rotate: -30, scale: 0.6 }}
-        transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
-      >
-        <svg viewBox="0 0 24 24" fill="currentColor">
-          <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z" />
-        </svg>
-      </motion.div>
+      {/* Logo — large and prominent */}
+      <motion.img
+        src={`${import.meta.env.BASE_URL}images/logo.png`}
+        alt="Sirius AI"
+        className="w-36 h-36 rounded-3xl object-cover mb-8"
+        style={{ boxShadow: '0 0 60px 12px rgba(139,92,246,0.5)' }}
+        initial={{ opacity: 0, scale: 0.7, filter: 'blur(10px)' }}
+        animate={phase >= 1 ? { opacity: 1, scale: 1, filter: 'blur(0px)' } : { opacity: 0, scale: 0.7, filter: 'blur(10px)' }}
+        transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
+      />
 
       <motion.h1
-        className="text-3xl tracking-[0.2em] text-white font-light uppercase mb-3"
+        className="text-3xl tracking-[0.2em] text-white font-light uppercase mb-2"
         style={{ fontFamily: 'var(--font-display)' }}
         initial={{ opacity: 0, y: 12 }}
         animate={phase >= 1 ? { opacity: 1, y: 0 } : { opacity: 0, y: 12 }}
-        transition={{ duration: 1, ease: 'easeOut' }}
+        transition={{ duration: 1, ease: 'easeOut', delay: 0.2 }}
       >
         Sirius Star Lab
       </motion.h1>

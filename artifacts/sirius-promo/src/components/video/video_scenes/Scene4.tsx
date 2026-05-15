@@ -6,8 +6,8 @@ export function Scene4() {
 
   useEffect(() => {
     const timers = [
-      setTimeout(() => setPhase(1), 500),
-      setTimeout(() => setPhase(2), 1800),
+      setTimeout(() => setPhase(1), 400),
+      setTimeout(() => setPhase(2), 1600),
     ];
     return () => timers.forEach(t => clearTimeout(t));
   }, []);
@@ -20,23 +20,22 @@ export function Scene4() {
       exit={{ opacity: 0, filter: 'blur(20px)' }}
       transition={{ duration: 1.5, ease: [0.16, 1, 0.3, 1] }}
     >
-      {/* Pulsing orb */}
-      <motion.div
-        className="w-28 h-28 rounded-full mb-14"
-        style={{
-          background: 'radial-gradient(circle at 40% 35%, #c084fc, #7c3aed 50%, #1d4ed8)',
-          boxShadow: '0 0 80px 20px rgba(139,92,246,0.5)',
-        }}
-        animate={{ scale: [1, 1.06, 1], opacity: [0.85, 1, 0.85] }}
-        transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-        initial={{ opacity: 0, scale: 0.5 }}
+      {/* App logo */}
+      <motion.img
+        src={`${import.meta.env.BASE_URL}images/logo.png`}
+        alt="Sirius AI"
+        className="w-44 h-44 rounded-3xl object-cover mb-10"
+        style={{ boxShadow: '0 0 80px 20px rgba(139,92,246,0.45)' }}
+        initial={{ opacity: 0, scale: 0.6, filter: 'blur(12px)' }}
+        animate={phase >= 1 ? { opacity: 1, scale: 1, filter: 'blur(0px)' } : { opacity: 0, scale: 0.6, filter: 'blur(12px)' }}
+        transition={{ duration: 1.4, ease: [0.16, 1, 0.3, 1] }}
       />
 
       <motion.p
         className="text-xl text-white/50 tracking-[0.25em] uppercase mb-5"
         initial={{ opacity: 0 }}
         animate={phase >= 1 ? { opacity: 1 } : { opacity: 0 }}
-        transition={{ duration: 1 }}
+        transition={{ duration: 1, delay: 0.3 }}
       >
         Introducing
       </motion.p>
