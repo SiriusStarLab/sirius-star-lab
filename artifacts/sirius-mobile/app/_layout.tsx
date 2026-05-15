@@ -5,10 +5,11 @@ import {
   Inter_700Bold,
   useFonts,
 } from "@expo-google-fonts/inter";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack } from "expo-router";
+import { router, Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
@@ -19,6 +20,7 @@ import Colors from "@/constants/colors";
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
+const ONBOARDING_KEY = "onboarding_complete";
 
 function RootLayoutNav() {
   return (
@@ -30,6 +32,14 @@ function RootLayoutNav() {
       }}
     >
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen
+        name="onboarding"
+        options={{
+          headerShown: false,
+          animation: "fade",
+          gestureEnabled: false,
+        }}
+      />
     </Stack>
   );
 }
@@ -42,10 +52,23 @@ export default function RootLayout() {
     Inter_700Bold,
   });
 
+  const navigationReady = useRef(false);
+
   useEffect(() => {
-    if (fontsLoaded || fontError) {
-      SplashScreen.hideAsync();
-    }
+    if (!fontsLoaded && !fontError) return;
+
+    SplashScreen.hideAsync();
+
+    if (navigationReady.current) return;
+    navigationReady.current = true;
+
+    AsyncStorage.getItem(ONBOARDING_KEY).then((done) => {
+      if (!done) {
+        router.replace("/onboarding");
+      }
+    }).catch(() => {
+      // AsyncStorage unavailable — proceed to app normally
+    });
   }, [fontsLoaded, fontError]);
 
   if (!fontsLoaded && !fontError) return null;
