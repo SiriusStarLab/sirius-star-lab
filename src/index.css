@@ -1,0 +1,27 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-display: 'Cormorant Garamond', serif;
+  --font-body: 'Plus Jakarta Sans', sans-serif;
+  
+  --primary: 270 50% 60%; /* Deep purple */
+  --accent: 220 80% 70%; /* Soft blue glow */
+  --background: 260 40% 5%; /* Very dark cosmic purple */
+  --foreground: 210 20% 98%;
+}
+
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.text-glow {
+  text-shadow: 0 0 20px rgba(180, 150, 255, 0.4);
+}
