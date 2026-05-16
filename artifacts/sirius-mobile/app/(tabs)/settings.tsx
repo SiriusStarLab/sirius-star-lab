@@ -945,6 +945,7 @@ const styles = StyleSheet.create({
     height: 48,
     marginHorizontal: 16,
     marginVertical: 12,
+    alignSelf: "stretch",
   },
   appleConnectedRow: {
     flexDirection: "row",
