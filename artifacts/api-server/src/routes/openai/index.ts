@@ -1016,7 +1016,7 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
 
   try {
     // Primary: perplexity/sonar (has built-in real-time web search, works via OpenRouter Chat Completions)
-    // Fallback: anthropic/claude-sonnet-4.6 (no live search but excellent reasoning)
+    // Fallback: anthropic/claude-3-5-sonnet (no live search but excellent reasoning)
     let streamSucceeded = false;
 
     try {
@@ -1031,6 +1031,7 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
         ],
         stream: true,
         max_tokens: 1800,
+        signal: AbortSignal.timeout(45_000),
       } as any) as unknown as AsyncIterable<any>;
 
       for await (const chunk of sonarStream) {
@@ -1042,10 +1043,8 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
         }
       }
 
-      // Extract citations from perplexity if available
-      // Perplexity returns citations in a non-streaming field — we parse from the final chunk
     } catch (sonarErr: any) {
-      console.error("Perplexity sonar failed, falling back to Claude Sonnet:", sonarErr?.message);
+      console.error("Perplexity sonar failed, falling back to Claude:", sonarErr?.message);
 
       // Fallback to Claude Sonnet via OpenRouter
       try {
@@ -1057,6 +1056,7 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
           ],
           stream: true,
           max_tokens: 1800,
+          signal: AbortSignal.timeout(45_000),
         } as any) as unknown as AsyncIterable<any>;
 
         for await (const chunk of claudeStream) {
@@ -1068,8 +1068,15 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
           }
         }
       } catch (claudeErr: any) {
-        console.error("Claude Sonnet fallback also failed:", claudeErr?.message);
+        console.error("Claude fallback also failed:", claudeErr?.message);
       }
+    }
+
+    // If both models failed, send a clear error message to the user
+    if (!streamSucceeded) {
+      const errMsg = "I'm having trouble connecting right now — please try again in a moment.";
+      fullResponse = errMsg;
+      res.write(`data: ${JSON.stringify({ content: errMsg })}\n\n`);
     }
   } catch (outerErr: any) {
     console.error("Unhandled streaming error:", outerErr?.message);
