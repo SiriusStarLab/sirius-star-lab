@@ -1,0 +1,67 @@
+Desktop
+Users-MacBook-Pro-3:~ user$ DesktopMoviessirius-mobile.tar.gz
+-bash: DesktopMoviessirius-mobile.tar.gz: command not found
+Users-MacBook-Pro-3:~ user$ Documents
+Documents
+Users-MacBook-Pro-3:~ user$ DocumentsMusic
+-bash: DocumentsMusic: command not found
+Users-MacBook-Pro-3:~ user$ Downloads
+Downloads
+Users-MacBook-Pro-3:~ user$ DownloadsPictures
+-bash: DownloadsPictures: command not found
+Users-MacBook-Pro-3:~ user$ Users-MacBook-Pro-3:~ user$ tar -xzf sirius-mobile.tar.gz
+-bash: Users-MacBook-Pro-3:~: command not found
+Users-MacBook-Pro-3:~ user$ Users-MacBook-Pro-3:~ user$ cd sirius-mobile
+-bash: Users-MacBook-Pro-3:~: command not found
+Users-MacBook-Pro-3:~ user$ -bash: cd: sirius-mobile: No such file or directory
+-bash: -bash:: command not found
+Users-MacBook-Pro-3:~ user$ Users-MacBook-Pro-3:~ user$ npx eas-cli build --platform ios --profile production --auto-submit
+-bash: Users-MacBook-Pro-3:~: command not found
+Users-MacBook-Pro-3:~ user$ ★ eas-cli@18.13.0 is now available.
+-bash: ★: command not found
+Users-MacBook-Pro-3:~ user$ To upgrade, run:
+-bash: To: command not found
+Users-MacBook-Pro-3:~ user$ npm install -g eas-cli
+Proceeding with outdated version.
+
+Run this command inside a project directory.
+    Error: build command failed.
+Users-MacBook-Pro-3:~ user$ 
+npm error code EACCES
+npm error syscall rename
+npm error path /usr/local/lib/node_modules/eas-cli
+npm error dest /usr/local/lib/node_modules/.eas-cli-JnPBAwa0
+npm error errno -13
+npm error Error: EACCES: permission denied, rename '/usr/local/lib/node_modules/eas-cli' -> '/usr/local/lib/node_modules/.eas-cli-JnPBAwa0'
+npm error     at async Object.rename (node:internal/fs/promises:782:10)
+npm error     at async moveFile (/usr/local/lib/node_modules/npm/node_modules/@npmcli/fs/lib/move-file.js:30:5)
+npm error     at async Promise.allSettled (index 0)
+npm error     at async #reifyPackages (/usr/local/lib/node_modules/npm/node_modules/@npmcli/arborist/lib/arborist/reify.js:309:11)
+npm error     at async Arborist.reify (/usr/local/lib/node_modules/npm/node_modules/@npmcli/arborist/lib/arborist/reify.js:121:5)
+npm error     at async Install.exec (/usr/local/lib/node_modules/npm/lib/commands/install.js:151:5)
+npm error     at async Npm.exec (/usr/local/lib/node_modules/npm/lib/npm.js:208:9)
+npm error     at async module.exports (/usr/local/lib/node_modules/npm/lib/cli/entry.js:67:5) {
+npm error   errno: -13,
+npm error   code: 'EACCES',
+npm error   syscall: 'rename',
+npm error   path: '/usr/local/lib/node_modules/eas-cli',
+npm error   dest: '/usr/local/lib/node_modules/.eas-cli-JnPBAwa0'
+npm error }
+npm error
+npm error The operation was rejected by your operating system.
+npm error It is likely you do not have the permissions to access this file as the current user
+npm error
+npm error If you believe this might be a permissions issue, please double-check the
+npm error permissions of the file and its containing directories, or try running
+npm error the command again as root/Administrator.
+npm error A complete log of this run can be found in: /Users/user/.npm/_logs/2026-05-17T06_49_31_709Z-debug-0.log
+Users-MacBook-Pro-3:~ user$ Proceeding with outdated version.
+-bash: Proceeding: command not found
+Users-MacBook-Pro-3:~ user$ 
+Users-MacBook-Pro-3:~ user$ Run this command inside a project directory.
+-bash: Run: command not found
+Users-MacBook-Pro-3:~ user$     Error: build command failed.
+-bash: Error:: command not found
+Users-MacBook-Pro-3:~ user$ Users-MacBook-Pro-3:~ user$ 
+-bash: Users-MacBook-Pro-3:~: command not found
+Users-MacBook-Pro-3:~ user$ 
