@@ -1,5 +1,6 @@
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import * as tls from "tls";
 
 export interface CheckResult {
   name: string;
@@ -86,17 +87,50 @@ async function checkDreamLabApi(): Promise<CheckResult> {
   const port = process.env["PORT"] || "4000";
   const t = Date.now();
   try {
-    // GET ideas list — no PIN required, just needs userId query param
-    const res = await fetch(`http://localhost:${port}/api/dream-lab/ideas?userId=health-probe`, {
+    const res = await fetch(`http://localhost:${port}/api/dream-lab/ideas`, {
+      headers: { "x-dream-user": "health-probe" },
       signal: AbortSignal.timeout(5000),
     });
     const ms = Date.now() - t;
-    // 200 (empty list) or 404 both mean the route is alive
     if (res.status < 500) return { name: "dream_lab_api", status: "ok", latencyMs: ms };
     return { name: "dream_lab_api", status: "warn", latencyMs: ms, detail: `HTTP ${res.status}` };
   } catch (e: any) {
     return { name: "dream_lab_api", status: "fail", latencyMs: Date.now() - t, detail: e.message };
   }
+}
+
+async function checkSslCertificate(): Promise<CheckResult> {
+  const domain = "sirius-ai.live";
+  return new Promise((resolve) => {
+    const socket = tls.connect(443, domain, { servername: domain }, () => {
+      try {
+        const cert = socket.getPeerCertificate();
+        socket.destroy();
+        if (!cert || !cert.valid_to) {
+          return resolve({ name: "ssl_cert", status: "warn", detail: "Could not read certificate" });
+        }
+        const expiresAt = new Date(cert.valid_to);
+        const daysLeft = Math.floor((expiresAt.getTime() - Date.now()) / 86_400_000);
+        if (daysLeft <= 7) {
+          resolve({ name: "ssl_cert", status: "fail", detail: `Expires in ${daysLeft} days — RENEW NOW` });
+        } else if (daysLeft <= 30) {
+          resolve({ name: "ssl_cert", status: "warn", detail: `Expires in ${daysLeft} days` });
+        } else {
+          resolve({ name: "ssl_cert", status: "ok", detail: `Valid for ${daysLeft} more days` });
+        }
+      } catch (e: any) {
+        socket.destroy();
+        resolve({ name: "ssl_cert", status: "warn", detail: e.message });
+      }
+    });
+    socket.setTimeout(8000, () => {
+      socket.destroy();
+      resolve({ name: "ssl_cert", status: "warn", detail: "TLS connection timed out" });
+    });
+    socket.on("error", (e) => {
+      resolve({ name: "ssl_cert", status: "warn", detail: e.message });
+    });
+  });
 }
 
 export async function runHealthCheck(): Promise<HealthReport> {
@@ -109,6 +143,7 @@ export async function runHealthCheck(): Promise<HealthReport> {
     checkSelfEndpoint("/healthz", "http_server"),
     checkDreamLabApi(),
     checkConversationApi(),
+    checkSslCertificate(),
   ]);
 
   const issues = checks
@@ -135,9 +170,7 @@ export async function runHealthCheck(): Promise<HealthReport> {
 }
 
 export function startHealthMonitor(intervalMinutes = 30) {
-  // First check after 20 seconds (let server fully boot)
   setTimeout(() => runHealthCheck().catch(e => console.error("[HealthMonitor] Error:", e)), 20_000);
-  // Then on schedule
   setInterval(() => runHealthCheck().catch(e => console.error("[HealthMonitor] Error:", e)), intervalMinutes * 60 * 1000);
   console.log(`[HealthMonitor] Started — checks every ${intervalMinutes} minutes`);
 }
