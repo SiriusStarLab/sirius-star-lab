@@ -179,3 +179,9 @@ id = "fMWK5rkR9rNVfNUqim0W7"
 uri = "file://sirius-full-migration.tar.gz"
 type = "unspecified"
 title = "Sirius — Full Migration Package"
+
+[[outputs]]
+id = "mxp62yZHK-kQgdEgaym_X"
+uri = "file://sirius-source.tar.gz"
+type = "unspecified"
+title = "Sirius — Full Source Code"
