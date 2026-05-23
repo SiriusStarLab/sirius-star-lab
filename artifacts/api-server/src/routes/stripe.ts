@@ -105,37 +105,31 @@ router.post("/stripe/activate", async (req, res) => {
       return res.status(400).json({ error: "userId and valid tier required" });
     }
 
-    if (sessionId) {
-      try {
-        const stripe = getStripe();
-        const session = await stripe.checkout.sessions.retrieve(sessionId);
-        if (session.payment_status !== "paid" && session.payment_status !== "no_payment_required") {
-          return res.status(402).json({ error: "Payment not completed" });
-        }
-        if (session.customer) {
-          await db
-            .insert(userProfilesTable)
-            .values({ userId, aiName: "Sirius", stripeCustomerId: session.customer as string, subscriptionTier: tier })
-            .onConflictDoUpdate({
-              target: userProfilesTable.userId,
-              set: { stripeCustomerId: session.customer as string, subscriptionTier: tier },
-            });
-          return res.json({ success: true, tier });
-        }
-      } catch (e: any) {
-        console.warn("Session verification failed, falling back to direct activation:", e.message);
-      }
+    if (!sessionId) {
+      return res.status(400).json({ error: "sessionId required" });
     }
 
-    await db
-      .insert(userProfilesTable)
-      .values({ userId, aiName: "Sirius", subscriptionTier: tier })
-      .onConflictDoUpdate({
-        target: userProfilesTable.userId,
-        set: { subscriptionTier: tier },
-      });
-
-    return res.json({ success: true, tier });
+    try {
+      const stripe = getStripe();
+      const session = await stripe.checkout.sessions.retrieve(sessionId);
+      if (session.payment_status !== "paid" && session.payment_status !== "no_payment_required") {
+        return res.status(402).json({ error: "Payment not completed" });
+      }
+      if (session.metadata?.userId && session.metadata.userId !== userId) {
+        return res.status(403).json({ error: "Session does not belong to this user" });
+      }
+      await db
+        .insert(userProfilesTable)
+        .values({ userId, aiName: "Sirius", stripeCustomerId: session.customer as string, subscriptionTier: tier })
+        .onConflictDoUpdate({
+          target: userProfilesTable.userId,
+          set: { stripeCustomerId: session.customer as string, subscriptionTier: tier },
+        });
+      return res.json({ success: true, tier });
+    } catch (e: any) {
+      console.error("Session verification failed:", e.message);
+      return res.status(402).json({ error: "Could not verify payment. Please contact support." });
+    }
   } catch (err: any) {
     console.error("Activate tier error:", err.message);
     return res.status(500).json({ error: "Failed to activate tier" });

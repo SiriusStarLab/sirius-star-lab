@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, sql, desc } from "drizzle-orm";
+import { eq, sql, desc, and } from "drizzle-orm";
 import { db, conversations as conversationsTable, messages as messagesTable, userProfilesTable } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { extractAndSaveMemories } from "../../lib/memory";
@@ -696,10 +696,16 @@ router.get("/openai/conversations/:id", async (req, res): Promise<void> => {
     return;
   }
 
+  const userId = req.query.userId as string | undefined;
+  if (!userId) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
   const [conversation] = await db
     .select()
     .from(conversationsTable)
-    .where(eq(conversationsTable.id, params.data.id));
+    .where(and(eq(conversationsTable.id, params.data.id), eq(conversationsTable.userId, userId)));
 
   if (!conversation) {
     res.status(404).json({ error: "Conversation not found" });
@@ -722,9 +728,15 @@ router.delete("/openai/conversations/:id", async (req, res): Promise<void> => {
     return;
   }
 
+  const userId = (req.query.userId ?? req.body?.userId) as string | undefined;
+  if (!userId) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
   const [deleted] = await db
     .delete(conversationsTable)
-    .where(eq(conversationsTable.id, params.data.id))
+    .where(and(eq(conversationsTable.id, params.data.id), eq(conversationsTable.userId, userId)))
     .returning();
 
   if (!deleted) {
@@ -739,6 +751,22 @@ router.get("/openai/conversations/:id/messages", async (req, res): Promise<void>
   const params = ListOpenaiMessagesParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const userId = req.query.userId as string | undefined;
+  if (!userId) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
+  const [conversation] = await db
+    .select({ id: conversationsTable.id })
+    .from(conversationsTable)
+    .where(and(eq(conversationsTable.id, params.data.id), eq(conversationsTable.userId, userId)));
+
+  if (!conversation) {
+    res.status(404).json({ error: "Conversation not found" });
     return;
   }
 
