@@ -7,6 +7,7 @@ import { tickAutomations } from "./lib/sirius-automation.js";
 import { runInvestmentRule } from "./lib/investment-rule.js";
 import { startProactiveEngine } from "./lib/sirius-proactive.js";
 import { startPaymentExpiryJob } from "./lib/payment-expiry.js";
+import { startHealthMonitor } from "./lib/health-monitor.js";
 
 // Global crash protection — log unhandled errors instead of silently crashing
 process.on("unhandledRejection", (reason) => {
@@ -52,4 +53,5 @@ app.listen(port, () => {
   // Payment expiry — downgrade unconfirmed subscribers after 48 hours
   startPaymentExpiryJob();
   console.log("[Payment Expiry] Watching for unconfirmed payments — auto-expire after 48 hours");
+  startHealthMonitor(30);
 });
