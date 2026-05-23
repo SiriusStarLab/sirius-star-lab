@@ -7621,26 +7621,50 @@ export function StarLabPage() {
   useEffect(() => {
     if (!unlocked || !pin) return;
     const sessionId = Math.random().toString(36).slice(2);
-    const es = new EventSource(`${base}lab/code/stream?session=${sessionId}&pin=${encodeURIComponent(pin)}`);
-    codeStreamRef.current = es;
-    es.onmessage = (e) => {
-      try {
-        const event = JSON.parse(e.data) as CodeAgentEvt & { type: string };
-        if ((event as any).type === "connected") return;
-        if (event.type === "thinking" || event.type === "tool_call" || event.type === "tool_result" || event.type === "file_change" || event.type === "message" || event.type === "complete" || event.type === "error") {
-          setCodeEvents(prev => [...prev.slice(-199), event as CodeAgentEvt]);
-          if (event.type === "thinking" || event.type === "tool_call") { setCodeAgentRunning(true); setCodeTerminalOpen(true); setCodeTerminalMinimised(false); }
-          if (event.type === "complete" || event.type === "error") { setCodeAgentRunning(false); }
-          setTimeout(() => { codeEventsEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, 80);
+    let es: EventSource | null = null;
+    let closed = false;
+    let errorCount = 0;
+
+    const connect = () => {
+      if (closed) return;
+      es = new EventSource(`${base}lab/code/stream?session=${sessionId}&pin=${encodeURIComponent(pin)}`);
+      codeStreamRef.current = es;
+      es.onmessage = (e) => {
+        errorCount = 0;
+        try {
+          const event = JSON.parse(e.data) as CodeAgentEvt & { type: string };
+          if ((event as any).type === "connected") return;
+          if (event.type === "thinking" || event.type === "tool_call" || event.type === "tool_result" || event.type === "file_change" || event.type === "message" || event.type === "complete" || event.type === "error") {
+            setCodeEvents(prev => [...prev.slice(-199), event as CodeAgentEvt]);
+            if (event.type === "thinking" || event.type === "tool_call") { setCodeAgentRunning(true); setCodeTerminalOpen(true); setCodeTerminalMinimised(false); }
+            if (event.type === "complete" || event.type === "error") { setCodeAgentRunning(false); }
+            setTimeout(() => { codeEventsEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, 80);
+          }
+        } catch { /* ignore parse errors */ }
+      };
+      es.onerror = () => {
+        es?.close();
+        errorCount += 1;
+        // Back off exponentially, cap at 60s, give up after 5 failures
+        if (!closed && errorCount <= 5) {
+          const delay = Math.min(2000 * Math.pow(2, errorCount - 1), 60000);
+          setTimeout(connect, delay);
         }
-      } catch { /* ignore parse errors */ }
+      };
     };
-    es.onerror = () => { /* silently reconnect */ };
-    return () => { es.close(); codeStreamRef.current = null; };
+
+    connect();
+    return () => { closed = true; es?.close(); codeStreamRef.current = null; };
   }, [unlocked, pin, base]);
 
+  const loadingRef = useRef(false);
   const loadProjects = useCallback(async (attempt = 0) => {
-    if (attempt === 0) { setProjectsLoading(true); setProjectsError(false); }
+    if (attempt === 0) {
+      if (loadingRef.current) return; // already in-flight, skip
+      loadingRef.current = true;
+      setProjectsLoading(true);
+      setProjectsError(false);
+    }
     try {
       const res = await fetch(`${base}lab/projects`, { headers: headers() });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -7648,6 +7672,7 @@ export function StarLabPage() {
       setProjects(fresh);
       setProjectsError(false);
       setProjectsLoading(false);
+      loadingRef.current = false;
 
       // Check for newly completed funding / AI-arch analyses
       // Note: the list endpoint returns summary columns only — large fields (fundingAnalysis,
@@ -7680,12 +7705,13 @@ export function StarLabPage() {
         (prevFundingStatus.current as any)[`arch-${p.id}`] = p.aiArchLinked;
       }
     } catch {
-      if (attempt < 4) {
-        // Retry with back-off: 2s, 4s, 8s, 16s — handles server restart windows
+      if (attempt < 3) {
+        // Retry with back-off: 2s, 4s, 8s — handles server restart windows
         setTimeout(() => loadProjects(attempt + 1), 2000 * Math.pow(2, attempt));
       } else {
         setProjectsError(true);
         setProjectsLoading(false);
+        loadingRef.current = false;
       }
     }
   }, [base, headers]);

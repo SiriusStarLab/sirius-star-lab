@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, desc } from "drizzle-orm";
 import { db, conversations as conversationsTable, messages as messagesTable, userProfilesTable } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { extractAndSaveMemories } from "../../lib/memory";
@@ -669,7 +669,7 @@ router.get("/openai/conversations", async (req, res): Promise<void> => {
     .select()
     .from(conversationsTable)
     .where(eq(conversationsTable.userId, userId))
-    .orderBy(conversationsTable.createdAt);
+    .orderBy(desc(conversationsTable.createdAt));
   res.json(conversations);
 });
 
