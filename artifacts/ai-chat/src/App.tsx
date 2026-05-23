@@ -41,9 +41,7 @@ function Router() {
       </Route>
       <Route path="/dream-lab" component={DreamLabPage} />
       <Route path="/wellbeing" component={WellbeingPage} />
-      <Route path="/universe">
-        <LabAuthGate title="The Universe"><UniversePage /></LabAuthGate>
-      </Route>
+      <Route path="/universe" component={UniversePage} />
       <Route path="/admin">
         <LabAuthGate><StarLabPage /></LabAuthGate>
       </Route>
