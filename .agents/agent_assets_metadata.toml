@@ -173,3 +173,9 @@ id = "JcR_wQHdJSptnnjZK15OG"
 uri = "file://attached_assets/screenshots_resized.zip"
 type = "unspecified"
 title = "App Store Screenshots (1290×2796, resized)"
+
+[[outputs]]
+id = "fMWK5rkR9rNVfNUqim0W7"
+uri = "file://sirius-full-migration.tar.gz"
+type = "unspecified"
+title = "Sirius — Full Migration Package"
