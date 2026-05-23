@@ -1,4 +1,4 @@
-export function speakText(text: string, onDone?: () => void, rate = 0.78) {
+export function speakText(text: string, onDone?: () => void, rate = 0.92) {
   if (typeof window === "undefined" || !window.speechSynthesis) { onDone?.(); return; }
   window.speechSynthesis.cancel();
 
@@ -8,18 +8,25 @@ export function speakText(text: string, onDone?: () => void, rate = 0.78) {
   for (const s of rawSentences) {
     const t = s.trim();
     if (!t) continue;
-    if (buf && (buf + " " + t).length > 200) { chunks.push(buf); buf = t; }
+    if (buf && (buf + " " + t).length > 300) { chunks.push(buf); buf = t; }
     else { buf = buf ? buf + " " + t : t; }
   }
   if (buf) chunks.push(buf);
   if (chunks.length === 0) { onDone?.(); return; }
 
   const KNOWN_MALE = ["Daniel","Arthur","Malcolm","Google UK English Male","Microsoft David","Microsoft Mark","Microsoft George","Microsoft James","Alex","Fred","Ralph","Bruce","Junior"];
+  // Natural/neural voices first — these sound genuinely human rather than synthetic
   const FEMALE_ORDER = [
-    "Microsoft Aria","Microsoft Jenny","Google UK English Female",
+    "Samantha",           // Apple — warm, natural, the gold standard on Mac/iOS
+    "Microsoft Aria",     // Neural — very natural American female
+    "Microsoft Jenny",    // Neural — clear natural American female
+    "Karen",              // Apple Australian — natural
+    "Moira",              // Apple Irish — natural
+    "Serena",             // Apple UK — natural
+    "Google UK English Female",
     "Microsoft Sonia","Microsoft Libby","Microsoft Leah","Microsoft Nora",
     "Microsoft Clara","Microsoft Mia","Microsoft Hazel","Microsoft Zira","Microsoft Susan",
-    "Samantha","Karen","Moira","Serena","Victoria","Fiona","Tessa","Google US English",
+    "Victoria","Fiona","Tessa","Google US English",
   ];
   const pickVoice = () => {
     const v = window.speechSynthesis.getVoices();
@@ -45,8 +52,8 @@ export function speakText(text: string, onDone?: () => void, rate = 0.78) {
       const chunk = chunks[idx++];
       const utter = new SpeechSynthesisUtterance(chunk);
       utter.rate   = rate;
-      utter.pitch  = 0.92;
-      utter.volume = 0.85;
+      utter.pitch  = 1.05;
+      utter.volume = 0.95;
       const preferred = pickVoice();
       if (preferred) utter.voice = preferred;
       utter.onend   = () => speakNext();
