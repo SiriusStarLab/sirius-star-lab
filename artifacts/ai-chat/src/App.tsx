@@ -36,15 +36,11 @@ function Router() {
       <Route path="/privacy" component={PrivacyPage} />
       <Route path="/checkout/success" component={CheckoutSuccessPage} />
       <Route path="/checkout/cancel" component={CheckoutCancelPage} />
-      <Route path="/star-lab">
-        <LabAuthGate><StarLabPage /></LabAuthGate>
-      </Route>
+      <Route path="/star-lab" component={() => <LabAuthGate><StarLabPage /></LabAuthGate>} />
       <Route path="/dream-lab" component={DreamLabPage} />
       <Route path="/wellbeing" component={WellbeingPage} />
       <Route path="/universe" component={UniversePage} />
-      <Route path="/admin">
-        <LabAuthGate><StarLabPage /></LabAuthGate>
-      </Route>
+      <Route path="/admin" component={() => <LabAuthGate><StarLabPage /></LabAuthGate>} />
       <Route path="/learn" component={LearnPage} />
       <Route path="/why-sirius" component={MarketingPage} />
       <Route path="/agency" component={MarketingPage} />
