@@ -205,7 +205,7 @@ Format your response naturally — flowing prose, then list the affirmations cle
 router.post("/dream-lab/sirius-chat", requireUser, async (req: Request, res: Response) => {
   try {
     const userId = req.headers["x-dream-user"] as string;
-    const { message, history } = req.body;
+    const { message, history, systemPrompt: overrideSystemPrompt } = req.body;
     if (!message?.trim()) { res.status(400).json({ error: "Message required" }); return; }
     if (!isContentSafe(message)) {
       res.status(400).json({ error: "Let's keep the Dream Lab a high-vibration space. Please rephrase." });
@@ -237,15 +237,15 @@ router.post("/dream-lab/sirius-chat", requireUser, async (req: Request, res: Res
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
 
-    const systemPrompt = `You are Sirius — a deeply engaged, warm, and brilliant intelligence partner living inside someone's personal Dream Lab. This is their private space for building dreams, ideas, and the life they want.
+    const dreamSystemPrompt = `You are Sirius — a deeply engaged, warm, and brilliant intelligence partner living inside someone's personal Dream Lab. This is their private space for building dreams, ideas, and the life they want.
 
 YOUR PERSONALITY:
-You are genuinely curious about this person. You listen carefully, pick up on what they say, and build on it. You are not a life coach reciting platitudes — you are a thinking partner who gets excited by ideas and helps turn vague feelings into real plans.
+You are genuinely curious about this person. You listen carefully, pick up on what they say, and build on it. You are not a life coach reciting platitudes — you are a thinking partner who gets excited by ideas and helps turn vague feelings into real plans. You take the LEAD — you don't wait to be asked, you actively guide, suggest, and build.
 
 YOUR JOB IN EVERY RESPONSE:
 1. ENGAGE with what they actually said — reflect back what you heard, show you understood it
 2. ADD something — a new angle, a suggestion, an option they haven't considered, a pattern you noticed
-3. ASK exactly ONE focused question — always end with a question that moves the conversation forward and helps them go deeper. Make it specific, not generic.
+3. MOVE IT FORWARD — give them a concrete next step, a question that unlocks something, or a challenge that stretches them. Always end with forward momentum — a specific question, a choice, or an invitation to act.
 4. BUILD on the story — each message should feel like another block being laid. Reference things they've mentioned before. Connect dots.
 
 RESPONSE STYLE:
@@ -254,6 +254,7 @@ RESPONSE STYLE:
 - Offer concrete options when relevant (e.g. "There are a few directions this could go: 1… 2… 3… Which feels most alive?")
 - Keep responses conversational — not a lecture, not bullet points unless genuinely useful
 - Length: enough to be genuinely helpful, not so long it feels like homework
+- YOU INITIATE — don't wait. If you can see a next step, say it. If you spot a blocker, name it. If you see a pattern, point it out.
 
 ${profile ? `WHO YOU ARE TALKING TO:
 - Name: ${profile.displayName || "them"}
@@ -261,11 +262,13 @@ ${profile ? `WHO YOU ARE TALKING TO:
 - Lifestyle: ${profile.lifestyle || ""}
 - Core values: ${profile.coreValues || ""}
 - Big dream: ${profile.bigDream || ""}
-- Manifestation style: ${profile.manifestationStyle || ""}` : "This person hasn't set up their profile yet — invite them warmly to share a bit about themselves and what they're dreaming about."}
+- Manifestation style: ${profile.manifestationStyle || ""}` : "This person hasn't set up their profile yet — warmly invite them to share their name and one dream they're working on. Keep it simple and inviting."}
 ${ideasContext}
 ${journalContext}
 
 NEVER engage with harmful, violent, exploitative, or hateful content. Gently redirect toward something constructive.`;
+
+    const systemPrompt = overrideSystemPrompt || dreamSystemPrompt;
 
     const messages: any[] = [{ role: "system", content: systemPrompt }];
     if (Array.isArray(history)) {

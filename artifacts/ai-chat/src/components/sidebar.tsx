@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { PlusCircle, MessageSquare, Trash2, X, Settings, Zap, Loader2, Sparkles, FlaskConical, BookOpen, GraduationCap, Globe2 } from "lucide-react";
+import { PlusCircle, MessageSquare, Trash2, X, Settings, Zap, Loader2, Sparkles, FlaskConical, BookOpen, GraduationCap, Globe2, Heart } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -223,6 +223,37 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession }: Sid
           </span>
           <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 animate-pulse"
             style={{ background: "hsl(280,80%,60%)", boxShadow: "0 0 6px hsl(280,80%,60%)" }} />
+        </button>
+
+        {/* Wellbeing entry */}
+        <button
+          onClick={() => { setLocation("/wellbeing"); onClose(); }}
+          className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 relative overflow-hidden group"
+          style={{
+            background: location === "/wellbeing"
+              ? "linear-gradient(135deg, hsl(168,60%,14%), hsl(168,60%,10%))"
+              : "linear-gradient(135deg, hsl(168,60%,11%), hsl(168,60%,8%))",
+            border: location === "/wellbeing"
+              ? "1px solid hsl(168,80%,45%)"
+              : "1px solid hsl(168 80% 45% / 0.15)",
+            color: "hsl(168,80%,65%)",
+            boxShadow: location === "/wellbeing" ? "0 0 20px hsl(168,80%,30%,0.2), inset 0 1px 0 rgba(255,255,255,0.05)" : "inset 0 1px 0 rgba(255,255,255,0.03)",
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.border = "1px solid hsl(168,80%,45%)";
+            e.currentTarget.style.boxShadow = "0 0 20px hsla(168,80%,30%,0.2)";
+            e.currentTarget.style.color = "hsl(168,80%,75%)";
+          }}
+          onMouseLeave={e => {
+            if (location !== "/wellbeing") {
+              e.currentTarget.style.border = "1px solid hsl(168 80% 45% / 0.15)";
+              e.currentTarget.style.boxShadow = "inset 0 1px 0 rgba(255,255,255,0.03)";
+            }
+            e.currentTarget.style.color = "hsl(168,80%,65%)";
+          }}
+        >
+          <Heart size={15} style={{ flexShrink: 0 }} />
+          <span className="flex-1 text-left">Wellbeing</span>
         </button>
 
         {/* Universe Guide entry */}

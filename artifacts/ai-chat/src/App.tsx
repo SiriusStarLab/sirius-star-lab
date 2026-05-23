@@ -10,6 +10,7 @@ import { CheckoutCancelPage } from "@/pages/checkout-cancel";
 import { StarLabPage } from "@/pages/star-lab";
 import { MarketingPage } from "@/pages/marketing";
 import { DreamLabPage } from "@/pages/dream-lab";
+import { WellbeingPage } from "@/pages/wellbeing";
 import { UniversePage } from "@/pages/universe";
 import { DiscoverPage } from "@/pages/discover";
 import { LearnPage } from "@/pages/learn";
@@ -39,6 +40,7 @@ function Router() {
         <LabAuthGate><StarLabPage /></LabAuthGate>
       </Route>
       <Route path="/dream-lab" component={DreamLabPage} />
+      <Route path="/wellbeing" component={WellbeingPage} />
       <Route path="/universe">
         <LabAuthGate title="The Universe"><UniversePage /></LabAuthGate>
       </Route>
