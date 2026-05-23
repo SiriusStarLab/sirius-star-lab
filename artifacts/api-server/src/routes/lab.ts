@@ -2917,6 +2917,20 @@ router.get("/lab/projects/:id/cad-files/:fileId/download-url", authMiddleware, a
 const ND_BASE_URL = () => (process.env.NEWDIMENSIONS_BASE_URL || "https://new-dimension-cad.replit.app").replace(/\/$/, "");
 const ND_API_KEY  = () => process.env.NEWDIMENSIONS_API_KEY || "";
 
+/** Ping New Dimensions and wait for it to wake if it's idle (Replit apps sleep when inactive).
+ *  Tries up to maxAttempts times with a short delay between each. */
+async function wakeNewDimensions(maxAttempts = 6, delayMs = 5000): Promise<boolean> {
+  const base = ND_BASE_URL();
+  for (let i = 0; i < maxAttempts; i++) {
+    try {
+      const res = await fetch(`${base}/api/projects`, { signal: AbortSignal.timeout(8000) });
+      if (res.ok || res.status === 400) return true; // 400 = awake but needs params — still counts
+    } catch {}
+    if (i < maxAttempts - 1) await new Promise(r => setTimeout(r, delayMs));
+  }
+  return false;
+}
+
 // POST /api/lab/projects/:id/send-to-cad
 // Creates a project in New Dimensions pre-populated with all specs and drawing notes.
 // Returns a link so Garry can open it directly in New Dimensions.
@@ -2947,6 +2961,12 @@ router.post("/lab/projects/:id/send-to-cad", authMiddleware, async (req: Request
   }
 
   try {
+    // Wake New Dimensions if it's idle (Replit apps sleep after inactivity)
+    const awake = await wakeNewDimensions();
+    if (!awake) {
+      return res.status(503).json({ error: "New Dimensions is not responding. It may be starting up — try again in 30 seconds." });
+    }
+
     // Create project in New Dimensions
     const ndRes = await fetch(`${ndBase}/api/projects`, {
       method: "POST",
