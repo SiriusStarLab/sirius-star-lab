@@ -224,7 +224,7 @@ export function MemoryPortrait({ isOpen, onClose, aiName = "Sirius" }: MemoryPor
                   >
                     <div className="relative rounded-2xl p-6 space-y-4"
                       style={{
-                        background: "linear-gradient(160deg, hsl(193 100% 52% / 0.07) 0%, hsl(224 28% 6%) 100%)",
+                        background: "hsl(224 28% 11%)",
                         border: "1px solid hsl(193 100% 52% / 0.18)",
                         boxShadow: "0 0 48px hsl(193 100% 52% / 0.05) inset",
                       }}>
