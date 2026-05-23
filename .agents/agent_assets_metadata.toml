@@ -185,3 +185,9 @@ id = "mxp62yZHK-kQgdEgaym_X"
 uri = "file://sirius-source.tar.gz"
 type = "unspecified"
 title = "Sirius — Full Source Code"
+
+[[outputs]]
+id = "Svz3K9ynge_TOBCmHnVAt"
+uri = "file://sirius-source.zip"
+type = "unspecified"
+title = "Sirius — Full Source Code (.zip)"
