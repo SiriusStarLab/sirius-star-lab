@@ -10,6 +10,7 @@ import { runLabAutoScan, isLabScanRunning } from "../lib/lab-auto-scan.js";
 import { runAiArchSweep, getAiArchSweepStatus } from "../lib/ai-arch-sweep.js";
 import { runOrchestration, type OrchEvent } from "../lib/orchestrator.js";
 import { onCadFileAttached, getPipelineStatus, triggerBuildNow } from "../lib/project-pipeline.js";
+import { generateAndPostCadDrawing } from "../lib/cad-auto-gen.js";
 import { runInvestmentRule } from "../lib/investment-rule.js";
 import { recordPinFailure, clearPinRecord, securityLog } from "../middlewares/security.js";
 import { getLabPin, setLabPin, getPinRole, authMiddleware, sseHeaders, loadLabPinFromDb, TODAY } from "../lib/lab-auth.js";
@@ -2999,11 +3000,16 @@ router.post("/lab/projects/:id/send-to-cad", authMiddleware, async (req: Request
 
     console.log(`[CAD Gateway] Project "${project.name}" created in New Dimensions as #${ndProjectId}`);
 
+    // Kick off AI drawing generation in the background — don't block the response
+    setImmediate(() => {
+      generateAndPostCadDrawing(projectId, ndProjectId, project.name, description).catch(console.error);
+    });
+
     return res.json({
       status: "pending",
       ndProjectId,
       ndProjectUrl,
-      message: `Project sent to New Dimensions (ID: ${ndProjectId}). Open it there to create drawings — they'll sync back here automatically when done.`,
+      message: `Project sent to New Dimensions (ID: ${ndProjectId}). A technical drawing is being generated automatically — it will appear here and in New Dimensions within a minute.`,
     });
 
   } catch (err: any) {

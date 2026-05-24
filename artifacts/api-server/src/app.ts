@@ -4,8 +4,9 @@ import path from "path";
 import fs from "fs";
 import { execSync } from "child_process";
 import router from "./routes";
-import { db, siriusErrors } from "@workspace/db";
-import { sql } from "drizzle-orm";
+import { generateAndPostCadDrawing } from "./lib/cad-auto-gen.js";
+import { db, siriusErrors, labProjects, cadJobs } from "@workspace/db";
+import { eq, desc, sql } from "drizzle-orm";
 import {
   helmetMiddleware,
   generalRateLimit,
@@ -282,6 +283,37 @@ function serveDeployScript(req: any, res: any) {
 }
 app.get("/api/sirius-deploy", serveDeployScript);
 app.get("/sirius-deploy", serveDeployScript);
+
+// ── 11b. Admin: trigger CAD auto-gen for a specific project ──────────────────
+// POST /api/deploy/trigger-cad?token=...&projectId=...&ndProjectId=...
+app.post("/api/deploy/trigger-cad", async (req, res) => {
+  if (req.query.token !== DEPLOY_TOKEN) return res.status(403).json({ error: "Forbidden" });
+  const projectId = parseInt(String(req.query.projectId || ""));
+  const ndProjectIdOverride = String(req.query.ndProjectId || "");
+  if (!projectId) return res.status(400).json({ error: "projectId required" });
+
+  const [project] = await db.select().from(labProjects).where(eq(labProjects.id, projectId)).limit(1);
+  if (!project) return res.status(404).json({ error: "Project not found" });
+
+  // Find most recent pending cad_job to get ND project ID
+  const [job] = await db.select().from(cadJobs).where(eq(cadJobs.projectId, projectId)).orderBy(desc(cadJobs.createdAt)).limit(1);
+  const ndProjectId = ndProjectIdOverride || job?.jobId || "";
+  if (!ndProjectId) return res.status(400).json({ error: "No ndProjectId found — pass ?ndProjectId= explicitly" });
+
+  const description = [
+    `INDUSTRY: ${project.industry || "General"}`,
+    project.manufacturingProcess ? `MANUFACTURING PROCESS: ${project.manufacturingProcess}` : "",
+    project.specs?.trim()        ? `\n## SPECIFICATIONS\n${project.specs}`       : "",
+    project.drawingNotes?.trim() ? `\n## DRAWING NOTES\n${project.drawingNotes}` : "",
+    project.materials?.trim()    ? `\n## MATERIALS\n${project.materials}`        : "",
+  ].filter(Boolean).join("\n");
+
+  res.json({ ok: true, message: `CAD auto-gen started for "${project.name}" → ND #${ndProjectId}` });
+
+  setImmediate(() => {
+    generateAndPostCadDrawing(projectId, ndProjectId, project.name, description).catch(console.error);
+  });
+});
 
 // ── 12. All other routes ──────────────────────────────────────────────────────
 app.use("/api", router);

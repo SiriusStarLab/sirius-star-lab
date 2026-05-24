@@ -67,8 +67,14 @@ Star Lab is wired to **New Dimensions**, a separate CAD SaaS at `https://new-dim
 - "CAD drawing completed" from Sirius = drawing *notes text* was generated, NOT a real CAD file sent to ND
 - When user asks about a CAD drawing — check `cad_jobs` table and `https://new-dimension-cad.replit.app/api/projects` first
 
+**Auto-generation (BUILT AND WORKING as of 2026-05-24):**
+- `artifacts/api-server/src/lib/cad-auto-gen.ts` — shared auto-gen function
+- When `send-to-cad` is triggered → GPT-4o generates SVG engineering drawing → uploaded to object storage → POSTed to ND `/api/projects/:ndId/drawings` → imported into `cad_files` → `cad_jobs` marked complete → project → "launch-ready"
+- Also fires from the pipeline's `autoSendToCad` in `project-pipeline.ts`
+- Admin trigger (no lab PIN needed): `POST /api/deploy/trigger-cad?token=$DEPLOY_TOKEN&projectId=NNN&ndProjectId=NNN`
+
 **Known project mapping (update as more are sent):**
-- Star Lab project #2117 → New Dimensions project #4 ("High-Precision Downhole Control Valve Actuator Rings")
+- Star Lab project #2117 → New Dimensions project #4 ("High-Precision Downhole Control Valve Actuator Rings") — drawing generated and stored ✅
 
 ## How to Approach Every Change (Non-Negotiable)
 

@@ -18,6 +18,7 @@ import { eq, isNull, or, and, asc, ne, sql, inArray, desc } from "drizzle-orm";
 import { db, labProjects, appBuilderSessions, cadFiles, cadJobs } from "@workspace/db";
 import { triggerAutoBuildForProject, isSoftwareBuildable } from "./lab-auto-scan.js";
 import { openai } from "@workspace/integrations-openai-ai-server";
+import { generateAndPostCadDrawing } from "./cad-auto-gen.js";
 
 const ND_BASE_URL = () => (process.env.NEWDIMENSIONS_BASE_URL || "https://new-dimension-cad.replit.app").replace(/\/$/, "");
 const ND_API_KEY  = () => process.env.NEWDIMENSIONS_API_KEY || "";
@@ -69,6 +70,11 @@ async function autoSendToCad(projectId: number, name: string, industry: string, 
 
   await db.insert(cadJobs).values({ projectId, jobId: ndProjectId, status: "pending", specSent: description });
   console.log(`[Pipeline] ✅ Auto-sent "${name}" to New Dimensions (ND project #${ndProjectId})`);
+
+  // Kick off AI drawing generation in the background
+  setImmediate(() => {
+    generateAndPostCadDrawing(projectId, ndProjectId, name, description).catch(console.error);
+  });
 }
 
 const IDLE_CHECK_MS = 30 * 1000; // 30 seconds — how often to check when queue is empty
