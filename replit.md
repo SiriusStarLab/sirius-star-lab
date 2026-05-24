@@ -46,6 +46,30 @@ ssh -i /home/runner/workspace/.local/sirius_deploy.key -p 2222 -o StrictHostKeyC
 - Deploy token: `$DEPLOY_TOKEN` env secret
 - **nginx root on Kamatera: `/opt/sirius/frontend/public`** — the vite build outputs into `dist/public/` and the tarball preserves that subfolder. If nginx ever shows 403, check this path first.
 
+## ★ NEW DIMENSIONS — CAD INTEGRATION (REMEMBER THIS) ★
+
+Star Lab is wired to **New Dimensions**, a separate CAD SaaS at `https://new-dimension-cad.replit.app`.
+
+**How the flow works:**
+1. Star Lab sends a project's specs + drawing notes to New Dimensions via `POST /api/lab/projects/:id/send-to-cad`
+2. This creates a project in New Dimensions and a `cad_jobs` record in Star Lab with status "pending"
+3. When the drawing is done in New Dimensions, it calls back to Star Lab at `POST /api/lab/cad-callback`
+4. Star Lab downloads the file, stores it in object storage, attaches it to the project
+5. The `NewDimensionsCadButton` component in the project view (`index.tsx` line ~1495) shows status and links
+
+**Key facts:**
+- New Dimensions URL: `https://new-dimension-cad.replit.app`
+- `NEWDIMENSIONS_API_KEY` secret — NOT YET SET (missing secret — needed for auth)
+- `NEWDIMENSIONS_BASE_URL` env var — not set, defaults to the URL above
+- Integration code: `artifacts/api-server/src/routes/lab.ts` around line 2905
+- UI button: `NewDimensionsCadButton` in `artifacts/ai-chat/src/pages/star-lab/index.tsx`
+- `cad_jobs` table tracks dispatch status; `cad_url` on `lab_projects` stores the ND project link
+- "CAD drawing completed" from Sirius = drawing *notes text* was generated, NOT a real CAD file sent to ND
+- When user asks about a CAD drawing — check `cad_jobs` table and `https://new-dimension-cad.replit.app/api/projects` first
+
+**Known project mapping (update as more are sent):**
+- Star Lab project #2117 → New Dimensions project #4 ("High-Precision Downhole Control Valve Actuator Rings")
+
 ## How to Approach Every Change (Non-Negotiable)
 
 Before making any change:
