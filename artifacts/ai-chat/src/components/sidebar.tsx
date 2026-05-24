@@ -193,36 +193,31 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession }: Sid
           onClick={() => { setLocation("/dream-lab"); onClose(); }}
           className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 relative overflow-hidden group"
           style={{
-            background: location === "/dream-lab"
-              ? "linear-gradient(135deg, hsl(280,50%,14%), hsl(280,50%,10%))"
-              : "linear-gradient(135deg, hsl(280,50%,11%), hsl(280,50%,8%))",
-            border: location === "/dream-lab"
-              ? "1px solid hsl(280,80%,55%)"
-              : "1px solid hsl(280 80% 55% / 0.15)",
-            color: "hsl(280,80%,70%)",
-            boxShadow: location === "/dream-lab" ? "0 0 20px hsl(280,80%,35%,0.2), inset 0 1px 0 rgba(255,255,255,0.05)" : "inset 0 1px 0 rgba(255,255,255,0.03)",
+            background: location === "/dream-lab" ? "hsla(280,70%,55%,0.1)" : "hsla(280,70%,55%,0.05)",
+            border: location === "/dream-lab" ? "1px solid hsla(280,70%,55%,0.35)" : "1px solid hsla(280,70%,55%,0.15)",
+            color: location === "/dream-lab" ? "hsl(280,65%,35%)" : "hsl(280,45%,42%)",
           }}
           onMouseEnter={e => {
-            e.currentTarget.style.border = "1px solid hsl(280,80%,55%)";
-            e.currentTarget.style.boxShadow = "0 0 20px hsla(280,80%,35%,0.2)";
-            e.currentTarget.style.color = "hsl(280,80%,80%)";
+            e.currentTarget.style.background = "hsla(280,70%,55%,0.1)";
+            e.currentTarget.style.borderColor = "hsla(280,70%,55%,0.35)";
+            e.currentTarget.style.color = "hsl(280,65%,35%)";
           }}
           onMouseLeave={e => {
             if (location !== "/dream-lab") {
-              e.currentTarget.style.border = "1px solid hsl(280 80% 55% / 0.15)";
-              e.currentTarget.style.boxShadow = "inset 0 1px 0 rgba(255,255,255,0.03)";
+              e.currentTarget.style.background = "hsla(280,70%,55%,0.05)";
+              e.currentTarget.style.borderColor = "hsla(280,70%,55%,0.15)";
+              e.currentTarget.style.color = "hsl(280,45%,42%)";
             }
-            e.currentTarget.style.color = "hsl(280,80%,70%)";
           }}
         >
           <Sparkles size={15} style={{ flexShrink: 0 }} />
           <span className="flex-1 text-left">Dream Lab</span>
           <span className="text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded"
-            style={{ background: "hsla(280,80%,35%,0.15)", color: "hsl(280,80%,65%)", border: "1px solid hsla(280,80%,35%,0.2)", letterSpacing: "0.15em" }}>
+            style={{ background: "hsla(280,70%,55%,0.1)", color: "hsl(280,65%,38%)", border: "1px solid hsla(280,70%,55%,0.2)", letterSpacing: "0.15em" }}>
             NEW
           </span>
           <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 animate-pulse"
-            style={{ background: "hsl(280,80%,60%)", boxShadow: "0 0 6px hsl(280,80%,60%)" }} />
+            style={{ background: "hsl(280,70%,55%)" }} />
         </button>
 
         {/* Wellbeing entry */}
@@ -230,26 +225,21 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession }: Sid
           onClick={() => { setLocation("/wellbeing"); onClose(); }}
           className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 relative overflow-hidden group"
           style={{
-            background: location === "/wellbeing"
-              ? "linear-gradient(135deg, hsl(168,60%,14%), hsl(168,60%,10%))"
-              : "linear-gradient(135deg, hsl(168,60%,11%), hsl(168,60%,8%))",
-            border: location === "/wellbeing"
-              ? "1px solid hsl(168,80%,45%)"
-              : "1px solid hsl(168 80% 45% / 0.15)",
-            color: "hsl(168,80%,65%)",
-            boxShadow: location === "/wellbeing" ? "0 0 20px hsl(168,80%,30%,0.2), inset 0 1px 0 rgba(255,255,255,0.05)" : "inset 0 1px 0 rgba(255,255,255,0.03)",
+            background: location === "/wellbeing" ? "hsla(168,70%,38%,0.1)" : "hsla(168,70%,38%,0.05)",
+            border: location === "/wellbeing" ? "1px solid hsla(168,70%,38%,0.35)" : "1px solid hsla(168,70%,38%,0.15)",
+            color: location === "/wellbeing" ? "hsl(168,65%,26%)" : "hsl(168,45%,32%)",
           }}
           onMouseEnter={e => {
-            e.currentTarget.style.border = "1px solid hsl(168,80%,45%)";
-            e.currentTarget.style.boxShadow = "0 0 20px hsla(168,80%,30%,0.2)";
-            e.currentTarget.style.color = "hsl(168,80%,75%)";
+            e.currentTarget.style.background = "hsla(168,70%,38%,0.1)";
+            e.currentTarget.style.borderColor = "hsla(168,70%,38%,0.35)";
+            e.currentTarget.style.color = "hsl(168,65%,26%)";
           }}
           onMouseLeave={e => {
             if (location !== "/wellbeing") {
-              e.currentTarget.style.border = "1px solid hsl(168 80% 45% / 0.15)";
-              e.currentTarget.style.boxShadow = "inset 0 1px 0 rgba(255,255,255,0.03)";
+              e.currentTarget.style.background = "hsla(168,70%,38%,0.05)";
+              e.currentTarget.style.borderColor = "hsla(168,70%,38%,0.15)";
+              e.currentTarget.style.color = "hsl(168,45%,32%)";
             }
-            e.currentTarget.style.color = "hsl(168,80%,65%)";
           }}
         >
           <Heart size={15} style={{ flexShrink: 0 }} />
@@ -261,32 +251,27 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession }: Sid
           onClick={() => { setLocation("/universe"); onClose(); }}
           className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 relative overflow-hidden group"
           style={{
-            background: location === "/universe"
-              ? "linear-gradient(135deg, hsl(220,60%,14%), hsl(220,60%,10%))"
-              : "linear-gradient(135deg, hsl(220,60%,11%), hsl(220,60%,8%))",
-            border: location === "/universe"
-              ? "1px solid hsl(220,100%,65%)"
-              : "1px solid hsl(220 100% 65% / 0.15)",
-            color: "hsl(220,100%,75%)",
-            boxShadow: location === "/universe" ? "0 0 20px hsl(220,100%,35%,0.2), inset 0 1px 0 rgba(255,255,255,0.05)" : "inset 0 1px 0 rgba(255,255,255,0.03)",
+            background: location === "/universe" ? "hsla(220,90%,55%,0.1)" : "hsla(220,90%,55%,0.05)",
+            border: location === "/universe" ? "1px solid hsla(220,90%,55%,0.35)" : "1px solid hsla(220,90%,55%,0.15)",
+            color: location === "/universe" ? "hsl(220,75%,35%)" : "hsl(220,50%,42%)",
           }}
           onMouseEnter={e => {
-            e.currentTarget.style.border = "1px solid hsl(220,100%,65%)";
-            e.currentTarget.style.boxShadow = "0 0 20px hsla(220,100%,35%,0.2)";
-            e.currentTarget.style.color = "hsl(220,100%,85%)";
+            e.currentTarget.style.background = "hsla(220,90%,55%,0.1)";
+            e.currentTarget.style.borderColor = "hsla(220,90%,55%,0.35)";
+            e.currentTarget.style.color = "hsl(220,75%,35%)";
           }}
           onMouseLeave={e => {
             if (location !== "/universe") {
-              e.currentTarget.style.border = "1px solid hsl(220 100% 65% / 0.15)";
-              e.currentTarget.style.boxShadow = "inset 0 1px 0 rgba(255,255,255,0.03)";
+              e.currentTarget.style.background = "hsla(220,90%,55%,0.05)";
+              e.currentTarget.style.borderColor = "hsla(220,90%,55%,0.15)";
+              e.currentTarget.style.color = "hsl(220,50%,42%)";
             }
-            e.currentTarget.style.color = "hsl(220,100%,75%)";
           }}
         >
           <Globe2 size={15} style={{ flexShrink: 0 }} />
           <span className="flex-1 text-left">The Universe</span>
           <span className="text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded"
-            style={{ background: "hsla(220,100%,35%,0.15)", color: "hsl(220,100%,65%)", border: "1px solid hsla(220,100%,35%,0.2)", letterSpacing: "0.15em" }}>
+            style={{ background: "hsla(220,90%,55%,0.1)", color: "hsl(220,75%,38%)", border: "1px solid hsla(220,90%,55%,0.2)", letterSpacing: "0.15em" }}>
             NEW
           </span>
         </button>
@@ -296,43 +281,38 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession }: Sid
           onClick={() => { setLocation("/star-lab"); onClose(); }}
           className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 relative overflow-hidden group"
           style={{
-            background: location === "/star-lab"
-              ? "linear-gradient(135deg, hsl(226,50%,14%), hsl(226,50%,10%))"
-              : "linear-gradient(135deg, hsl(226,50%,11%), hsl(226,50%,8%))",
-            border: location === "/star-lab"
-              ? "1px solid hsl(193,100%,40%)"
-              : "1px solid hsl(193 100% 52% / 0.15)",
-            color: "hsl(193,100%,70%)",
-            boxShadow: location === "/star-lab" ? "0 0 20px hsl(193,100%,35%,0.2), inset 0 1px 0 rgba(255,255,255,0.05)" : "inset 0 1px 0 rgba(255,255,255,0.03)",
+            background: location === "/star-lab" ? "hsla(193,100%,35%,0.1)" : "hsla(193,100%,35%,0.05)",
+            border: location === "/star-lab" ? "1px solid hsla(193,100%,35%,0.35)" : "1px solid hsla(193,100%,35%,0.15)",
+            color: location === "/star-lab" ? "hsl(193,100%,24%)" : "hsl(193,60%,32%)",
           }}
           onMouseEnter={e => {
-            e.currentTarget.style.border = "1px solid hsl(193,100%,40%)";
-            e.currentTarget.style.boxShadow = "0 0 20px hsla(193,100%,35%,0.2)";
-            e.currentTarget.style.color = "hsl(193,100%,80%)";
+            e.currentTarget.style.background = "hsla(193,100%,35%,0.1)";
+            e.currentTarget.style.borderColor = "hsla(193,100%,35%,0.35)";
+            e.currentTarget.style.color = "hsl(193,100%,24%)";
           }}
           onMouseLeave={e => {
             if (location !== "/star-lab") {
-              e.currentTarget.style.border = "1px solid hsl(193 100% 52% / 0.15)";
-              e.currentTarget.style.boxShadow = "inset 0 1px 0 rgba(255,255,255,0.03)";
+              e.currentTarget.style.background = "hsla(193,100%,35%,0.05)";
+              e.currentTarget.style.borderColor = "hsla(193,100%,35%,0.15)";
+              e.currentTarget.style.color = "hsl(193,60%,32%)";
             }
-            e.currentTarget.style.color = "hsl(193,100%,70%)";
           }}
         >
           <FlaskConical size={15} style={{ flexShrink: 0 }} />
           <span className="flex-1 text-left">Star Lab</span>
           {labPendingCount > 0 ? (
-            <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold animate-pulse flex-shrink-0"
-              style={{ background: "hsl(25,90%,55%)", color: "white", boxShadow: "0 0 8px hsla(25,90%,55%,0.6)" }}>
+            <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold flex-shrink-0"
+              style={{ background: "hsl(25,90%,55%)", color: "white" }}>
               {labPendingCount}
             </span>
           ) : (
             <>
               <span className="text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded"
-                style={{ background: "hsla(193,100%,35%,0.15)", color: "hsl(193,100%,55%)", border: "1px solid hsla(193,100%,35%,0.2)", letterSpacing: "0.15em" }}>
+                style={{ background: "hsla(193,100%,35%,0.1)", color: "hsl(193,100%,26%)", border: "1px solid hsla(193,100%,35%,0.2)", letterSpacing: "0.15em" }}>
                 R&amp;D
               </span>
               <span className="w-1.5 h-1.5 rounded-full animate-pulse flex-shrink-0"
-                style={{ background: "hsl(193,100%,55%)", boxShadow: "0 0 6px hsl(193,100%,55%)" }} />
+                style={{ background: "hsl(193,100%,38%)" }} />
             </>
           )}
         </button>
