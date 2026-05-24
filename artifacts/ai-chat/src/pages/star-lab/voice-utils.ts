@@ -1,4 +1,4 @@
-export function speakText(text: string, onDone?: () => void, rate = 0.92) {
+export function speakText(text: string, onDone?: () => void, rate = 0.87) {
   if (typeof window === "undefined" || !window.speechSynthesis) { onDone?.(); return; }
   window.speechSynthesis.cancel();
 
@@ -14,27 +14,48 @@ export function speakText(text: string, onDone?: () => void, rate = 0.92) {
   if (buf) chunks.push(buf);
   if (chunks.length === 0) { onDone?.(); return; }
 
-  const KNOWN_MALE = ["Daniel","Arthur","Malcolm","Google UK English Male","Microsoft David","Microsoft Mark","Microsoft George","Microsoft James","Alex","Fred","Ralph","Bruce","Junior"];
-  // Natural/neural voices first — these sound genuinely human rather than synthetic
+  const KNOWN_MALE = [
+    "Daniel","Arthur","Malcolm","Google UK English Male",
+    "Microsoft David","Microsoft Mark","Microsoft George","Microsoft James",
+    "Alex","Fred","Ralph","Bruce","Junior","Microsoft Ryan","Microsoft Guy",
+  ];
+
+  // Priority order — UK neural voices first for a natural British female sound
   const FEMALE_ORDER = [
-    "Samantha",           // Apple — warm, natural, the gold standard on Mac/iOS
-    "Microsoft Aria",     // Neural — very natural American female
-    "Microsoft Jenny",    // Neural — clear natural American female
-    "Karen",              // Apple Australian — natural
-    "Moira",              // Apple Irish — natural
-    "Serena",             // Apple UK — natural
-    "Google UK English Female",
-    "Microsoft Sonia","Microsoft Libby","Microsoft Leah","Microsoft Nora",
-    "Microsoft Clara","Microsoft Mia","Microsoft Hazel","Microsoft Zira","Microsoft Susan",
+    // Microsoft UK neural (best quality on Windows/Edge/Chrome)
+    "Microsoft Sonia",          // UK neural — warm, natural British female
+    "Microsoft Libby",          // UK neural — clear, friendly British female
+    "Microsoft Maisie",         // UK neural — younger British female
+    "Microsoft Hazel",          // UK female
+    // Google UK voices (good on Chrome/Android)
+    "Google UK English Female", // natural British female
+    // Apple UK/close accents
+    "Serena",                   // Apple UK — natural
+    "Moira",                    // Apple Irish — close to British cadence
+    // Fallback neural female voices (non-UK but still natural-sounding)
+    "Microsoft Aria",           // Neural American female — much better than older voices
+    "Microsoft Jenny",          // Neural American female
+    "Karen",                    // Apple Australian — natural
+    "Samantha",                 // Apple American — warm
+    // Older Microsoft female voices
+    "Microsoft Nora","Microsoft Clara","Microsoft Mia","Microsoft Leah",
+    "Microsoft Susan","Microsoft Zira",
+    // Other Apple/Google
     "Victoria","Fiona","Tessa","Google US English",
   ];
+
   const pickVoice = () => {
     const v = window.speechSynthesis.getVoices();
-    return v.find(x => FEMALE_ORDER.includes(x.name)) ||
+    // Try exact name match in priority order first
+    const byName = v.find(x => FEMALE_ORDER.includes(x.name));
+    if (byName) return byName;
+    // Prefer any en-GB female voice over en-US
+    return (
       v.find(x => x.lang.startsWith("en-GB") && !KNOWN_MALE.includes(x.name) && !x.name.toLowerCase().includes("male")) ||
       v.find(x => x.lang.startsWith("en-US") && !KNOWN_MALE.includes(x.name) && !x.name.toLowerCase().includes("male")) ||
       v.find(x => x.lang.startsWith("en")    && !KNOWN_MALE.includes(x.name) && !x.name.toLowerCase().includes("male")) ||
-      v.find(x => x.lang.startsWith("en"));
+      v.find(x => x.lang.startsWith("en"))
+    );
   };
 
   setTimeout(() => {
@@ -52,8 +73,8 @@ export function speakText(text: string, onDone?: () => void, rate = 0.92) {
       const chunk = chunks[idx++];
       const utter = new SpeechSynthesisUtterance(chunk);
       utter.rate   = rate;
-      utter.pitch  = 1.05;
-      utter.volume = 0.95;
+      utter.pitch  = 1.1;
+      utter.volume = 0.97;
       const preferred = pickVoice();
       if (preferred) utter.voice = preferred;
       utter.onend   = () => speakNext();
