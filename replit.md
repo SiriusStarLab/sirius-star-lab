@@ -45,6 +45,8 @@ ssh -i /home/runner/workspace/.local/sirius_deploy.key -p 2222 -o StrictHostKeyC
 - Production URL: `https://sirius-ai.live`
 - Deploy token: `$DEPLOY_TOKEN` env secret
 - **nginx root on Kamatera: `/opt/sirius/frontend/public`** — the vite build outputs into `dist/public/` and the tarball preserves that subfolder. If nginx ever shows 403, check this path first.
+- **PM2 env vars — CRITICAL:** `pm2 restart` alone does NOT reload `/opt/sirius/.env`. Always use: `set -a && source /opt/sirius/.env && set +a && pm2 restart sirius-api --update-env`. The deploy install.sh already does this (fixed 2026-05-24). If any feature fails in production citing a missing env var, this is the cause — run the above command on the VPS.
+- **Object storage on Kamatera:** `PRIVATE_OBJECT_DIR`, `DEFAULT_OBJECT_STORAGE_BUCKET_ID`, `PUBLIC_OBJECT_SEARCH_PATHS` must be in `/opt/sirius/.env` — they are Replit secrets and are NOT auto-synced. If missing, SSH in and add them from the Replit secrets panel, then do the PM2 restart above.
 
 ## ★ NEW DIMENSIONS — CAD INTEGRATION (REMEMBER THIS) ★
 

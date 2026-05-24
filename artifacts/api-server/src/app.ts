@@ -190,7 +190,8 @@ echo 'AI_INTEGRATIONS_OPENAI_BASE_URL=${AI_BASE_URL}' >> "$ENV_FILE"
 echo 'AI_INTEGRATIONS_OPENAI_API_KEY=${AI_API_KEY}' >> "$ENV_FILE"
 
 echo "[5/5] Restarting API..."
-pm2 restart sirius-api
+set -a && source /opt/sirius/.env && set +a
+pm2 restart sirius-api --update-env
 
 echo "[SIRIUS UPDATE] Complete. All systems updated."
 `;
