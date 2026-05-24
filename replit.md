@@ -18,6 +18,33 @@ I like functional programming.
 Do not make changes to the folder `lib/api-spec`.
 Changes to `artifacts/ai-chat/src/pages/star-lab.tsx` are permitted — Garry explicitly approved this. The previous restriction is lifted.
 
+## ★ PRIME DIRECTIVE — KAMATERA DEPLOYMENT (NON-NEGOTIABLE) ★
+
+**ALL production traffic runs on the Kamatera VPS at 185.247.118.196:2222, NOT Replit.**
+**Never tell Garry to "republish on Replit" — that is not production.**
+**After EVERY code change session, run the three commands below. No exceptions.**
+
+```bash
+# 1. Build API server
+pnpm --filter @workspace/api-server run build
+
+# 2. Build frontend (PORT and BASE_PATH are required by vite.config.ts)
+PORT=3000 BASE_PATH=/ pnpm --filter @workspace/ai-chat run build
+
+# 3. Tell Kamatera to pull both builds and restart PM2
+ssh -i /home/runner/workspace/.local/sirius_deploy.key -p 2222 -o StrictHostKeyChecking=no root@185.247.118.196 \
+  "curl -sfL \"https://${REPLIT_DEV_DOMAIN}/api/deploy/install.sh?token=${DEPLOY_TOKEN}\" | bash"
+```
+
+**How it works:** The install.sh script (served by the running dev api-server) downloads the freshly built
+`dist/index.cjs` and `dist/public/` from Replit, copies them into `/opt/sirius/`, and does `pm2 restart sirius-api`.
+
+- SSH key: `/home/runner/workspace/.local/sirius_deploy.key`
+- Server: `root@185.247.118.196` port `2222`
+- PM2 process: `sirius-api` — app root: `/opt/sirius/`
+- Production URL: `https://sirius-ai.live`
+- Deploy token: `$DEPLOY_TOKEN` env secret
+
 ## How to Approach Every Change (Non-Negotiable)
 
 Before making any change:
