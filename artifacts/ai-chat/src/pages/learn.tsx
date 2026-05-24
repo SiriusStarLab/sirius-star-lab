@@ -14,6 +14,7 @@ import { getUserId } from "@/lib/user-id";
 const BASE_BG = "hsl(210 55% 97%)";
 const TEAL = "hsl(193 100% 35%)";
 const TEAL_LIGHT = "hsl(193 100% 52%)";
+const HERO_GRADIENT = "linear-gradient(160deg, hsl(193,80%,93%) 0%, hsl(210,70%,91%) 40%, hsl(220,65%,94%) 100%)";
 
 type Panel = "home" | "study-plan" | "quiz" | "document";
 
@@ -64,77 +65,98 @@ function HomePanel({ onSelect }: { onSelect: (p: Panel) => void }) {
   ];
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-start px-6 py-12 overflow-y-auto">
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="w-full max-w-2xl"
-      >
-        <div className="flex items-center gap-4 mb-10">
-          <div className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
-            style={{ background: `linear-gradient(135deg, ${TEAL}, hsl(180 100% 40%))`, boxShadow: `0 8px 24px ${TEAL}40` }}>
-            <GraduationCap className="w-6 h-6 text-white" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Learn with Sirius</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Your personal intelligence partner for structured, active learning</p>
-          </div>
-        </div>
+    <div className="flex-1 flex flex-col overflow-y-auto" style={{ background: HERO_GRADIENT }}>
+      {/* Hero strip */}
+      <div className="px-6 pt-10 pb-8 flex flex-col items-center text-center">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.4 }}
+          className="w-16 h-16 rounded-2xl flex items-center justify-center mb-5"
+          style={{ background: `linear-gradient(135deg, ${TEAL}, hsl(180,100%,38%))`, boxShadow: `0 12px 32px ${TEAL}50` }}
+        >
+          <GraduationCap className="w-8 h-8 text-white" />
+        </motion.div>
+        <motion.h1
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.05 }}
+          className="text-3xl font-bold mb-2"
+          style={{ color: "#0F172A" }}
+        >
+          Learn with Sirius
+        </motion.h1>
+        <motion.p
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.1 }}
+          className="text-sm max-w-md"
+          style={{ color: "#475569" }}
+        >
+          Your personal intelligence partner for structured, active learning
+        </motion.p>
+      </div>
 
-        <div className="space-y-3">
-          {cards.map((card, i) => {
-            const Icon = card.icon;
-            return (
-              <motion.button
-                key={card.id}
-                initial={{ opacity: 0, x: -16 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.08, duration: 0.4 }}
-                onClick={() => onSelect(card.id)}
-                className="w-full text-left p-5 rounded-2xl border transition-all duration-200 group"
-                style={{ background: "white", borderColor: "hsl(210 25% 90%)" }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.borderColor = card.color;
-                  e.currentTarget.style.boxShadow = `0 4px 24px ${card.color}20`;
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.borderColor = "hsl(210 25% 90%)";
-                  e.currentTarget.style.boxShadow = "none";
-                }}
-              >
-                <div className="flex items-start gap-4">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5"
-                    style={{ background: `${card.color}15` }}>
-                    <Icon className="w-5 h-5" style={{ color: card.color }} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-semibold text-gray-900 text-sm">{card.title}</span>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full font-medium"
-                        style={{ background: `${card.color}15`, color: card.color }}>
-                        {card.tag}
-                      </span>
-                    </div>
-                    <p className="text-sm text-gray-500 leading-relaxed">{card.desc}</p>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-gray-400 flex-shrink-0 mt-1 transition-colors" />
+      {/* Cards */}
+      <div className="px-6 pb-8 w-full max-w-2xl mx-auto space-y-3">
+        {cards.map((card, i) => {
+          const Icon = card.icon;
+          return (
+            <motion.button
+              key={card.id}
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.08, duration: 0.4 }}
+              onClick={() => onSelect(card.id)}
+              className="w-full text-left p-5 rounded-2xl border transition-all duration-200 group"
+              style={{ background: "white", borderColor: `${card.color}25`, boxShadow: `0 2px 12px ${card.color}10` }}
+              onMouseEnter={e => {
+                e.currentTarget.style.borderColor = `${card.color}60`;
+                e.currentTarget.style.boxShadow = `0 6px 28px ${card.color}22`;
+                e.currentTarget.style.transform = "translateY(-1px)";
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.borderColor = `${card.color}25`;
+                e.currentTarget.style.boxShadow = `0 2px 12px ${card.color}10`;
+                e.currentTarget.style.transform = "translateY(0)";
+              }}
+            >
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                  style={{ background: `linear-gradient(135deg, ${card.color}22, ${card.color}10)`, border: `1px solid ${card.color}25` }}>
+                  <Icon className="w-6 h-6" style={{ color: card.color }} />
                 </div>
-              </motion.button>
-            );
-          })}
-        </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="font-bold text-gray-900">{card.title}</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
+                      style={{ background: `${card.color}15`, color: card.color }}>
+                      {card.tag}
+                    </span>
+                  </div>
+                  <p className="text-sm leading-relaxed" style={{ color: "#64748B" }}>{card.desc}</p>
+                </div>
+                <ChevronRight className="w-5 h-5 flex-shrink-0 mt-1 transition-colors" style={{ color: card.color + "80" }} />
+              </div>
+            </motion.button>
+          );
+        })}
 
-        <div className="mt-8 p-4 rounded-2xl border"
-          style={{ background: `${TEAL}06`, borderColor: `${TEAL}20` }}>
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3, duration: 0.4 }}
+          className="p-4 rounded-2xl border mt-2"
+          style={{ background: `${TEAL}0a`, borderColor: `${TEAL}25` }}
+        >
           <div className="flex items-start gap-3">
-            <Lightbulb className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: TEAL }} />
-            <p className="text-sm leading-relaxed" style={{ color: "hsl(193 100% 28%)" }}>
+            <Lightbulb className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: TEAL }} />
+            <p className="text-sm leading-relaxed" style={{ color: "hsl(193,100%,25%)" }}>
               <span className="font-semibold">Tutor Mode</span> is also available in the main chat — switch to it from the personality bar at the bottom of the input. Sirius will guide your thinking with questions rather than handing you answers.
             </p>
           </div>
-        </div>
-      </motion.div>
+        </motion.div>
+      </div>
     </div>
   );
 }

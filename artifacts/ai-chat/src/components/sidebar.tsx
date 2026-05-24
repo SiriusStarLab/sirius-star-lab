@@ -156,34 +156,60 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession }: Sid
           New Session
         </button>
 
+        {/* Sirius Guide — moved above Learn */}
+        <button
+          onClick={() => setIsTutorialsOpen(true)}
+          className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200"
+          style={{
+            background: "hsla(38,95%,55%,0.07)",
+            border: "1px solid hsla(38,95%,55%,0.18)",
+            color: "hsl(38,80%,32%)",
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.background = "hsla(38,95%,55%,0.13)";
+            e.currentTarget.style.borderColor = "hsla(38,95%,55%,0.35)";
+            e.currentTarget.style.color = "hsl(38,80%,26%)";
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.background = "hsla(38,95%,55%,0.07)";
+            e.currentTarget.style.borderColor = "hsla(38,95%,55%,0.18)";
+            e.currentTarget.style.color = "hsl(38,80%,32%)";
+          }}
+        >
+          <BookOpen size={15} style={{ flexShrink: 0 }} />
+          <span className="flex-1 text-left">Sirius Guide</span>
+          <span className="text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded"
+            style={{ background: "hsla(38,95%,55%,0.1)", color: "hsl(38,80%,30%)", border: "1px solid hsla(38,95%,55%,0.2)", letterSpacing: "0.15em" }}>
+            HELP
+          </span>
+        </button>
+
         {/* Learn entry */}
         <button
           onClick={() => { setLocation("/learn"); onClose(); }}
           className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 relative overflow-hidden group"
           style={{
-            background: location === "/learn"
-              ? "hsl(193 100% 52% / 0.1)"
-              : "hsl(193 100% 52% / 0.04)",
-            border: location === "/learn"
-              ? "1px solid hsl(193 100% 52% / 0.35)"
-              : "1px solid hsl(193 100% 52% / 0.1)",
-            color: location === "/learn" ? "hsl(193 100% 35%)" : "hsl(220 14% 55%)",
+            background: location === "/learn" ? "hsla(193,100%,35%,0.1)" : "hsla(193,100%,35%,0.05)",
+            border: location === "/learn" ? "1px solid hsla(193,100%,35%,0.35)" : "1px solid hsla(193,100%,35%,0.15)",
+            color: location === "/learn" ? "hsl(193,100%,24%)" : "hsl(193,65%,30%)",
           }}
           onMouseEnter={e => {
-            e.currentTarget.style.borderColor = "hsl(193 100% 52% / 0.3)";
-            e.currentTarget.style.color = "hsl(193 100% 35%)";
+            e.currentTarget.style.background = "hsla(193,100%,35%,0.1)";
+            e.currentTarget.style.borderColor = "hsla(193,100%,35%,0.35)";
+            e.currentTarget.style.color = "hsl(193,100%,24%)";
           }}
           onMouseLeave={e => {
             if (location !== "/learn") {
-              e.currentTarget.style.borderColor = "hsl(193 100% 52% / 0.1)";
-              e.currentTarget.style.color = "hsl(220 14% 55%)";
+              e.currentTarget.style.background = "hsla(193,100%,35%,0.05)";
+              e.currentTarget.style.borderColor = "hsla(193,100%,35%,0.15)";
+              e.currentTarget.style.color = "hsl(193,65%,30%)";
             }
           }}
         >
           <GraduationCap size={15} style={{ flexShrink: 0 }} />
           <span className="flex-1 text-left">Learn</span>
           <span className="text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded"
-            style={{ background: "hsla(193,100%,35%,0.1)", color: "hsl(193,100%,40%)", border: "1px solid hsla(193,100%,35%,0.15)", letterSpacing: "0.15em" }}>
+            style={{ background: "hsla(193,100%,35%,0.1)", color: "hsl(193,100%,26%)", border: "1px solid hsla(193,100%,35%,0.2)", letterSpacing: "0.15em" }}>
             NEW
           </span>
         </button>
@@ -471,17 +497,6 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession }: Sid
           </span>
         </button>
 
-        <button
-          onClick={() => setIsTutorialsOpen(true)}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-all duration-200 text-sm"
-        >
-          <BookOpen size={15} />
-          <span className="text-[13px]">Sirius Guide</span>
-          <span className="ml-auto text-[9px] font-mono uppercase tracking-wider px-2 py-0.5 rounded"
-            style={{ background: "hsl(193 100% 52% / 0.1)", color: "hsl(193 100% 52%)", border: "1px solid hsl(193 100% 52% / 0.2)" }}>
-            Help
-          </span>
-        </button>
 
 
         {/* Legal links */}

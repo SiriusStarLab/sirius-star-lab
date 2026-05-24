@@ -62,8 +62,8 @@ type ChatMsg = { role: "user" | "assistant"; content: string };
 // ── Colour themes ─────────────────────────────────────────────────────────────
 
 const THEMES: Record<string, { bg: string; gradient: string; accent: string; soft: string; text: string; border: string; msgBg: string; inputBg: string }> = {
-  sirius:  { bg: "#EFF6FF", gradient: "linear-gradient(160deg, hsl(210,55%,97%) 0%, hsl(220,45%,95%) 100%)", accent: "hsl(193,100%,35%)", soft: "hsla(193,100%,35%,0.08)", text: "#0F172A", border: "rgba(15,23,42,0.08)", msgBg: "white", inputBg: "white" },
-  pearl:   { bg: "#F8FAFC", gradient: "linear-gradient(135deg, #FFFFFF 0%, #F1F5F9 50%, #E2E8F0 100%)", accent: "#6d28d9", soft: "rgba(109,40,217,0.08)", text: "#1e1b4b", border: "rgba(109,40,217,0.12)", msgBg: "white", inputBg: "white" },
+  sirius:  { bg: "#EFF6FF", gradient: "linear-gradient(160deg, hsl(193,80%,93%) 0%, hsl(210,70%,91%) 40%, hsl(220,65%,93%) 100%)", accent: "#0891b2", soft: "rgba(8,145,178,0.1)", text: "#0F172A", border: "rgba(15,23,42,0.1)", msgBg: "white", inputBg: "white" },
+  pearl:   { bg: "#F8FAFC", gradient: "linear-gradient(135deg, hsl(280,60%,97%) 0%, hsl(260,50%,95%) 50%, hsl(240,45%,96%) 100%)", accent: "#7c3aed", soft: "rgba(124,58,237,0.09)", text: "#1e1b4b", border: "rgba(124,58,237,0.12)", msgBg: "white", inputBg: "white" },
   cosmic:  { bg: "#0f0a1e", gradient: "linear-gradient(135deg, #1a0533 0%, #0d1b3e 50%, #0f0a1e 100%)", accent: "#a855f7", soft: "rgba(168,85,247,0.12)", text: "#e2d9f3", border: "rgba(168,85,247,0.2)", msgBg: "rgba(255,255,255,0.07)", inputBg: "rgba(255,255,255,0.07)" },
   golden:  { bg: "#1a1200", gradient: "linear-gradient(135deg, #2a1a00 0%, #1a1200 50%, #0f0d00 100%)", accent: "#f59e0b", soft: "rgba(245,158,11,0.12)", text: "#fef3c7", border: "rgba(245,158,11,0.2)", msgBg: "rgba(255,255,255,0.07)", inputBg: "rgba(255,255,255,0.07)" },
   ocean:   { bg: "#001a2e", gradient: "linear-gradient(135deg, #002244 0%, #001a2e 50%, #000f1a 100%)", accent: "#06b6d4", soft: "rgba(6,182,212,0.12)", text: "#cffafe", border: "rgba(6,182,212,0.2)", msgBg: "rgba(255,255,255,0.07)", inputBg: "rgba(255,255,255,0.07)" },
@@ -184,7 +184,7 @@ export function DreamLabPage() {
 
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-3 flex-shrink-0"
-        style={{ borderBottom: `1px solid ${T.border}`, background: `rgba(0,0,0,${isPearl ? "0.03" : "0.3"})`, backdropFilter: "blur(20px)" }}>
+        style={{ borderBottom: `1px solid ${T.border}`, background: `rgba(0,0,0,${(theme === "sirius" || theme === "pearl") ? "0.03" : "0.25"})`, backdropFilter: "blur(20px)" }}>
 
         <div className="flex items-center gap-3">
           {(view === "board" || view === "onboard") ? (

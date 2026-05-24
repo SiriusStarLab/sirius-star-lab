@@ -76,7 +76,7 @@ export function LabAuthGate({ children, title = "Star Lab" }: Props) {
       style={{
         position: "fixed",
         inset: 0,
-        background: "hsl(230,30%,6%)",
+        background: "linear-gradient(160deg, hsl(193,80%,96%) 0%, hsl(210,60%,94%) 50%, hsl(220,55%,96%) 100%)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -90,25 +90,27 @@ export function LabAuthGate({ children, title = "Star Lab" }: Props) {
           maxWidth: 360,
           padding: "48px 32px",
           margin: "0 16px",
-          background: "hsl(230,25%,10%)",
-          border: "1px solid hsl(230,20%,18%)",
-          borderRadius: 20,
+          background: "white",
+          border: "1px solid hsla(193,100%,35%,0.15)",
+          borderRadius: 24,
           textAlign: "center",
+          boxShadow: "0 20px 60px hsla(193,100%,35%,0.12), 0 4px 16px rgba(0,0,0,0.06)",
         }}
       >
         <div
           style={{
-            width: 56,
-            height: 56,
-            borderRadius: "50%",
-            background: "hsl(193,100%,35%)",
+            width: 64,
+            height: 64,
+            borderRadius: 18,
+            background: "linear-gradient(135deg, hsl(193,100%,35%), hsl(180,100%,38%))",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             margin: "0 auto 20px",
+            boxShadow: "0 8px 24px hsla(193,100%,35%,0.35)",
           }}
         >
-          <Star size={26} color="#fff" fill="#fff" />
+          <Star size={28} color="#fff" fill="#fff" />
         </div>
 
         <h1
@@ -116,7 +118,7 @@ export function LabAuthGate({ children, title = "Star Lab" }: Props) {
             margin: "0 0 6px",
             fontSize: 22,
             fontWeight: 700,
-            color: "#fff",
+            color: "#0F172A",
             letterSpacing: "-0.3px",
           }}
         >
@@ -126,7 +128,7 @@ export function LabAuthGate({ children, title = "Star Lab" }: Props) {
           style={{
             margin: "0 0 28px",
             fontSize: 13,
-            color: "hsl(230,15%,55%)",
+            color: "#64748B",
           }}
         >
           Enter your PIN to continue
@@ -146,10 +148,10 @@ export function LabAuthGate({ children, title = "Star Lab" }: Props) {
               padding: "12px 16px",
               fontSize: 16,
               letterSpacing: "0.15em",
-              background: "hsl(230,25%,14%)",
-              border: `1.5px solid ${error ? "hsl(0,70%,55%)" : "hsl(230,20%,22%)"}`,
-              borderRadius: 10,
-              color: "#fff",
+              background: "#F8FAFF",
+              border: `1.5px solid ${error ? "hsl(0,70%,60%)" : "hsla(193,100%,35%,0.2)"}`,
+              borderRadius: 12,
+              color: "#0F172A",
               outline: "none",
               boxSizing: "border-box",
               marginBottom: 12,
@@ -162,7 +164,7 @@ export function LabAuthGate({ children, title = "Star Lab" }: Props) {
               style={{
                 margin: "0 0 12px",
                 fontSize: 12.5,
-                color: "hsl(0,70%,60%)",
+                color: "hsl(0,70%,50%)",
                 lineHeight: 1.4,
               }}
             >
@@ -175,19 +177,22 @@ export function LabAuthGate({ children, title = "Star Lab" }: Props) {
             disabled={!pin.trim() || loading}
             style={{
               width: "100%",
-              padding: "12px",
+              padding: "13px",
               fontSize: 14,
               fontWeight: 600,
-              background: pin.trim() && !loading ? "hsl(193,100%,35%)" : "hsl(230,20%,20%)",
-              color: pin.trim() && !loading ? "#fff" : "hsl(230,15%,40%)",
+              background: pin.trim() && !loading
+                ? "linear-gradient(135deg, hsl(193,100%,35%), hsl(180,100%,38%))"
+                : "hsl(210,20%,92%)",
+              color: pin.trim() && !loading ? "#fff" : "#94A3B8",
               border: "none",
-              borderRadius: 10,
+              borderRadius: 12,
               cursor: pin.trim() && !loading ? "pointer" : "not-allowed",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               gap: 8,
-              transition: "background 0.15s",
+              transition: "all 0.15s",
+              boxShadow: pin.trim() && !loading ? "0 4px 16px hsla(193,100%,35%,0.35)" : "none",
             }}
           >
             {loading ? (
