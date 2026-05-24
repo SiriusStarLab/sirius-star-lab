@@ -43,3 +43,4 @@ export * from "./sirius_upgrades";
 export * from "./sirius_notifications";
 export * from "./dream_lab";
 export * from "./payment_requests";
+export * from "./new_dimensions";

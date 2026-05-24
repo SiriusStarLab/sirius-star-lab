@@ -21,6 +21,18 @@ import type {
   GenerateOpenaiImageBody,
   GenerateOpenaiImageResponse,
   HealthStatus,
+  NdApiKey,
+  NdApiKeyCreated,
+  NdApiKeyInput,
+  NdAuthToken,
+  NdDashboardStats,
+  NdDrawing,
+  NdDrawingInput,
+  NdLoginInput,
+  NdProject,
+  NdProjectInput,
+  NdProjectUpdate,
+  NdRegisterInput,
   OpenaiConversation,
   OpenaiConversationWithMessages,
   OpenaiError,
@@ -887,3 +899,1004 @@ export const useGenerateOpenaiImage = <
 > => {
   return useMutation(getGenerateOpenaiImageMutationOptions(options));
 };
+
+/**
+ * @summary Register a New Dimensions account
+ */
+export const getNdRegisterUrl = () => {
+  return `/api/nd/auth/register`;
+};
+
+export const ndRegister = async (
+  ndRegisterInput: NdRegisterInput,
+  options?: RequestInit,
+): Promise<NdAuthToken> => {
+  return customFetch<NdAuthToken>(getNdRegisterUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(ndRegisterInput),
+  });
+};
+
+export const getNdRegisterMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof ndRegister>>,
+    TError,
+    { data: BodyType<NdRegisterInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof ndRegister>>,
+  TError,
+  { data: BodyType<NdRegisterInput> },
+  TContext
+> => {
+  const mutationKey = ["ndRegister"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof ndRegister>>,
+    { data: BodyType<NdRegisterInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return ndRegister(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type NdRegisterMutationResult = NonNullable<
+  Awaited<ReturnType<typeof ndRegister>>
+>;
+export type NdRegisterMutationBody = BodyType<NdRegisterInput>;
+export type NdRegisterMutationError = ErrorType<void>;
+
+/**
+ * @summary Register a New Dimensions account
+ */
+export const useNdRegister = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof ndRegister>>,
+    TError,
+    { data: BodyType<NdRegisterInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof ndRegister>>,
+  TError,
+  { data: BodyType<NdRegisterInput> },
+  TContext
+> => {
+  return useMutation(getNdRegisterMutationOptions(options));
+};
+
+/**
+ * @summary Login and get a JWT token
+ */
+export const getNdLoginUrl = () => {
+  return `/api/nd/auth/login`;
+};
+
+export const ndLogin = async (
+  ndLoginInput: NdLoginInput,
+  options?: RequestInit,
+): Promise<NdAuthToken> => {
+  return customFetch<NdAuthToken>(getNdLoginUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(ndLoginInput),
+  });
+};
+
+export const getNdLoginMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof ndLogin>>,
+    TError,
+    { data: BodyType<NdLoginInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof ndLogin>>,
+  TError,
+  { data: BodyType<NdLoginInput> },
+  TContext
+> => {
+  const mutationKey = ["ndLogin"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof ndLogin>>,
+    { data: BodyType<NdLoginInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return ndLogin(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type NdLoginMutationResult = NonNullable<
+  Awaited<ReturnType<typeof ndLogin>>
+>;
+export type NdLoginMutationBody = BodyType<NdLoginInput>;
+export type NdLoginMutationError = ErrorType<void>;
+
+/**
+ * @summary Login and get a JWT token
+ */
+export const useNdLogin = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof ndLogin>>,
+    TError,
+    { data: BodyType<NdLoginInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof ndLogin>>,
+  TError,
+  { data: BodyType<NdLoginInput> },
+  TContext
+> => {
+  return useMutation(getNdLoginMutationOptions(options));
+};
+
+/**
+ * @summary List API keys for the authenticated account
+ */
+export const getNdListKeysUrl = () => {
+  return `/api/nd/keys`;
+};
+
+export const ndListKeys = async (
+  options?: RequestInit,
+): Promise<NdApiKey[]> => {
+  return customFetch<NdApiKey[]>(getNdListKeysUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getNdListKeysQueryKey = () => {
+  return [`/api/nd/keys`] as const;
+};
+
+export const getNdListKeysQueryOptions = <
+  TData = Awaited<ReturnType<typeof ndListKeys>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof ndListKeys>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getNdListKeysQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof ndListKeys>>> = ({
+    signal,
+  }) => ndListKeys({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof ndListKeys>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type NdListKeysQueryResult = NonNullable<
+  Awaited<ReturnType<typeof ndListKeys>>
+>;
+export type NdListKeysQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List API keys for the authenticated account
+ */
+
+export function useNdListKeys<
+  TData = Awaited<ReturnType<typeof ndListKeys>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof ndListKeys>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getNdListKeysQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a new API key
+ */
+export const getNdCreateKeyUrl = () => {
+  return `/api/nd/keys`;
+};
+
+export const ndCreateKey = async (
+  ndApiKeyInput: NdApiKeyInput,
+  options?: RequestInit,
+): Promise<NdApiKeyCreated> => {
+  return customFetch<NdApiKeyCreated>(getNdCreateKeyUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(ndApiKeyInput),
+  });
+};
+
+export const getNdCreateKeyMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof ndCreateKey>>,
+    TError,
+    { data: BodyType<NdApiKeyInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof ndCreateKey>>,
+  TError,
+  { data: BodyType<NdApiKeyInput> },
+  TContext
+> => {
+  const mutationKey = ["ndCreateKey"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof ndCreateKey>>,
+    { data: BodyType<NdApiKeyInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return ndCreateKey(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type NdCreateKeyMutationResult = NonNullable<
+  Awaited<ReturnType<typeof ndCreateKey>>
+>;
+export type NdCreateKeyMutationBody = BodyType<NdApiKeyInput>;
+export type NdCreateKeyMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a new API key
+ */
+export const useNdCreateKey = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof ndCreateKey>>,
+    TError,
+    { data: BodyType<NdApiKeyInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof ndCreateKey>>,
+  TError,
+  { data: BodyType<NdApiKeyInput> },
+  TContext
+> => {
+  return useMutation(getNdCreateKeyMutationOptions(options));
+};
+
+/**
+ * @summary Delete an API key
+ */
+export const getNdDeleteKeyUrl = (id: number) => {
+  return `/api/nd/keys/${id}`;
+};
+
+export const ndDeleteKey = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getNdDeleteKeyUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getNdDeleteKeyMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof ndDeleteKey>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof ndDeleteKey>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["ndDeleteKey"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof ndDeleteKey>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return ndDeleteKey(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type NdDeleteKeyMutationResult = NonNullable<
+  Awaited<ReturnType<typeof ndDeleteKey>>
+>;
+
+export type NdDeleteKeyMutationError = ErrorType<void>;
+
+/**
+ * @summary Delete an API key
+ */
+export const useNdDeleteKey = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof ndDeleteKey>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof ndDeleteKey>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getNdDeleteKeyMutationOptions(options));
+};
+
+/**
+ * @summary List all projects for the authenticated account
+ */
+export const getNdListProjectsUrl = () => {
+  return `/api/nd/projects`;
+};
+
+export const ndListProjects = async (
+  options?: RequestInit,
+): Promise<NdProject[]> => {
+  return customFetch<NdProject[]>(getNdListProjectsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getNdListProjectsQueryKey = () => {
+  return [`/api/nd/projects`] as const;
+};
+
+export const getNdListProjectsQueryOptions = <
+  TData = Awaited<ReturnType<typeof ndListProjects>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof ndListProjects>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getNdListProjectsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof ndListProjects>>> = ({
+    signal,
+  }) => ndListProjects({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof ndListProjects>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type NdListProjectsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof ndListProjects>>
+>;
+export type NdListProjectsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all projects for the authenticated account
+ */
+
+export function useNdListProjects<
+  TData = Awaited<ReturnType<typeof ndListProjects>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof ndListProjects>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getNdListProjectsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a new CAD project
+ */
+export const getNdCreateProjectUrl = () => {
+  return `/api/nd/projects`;
+};
+
+export const ndCreateProject = async (
+  ndProjectInput: NdProjectInput,
+  options?: RequestInit,
+): Promise<NdProject> => {
+  return customFetch<NdProject>(getNdCreateProjectUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(ndProjectInput),
+  });
+};
+
+export const getNdCreateProjectMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof ndCreateProject>>,
+    TError,
+    { data: BodyType<NdProjectInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof ndCreateProject>>,
+  TError,
+  { data: BodyType<NdProjectInput> },
+  TContext
+> => {
+  const mutationKey = ["ndCreateProject"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof ndCreateProject>>,
+    { data: BodyType<NdProjectInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return ndCreateProject(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type NdCreateProjectMutationResult = NonNullable<
+  Awaited<ReturnType<typeof ndCreateProject>>
+>;
+export type NdCreateProjectMutationBody = BodyType<NdProjectInput>;
+export type NdCreateProjectMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a new CAD project
+ */
+export const useNdCreateProject = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof ndCreateProject>>,
+    TError,
+    { data: BodyType<NdProjectInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof ndCreateProject>>,
+  TError,
+  { data: BodyType<NdProjectInput> },
+  TContext
+> => {
+  return useMutation(getNdCreateProjectMutationOptions(options));
+};
+
+/**
+ * @summary Get a project by ID
+ */
+export const getNdGetProjectUrl = (id: number) => {
+  return `/api/nd/projects/${id}`;
+};
+
+export const ndGetProject = async (
+  id: number,
+  options?: RequestInit,
+): Promise<NdProject> => {
+  return customFetch<NdProject>(getNdGetProjectUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getNdGetProjectQueryKey = (id: number) => {
+  return [`/api/nd/projects/${id}`] as const;
+};
+
+export const getNdGetProjectQueryOptions = <
+  TData = Awaited<ReturnType<typeof ndGetProject>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof ndGetProject>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getNdGetProjectQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof ndGetProject>>> = ({
+    signal,
+  }) => ndGetProject(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof ndGetProject>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type NdGetProjectQueryResult = NonNullable<
+  Awaited<ReturnType<typeof ndGetProject>>
+>;
+export type NdGetProjectQueryError = ErrorType<void>;
+
+/**
+ * @summary Get a project by ID
+ */
+
+export function useNdGetProject<
+  TData = Awaited<ReturnType<typeof ndGetProject>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof ndGetProject>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getNdGetProjectQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Update project status or notes
+ */
+export const getNdUpdateProjectUrl = (id: number) => {
+  return `/api/nd/projects/${id}`;
+};
+
+export const ndUpdateProject = async (
+  id: number,
+  ndProjectUpdate: NdProjectUpdate,
+  options?: RequestInit,
+): Promise<NdProject> => {
+  return customFetch<NdProject>(getNdUpdateProjectUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(ndProjectUpdate),
+  });
+};
+
+export const getNdUpdateProjectMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof ndUpdateProject>>,
+    TError,
+    { id: number; data: BodyType<NdProjectUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof ndUpdateProject>>,
+  TError,
+  { id: number; data: BodyType<NdProjectUpdate> },
+  TContext
+> => {
+  const mutationKey = ["ndUpdateProject"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof ndUpdateProject>>,
+    { id: number; data: BodyType<NdProjectUpdate> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return ndUpdateProject(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type NdUpdateProjectMutationResult = NonNullable<
+  Awaited<ReturnType<typeof ndUpdateProject>>
+>;
+export type NdUpdateProjectMutationBody = BodyType<NdProjectUpdate>;
+export type NdUpdateProjectMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update project status or notes
+ */
+export const useNdUpdateProject = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof ndUpdateProject>>,
+    TError,
+    { id: number; data: BodyType<NdProjectUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof ndUpdateProject>>,
+  TError,
+  { id: number; data: BodyType<NdProjectUpdate> },
+  TContext
+> => {
+  return useMutation(getNdUpdateProjectMutationOptions(options));
+};
+
+/**
+ * @summary List drawings attached to a project
+ */
+export const getNdListDrawingsUrl = (id: number) => {
+  return `/api/nd/projects/${id}/drawings`;
+};
+
+export const ndListDrawings = async (
+  id: number,
+  options?: RequestInit,
+): Promise<NdDrawing[]> => {
+  return customFetch<NdDrawing[]>(getNdListDrawingsUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getNdListDrawingsQueryKey = (id: number) => {
+  return [`/api/nd/projects/${id}/drawings`] as const;
+};
+
+export const getNdListDrawingsQueryOptions = <
+  TData = Awaited<ReturnType<typeof ndListDrawings>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof ndListDrawings>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getNdListDrawingsQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof ndListDrawings>>> = ({
+    signal,
+  }) => ndListDrawings(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof ndListDrawings>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type NdListDrawingsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof ndListDrawings>>
+>;
+export type NdListDrawingsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List drawings attached to a project
+ */
+
+export function useNdListDrawings<
+  TData = Awaited<ReturnType<typeof ndListDrawings>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof ndListDrawings>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getNdListDrawingsQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Attach a drawing to a project
+ */
+export const getNdAddDrawingUrl = (id: number) => {
+  return `/api/nd/projects/${id}/drawings`;
+};
+
+export const ndAddDrawing = async (
+  id: number,
+  ndDrawingInput: NdDrawingInput,
+  options?: RequestInit,
+): Promise<NdDrawing> => {
+  return customFetch<NdDrawing>(getNdAddDrawingUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(ndDrawingInput),
+  });
+};
+
+export const getNdAddDrawingMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof ndAddDrawing>>,
+    TError,
+    { id: number; data: BodyType<NdDrawingInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof ndAddDrawing>>,
+  TError,
+  { id: number; data: BodyType<NdDrawingInput> },
+  TContext
+> => {
+  const mutationKey = ["ndAddDrawing"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof ndAddDrawing>>,
+    { id: number; data: BodyType<NdDrawingInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return ndAddDrawing(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type NdAddDrawingMutationResult = NonNullable<
+  Awaited<ReturnType<typeof ndAddDrawing>>
+>;
+export type NdAddDrawingMutationBody = BodyType<NdDrawingInput>;
+export type NdAddDrawingMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Attach a drawing to a project
+ */
+export const useNdAddDrawing = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof ndAddDrawing>>,
+    TError,
+    { id: number; data: BodyType<NdDrawingInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof ndAddDrawing>>,
+  TError,
+  { id: number; data: BodyType<NdDrawingInput> },
+  TContext
+> => {
+  return useMutation(getNdAddDrawingMutationOptions(options));
+};
+
+/**
+ * @summary Dashboard stats for the authenticated account
+ */
+export const getNdDashboardUrl = () => {
+  return `/api/nd/dashboard`;
+};
+
+export const ndDashboard = async (
+  options?: RequestInit,
+): Promise<NdDashboardStats> => {
+  return customFetch<NdDashboardStats>(getNdDashboardUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getNdDashboardQueryKey = () => {
+  return [`/api/nd/dashboard`] as const;
+};
+
+export const getNdDashboardQueryOptions = <
+  TData = Awaited<ReturnType<typeof ndDashboard>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof ndDashboard>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getNdDashboardQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof ndDashboard>>> = ({
+    signal,
+  }) => ndDashboard({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof ndDashboard>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type NdDashboardQueryResult = NonNullable<
+  Awaited<ReturnType<typeof ndDashboard>>
+>;
+export type NdDashboardQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Dashboard stats for the authenticated account
+ */
+
+export function useNdDashboard<
+  TData = Awaited<ReturnType<typeof ndDashboard>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof ndDashboard>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getNdDashboardQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}

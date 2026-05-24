@@ -200,8 +200,323 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/GenerateOpenaiImageResponse"
+  /nd/auth/register:
+    post:
+      operationId: ndRegister
+      tags: [nd]
+      summary: Register a New Dimensions account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NdRegisterInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NdAuthToken"
+        "400":
+          description: Validation error
+  /nd/auth/login:
+    post:
+      operationId: ndLogin
+      tags: [nd]
+      summary: Login and get a JWT token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NdLoginInput"
+      responses:
+        "200":
+          description: JWT token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NdAuthToken"
+        "401":
+          description: Invalid credentials
+  /nd/keys:
+    get:
+      operationId: ndListKeys
+      tags: [nd]
+      summary: List API keys for the authenticated account
+      responses:
+        "200":
+          description: API keys
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/NdApiKey"
+    post:
+      operationId: ndCreateKey
+      tags: [nd]
+      summary: Create a new API key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NdApiKeyInput"
+      responses:
+        "201":
+          description: Created — plaintext key returned once only
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NdApiKeyCreated"
+  /nd/keys/{id}:
+    delete:
+      operationId: ndDeleteKey
+      tags: [nd]
+      summary: Delete an API key
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+  /nd/projects:
+    get:
+      operationId: ndListProjects
+      tags: [nd]
+      summary: List all projects for the authenticated account
+      responses:
+        "200":
+          description: Projects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/NdProject"
+    post:
+      operationId: ndCreateProject
+      tags: [nd]
+      summary: Create a new CAD project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NdProjectInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NdProject"
+  /nd/projects/{id}:
+    get:
+      operationId: ndGetProject
+      tags: [nd]
+      summary: Get a project by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Project
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NdProject"
+        "404":
+          description: Not found
+    patch:
+      operationId: ndUpdateProject
+      tags: [nd]
+      summary: Update project status or notes
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NdProjectUpdate"
+      responses:
+        "200":
+          description: Updated project
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NdProject"
+  /nd/projects/{id}/drawings:
+    get:
+      operationId: ndListDrawings
+      tags: [nd]
+      summary: List drawings attached to a project
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Drawings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/NdDrawing"
+    post:
+      operationId: ndAddDrawing
+      tags: [nd]
+      summary: Attach a drawing to a project
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NdDrawingInput"
+      responses:
+        "201":
+          description: Drawing attached
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NdDrawing"
+  /nd/dashboard:
+    get:
+      operationId: ndDashboard
+      tags: [nd]
+      summary: Dashboard stats for the authenticated account
+      responses:
+        "200":
+          description: Stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NdDashboardStats"
 components:
   schemas:
+    NdRegisterInput:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string }
+        password: { type: string }
+        name: { type: string }
+    NdLoginInput:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string }
+        password: { type: string }
+    NdAuthToken:
+      type: object
+      required: [token, accountId, email]
+      properties:
+        token: { type: string }
+        accountId: { type: integer }
+        email: { type: string }
+        name: { type: ["string", "null"] }
+    NdApiKey:
+      type: object
+      required: [id, name, keyPrefix, createdAt]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        keyPrefix: { type: string }
+        lastUsedAt: { type: ["string", "null"] }
+        createdAt: { type: string }
+    NdApiKeyInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+    NdApiKeyCreated:
+      type: object
+      required: [id, name, keyPrefix, key, createdAt]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        keyPrefix: { type: string }
+        key: { type: string }
+        createdAt: { type: string }
+    NdProject:
+      type: object
+      required: [id, name, status, createdAt, updatedAt]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        industry: { type: ["string", "null"] }
+        specs: { type: ["string", "null"] }
+        drawingNotes: { type: ["string", "null"] }
+        status: { type: string }
+        externalRef: { type: ["string", "null"] }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+    NdProjectInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        industry: { type: string }
+        specs: { type: string }
+        drawingNotes: { type: string }
+        externalRef: { type: string }
+    NdProjectUpdate:
+      type: object
+      properties:
+        status: { type: string }
+        drawingNotes: { type: string }
+        specs: { type: string }
+    NdDrawing:
+      type: object
+      required: [id, projectId, fileName, createdAt]
+      properties:
+        id: { type: integer }
+        projectId: { type: integer }
+        fileName: { type: string }
+        fileUrl: { type: ["string", "null"] }
+        uploadedBy: { type: ["string", "null"] }
+        notes: { type: ["string", "null"] }
+        createdAt: { type: string }
+    NdDrawingInput:
+      type: object
+      required: [fileName]
+      properties:
+        fileName: { type: string }
+        fileUrl: { type: string }
+        notes: { type: string }
+    NdDashboardStats:
+      type: object
+      required: [totalProjects, pendingProjects, completeProjects, totalDrawings, totalKeys]
+      properties:
+        totalProjects: { type: integer }
+        pendingProjects: { type: integer }
+        completeProjects: { type: integer }
+        totalDrawings: { type: integer }
+        totalKeys: { type: integer }
     HealthStatus:
       type: object
       properties:

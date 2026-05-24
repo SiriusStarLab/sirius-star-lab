@@ -5,6 +5,103 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export interface NdRegisterInput {
+  email: string;
+  password: string;
+  name?: string;
+}
+
+export interface NdLoginInput {
+  email: string;
+  password: string;
+}
+
+export interface NdAuthToken {
+  token: string;
+  accountId: number;
+  email: string;
+  /** @nullable */
+  name?: string | null;
+}
+
+export interface NdApiKey {
+  id: number;
+  name: string;
+  keyPrefix: string;
+  /** @nullable */
+  lastUsedAt?: string | null;
+  createdAt: string;
+}
+
+export interface NdApiKeyInput {
+  name: string;
+}
+
+export interface NdApiKeyCreated {
+  id: number;
+  name: string;
+  keyPrefix: string;
+  key: string;
+  createdAt: string;
+}
+
+export interface NdProject {
+  id: number;
+  name: string;
+  /** @nullable */
+  industry?: string | null;
+  /** @nullable */
+  specs?: string | null;
+  /** @nullable */
+  drawingNotes?: string | null;
+  status: string;
+  /** @nullable */
+  externalRef?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NdProjectInput {
+  name: string;
+  industry?: string;
+  specs?: string;
+  drawingNotes?: string;
+  externalRef?: string;
+}
+
+export interface NdProjectUpdate {
+  status?: string;
+  drawingNotes?: string;
+  specs?: string;
+}
+
+export interface NdDrawing {
+  id: number;
+  projectId: number;
+  fileName: string;
+  /** @nullable */
+  fileUrl?: string | null;
+  /** @nullable */
+  uploadedBy?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  createdAt: string;
+}
+
+export interface NdDrawingInput {
+  fileName: string;
+  fileUrl?: string;
+  notes?: string;
+}
+
+export interface NdDashboardStats {
+  totalProjects: number;
+  pendingProjects: number;
+  completeProjects: number;
+  totalDrawings: number;
+  totalKeys: number;
+}
+
 export interface HealthStatus {
   status: string;
 }

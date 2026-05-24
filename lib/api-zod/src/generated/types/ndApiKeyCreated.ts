@@ -6,7 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface SendOpenaiMessageBody {
-  content: string;
-  userId?: string;
+export interface NdApiKeyCreated {
+  id: number;
+  name: string;
+  keyPrefix: string;
+  key: string;
+  createdAt: string;
 }

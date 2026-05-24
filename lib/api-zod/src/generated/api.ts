@@ -91,10 +91,6 @@ export const SendOpenaiMessageParams = zod.object({
 export const SendOpenaiMessageBody = zod.object({
   content: zod.string(),
   userId: zod.string().optional(),
-  imageBase64: zod.string().optional(),
-  mode: zod.string().optional(),
-  documentBase64: zod.string().optional(),
-  documentName: zod.string().optional(),
 });
 
 /**
@@ -144,4 +140,167 @@ export const GenerateOpenaiImageBody = zod.object({
 
 export const GenerateOpenaiImageResponse = zod.object({
   b64_json: zod.string(),
+});
+
+/**
+ * @summary Register a New Dimensions account
+ */
+export const NdRegisterBody = zod.object({
+  email: zod.string(),
+  password: zod.string(),
+  name: zod.string().optional(),
+});
+
+/**
+ * @summary Login and get a JWT token
+ */
+export const NdLoginBody = zod.object({
+  email: zod.string(),
+  password: zod.string(),
+});
+
+export const NdLoginResponse = zod.object({
+  token: zod.string(),
+  accountId: zod.number(),
+  email: zod.string(),
+  name: zod.string().nullish(),
+});
+
+/**
+ * @summary List API keys for the authenticated account
+ */
+export const NdListKeysResponseItem = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  keyPrefix: zod.string(),
+  lastUsedAt: zod.string().nullish(),
+  createdAt: zod.string(),
+});
+export const NdListKeysResponse = zod.array(NdListKeysResponseItem);
+
+/**
+ * @summary Create a new API key
+ */
+export const NdCreateKeyBody = zod.object({
+  name: zod.string(),
+});
+
+/**
+ * @summary Delete an API key
+ */
+export const NdDeleteKeyParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
+ * @summary List all projects for the authenticated account
+ */
+export const NdListProjectsResponseItem = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  industry: zod.string().nullish(),
+  specs: zod.string().nullish(),
+  drawingNotes: zod.string().nullish(),
+  status: zod.string(),
+  externalRef: zod.string().nullish(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});
+export const NdListProjectsResponse = zod.array(NdListProjectsResponseItem);
+
+/**
+ * @summary Create a new CAD project
+ */
+export const NdCreateProjectBody = zod.object({
+  name: zod.string(),
+  industry: zod.string().optional(),
+  specs: zod.string().optional(),
+  drawingNotes: zod.string().optional(),
+  externalRef: zod.string().optional(),
+});
+
+/**
+ * @summary Get a project by ID
+ */
+export const NdGetProjectParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const NdGetProjectResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  industry: zod.string().nullish(),
+  specs: zod.string().nullish(),
+  drawingNotes: zod.string().nullish(),
+  status: zod.string(),
+  externalRef: zod.string().nullish(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});
+
+/**
+ * @summary Update project status or notes
+ */
+export const NdUpdateProjectParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const NdUpdateProjectBody = zod.object({
+  status: zod.string().optional(),
+  drawingNotes: zod.string().optional(),
+  specs: zod.string().optional(),
+});
+
+export const NdUpdateProjectResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  industry: zod.string().nullish(),
+  specs: zod.string().nullish(),
+  drawingNotes: zod.string().nullish(),
+  status: zod.string(),
+  externalRef: zod.string().nullish(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});
+
+/**
+ * @summary List drawings attached to a project
+ */
+export const NdListDrawingsParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const NdListDrawingsResponseItem = zod.object({
+  id: zod.number(),
+  projectId: zod.number(),
+  fileName: zod.string(),
+  fileUrl: zod.string().nullish(),
+  uploadedBy: zod.string().nullish(),
+  notes: zod.string().nullish(),
+  createdAt: zod.string(),
+});
+export const NdListDrawingsResponse = zod.array(NdListDrawingsResponseItem);
+
+/**
+ * @summary Attach a drawing to a project
+ */
+export const NdAddDrawingParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const NdAddDrawingBody = zod.object({
+  fileName: zod.string(),
+  fileUrl: zod.string().optional(),
+  notes: zod.string().optional(),
+});
+
+/**
+ * @summary Dashboard stats for the authenticated account
+ */
+export const NdDashboardResponse = zod.object({
+  totalProjects: zod.number(),
+  pendingProjects: zod.number(),
+  completeProjects: zod.number(),
+  totalDrawings: zod.number(),
+  totalKeys: zod.number(),
 });
