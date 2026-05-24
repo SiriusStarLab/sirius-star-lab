@@ -426,7 +426,7 @@ Keep responses warm, personal, and compelling. Mix depth with accessibility. Nev
   const accentColor = domain.glow.replace("0.25)", "0.85)");
 
   return (
-    <div className="flex flex-col h-full" style={{ background: "transparent" }}>
+    <div className="flex flex-col h-screen overflow-hidden" style={{ background: "transparent" }}>
       {/* Header */}
       <div className="flex items-center gap-4 px-6 py-4 border-b"
         style={{ borderColor: "rgba(15,23,42,0.08)", background: "rgba(255,255,255,0.85)", backdropFilter: "blur(12px)" }}>

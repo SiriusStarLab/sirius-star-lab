@@ -187,21 +187,25 @@ Be genuinely illuminating. Draw on real science, ancient wisdom, and cutting-edg
   const startTopic = () => send(topic.prompt);
 
   return (
-    <div className="h-full flex flex-col" style={{ background: "#F8FAFF" }}>
+    <div className="h-screen overflow-hidden flex flex-col" style={{ background: `linear-gradient(160deg, #F9FAFB 0%, ${topic.color}0d 60%, ${topic.color}06 100%)` }}>
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b bg-white" style={{ borderColor: "rgba(15,23,42,0.08)" }}>
-        <button onClick={onBack} className="p-1.5 rounded-lg transition-all hover:bg-gray-100" style={{ color: "rgba(15,23,42,0.45)" }}>
+      <div className="flex items-center gap-3 px-4 py-3 border-b" style={{ borderColor: `${topic.color}22`, background: `linear-gradient(135deg, white 0%, ${topic.color}0a 100%)` }}>
+        <button onClick={onBack} className="p-1.5 rounded-lg transition-all" style={{ color: "rgba(15,23,42,0.45)" }}
+          onMouseEnter={e => (e.currentTarget.style.background = `${topic.color}15`)}
+          onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
           <ArrowLeft className="w-4 h-4" />
         </button>
-        <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: topic.bg, border: `1px solid ${topic.border}` }}>
-          <topic.icon className="w-4 h-4" style={{ color: topic.color }} />
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `linear-gradient(135deg, ${topic.color}20, ${topic.color}10)`, border: `1.5px solid ${topic.color}40` }}>
+          <topic.icon className="w-4.5 h-4.5" style={{ color: topic.color }} />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold" style={{ color: "#0F172A" }}>{topic.title}</p>
-          <p className="text-[11px]" style={{ color: "rgba(15,23,42,0.45)" }}>{topic.subtitle}</p>
+          <p className="text-sm font-bold" style={{ color: "#0F172A" }}>{topic.title}</p>
+          <p className="text-[11px] font-medium" style={{ color: `${topic.color}bb` }}>{topic.subtitle}</p>
         </div>
         <button onClick={() => { localStorage.removeItem(storageKey); setMessages([welcomeMsg]); }}
-          className="p-1.5 rounded-lg hover:bg-gray-100 transition-all" style={{ color: "rgba(15,23,42,0.35)" }} title="Clear chat">
+          className="p-1.5 rounded-lg transition-all" style={{ color: "rgba(15,23,42,0.35)" }} title="Clear chat"
+          onMouseEnter={e => (e.currentTarget.style.background = `${topic.color}15`)}
+          onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
           <RefreshCw className="w-3.5 h-3.5" />
         </button>
       </div>
@@ -248,8 +252,8 @@ Be genuinely illuminating. Draw on real science, ancient wisdom, and cutting-edg
       </div>
 
       {/* Input */}
-      <div className="px-4 pb-5 pt-3 border-t bg-white" style={{ borderColor: "rgba(15,23,42,0.08)" }}>
-        <div className="flex items-end gap-2 rounded-2xl px-3 py-2" style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.1)" }}>
+      <div className="px-4 pb-5 pt-3 border-t" style={{ borderColor: `${topic.color}22`, background: `linear-gradient(135deg, white 0%, ${topic.color}07 100%)` }}>
+        <div className="flex items-end gap-2 rounded-2xl px-3 py-2" style={{ background: "white", border: `1px solid ${topic.color}30`, boxShadow: `0 2px 12px ${topic.color}14` }}>
           <textarea
             value={input}
             onChange={e => setInput(e.target.value)}
