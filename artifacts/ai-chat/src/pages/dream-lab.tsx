@@ -61,13 +61,14 @@ type ChatMsg = { role: "user" | "assistant"; content: string };
 
 // ── Colour themes ─────────────────────────────────────────────────────────────
 
-const THEMES: Record<string, { bg: string; gradient: string; accent: string; soft: string; text: string; border: string }> = {
-  cosmic:  { bg: "#0f0a1e", gradient: "linear-gradient(135deg, #1a0533 0%, #0d1b3e 50%, #0f0a1e 100%)", accent: "#a855f7", soft: "rgba(168,85,247,0.12)", text: "#e2d9f3", border: "rgba(168,85,247,0.2)" },
-  golden:  { bg: "#1a1200", gradient: "linear-gradient(135deg, #2a1a00 0%, #1a1200 50%, #0f0d00 100%)", accent: "#f59e0b", soft: "rgba(245,158,11,0.12)", text: "#fef3c7", border: "rgba(245,158,11,0.2)" },
-  ocean:   { bg: "#001a2e", gradient: "linear-gradient(135deg, #002244 0%, #001a2e 50%, #000f1a 100%)", accent: "#06b6d4", soft: "rgba(6,182,212,0.12)", text: "#cffafe", border: "rgba(6,182,212,0.2)" },
-  forest:  { bg: "#051a08", gradient: "linear-gradient(135deg, #0a2e0f 0%, #051a08 50%, #010f03 100%)", accent: "#22c55e", soft: "rgba(34,197,94,0.12)", text: "#dcfce7", border: "rgba(34,197,94,0.2)" },
-  rose:    { bg: "#1a0010", gradient: "linear-gradient(135deg, #2e001a 0%, #1a0010 50%, #0f0009 100%)", accent: "#f43f5e", soft: "rgba(244,63,94,0.12)", text: "#ffe4e6", border: "rgba(244,63,94,0.2)" },
-  pearl:   { bg: "#F8FAFC", gradient: "linear-gradient(135deg, #FFFFFF 0%, #F1F5F9 50%, #E2E8F0 100%)", accent: "#6d28d9", soft: "rgba(109,40,217,0.08)", text: "#1e1b4b", border: "rgba(109,40,217,0.15)" },
+const THEMES: Record<string, { bg: string; gradient: string; accent: string; soft: string; text: string; border: string; msgBg: string; inputBg: string }> = {
+  sirius:  { bg: "#EFF6FF", gradient: "linear-gradient(160deg, hsl(210,55%,97%) 0%, hsl(220,45%,95%) 100%)", accent: "hsl(193,100%,35%)", soft: "hsla(193,100%,35%,0.08)", text: "#0F172A", border: "rgba(15,23,42,0.08)", msgBg: "white", inputBg: "white" },
+  pearl:   { bg: "#F8FAFC", gradient: "linear-gradient(135deg, #FFFFFF 0%, #F1F5F9 50%, #E2E8F0 100%)", accent: "#6d28d9", soft: "rgba(109,40,217,0.08)", text: "#1e1b4b", border: "rgba(109,40,217,0.12)", msgBg: "white", inputBg: "white" },
+  cosmic:  { bg: "#0f0a1e", gradient: "linear-gradient(135deg, #1a0533 0%, #0d1b3e 50%, #0f0a1e 100%)", accent: "#a855f7", soft: "rgba(168,85,247,0.12)", text: "#e2d9f3", border: "rgba(168,85,247,0.2)", msgBg: "rgba(255,255,255,0.07)", inputBg: "rgba(255,255,255,0.07)" },
+  golden:  { bg: "#1a1200", gradient: "linear-gradient(135deg, #2a1a00 0%, #1a1200 50%, #0f0d00 100%)", accent: "#f59e0b", soft: "rgba(245,158,11,0.12)", text: "#fef3c7", border: "rgba(245,158,11,0.2)", msgBg: "rgba(255,255,255,0.07)", inputBg: "rgba(255,255,255,0.07)" },
+  ocean:   { bg: "#001a2e", gradient: "linear-gradient(135deg, #002244 0%, #001a2e 50%, #000f1a 100%)", accent: "#06b6d4", soft: "rgba(6,182,212,0.12)", text: "#cffafe", border: "rgba(6,182,212,0.2)", msgBg: "rgba(255,255,255,0.07)", inputBg: "rgba(255,255,255,0.07)" },
+  forest:  { bg: "#051a08", gradient: "linear-gradient(135deg, #0a2e0f 0%, #051a08 50%, #010f03 100%)", accent: "#22c55e", soft: "rgba(34,197,94,0.12)", text: "#dcfce7", border: "rgba(34,197,94,0.2)", msgBg: "rgba(255,255,255,0.07)", inputBg: "rgba(255,255,255,0.07)" },
+  rose:    { bg: "#1a0010", gradient: "linear-gradient(135deg, #2e001a 0%, #1a0010 50%, #0f0009 100%)", accent: "#f43f5e", soft: "rgba(244,63,94,0.12)", text: "#ffe4e6", border: "rgba(244,63,94,0.2)", msgBg: "rgba(255,255,255,0.07)", inputBg: "rgba(255,255,255,0.07)" },
 };
 
 const IDEA_COLOURS: Record<string, string> = {
@@ -131,7 +132,7 @@ export function DreamLabPage() {
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<DreamView>("board");
   const [selectedIdea, setSelectedIdea] = useState<Idea | null>(null);
-  const [theme, setTheme] = useState<string>("cosmic");
+  const [theme, setTheme] = useState<string>("sirius");
   const [showInfo, setShowInfo] = useState(false);
   const api = useApi();
 
@@ -167,12 +168,12 @@ export function DreamLabPage() {
 
   if (loading) {
     return (
-      <div className="h-screen flex items-center justify-center" style={{ background: THEMES.cosmic.gradient }}>
+      <div className="h-screen flex items-center justify-center" style={{ background: THEMES.sirius.gradient }}>
         <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center gap-4">
-          <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{ background: "rgba(168,85,247,0.2)" }}>
-            <Sparkles className="w-8 h-8 animate-pulse" style={{ color: "#a855f7" }} />
+          <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{ background: THEMES.sirius.soft }}>
+            <Sparkles className="w-8 h-8 animate-pulse" style={{ color: THEMES.sirius.accent }} />
           </div>
-          <p className="text-sm" style={{ color: "rgba(255,255,255,0.5)" }}>Loading your Dream Lab…</p>
+          <p className="text-sm" style={{ color: "rgba(15,23,42,0.45)" }}>Loading your Dream Lab…</p>
         </motion.div>
       </div>
     );
@@ -1395,9 +1396,10 @@ function SiriusChatView({ T, profile }: { T: typeof THEMES.cosmic; profile: Drea
             )}
             <div className="max-w-[82%] rounded-2xl px-4 py-3"
               style={{
-                background: msg.role === "user" ? `linear-gradient(135deg, ${T.accent}, ${T.accent}cc)` : "rgba(255,255,255,0.08)",
+                background: msg.role === "user" ? `linear-gradient(135deg, ${T.accent}, ${T.accent}cc)` : T.msgBg,
                 border: msg.role === "assistant" ? `1px solid ${T.border}` : "none",
-                color: T.text,
+                color: msg.role === "user" ? "#fff" : T.text,
+                boxShadow: msg.role === "assistant" ? "0 1px 4px rgba(15,23,42,0.05)" : "none",
               }}>
               {msg.role === "assistant" && streaming && i === messages.length - 1 && !msg.content ? (
                 <div className="flex items-center gap-1 py-1">
@@ -1443,7 +1445,7 @@ function SiriusChatView({ T, profile }: { T: typeof THEMES.cosmic; profile: Drea
             rows={1}
             className="flex-1 rounded-2xl px-4 py-3 text-sm outline-none resize-none"
             style={{
-              background: voiceActive ? `${T.accent}18` : "rgba(255,255,255,0.08)",
+              background: voiceActive ? `${T.accent}18` : T.inputBg,
               border: `1px solid ${voiceActive ? T.accent : T.border}`,
               color: T.text,
               minHeight: 48,

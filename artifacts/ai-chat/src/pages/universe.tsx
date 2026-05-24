@@ -118,13 +118,15 @@ interface Message {
 function StarField() {
   return (
     <div className="fixed inset-0 overflow-hidden pointer-events-none" style={{ zIndex: 0 }}>
-      {Array.from({ length: 120 }).map((_, i) => {
-        const size = Math.random() * 2 + 0.5;
-        const opacity = Math.random() * 0.7 + 0.1;
+      {Array.from({ length: 60 }).map((_, i) => {
+        const size = Math.random() * 3 + 1;
+        const opacity = Math.random() * 0.18 + 0.04;
         const x = Math.random() * 100;
         const y = Math.random() * 100;
-        const duration = Math.random() * 4 + 2;
-        const delay = Math.random() * 4;
+        const duration = Math.random() * 5 + 3;
+        const delay = Math.random() * 5;
+        const hues = [210, 220, 193, 240, 270];
+        const hue = hues[i % hues.length];
         return (
           <div
             key={i}
@@ -134,7 +136,7 @@ function StarField() {
               height: size,
               left: `${x}%`,
               top: `${y}%`,
-              background: `rgba(255,255,255,${opacity})`,
+              background: `hsla(${hue},70%,55%,${opacity})`,
               animation: `twinkle ${duration}s ${delay}s ease-in-out infinite`,
             }}
           />
@@ -142,8 +144,8 @@ function StarField() {
       })}
       <style>{`
         @keyframes twinkle {
-          0%, 100% { opacity: 0.1; transform: scale(1); }
-          50% { opacity: 0.8; transform: scale(1.3); }
+          0%, 100% { opacity: 0.05; transform: scale(1); }
+          50% { opacity: 0.25; transform: scale(1.4); }
         }
       `}</style>
     </div>
@@ -163,22 +165,24 @@ function DomainCard({ domain, onClick }: { domain: Domain; onClick: () => void }
       onMouseLeave={() => setHovered(false)}
       className="relative text-left w-full rounded-2xl p-6 overflow-hidden transition-all duration-300 group"
       style={{
-        background: `linear-gradient(135deg, ${domain.color.replace("from-", "").replace(" to-", ", ")})`,
-        border: `1px solid ${hovered ? domain.border : domain.border.replace("0.3)", "0.15)")}`,
-        boxShadow: hovered ? `0 0 40px ${domain.glow}, 0 8px 32px rgba(0,0,0,0.4)` : `0 4px 20px rgba(0,0,0,0.3)`,
+        background: hovered
+          ? `linear-gradient(135deg, white 0%, ${domain.glow.replace("0.25)", "0.07)")} 100%)`
+          : "white",
+        border: `1px solid ${hovered ? domain.border : "rgba(15,23,42,0.08)"}`,
+        boxShadow: hovered
+          ? `0 8px 32px ${domain.glow.replace("0.25)", "0.2)")}, 0 2px 12px rgba(15,23,42,0.06)`
+          : "0 2px 8px rgba(15,23,42,0.06)",
       }}
     >
-      <div className="absolute inset-0 opacity-20" style={{
-        background: `radial-gradient(ellipse at top left, ${domain.glow} 0%, transparent 60%)`,
-      }} />
+      <div className="absolute top-0 left-0 w-1 h-full rounded-l-2xl" style={{ background: domain.glow.replace("0.25)", "0.7)") }} />
       <div className="relative z-10">
         <div className="flex items-start justify-between mb-3">
-          <span className="text-3xl" style={{ filter: `drop-shadow(0 0 8px ${domain.glow})` }}>{domain.icon}</span>
-          <ChevronRight size={16} className="opacity-40 group-hover:opacity-80 transition-opacity mt-1" style={{ color: "rgba(255,255,255,0.6)" }} />
+          <span className="text-3xl">{domain.icon}</span>
+          <ChevronRight size={16} className="opacity-30 group-hover:opacity-70 transition-opacity mt-1" style={{ color: "rgba(15,23,42,0.5)" }} />
         </div>
-        <h3 className="text-lg font-bold text-white mb-1">{domain.name}</h3>
-        <p className="text-xs font-medium mb-3 opacity-60" style={{ color: "rgba(255,255,255,0.7)" }}>{domain.subtitle}</p>
-        <p className="text-sm leading-relaxed opacity-70" style={{ color: "rgba(255,255,255,0.75)" }}>{domain.description}</p>
+        <h3 className="text-base font-bold mb-1" style={{ color: "#0F172A" }}>{domain.name}</h3>
+        <p className="text-xs font-medium mb-3" style={{ color: domain.glow.replace("0.25)", "0.9)") }}>{domain.subtitle}</p>
+        <p className="text-sm leading-relaxed" style={{ color: "rgba(15,23,42,0.55)" }}>{domain.description}</p>
       </div>
     </motion.button>
   );
@@ -319,63 +323,71 @@ Keep responses warm, personal, and compelling. Mix depth with accessibility. Nev
     setSpeaking(false);
   };
 
+  const accentColor = domain.glow.replace("0.25)", "0.85)");
+
   return (
     <div className="flex flex-col h-full" style={{ background: "transparent" }}>
-      <div className="flex items-center gap-4 px-6 py-4 border-b" style={{ borderColor: domain.border.replace("0.3)", "0.12)"), background: "rgba(0,0,0,0.3)", backdropFilter: "blur(12px)" }}>
+      {/* Header */}
+      <div className="flex items-center gap-4 px-6 py-4 border-b"
+        style={{ borderColor: "rgba(15,23,42,0.08)", background: "rgba(255,255,255,0.85)", backdropFilter: "blur(12px)" }}>
         <button
           onClick={onBack}
-          className="flex items-center gap-2 text-sm font-medium transition-all duration-200 px-3 py-1.5 rounded-lg hover:bg-white/5"
-          style={{ color: "rgba(255,255,255,0.5)" }}
+          className="flex items-center gap-2 text-sm font-medium transition-all duration-200 px-3 py-1.5 rounded-lg"
+          style={{ color: "rgba(15,23,42,0.45)", background: "rgba(15,23,42,0.04)" }}
         >
           <ArrowLeft size={15} />
           All domains
         </button>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="text-xl" style={{ filter: `drop-shadow(0 0 6px ${domain.glow})` }}>{domain.icon}</span>
-            <h2 className="text-white font-bold text-base">{domain.name}</h2>
+            <span className="text-xl">{domain.icon}</span>
+            <h2 className="font-bold text-base" style={{ color: "#0F172A" }}>{domain.name}</h2>
           </div>
-          <p className="text-xs mt-0.5 opacity-50 text-white">{domain.subtitle}</p>
+          <p className="text-xs mt-0.5" style={{ color: accentColor }}>{domain.subtitle}</p>
         </div>
         <div className="flex items-center gap-2">
           {speaking && (
-            <button onClick={stopSpeaking} className="p-2 rounded-lg transition-all hover:bg-white/10" title="Stop speaking">
-              <Volume2 size={15} className="animate-pulse" style={{ color: domain.glow.replace("0.25)", "0.8)") }} />
+            <button onClick={stopSpeaking} className="p-2 rounded-lg transition-all" style={{ background: "rgba(15,23,42,0.04)" }} title="Stop speaking">
+              <Volume2 size={15} className="animate-pulse" style={{ color: accentColor }} />
             </button>
           )}
           <button
             onClick={() => { setMuted(m => !m); if (speaking) stopSpeaking(); }}
-            className="p-2 rounded-lg transition-all hover:bg-white/10"
+            className="p-2 rounded-lg transition-all"
+            style={{ background: "rgba(15,23,42,0.04)" }}
             title={muted ? "Unmute Sirius" : "Mute Sirius"}
           >
-            {muted ? <VolumeX size={15} style={{ color: "rgba(255,255,255,0.4)" }} /> : <Volume2 size={15} style={{ color: "rgba(255,255,255,0.4)" }} />}
+            {muted
+              ? <VolumeX size={15} style={{ color: "rgba(15,23,42,0.3)" }} />
+              : <Volume2 size={15} style={{ color: "rgba(15,23,42,0.4)" }} />}
           </button>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6" style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.1) transparent" }}>
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto px-6 py-6 space-y-5" style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(15,23,42,0.1) transparent" }}>
         {messages.map((msg, i) => (
           <motion.div
             key={i}
-            initial={{ opacity: 0, y: 12 }}
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
           >
             {msg.role === "assistant" && (
               <div className="flex items-start gap-3 max-w-[85%]">
                 <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
-                  style={{ background: `radial-gradient(circle, ${domain.glow.replace("0.25)", "0.4)")}, ${domain.glow.replace("0.25)", "0.1)")})`, border: `1px solid ${domain.border.replace("0.3)", "0.4)")}` }}>
+                  style={{ background: domain.glow.replace("0.25)", "0.12)"), border: `1px solid ${domain.glow.replace("0.25)", "0.25)")}` }}>
                   <span className="text-sm">{domain.icon}</span>
                 </div>
-                <div className="rounded-2xl rounded-tl-sm px-4 py-3 text-sm leading-relaxed text-white/85"
-                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)", backdropFilter: "blur(8px)", whiteSpace: "pre-wrap" }}>
-                  {msg.content || <span className="animate-pulse opacity-50">●●●</span>}
+                <div className="rounded-2xl rounded-tl-sm px-4 py-3 text-sm leading-relaxed"
+                  style={{ background: "white", border: "1px solid rgba(15,23,42,0.08)", color: "#0F172A", whiteSpace: "pre-wrap", boxShadow: "0 1px 4px rgba(15,23,42,0.05)" }}>
+                  {msg.content || <span className="animate-pulse" style={{ color: "rgba(15,23,42,0.3)" }}>●●●</span>}
                 </div>
               </div>
             )}
             {msg.role === "user" && (
               <div className="max-w-[75%] rounded-2xl rounded-tr-sm px-4 py-3 text-sm leading-relaxed text-white"
-                style={{ background: `linear-gradient(135deg, ${domain.glow.replace("0.25)", "0.35)")}, ${domain.glow.replace("0.25)", "0.15)")})`, border: `1px solid ${domain.border}`, backdropFilter: "blur(8px)" }}>
+                style={{ background: `linear-gradient(135deg, ${domain.glow.replace("0.25)", "0.8)")}, ${domain.glow.replace("0.25)", "0.55)")})` }}>
                 {msg.content}
               </div>
             )}
@@ -384,12 +396,12 @@ Keep responses warm, personal, and compelling. Mix depth with accessibility. Nev
         {loading && messages[messages.length - 1]?.role === "user" && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-              style={{ background: `radial-gradient(circle, ${domain.glow.replace("0.25)", "0.4)")}, ${domain.glow.replace("0.25)", "0.1)")})`, border: `1px solid ${domain.border.replace("0.3)", "0.4)")}` }}>
+              style={{ background: domain.glow.replace("0.25)", "0.12)"), border: `1px solid ${domain.glow.replace("0.25)", "0.25)")}` }}>
               <span className="text-sm">{domain.icon}</span>
             </div>
-            <div className="flex gap-1.5 px-4 py-3 rounded-2xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            <div className="flex gap-1.5 px-4 py-3 rounded-2xl" style={{ background: "white", border: "1px solid rgba(15,23,42,0.08)" }}>
               {[0, 1, 2].map(i => (
-                <div key={i} className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
+                <div key={i} className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: "rgba(15,23,42,0.25)", animationDelay: `${i * 0.15}s` }} />
               ))}
             </div>
           </motion.div>
@@ -397,9 +409,10 @@ Keep responses warm, personal, and compelling. Mix depth with accessibility. Nev
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="px-6 py-4 border-t" style={{ borderColor: domain.border.replace("0.3)", "0.08)"), background: "rgba(0,0,0,0.3)", backdropFilter: "blur(12px)" }}>
+      {/* Input */}
+      <div className="px-6 py-4 border-t" style={{ borderColor: "rgba(15,23,42,0.08)", background: "rgba(255,255,255,0.85)", backdropFilter: "blur(12px)" }}>
         <div className="flex items-end gap-3 rounded-2xl px-4 py-3"
-          style={{ background: "rgba(255,255,255,0.04)", border: `1px solid ${domain.border.replace("0.3)", "0.15)")}` }}>
+          style={{ background: "white", border: `1px solid rgba(15,23,42,0.1)`, boxShadow: "0 1px 4px rgba(15,23,42,0.05)" }}>
           <textarea
             ref={inputRef}
             value={input}
@@ -407,8 +420,8 @@ Keep responses warm, personal, and compelling. Mix depth with accessibility. Nev
             onKeyDown={handleKeyDown}
             placeholder={`Ask Sirius about ${domain.name.toLowerCase()}…`}
             rows={1}
-            className="flex-1 bg-transparent resize-none text-sm text-white/85 placeholder-white/25 outline-none leading-relaxed"
-            style={{ maxHeight: 120, overflowY: "auto", minHeight: 24 }}
+            className="flex-1 bg-transparent resize-none text-sm outline-none leading-relaxed"
+            style={{ maxHeight: 120, overflowY: "auto", minHeight: 24, color: "#0F172A" }}
             onInput={e => {
               const el = e.currentTarget;
               el.style.height = "auto";
@@ -420,14 +433,14 @@ Keep responses warm, personal, and compelling. Mix depth with accessibility. Nev
             disabled={!input.trim() || loading}
             className="w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-200 flex-shrink-0"
             style={{
-              background: input.trim() && !loading ? domain.glow.replace("0.25)", "0.5)") : "rgba(255,255,255,0.05)",
-              color: input.trim() && !loading ? "white" : "rgba(255,255,255,0.2)",
+              background: input.trim() && !loading ? accentColor : "rgba(15,23,42,0.06)",
+              color: input.trim() && !loading ? "white" : "rgba(15,23,42,0.25)",
             }}
           >
             {loading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
           </button>
         </div>
-        <p className="text-center text-xs mt-2 opacity-25 text-white">Enter to send · Shift+Enter for new line</p>
+        <p className="text-center text-xs mt-2" style={{ color: "rgba(15,23,42,0.25)" }}>Enter to send · Shift+Enter for new line</p>
       </div>
     </div>
   );
@@ -438,7 +451,7 @@ export function UniversePage() {
   const [activeDomain, setActiveDomain] = useState<Domain | null>(null);
 
   return (
-    <div className="min-h-screen flex flex-col relative" style={{ background: "radial-gradient(ellipse at 20% 20%, #0d1b3e 0%, #060d1a 40%, #020408 100%)" }}>
+    <div className="min-h-screen flex flex-col relative" style={{ background: "linear-gradient(160deg, hsl(210,55%,97%) 0%, hsl(220,45%,95%) 50%, hsl(210,55%,97%) 100%)" }}>
       <StarField />
 
       <AnimatePresence mode="wait">
@@ -451,18 +464,18 @@ export function UniversePage() {
             transition={{ duration: 0.4 }}
             className="relative z-10 flex-1 flex flex-col"
           >
-            <div className="sticky top-0 z-20 px-6 py-4 flex items-center gap-4" style={{ background: "rgba(2,4,8,0.7)", backdropFilter: "blur(20px)", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+            <div className="sticky top-0 z-20 px-6 py-4 flex items-center gap-4" style={{ background: "rgba(255,255,255,0.85)", backdropFilter: "blur(20px)", borderBottom: "1px solid rgba(15,23,42,0.07)" }}>
               <button
                 onClick={() => setLocation("/")}
-                className="flex items-center gap-2 text-sm font-medium transition-all hover:text-white/80 px-3 py-1.5 rounded-lg hover:bg-white/5"
-                style={{ color: "rgba(255,255,255,0.4)" }}
+                className="flex items-center gap-2 text-sm font-medium transition-all px-3 py-1.5 rounded-lg"
+                style={{ color: "rgba(15,23,42,0.45)", background: "rgba(15,23,42,0.04)" }}
               >
                 <ArrowLeft size={15} />
                 Sirius
               </button>
               <div className="flex-1" />
               <div className="text-center">
-                <h1 className="text-sm font-bold tracking-widest uppercase" style={{ color: "rgba(255,255,255,0.5)", letterSpacing: "0.25em" }}>The Universe</h1>
+                <h1 className="text-sm font-bold tracking-widest uppercase" style={{ color: "rgba(15,23,42,0.4)", letterSpacing: "0.25em" }}>The Universe</h1>
               </div>
               <div className="flex-1" />
               <div style={{ width: 80 }} />
@@ -476,14 +489,14 @@ export function UniversePage() {
                   transition={{ delay: 0.1 }}
                   className="inline-block"
                 >
-                  <div className="text-6xl mb-6" style={{ filter: "drop-shadow(0 0 30px rgba(150,170,255,0.5))", animation: "pulse 4s ease-in-out infinite" }}>✦</div>
+                  <div className="text-6xl mb-6" style={{ filter: "drop-shadow(0 0 20px hsla(220,80%,60%,0.3))", animation: "pulse 4s ease-in-out infinite" }}>✦</div>
                 </motion.div>
                 <motion.h2
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.15 }}
-                  className="text-4xl font-bold text-white mb-4"
-                  style={{ textShadow: "0 0 40px rgba(150,170,255,0.3)" }}
+                  className="text-4xl font-bold mb-4"
+                  style={{ color: "#0F172A" }}
                 >
                   The Universe with Sirius
                 </motion.h2>
@@ -492,7 +505,7 @@ export function UniversePage() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.2 }}
                   className="text-lg max-w-2xl mx-auto leading-relaxed"
-                  style={{ color: "rgba(255,255,255,0.5)" }}
+                  style={{ color: "rgba(15,23,42,0.5)" }}
                 >
                   Eight portals into the deepest questions. Choose a domain and let Sirius guide you into it — the cosmos, consciousness, reality, time, and the extraordinary fact that you are here, asking these questions at all.
                 </motion.p>
@@ -517,7 +530,7 @@ export function UniversePage() {
                 transition={{ delay: 0.8 }}
                 className="text-center mt-12 pb-8"
               >
-                <p className="text-xs" style={{ color: "rgba(255,255,255,0.2)", letterSpacing: "0.15em" }}>
+                <p className="text-xs" style={{ color: "rgba(15,23,42,0.2)", letterSpacing: "0.15em" }}>
                   SIRIUS · I THINK, SO I AM
                 </p>
               </motion.div>
