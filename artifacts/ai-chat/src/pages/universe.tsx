@@ -115,6 +115,92 @@ interface Message {
   content: string;
 }
 
+// Curated follow-up questions per domain — shown as chips after each Sirius response
+const DOMAIN_SUGGESTIONS: Record<string, string[]> = {
+  cosmos: [
+    "What's actually inside a black hole?",
+    "Is the universe infinite, or does it have an edge?",
+    "What happened in the very first second after the Big Bang?",
+    "Could there really be life elsewhere in the universe?",
+    "What is dark matter and why can't we detect it?",
+    "What will the universe look like in a trillion years?",
+    "How do we know how old the universe is?",
+    "What are gravitational waves and what do they reveal?",
+    "What would it feel like to fall into a black hole?",
+    "Why are there more galaxies than we previously thought?",
+  ],
+  consciousness: [
+    "What is the hard problem of consciousness?",
+    "Can AI ever be truly conscious?",
+    "What happens to consciousness when we dream?",
+    "Is free will an illusion?",
+    "Could consciousness be fundamental to the universe itself?",
+    "What do near-death experiences tell us about the mind?",
+    "How does the brain create the feeling of 'I'?",
+    "Do animals experience the world like we do?",
+  ],
+  "ai-humanity": [
+    "What would AGI actually feel like when it arrives?",
+    "What makes human intelligence unique compared to AI?",
+    "Are we at a turning point in the history of intelligence?",
+    "What risks does AI pose that we should take seriously?",
+    "How will AI change what it means to be human?",
+    "What can AI never do that humans always will?",
+    "Is the fear of AI rational or emotional?",
+    "What does a good human-AI future actually look like?",
+  ],
+  reality: [
+    "What does quantum superposition mean in real terms?",
+    "Could we really be living in a simulation?",
+    "What is spacetime and why does it bend?",
+    "What happens at the quantum level when nothing is observed?",
+    "Is the multiverse real or just mathematics?",
+    "What does entanglement tell us about reality?",
+    "Why does time only move forward?",
+    "How strange is the observer effect really?",
+  ],
+  "human-potential": [
+    "What is neuroplasticity and what does it mean for change?",
+    "What separates extraordinary people from average ones?",
+    "What is a flow state and how do you access it?",
+    "What does the science of habit say about who we can become?",
+    "Are there real limits to human potential?",
+    "What is the relationship between mindset and performance?",
+    "What can we learn from people who achieved the extraordinary?",
+    "How much of intelligence is fixed versus trainable?",
+  ],
+  "living-universe": [
+    "How did life first appear on Earth?",
+    "What is the mycorrhizal network and why does it matter?",
+    "Could plants have a form of awareness?",
+    "What does evolution tell us about where we're heading?",
+    "What is the Gaia hypothesis and is there evidence for it?",
+    "How interconnected are all living things really?",
+    "What is the most surprising thing evolution has produced?",
+    "Could life survive on other planets in extreme conditions?",
+  ],
+  time: [
+    "Does time actually exist, or is it an illusion?",
+    "Why does time seem to pass faster as we age?",
+    "What is the relationship between time and entropy?",
+    "What would it mean if the future already exists?",
+    "How does time dilation actually work?",
+    "What is the block universe theory?",
+    "Could time travel ever be physically possible?",
+    "Is there a smallest unit of time?",
+  ],
+  future: [
+    "When will AGI actually arrive and what happens then?",
+    "Could humanity become multi-planetary in our lifetime?",
+    "What is the most underestimated civilisation-level change right now?",
+    "What does the Fermi Paradox say about our future?",
+    "How will longevity science change what it means to live?",
+    "Will humans still be recognisably human in 200 years?",
+    "What gives you the most hope about where we're going?",
+    "What is the biggest existential risk in the next 50 years?",
+  ],
+};
+
 function StarField() {
   return (
     <div className="fixed inset-0 overflow-hidden pointer-events-none" style={{ zIndex: 0 }}>
@@ -188,6 +274,14 @@ function DomainCard({ domain, onClick }: { domain: Domain; onClick: () => void }
   );
 }
 
+function pickSuggestions(domainId: string, used: Set<string>): string[] {
+  const pool = DOMAIN_SUGGESTIONS[domainId] ?? [];
+  const available = pool.filter(q => !used.has(q));
+  const source = available.length >= 3 ? available : pool;
+  const shuffled = [...source].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, 3);
+}
+
 function UniverseChat({ domain, onBack }: { domain: Domain; onBack: () => void }) {
   const [messages, setMessages] = useState<Message[]>([
     { role: "assistant", content: domain.openingMessage }
@@ -196,6 +290,8 @@ function UniverseChat({ domain, onBack }: { domain: Domain; onBack: () => void }
   const [loading, setLoading] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const [muted, setMuted] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>(() => pickSuggestions(domain.id, new Set()));
+  const usedSuggestions = useRef<Set<string>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -227,6 +323,8 @@ function UniverseChat({ domain, onBack }: { domain: Domain; onBack: () => void }
 
   const send = useCallback(async (text: string) => {
     if (!text.trim() || loading) return;
+    setSuggestions([]);
+    usedSuggestions.current.add(text.trim());
     const userMsg: Message = { role: "user", content: text.trim() };
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
@@ -299,6 +397,8 @@ Keep responses warm, personal, and compelling. Mix depth with accessibility. Nev
       if (assistantText && !muted) {
         speakText(assistantText);
       }
+      const nextSuggestions = pickSuggestions(domain.id, usedSuggestions.current);
+      setSuggestions(nextSuggestions);
     } catch (err: any) {
       if (err.name !== "AbortError") {
         setMessages(prev => [...prev, {
@@ -393,6 +493,39 @@ Keep responses warm, personal, and compelling. Mix depth with accessibility. Nev
             )}
           </motion.div>
         ))}
+        {/* Follow-up suggestion chips */}
+        {!loading && suggestions.length > 0 && (
+          <motion.div
+            key="chips"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            className="flex flex-wrap gap-2 pl-11"
+          >
+            {suggestions.map((s, i) => (
+              <button
+                key={i}
+                onClick={() => send(s)}
+                className="text-xs px-3 py-2 rounded-xl transition-all duration-200 text-left"
+                style={{
+                  background: "white",
+                  border: `1px solid ${domain.glow.replace("0.25)", "0.3)")}`,
+                  color: domain.glow.replace("0.25)", "0.85)"),
+                  boxShadow: `0 1px 6px ${domain.glow.replace("0.25)", "0.12)")}`,
+                }}
+                onMouseEnter={e => {
+                  (e.currentTarget as HTMLElement).style.background = domain.glow.replace("0.25)", "0.08)");
+                }}
+                onMouseLeave={e => {
+                  (e.currentTarget as HTMLElement).style.background = "white";
+                }}
+              >
+                {s}
+              </button>
+            ))}
+          </motion.div>
+        )}
+
         {loading && messages[messages.length - 1]?.role === "user" && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"

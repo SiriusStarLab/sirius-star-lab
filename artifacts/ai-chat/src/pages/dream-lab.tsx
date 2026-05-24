@@ -1300,6 +1300,8 @@ function SiriusChatView({ T, profile }: { T: typeof THEMES.cosmic; profile: Drea
   });
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>(["What's alive in my mind right now", "I have a new idea to explore", "I need help getting unstuck"]);
+  const [savedConfirm, setSavedConfirm] = useState<number | null>(null);
   const [voiceActive, setVoiceActive] = useState(false);
   const voiceRecRef = useRef<any>(null);
   const endRef = useRef<HTMLDivElement>(null);
@@ -1378,7 +1380,48 @@ function SiriusChatView({ T, profile }: { T: typeof THEMES.cosmic; profile: Drea
           } catch {}
         }
       }
-    } finally { setStreaming(false); }
+      const lastReply = reply;
+      setSuggestions(getChips(lastReply));
+    } finally {
+      setStreaming(false);
+    }
+  };
+
+  const getChips = (lastReply: string): string[] => {
+    const t = lastReply.toLowerCase();
+    const chips: string[] = [];
+    if (t.includes("affirmation") || t.includes("manifest")) chips.push("Create affirmations for this");
+    if (t.includes("step") || t.includes("action") || t.includes("start")) chips.push("Break it into smaller steps");
+    if (t.includes("fear") || t.includes("block") || t.includes("stuck") || t.includes("worry")) chips.push("How do I push through this?");
+    if (t.includes("idea") || t.includes("concept") || t.includes("vision")) chips.push("Develop this idea further");
+    if (t.includes("goal") || t.includes("aim") || t.includes("target")) chips.push("What would success look like in 90 days?");
+    if (t.includes("business") || t.includes("income") || t.includes("revenue") || t.includes("money")) chips.push("How do I make this financially viable?");
+    if (t.includes("feel") || t.includes("emotion") || t.includes("mind")) chips.push("What's really holding me back?");
+    const fallbacks = [
+      "Tell me more about this",
+      "How do I take the first step today?",
+      "What would success actually feel like?",
+      "What's the biggest obstacle to plan for?",
+      "Give me a challenge to work on this week",
+    ];
+    for (const f of fallbacks) {
+      if (chips.length >= 3) break;
+      if (!chips.includes(f)) chips.push(f);
+    }
+    return chips.slice(0, 3);
+  };
+
+  const saveAsIdea = async (content: string, idx: number) => {
+    const title = content.slice(0, 60).replace(/[*#_`]/g, "").trim() + (content.length > 60 ? "…" : "");
+    try {
+      await fetch(`${base}dream-lab/ideas`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-dream-user": userId },
+        body: JSON.stringify({ title, description: content.slice(0, 400), category: "insight", energyLevel: 7 }),
+      });
+      setSavedConfirm(idx);
+      setTimeout(() => setSavedConfirm(null), 2500);
+    } catch {}
   };
 
   return (
@@ -1394,32 +1437,76 @@ function SiriusChatView({ T, profile }: { T: typeof THEMES.cosmic; profile: Drea
                 <Sparkles className="w-4 h-4 text-white" />
               </div>
             )}
-            <div className="max-w-[82%] rounded-2xl px-4 py-3"
-              style={{
-                background: msg.role === "user" ? `linear-gradient(135deg, ${T.accent}, ${T.accent}cc)` : T.msgBg,
-                border: msg.role === "assistant" ? `1px solid ${T.border}` : "none",
-                color: msg.role === "user" ? "#fff" : T.text,
-                boxShadow: msg.role === "assistant" ? "0 1px 4px rgba(15,23,42,0.05)" : "none",
-              }}>
-              {msg.role === "assistant" && streaming && i === messages.length - 1 && !msg.content ? (
-                <div className="flex items-center gap-1 py-1">
-                  {[0, 1, 2].map(d => (
-                    <span key={d} style={{ width: 7, height: 7, borderRadius: "50%", background: T.accent, display: "inline-block",
-                      animation: "dlBounce 1.1s ease-in-out infinite", animationDelay: `${d * 0.18}s` }} />
-                  ))}
-                  <style>{`@keyframes dlBounce{0%,80%,100%{transform:translateY(0);opacity:0.4}40%{transform:translateY(-5px);opacity:1}}`}</style>
-                </div>
-              ) : (
-                <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                  {msg.content}
-                  {streaming && i === messages.length - 1 && msg.role === "assistant" && msg.content && (
-                    <span className="animate-pulse ml-0.5">▊</span>
-                  )}
-                </p>
+            <div className="flex flex-col gap-2 max-w-[82%]">
+              <div className="rounded-2xl px-4 py-3"
+                style={{
+                  background: msg.role === "user" ? `linear-gradient(135deg, ${T.accent}, ${T.accent}cc)` : T.msgBg,
+                  border: msg.role === "assistant" ? `1px solid ${T.border}` : "none",
+                  color: msg.role === "user" ? "#fff" : T.text,
+                  boxShadow: msg.role === "assistant" ? "0 1px 4px rgba(15,23,42,0.05)" : "none",
+                }}>
+                {msg.role === "assistant" && streaming && i === messages.length - 1 && !msg.content ? (
+                  <div className="flex items-center gap-1 py-1">
+                    {[0, 1, 2].map(d => (
+                      <span key={d} style={{ width: 7, height: 7, borderRadius: "50%", background: T.accent, display: "inline-block",
+                        animation: "dlBounce 1.1s ease-in-out infinite", animationDelay: `${d * 0.18}s` }} />
+                    ))}
+                    <style>{`@keyframes dlBounce{0%,80%,100%{transform:translateY(0);opacity:0.4}40%{transform:translateY(-5px);opacity:1}}`}</style>
+                  </div>
+                ) : (
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                    {msg.content}
+                    {streaming && i === messages.length - 1 && msg.role === "assistant" && msg.content && (
+                      <span className="animate-pulse ml-0.5">▊</span>
+                    )}
+                  </p>
+                )}
+              </div>
+              {/* Save as idea button on assistant messages */}
+              {msg.role === "assistant" && !streaming && msg.content && msg.content.length > 80 && (
+                <button
+                  onClick={() => saveAsIdea(msg.content, i)}
+                  className="self-start text-[11px] px-2.5 py-1 rounded-lg transition-all duration-200"
+                  style={{
+                    background: savedConfirm === i ? `${T.accent}18` : "transparent",
+                    border: `1px solid ${savedConfirm === i ? T.accent : T.border}`,
+                    color: savedConfirm === i ? T.accent : `${T.text}50`,
+                  }}
+                >
+                  {savedConfirm === i ? "✓ Saved to ideas" : "💡 Save as idea"}
+                </button>
               )}
             </div>
           </motion.div>
         ))}
+
+        {/* Quick-reply chips below last Sirius message */}
+        {!streaming && suggestions.length > 0 && messages[messages.length - 1]?.role === "assistant" && (
+          <motion.div
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25 }}
+            className="flex flex-wrap gap-2 pl-11"
+          >
+            {suggestions.map((s, i) => (
+              <button
+                key={i}
+                onClick={() => { setSuggestions([]); send(s); }}
+                className="text-xs px-3 py-2 rounded-xl transition-all duration-150"
+                style={{
+                  background: T.msgBg,
+                  border: `1px solid ${T.border}`,
+                  color: T.accent,
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = T.accent; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = T.border; }}
+              >
+                {s}
+              </button>
+            ))}
+          </motion.div>
+        )}
+
         <div ref={endRef} />
       </div>
 
