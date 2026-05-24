@@ -44,6 +44,7 @@ ssh -i /home/runner/workspace/.local/sirius_deploy.key -p 2222 -o StrictHostKeyC
 - PM2 process: `sirius-api` — app root: `/opt/sirius/`
 - Production URL: `https://sirius-ai.live`
 - Deploy token: `$DEPLOY_TOKEN` env secret
+- **nginx root on Kamatera: `/opt/sirius/frontend/public`** — the vite build outputs into `dist/public/` and the tarball preserves that subfolder. If nginx ever shows 403, check this path first.
 
 ## How to Approach Every Change (Non-Negotiable)
 
