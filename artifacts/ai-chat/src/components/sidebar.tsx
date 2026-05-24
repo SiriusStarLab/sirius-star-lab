@@ -417,33 +417,33 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession }: Sid
             className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg transition-all duration-200 group"
             style={{
               background: checkingOut
-                ? "hsl(193 100% 52% / 0.06)"
-                : "linear-gradient(135deg, hsl(193 100% 52% / 0.12), hsl(224 28% 10%))",
-              border: "1px solid hsl(193 100% 52% / 0.28)",
+                ? "hsla(193,100%,35%,0.06)"
+                : "linear-gradient(135deg, hsla(193,100%,35%,0.1), hsla(210,80%,50%,0.08))",
+              border: "1px solid hsla(193,100%,35%,0.28)",
               opacity: checkingOut ? 0.9 : 1,
             }}
-            onMouseEnter={e => { if (!checkingOut) e.currentTarget.style.boxShadow = "0 0 16px hsl(193 100% 52% / 0.15)"; }}
-            onMouseLeave={e => { e.currentTarget.style.boxShadow = "none"; }}
+            onMouseEnter={e => { if (!checkingOut) { e.currentTarget.style.background = "linear-gradient(135deg, hsla(193,100%,35%,0.15), hsla(210,80%,50%,0.12))"; e.currentTarget.style.borderColor = "hsla(193,100%,35%,0.45)"; } }}
+            onMouseLeave={e => { if (!checkingOut) { e.currentTarget.style.background = "linear-gradient(135deg, hsla(193,100%,35%,0.1), hsla(210,80%,50%,0.08))"; e.currentTarget.style.borderColor = "hsla(193,100%,35%,0.28)"; } }}
           >
             {checkingOut
-              ? <Loader2 size={14} className="text-primary animate-spin" />
-              : <Zap size={14} className="text-primary" fill="currentColor" />}
+              ? <Loader2 size={14} style={{ color: "hsl(193,100%,30%)" }} className="animate-spin" />
+              : <Zap size={14} style={{ color: "hsl(193,100%,30%)" }} fill="currentColor" />}
             <div className="flex-1 text-left">
-              <p className="text-[12px] font-medium text-primary">
+              <p className="text-[12px] font-semibold" style={{ color: "hsl(193,100%,24%)" }}>
                 {checkingOut ? "Preparing checkout…" : "Get Plus — £5/month"}
               </p>
               {!checkingOut && (
-                <p className="text-[10px] text-muted-foreground/60">
+                <p className="text-[10px]" style={{ color: "hsl(193,60%,38%)" }}>
                   {status.dailyMessageCount}/{status.dailyLimit ?? 30} messages today
                 </p>
               )}
             </div>
             {!checkingOut && (
-              <div className="w-12 h-1.5 rounded-full overflow-hidden" style={{ background: "hsl(224 24% 14%)" }}>
+              <div className="w-12 h-1.5 rounded-full overflow-hidden" style={{ background: "hsla(193,100%,35%,0.12)" }}>
                 <div className="h-full rounded-full transition-all duration-500"
                   style={{
                     width: `${usagePercent}%`,
-                    background: usagePercent > 80 ? "hsl(0 80% 60%)" : "hsl(193 100% 52%)"
+                    background: usagePercent > 80 ? "hsl(0,80%,55%)" : "hsl(193,100%,35%)"
                   }} />
               </div>
             )}

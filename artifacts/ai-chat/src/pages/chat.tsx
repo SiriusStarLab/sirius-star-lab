@@ -270,29 +270,29 @@ export function ChatPage() {
                 initial={{ opacity: 0, scale: 0.75 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
-                className="relative z-10 flex items-center justify-center mb-6"
-                style={{ width: 120, height: 120 }}
+                className="relative z-10 flex items-center justify-center mb-4"
+                style={{ width: 164, height: 164 }}
               >
                 {/* Outer slow-spin ring */}
                 <div className="ai-ring-outer absolute inset-0 rounded-full"
                   style={{ border: "1px dashed hsl(193 100% 52% / 0.32)" }} />
                 {/* Inner ring */}
-                <div className="absolute inset-3 rounded-full"
+                <div className="absolute inset-4 rounded-full"
                   style={{ border: "1px solid hsl(193 100% 52% / 0.20)" }} />
                 {/* Ambient glow behind the image */}
                 <div className="absolute inset-0 rounded-full pointer-events-none"
                   style={{
                     background: "radial-gradient(circle, hsl(193 100% 52% / 0.18) 0%, transparent 68%)",
-                    filter: "blur(10px)",
+                    filter: "blur(14px)",
                   }} />
                 {/* The twins logo */}
                 <div
                   className="relative z-10 rounded-full overflow-hidden"
                   style={{
-                    width: 96,
-                    height: 96,
+                    width: 136,
+                    height: 136,
                     border: "2px solid hsl(193 100% 52% / 0.45)",
-                    boxShadow: "0 0 28px hsl(193 100% 52% / 0.40), 0 0 70px hsl(193 100% 52% / 0.14)",
+                    boxShadow: "0 0 36px hsl(193 100% 52% / 0.38), 0 0 80px hsl(193 100% 52% / 0.12)",
                   }}
                 >
                   <img
