@@ -6953,7 +6953,7 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
         ];
 
         const searchController = new AbortController();
-        let searchTimer = setTimeout(() => searchController.abort(), 30_000);
+        let searchTimer = setTimeout(() => searchController.abort(), 15_000);
         const searchStream = await openai.chat.completions.create({
           model: "anthropic/claude-sonnet-4.6",
           messages: chatMsgsForSearch,
@@ -6963,7 +6963,7 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
         }, { signal: searchController.signal });
 
         for await (const chunk of searchStream) {
-          clearTimeout(searchTimer); searchTimer = setTimeout(() => searchController.abort(), 30_000);
+          clearTimeout(searchTimer); searchTimer = setTimeout(() => searchController.abort(), 15_000);
           const delta = chunk.choices[0]?.delta?.content || "";
           if (delta) sendEvent({ type: "text", delta });
         }
@@ -7010,8 +7010,8 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
       const isLastRound = roundCount >= MAX_TOOL_ROUNDS;
 
       const loopController = new AbortController();
-      // First round: 45s (tool selection is fast). Later rounds: 90s (tool results can be large).
-      let loopTimer = setTimeout(() => loopController.abort(), roundCount === 1 ? 45_000 : 90_000);
+      // First round: 15s (tool selection is fast). Later rounds: 25s (tool results can be larger).
+      let loopTimer = setTimeout(() => loopController.abort(), roundCount === 1 ? 15_000 : 25_000);
 
       const loopStream = await openai.chat.completions.create({
         model: "anthropic/claude-sonnet-4.6",
@@ -7029,7 +7029,7 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
       let finishReason = "";
 
       for await (const chunk of loopStream) {
-        clearTimeout(loopTimer); loopTimer = setTimeout(() => loopController.abort(), 30_000);
+        clearTimeout(loopTimer); loopTimer = setTimeout(() => loopController.abort(), 20_000);
         const choice = chunk.choices?.[0];
         if (!choice) continue;
         finishReason = choice.finish_reason || finishReason;
@@ -7147,7 +7147,11 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
     res.end();
   } catch (err: any) {
     clearInterval(heartbeat);
-    sendEvent({ type: "error", message: err?.message || "Something went wrong" });
+    const isTimeout = err?.name === "AbortError";
+    const message = isTimeout
+      ? "Sirius is taking too long right now — please try again in a moment."
+      : err?.message || "Something went wrong";
+    sendEvent({ type: "error", message });
     res.write("data: [DONE]\n\n");
     res.end();
   }

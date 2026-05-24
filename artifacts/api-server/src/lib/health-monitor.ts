@@ -140,7 +140,7 @@ export async function runHealthCheck(): Promise<HealthReport> {
   const checks = await Promise.all([
     checkDatabase(),
     checkOpenRouter(),
-    checkSelfEndpoint("/healthz", "http_server"),
+    checkSelfEndpoint("/api/healthz", "http_server"),
     checkDreamLabApi(),
     checkConversationApi(),
     checkSslCertificate(),
