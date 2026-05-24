@@ -1520,6 +1520,16 @@ function NewDimensionsCadButton({ project, pin }: { project: Project; pin: strin
 
   const hasContent = !!(project.drawingNotes?.trim() || project.specs?.trim());
 
+  const markDone = async () => {
+    try {
+      const r = await fetch(`${base}lab/projects/${project.id}/cad-complete`, { method: "POST", headers: hdrs() });
+      if (r.ok) {
+        if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+        setStatus("complete"); setMessage("Drawing marked as complete.");
+      }
+    } catch {}
+  };
+
   return (
     <div style={{ padding: "12px 16px", background: "linear-gradient(135deg, rgba(0,140,186,0.04) 0%, rgba(60,100,200,0.04) 100%)", borderBottom: "1px solid rgba(15,23,42,0.07)" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px" }}>
@@ -1530,24 +1540,37 @@ function NewDimensionsCadButton({ project, pin }: { project: Project; pin: strin
           <p style={{ color: "rgba(15,23,42,0.45)", fontSize: "0.68rem", lineHeight: "1.4" }}>
             {status === "idle" && (hasContent ? "Send drawing spec to NewDimensions — the completed drawing returns automatically." : "Generate drawing notes first, then send to NewDimensions.")}
             {status === "sending" && "Sending to NewDimensions…"}
-            {status === "pending" && message}
+            {status === "pending" && <span>{message} <span style={{ opacity: 0.7 }}>— If done, click Mark Complete.</span></span>}
             {status === "complete" && <span style={{ color: "hsl(142,70%,35%)", fontWeight: 600 }}>✓ {message}</span>}
             {status === "error" && <span style={{ color: "hsl(0,70%,50%)" }}>⚠ {message}</span>}
           </p>
         </div>
-        <button
-          onClick={sendToCAD}
-          disabled={status === "sending" || status === "pending" || !hasContent}
-          style={{
-            flexShrink: 0, padding: "7px 14px", borderRadius: "10px", fontSize: "0.72rem", fontWeight: 700,
-            border: "none", cursor: (status === "sending" || status === "pending" || !hasContent) ? "not-allowed" : "pointer",
-            background: status === "complete" ? "hsl(142,60%,40%)" : status === "pending" ? "hsl(38,90%,50%)" : "hsl(193,100%,32%)",
-            color: "white", opacity: (status === "sending" || !hasContent) ? 0.6 : 1,
-            display: "flex", alignItems: "center", gap: "5px", whiteSpace: "nowrap",
-          }}>
-          {status === "sending" && <span style={{ display: "inline-block", width: "10px", height: "10px", border: "2px solid rgba(255,255,255,0.4)", borderTopColor: "white", borderRadius: "50%", animation: "spin 1s linear infinite" }} />}
-          {status === "pending" ? "⏳ Pending…" : status === "complete" ? "✓ Done" : "Send to CAD →"}
-        </button>
+        <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
+          {status === "pending" && (
+            <button
+              onClick={markDone}
+              style={{
+                padding: "7px 12px", borderRadius: "10px", fontSize: "0.72rem", fontWeight: 700,
+                border: "1px solid hsl(142,60%,40%)", cursor: "pointer",
+                background: "transparent", color: "hsl(142,60%,35%)", whiteSpace: "nowrap",
+              }}>
+              ✓ Mark Complete
+            </button>
+          )}
+          <button
+            onClick={sendToCAD}
+            disabled={status === "sending" || status === "pending" || !hasContent}
+            style={{
+              padding: "7px 14px", borderRadius: "10px", fontSize: "0.72rem", fontWeight: 700,
+              border: "none", cursor: (status === "sending" || status === "pending" || !hasContent) ? "not-allowed" : "pointer",
+              background: status === "complete" ? "hsl(142,60%,40%)" : status === "pending" ? "hsl(38,90%,50%)" : "hsl(193,100%,32%)",
+              color: "white", opacity: (status === "sending" || !hasContent) ? 0.6 : 1,
+              display: "flex", alignItems: "center", gap: "5px", whiteSpace: "nowrap",
+            }}>
+            {status === "sending" && <span style={{ display: "inline-block", width: "10px", height: "10px", border: "2px solid rgba(255,255,255,0.4)", borderTopColor: "white", borderRadius: "50%", animation: "spin 1s linear infinite" }} />}
+            {status === "pending" ? "⏳ Pending…" : status === "complete" ? "✓ Done" : "Send to CAD →"}
+          </button>
+        </div>
       </div>
     </div>
   );

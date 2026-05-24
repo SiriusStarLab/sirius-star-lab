@@ -3135,6 +3135,16 @@ router.get("/lab/projects/:id/cad-status", authMiddleware, async (req: Request, 
   return res.json({ status: job.status, jobId: job.jobId, createdAt: job.createdAt, completedAt: job.completedAt, error: job.errorMessage });
 });
 
+// POST /api/lab/projects/:id/cad-complete — manually mark the latest pending CAD job as complete
+router.post("/lab/projects/:id/cad-complete", authMiddleware, async (req: Request, res: Response) => {
+  const projectId = parseInt(req.params.id as string);
+  const [job] = await db.select().from(cadJobs).where(eq(cadJobs.projectId, projectId)).orderBy(desc(cadJobs.createdAt)).limit(1);
+  if (!job) return res.status(404).json({ error: "No CAD job found for this project." });
+  if (job.status === "complete") return res.json({ status: "complete", message: "Already marked complete." });
+  await db.update(cadJobs).set({ status: "complete", completedAt: new Date() }).where(eq(cadJobs.id, job.id));
+  return res.json({ status: "complete", message: "CAD job marked as complete." });
+});
+
 // ── Technical Documents (drawings, specs, datasheets, photos) ────────────────
 
 // Request presigned upload URL
