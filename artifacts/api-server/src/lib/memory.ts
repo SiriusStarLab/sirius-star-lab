@@ -53,13 +53,21 @@ export async function extractAndSaveMemories(
 
     if (!serialised.trim()) return;
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      response_format: { type: "json_object" },
-      messages: [
+    // Hard timeout so a slow/hanging OpenRouter call never blocks the background job
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(), 12_000);
+
+    let response;
+    try {
+      response = await openai.chat.completions.create(
         {
-          role: "system",
-          content: `You are a memory engine for a personal AI partner. Extract NEW facts from the conversation to update the memory profile. Respond in JSON only.
+          // OpenRouter requires the full provider/model format
+          model: "openai/gpt-4o-mini",
+          response_format: { type: "json_object" },
+          messages: [
+            {
+              role: "system",
+              content: `You are a memory engine for a personal AI partner. Extract NEW facts from the conversation to update the memory profile. Respond in JSON only.
 
 EXISTING STABLE FACTS (personal identity & style — preserve unless clearly contradicted):
 ${stableLines.length > 0 ? stableLines.join("\n") : "none yet"}
@@ -79,10 +87,15 @@ Rules:
 - Return up to 20 new/updated facts.
 - Return valid JSON: {"new_facts": ["(P) fact", ...], "remove_facts": ["exact text of outdated fact to remove"]}
 - If nothing new: {"new_facts": [], "remove_facts": []}`,
+            },
+            { role: "user", content: serialised },
+          ],
         },
-        { role: "user", content: serialised },
-      ],
-    });
+        { signal: abort.signal }
+      );
+    } finally {
+      clearTimeout(timer);
+    }
 
     const raw = response.choices[0]?.message?.content;
     if (!raw) return;
@@ -124,7 +137,13 @@ Rules:
         target: userProfilesTable.userId,
         set: { memories: memoriesText, updatedAt: new Date() },
       });
-  } catch (err) {
-    console.error("[memory] extractAndSaveMemories failed:", err);
+
+    console.log(`[memory] saved ${merged.length} facts for user ${userId} (+${newFacts.length} new, -${removeFacts.length} removed)`);
+  } catch (err: any) {
+    if (err?.name === "AbortError") {
+      console.error("[memory] extractAndSaveMemories timed out — OpenRouter took >12s");
+    } else {
+      console.error("[memory] extractAndSaveMemories failed:", err?.message ?? err);
+    }
   }
 }
