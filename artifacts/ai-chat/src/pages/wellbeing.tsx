@@ -22,6 +22,14 @@ const TOPICS = [
     bg: "rgba(8,145,178,0.07)",
     border: "rgba(8,145,178,0.2)",
     prompt: "I want to explore the science and wisdom of vibration and frequency — from quantum physics and cymatics to sound healing, Schumann resonance, solfeggio frequencies, binaural beats, and the latest research. Start with something that will genuinely surprise me and expand my understanding of reality.",
+    welcomeQuestion: "What draws you to vibration and frequency today? Choose a place to begin, or just tell me where you're at:",
+    suggestions: [
+      "I want to raise my vibration — where do I even start?",
+      "Explain the real science behind sound healing",
+      "What are solfeggio frequencies and do they actually work?",
+      "I keep feeling energetically low and I don't know why",
+      "Tell me something about reality that will genuinely surprise me",
+    ],
   },
   {
     id: "breathwork",
@@ -33,6 +41,14 @@ const TOPICS = [
     bg: "rgba(22,163,74,0.07)",
     border: "rgba(22,163,74,0.2)",
     prompt: "Guide me through breathwork — I want to understand the science behind it, explore different techniques like box breathing, Wim Hof, 4-7-8, and coherent breathing, and learn how each affects my nervous system. Make it practical and give me something I can try right now.",
+    welcomeQuestion: "How are you feeling right now, and what are you hoping breathwork can do for you? Here are some places to start:",
+    suggestions: [
+      "I'm anxious and need to calm down right now",
+      "Walk me through the Wim Hof method",
+      "Teach me box breathing — step by step",
+      "I want to use my breath to boost my energy",
+      "Help me find a breathing practice for better sleep",
+    ],
   },
   {
     id: "energy",
@@ -44,6 +60,14 @@ const TOPICS = [
     bg: "rgba(217,119,6,0.07)",
     border: "rgba(217,119,6,0.2)",
     prompt: "Let's talk about energy — not just physical energy but the deeper kind. Cover the science of mitochondria and cellular energy, the concept of chi and prana, what actually raises and drains our vibration, and the latest research on bioenergetics. How can I genuinely raise my energy and sustain it?",
+    welcomeQuestion: "What's your energy like right now? Let's start from where you are:",
+    suggestions: [
+      "I'm exhausted all the time — help me understand why",
+      "I need sustained energy all day without relying on caffeine",
+      "Tell me about chi, prana, and life force energy",
+      "What is actually draining my energy?",
+      "How do mitochondria affect the way I feel day to day?",
+    ],
   },
   {
     id: "sleep",
@@ -55,6 +79,14 @@ const TOPICS = [
     bg: "rgba(124,58,237,0.07)",
     border: "rgba(124,58,237,0.2)",
     prompt: "Teach me everything about sleep and deep recovery — the science of sleep cycles, what happens at each stage, how to optimise my sleep quality, the role of dreams, sleep and healing frequencies, and what the latest neuroscience says about sleep and consciousness. I want to transform my relationship with sleep.",
+    welcomeQuestion: "What's your relationship with sleep like right now? Choose a starting point or tell me what's going on:",
+    suggestions: [
+      "I can't switch my mind off at night",
+      "I want to understand my sleep cycles properly",
+      "I wake up exhausted no matter how long I sleep",
+      "What do dreams mean and why do we have them?",
+      "What does genuinely deep restoration actually feel like?",
+    ],
   },
   {
     id: "mindfulness",
@@ -66,6 +98,14 @@ const TOPICS = [
     bg: "rgba(220,38,38,0.07)",
     border: "rgba(220,38,38,0.2)",
     prompt: "Explore mindfulness and presence with me — not just meditation techniques but the neuroscience behind it, what happens in the brain during mindfulness, the difference between mindfulness and meditation, evidence-based benefits, and how to actually build a practice that sticks. Go deep.",
+    welcomeQuestion: "Where are you with mindfulness right now? There's no wrong answer — just tell me where you're starting from:",
+    suggestions: [
+      "I've never tried it — where do I actually begin?",
+      "I've tried meditation but I just can't stick to it",
+      "What does the neuroscience actually say about mindfulness?",
+      "I want to go deeper than surface-level meditation",
+      "I'm always in my head — I need to find the present moment",
+    ],
   },
   {
     id: "sound",
@@ -77,6 +117,14 @@ const TOPICS = [
     bg: "rgba(219,39,119,0.07)",
     border: "rgba(219,39,119,0.2)",
     prompt: "Take me deep into sound healing — solfeggio frequencies, binaural beats, tuning forks, singing bowls, cymatics, and the research behind them. What does the science actually say? What's proven? What's emerging? And what can I practically use today to shift my state and support my wellbeing?",
+    welcomeQuestion: "What's drawing you to sound healing today? Pick a place to dive in:",
+    suggestions: [
+      "Does sound healing actually work? Give me the honest science",
+      "What are binaural beats and how do I use them?",
+      "Tell me about 432Hz and solfeggio frequencies",
+      "I want to try something right now that will shift my state",
+      "What's the difference between singing bowls and tuning forks?",
+    ],
   },
   {
     id: "sunlight",
@@ -88,6 +136,14 @@ const TOPICS = [
     bg: "rgba(234,88,12,0.07)",
     border: "rgba(234,88,12,0.2)",
     prompt: "Explain the profound relationship between light, nature, and human health — circadian rhythms, morning sunlight protocols, grounding and earthing, forest bathing, the electromagnetic field of the Earth, and how to align my biology with natural cycles. Include the science and make it actionable.",
+    welcomeQuestion: "How connected do you feel to natural light and the outdoors right now? Here are some starting points:",
+    suggestions: [
+      "I spend most of my day indoors and I can feel it affecting me",
+      "Tell me about the morning sunlight protocol",
+      "What is grounding and earthing — does it actually work?",
+      "How do circadian rhythms affect everything about how I feel?",
+      "I want to align my body clock with natural cycles",
+    ],
   },
   {
     id: "heart",
@@ -99,6 +155,14 @@ const TOPICS = [
     bg: "rgba(190,18,60,0.07)",
     border: "rgba(190,18,60,0.2)",
     prompt: "Tell me about heart coherence — the HeartMath research, the electromagnetic field of the heart, heart rate variability, the heart-brain connection, and how heart coherence affects every system in the body. What practices genuinely build heart coherence and how does it change your state and life?",
+    welcomeQuestion: "What brings you to heart coherence today? Let's find the right entry point for you:",
+    suggestions: [
+      "I'm dealing with a lot of stress and need real tools",
+      "What is the HeartMath research and is it legit?",
+      "How do I actually build heart coherence — practically?",
+      "Tell me about the heart's electromagnetic field",
+      "What is heart rate variability and why does it matter?",
+    ],
   },
 ];
 
@@ -111,11 +175,12 @@ const MOODS = [
   { id: "open", emoji: "🌅", label: "Open" },
 ];
 
-function WellbeingChat({ topic, onBack }: { topic: typeof TOPICS[0]; onBack: () => void }) {
+function WellbeingChat({ topic, onBack }: { topic: typeof TOPICS[0] & { welcomeQuestion?: string; suggestions?: string[] }; onBack: () => void }) {
   const storageKey = `wellbeing_chat_${topic.id}_${getUserId()}`;
+  const openingQuestion = topic.welcomeQuestion ?? `Welcome. You've chosen to explore **${topic.title}**.\n\nI'm ready when you are — just ask me anything.`;
   const welcomeMsg: ChatMsg = {
     role: "assistant",
-    content: `Welcome. You've chosen to explore **${topic.title}** — ${topic.subtitle.toLowerCase()}.\n\nI'm going to take you somewhere real with this. Ready when you are — just ask me anything, or I can start with something that might genuinely change how you see this.`,
+    content: openingQuestion,
   };
   const [messages, setMessages] = useState<ChatMsg[]>(() => {
     try { const s = localStorage.getItem(storageKey); if (s) return JSON.parse(s); } catch {}
@@ -237,7 +302,41 @@ Be genuinely illuminating. Draw on real science, ancient wisdom, and cutting-edg
             </div>
           </motion.div>
         ))}
-        {messages.length === 1 && (
+        {messages.length === 1 && topic.suggestions && topic.suggestions.length > 0 && (
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
+            className="flex flex-col gap-2 pt-1 pl-11">
+            {topic.suggestions.map((s, i) => (
+              <motion.button
+                key={i}
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.35 + i * 0.06 }}
+                onClick={() => send(s)}
+                className="text-left text-sm px-4 py-2.5 rounded-xl transition-all duration-200 flex items-center gap-2.5"
+                style={{
+                  background: "white",
+                  border: `1px solid ${topic.color}30`,
+                  color: "#1e293b",
+                  boxShadow: `0 1px 6px ${topic.color}10`,
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.background = `${topic.color}0e`;
+                  e.currentTarget.style.borderColor = `${topic.color}55`;
+                  e.currentTarget.style.boxShadow = `0 2px 12px ${topic.color}22`;
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.background = "white";
+                  e.currentTarget.style.borderColor = `${topic.color}30`;
+                  e.currentTarget.style.boxShadow = `0 1px 6px ${topic.color}10`;
+                }}
+              >
+                <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: topic.color }} />
+                {s}
+              </motion.button>
+            ))}
+          </motion.div>
+        )}
+        {messages.length === 1 && (!topic.suggestions || topic.suggestions.length === 0) && (
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
             className="flex justify-center pt-2">
             <button onClick={startTopic}
@@ -313,17 +412,89 @@ export function WellbeingPage() {
   const [activeTopic, setActiveTopic] = useState<typeof TOPICS[0] | null>(null);
   const [moodTopic, setMoodTopic] = useState<typeof TOPICS[0] | null>(null);
 
+  const MOOD_CONFIG: Record<string, { color: string; bg: string; border: string; welcomeQuestion: string; suggestions: string[] }> = {
+    peaceful: {
+      color: "#059669", bg: "rgba(5,150,105,0.07)", border: "rgba(5,150,105,0.2)",
+      welcomeQuestion: "You're feeling peaceful — that's a beautiful state to be in. Let's go deeper with it. What would you like to explore?",
+      suggestions: [
+        "Help me anchor and extend this feeling of peace",
+        "What practices will help me return to this state when I lose it?",
+        "Tell me about the neuroscience of calm and peace",
+        "What frequencies and sounds support this state?",
+        "Take me somewhere unexpected from this peaceful place",
+      ],
+    },
+    anxious: {
+      color: "#0284c7", bg: "rgba(2,132,199,0.07)", border: "rgba(2,132,199,0.2)",
+      welcomeQuestion: "You're feeling anxious — I've got you. Let's bring you back to calm. What would help most right now?",
+      suggestions: [
+        "Give me a breathing technique I can do right now",
+        "Help me understand what's happening in my body",
+        "Talk me through a grounding exercise step by step",
+        "What does the science say about calming the nervous system?",
+        "I need something I can use in the next 2 minutes",
+      ],
+    },
+    energised: {
+      color: "#d97706", bg: "rgba(217,119,6,0.07)", border: "rgba(217,119,6,0.2)",
+      welcomeQuestion: "You're feeling energised — let's make the most of it. How do you want to channel this state?",
+      suggestions: [
+        "How do I sustain this energy and not burn it out?",
+        "What is this energised state actually doing in my body?",
+        "I want to use this to go deeper — take me somewhere interesting",
+        "What practices amplify and direct this kind of energy?",
+        "Tell me about the relationship between energy and consciousness",
+      ],
+    },
+    tired: {
+      color: "#7c3aed", bg: "rgba(124,58,237,0.07)", border: "rgba(124,58,237,0.2)",
+      welcomeQuestion: "You're tired — let's figure out what kind of tired, and what you actually need. Where shall we start?",
+      suggestions: [
+        "Help me understand why I'm so tired all the time",
+        "What's the difference between physical and energetic exhaustion?",
+        "Give me something I can do right now to restore myself",
+        "Tell me about deep recovery — what does it actually require?",
+        "I don't just want a nap — I want to fix this at the root",
+      ],
+    },
+    low: {
+      color: "#0891b2", bg: "rgba(8,145,178,0.07)", border: "rgba(8,145,178,0.2)",
+      welcomeQuestion: "You're in a low place. That's okay — let's just be here for a moment and see what would help. No pressure:",
+      suggestions: [
+        "I don't want to be fixed — I just want to understand what's happening",
+        "What does the body do when we feel low?",
+        "Is there something gentle I can do to lift myself slightly?",
+        "Tell me about the connection between mood and body chemistry",
+        "What would genuinely help right now — not just distraction?",
+      ],
+    },
+    open: {
+      color: "#ea580c", bg: "rgba(234,88,12,0.07)", border: "rgba(234,88,12,0.2)",
+      welcomeQuestion: "You're feeling open and curious — the best state to explore from. Where shall we go?",
+      suggestions: [
+        "Take me somewhere I wouldn't normally think to look",
+        "Tell me something about consciousness that will change how I see myself",
+        "What's the most interesting thing happening in wellbeing science right now?",
+        "I want to understand something deep about human potential",
+        "Surprise me — take me wherever you think I need to go",
+      ],
+    },
+  };
+
   const handleMoodSelected = (mood: string, prompt: string) => {
+    const cfg = MOOD_CONFIG[mood] ?? { color: "#0891b2", bg: "rgba(8,145,178,0.07)", border: "rgba(8,145,178,0.2)", welcomeQuestion: undefined, suggestions: [] };
     const fakeTopic = {
       id: `mood-${mood}`,
       icon: Heart,
       emoji: "💗",
       title: "Wellbeing Check-in",
       subtitle: `You're feeling ${mood}`,
-      color: "#0891b2",
-      bg: "rgba(8,145,178,0.07)",
-      border: "rgba(8,145,178,0.2)",
+      color: cfg.color,
+      bg: cfg.bg,
+      border: cfg.border,
       prompt,
+      welcomeQuestion: cfg.welcomeQuestion,
+      suggestions: cfg.suggestions,
     };
     setMoodTopic(fakeTopic);
     setActiveTopic(fakeTopic);
