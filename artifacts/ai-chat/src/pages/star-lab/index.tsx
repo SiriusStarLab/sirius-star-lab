@@ -30,6 +30,31 @@ import { NotificationBell } from './NotificationBell';
 import { UpgradesPanel } from './UpgradesPanel';
 import { OrchestratorPanel } from './OrchestratorPanel';
 import { LabMarkdown } from "./LabMarkdown";
+
+const NAV_LABELS: Record<NavMode, string> = {
+  orchestrate: "Command Centre",
+  dashboard:   "Dashboard",
+  labchat:     "Chat with Sirius",
+  sysaudit:    "System Audit",
+  upgrades:    "Sirius Upgrades",
+  mission:     "Mission",
+  appbuilder:  "App Builder",
+  projects:    "Projects",
+  botlab:      "Bot Lab",
+  autolab:     "Autonomous Lab",
+  "ai-arch":   "AI Architecture",
+  scout:       "Scout",
+  feed:        "AI Intelligence",
+  research:    "Deep Research",
+  docs:        "Document Intel",
+  brain:       "Sirius Brain",
+  revenue:     "Revenue Hub",
+  commerce:    "Commerce Lab",
+  grants:      "Funding Radar",
+  agency:      "Agency Hub",
+  growth:      "Growth Engine",
+  outreach:    "Outreach Hub",
+};
 import { speakText, parseSpokenPin } from "./voice-utils";
 import { LabFloatingChat } from "./LabFloatingChat";
 import { SiriusLabChatPanel } from "./SiriusLabChatPanel";
@@ -6609,7 +6634,7 @@ function StarLabVoiceWidget({
           messages: updatedMsgs,
           context: {
             mode: navMode,
-            activeTab: NAV_LABELS[navMode] ?? navMode,
+            activeTab: NAV_LABELS[navMode as NavMode] ?? navMode,
             projectName: activeProject?.name,
             projectList: projects.map(p => p.name).slice(0, 10),
             emotion: emotionRef.current,

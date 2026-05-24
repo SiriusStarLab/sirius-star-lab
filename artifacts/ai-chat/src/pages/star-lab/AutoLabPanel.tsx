@@ -305,7 +305,7 @@ export function AutoLabPanel({ pin, onSelectProject, onFocusProject }: {
                               <p className="text-slate-800 font-semibold text-sm leading-snug">{p.name}</p>
                               <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ background: cap.color + "22", color: cap.color }}>{cap.label}</span>
                             </div>
-                            <p className="text-xs leading-relaxed" style={{ color: "rgba(15,23,42,0.55)" }}>{p.summary || p.description}</p>
+                            <p className="text-xs leading-relaxed" style={{ color: "rgba(15,23,42,0.55)" }}>{p.brief}</p>
                           </div>
                         </div>
                         {isFocused && (
