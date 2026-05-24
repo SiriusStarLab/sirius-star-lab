@@ -14,10 +14,62 @@
  * Bulk triggering is disabled — the scanner only queues projects; this manages them.
  */
 
-import { eq, isNull, or, and, asc, ne, sql, inArray } from "drizzle-orm";
-import { db, labProjects, appBuilderSessions, cadFiles } from "@workspace/db";
+import { eq, isNull, or, and, asc, ne, sql, inArray, desc } from "drizzle-orm";
+import { db, labProjects, appBuilderSessions, cadFiles, cadJobs } from "@workspace/db";
 import { triggerAutoBuildForProject, isSoftwareBuildable } from "./lab-auto-scan.js";
 import { openai } from "@workspace/integrations-openai-ai-server";
+
+const ND_BASE_URL = () => (process.env.NEWDIMENSIONS_BASE_URL || "https://new-dimension-cad.replit.app").replace(/\/$/, "");
+const ND_API_KEY  = () => process.env.NEWDIMENSIONS_API_KEY || "";
+
+/** Wake New Dimensions and auto-send a physical project to CAD.
+ *  Skips silently if there's already a pending/complete CAD job. */
+async function autoSendToCad(projectId: number, name: string, industry: string, specs: string, drawingNotes: string): Promise<void> {
+  // Skip if already has a CAD job
+  const existing = await db.select({ id: cadJobs.id, status: cadJobs.status }).from(cadJobs)
+    .where(eq(cadJobs.projectId, projectId)).orderBy(desc(cadJobs.createdAt)).limit(1);
+  if (existing.length > 0 && (existing[0].status === "pending" || existing[0].status === "complete")) {
+    console.log(`[Pipeline] ↷ CAD job already exists for "${name}" (${existing[0].status}) — skipping auto-send`);
+    return;
+  }
+
+  const description = [
+    `INDUSTRY: ${industry}`,
+    specs?.trim()        ? `\n## SPECIFICATIONS\n${specs}`        : "",
+    drawingNotes?.trim() ? `\n## DRAWING NOTES\n${drawingNotes}` : "",
+  ].filter(Boolean).join("\n");
+
+  const ndBase = ND_BASE_URL();
+  const apiKey = ND_API_KEY();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (apiKey) { headers["Authorization"] = `Bearer ${apiKey}`; headers["X-API-Key"] = apiKey; }
+
+  // Wake New Dimensions (up to 30 s)
+  let awake = false;
+  for (let i = 0; i < 6; i++) {
+    try {
+      const r = await fetch(`${ndBase}/api/projects`, { signal: AbortSignal.timeout(8000) });
+      if (r.ok || r.status === 400) { awake = true; break; }
+    } catch {}
+    await new Promise(r => setTimeout(r, 5000));
+  }
+  if (!awake) { console.warn(`[Pipeline] ⚠ New Dimensions unreachable — skipping auto-send for "${name}"`); return; }
+
+  const ndRes = await fetch(`${ndBase}/api/projects`, {
+    method: "POST", headers,
+    body: JSON.stringify({ name, description }),
+  });
+  if (!ndRes.ok) {
+    console.warn(`[Pipeline] ⚠ New Dimensions rejected project for "${name}": ${ndRes.status}`);
+    return;
+  }
+  const ndProject = await ndRes.json() as any;
+  const ndProjectId = String(ndProject.id ?? ndProject._id ?? "");
+  if (!ndProjectId) { console.warn(`[Pipeline] ⚠ New Dimensions returned no ID for "${name}"`); return; }
+
+  await db.insert(cadJobs).values({ projectId, jobId: ndProjectId, status: "pending", specSent: description });
+  console.log(`[Pipeline] ✅ Auto-sent "${name}" to New Dimensions (ND project #${ndProjectId})`);
+}
 
 const IDLE_CHECK_MS = 30 * 1000; // 30 seconds — how often to check when queue is empty
 
@@ -297,7 +349,7 @@ Produce clear, numbered drawing requirements (dimensions, views, materials, tole
 
     // 6. Determine next status:
     //    - Software/digital products go straight to launch-ready
-    //    - Physical products: launch-ready if drawing notes OR physical CAD files exist; cad-pending only if neither
+    //    - Physical products: auto-send to New Dimensions then go to cad-pending
     //    NOTE: re-fetch drawing notes from DB — step 5 may have just written them
     const isDigital = isSoftwareBuildable(next.name, next.brief || "");
     let nextStatus: string;
@@ -305,7 +357,7 @@ Produce clear, numbered drawing requirements (dimensions, views, materials, tole
       nextStatus = "launch-ready";
     } else {
       const [freshRow] = await db
-        .select({ drawingNotes: labProjects.drawingNotes })
+        .select({ drawingNotes: labProjects.drawingNotes, specs: labProjects.specs })
         .from(labProjects)
         .where(eq(labProjects.id, next.id))
         .limit(1);
@@ -315,7 +367,20 @@ Produce clear, numbered drawing requirements (dimensions, views, materials, tole
         .from(cadFiles)
         .where(eq(cadFiles.projectId, next.id))
         .limit(1);
-      nextStatus = (existingCad.length > 0 || hasDrawingNotes) ? "launch-ready" : "cad-pending";
+
+      // Auto-send to New Dimensions if we have drawing notes and no CAD file yet
+      if (hasDrawingNotes && existingCad.length === 0) {
+        console.log(`[Pipeline] 🔷 Auto-sending "${next.name}" to New Dimensions…`);
+        autoSendToCad(
+          next.id,
+          next.name,
+          next.industry || "General",
+          freshRow?.specs || "",
+          freshRow?.drawingNotes || "",
+        ).catch(err => console.error(`[Pipeline] autoSendToCad error for "${next.name}":`, err?.message));
+      }
+
+      nextStatus = (existingCad.length > 0 || hasDrawingNotes) ? "cad-pending" : "cad-pending";
     }
 
     await db
