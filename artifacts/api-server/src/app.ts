@@ -104,6 +104,17 @@ app.use("/api/dream-lab/sirius-chat", dreamLabAiRateLimit);
 app.use("/api/dream-lab/ideas/:id/sirius", dreamLabAiRateLimit);
 app.use("/api/dream-lab/generate-affirmations", dreamLabAiRateLimit);
 
+// ── 9b. Local CAD file serving (Kamatera — no Replit object storage) ──────────
+app.get("/api/cad-files/local/:filename", (req, res) => {
+  const dir = process.env.CAD_LOCAL_DIR || "/opt/sirius/cad-files";
+  const filename = decodeURIComponent(req.params.filename as string).replace(/[/\\]/g, "");
+  const filePath = path.join(dir, filename);
+  if (!filePath.startsWith(dir)) return res.status(403).json({ error: "Forbidden" });
+  res.setHeader("Content-Type", "image/svg+xml");
+  res.setHeader("Content-Disposition", `inline; filename="${filename}"`);
+  res.sendFile(filePath);
+});
+
 // ── 10. Mobile app download ───────────────────────────────────────────────────
 app.get("/api/download/sirius-mobile", (req, res) => {
   const file = path.join("/home/runner/workspace/artifacts/sirius-mobile.tar.gz");

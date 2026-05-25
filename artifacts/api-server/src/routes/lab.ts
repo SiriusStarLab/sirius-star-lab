@@ -2896,6 +2896,12 @@ router.get("/lab/projects/:id/cad-files/:fileId/download-url", authMiddleware, a
   try {
     const [record] = await db.select().from(cadFiles).where(eq(cadFiles.id, fileId));
     if (!record) return res.status(404).json({ error: "File not found" });
+    // Local file (Kamatera): serve via /api/cad-files/local/:filename
+    if (record.objectPath.startsWith("local:")) {
+      const fileName = record.objectPath.replace(/^local:/, "");
+      const url = `/api/cad-files/local/${encodeURIComponent(fileName)}`;
+      return res.json({ url, fileName: record.fileName });
+    }
     const signedUrl = await storage.getObjectEntityDownloadURL(record.objectPath, 3600);
     return res.json({ url: signedUrl, fileName: record.fileName });
   } catch (err: any) {

@@ -1,0 +1,1 @@
+- [Kamatera deploy path](kamatera-deploy-path.md) — PM2 runs from `/opt/sirius/artifacts/api-server/dist/index.cjs`, NOT `/opt/sirius/dist/index.cjs`; wrong path = zero effect.

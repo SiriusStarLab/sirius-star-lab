@@ -15,8 +15,72 @@
 import { eq, desc } from "drizzle-orm";
 import { db, cadFiles, cadJobs, labProjects } from "@workspace/db";
 import { ObjectStorageService } from "./objectStorage.js";
+import * as fs from "fs";
+import * as path from "path";
+import { randomUUID } from "crypto";
+import { spawn } from "child_process";
+
+// ── spawn-curl helpers (async, works under PM2 which intercepts SIGCHLD) ──
+// execFileSync/spawnSync cannot be used under PM2: PM2 consumes the SIGCHLD
+// signal that spawnSync waits for, causing an infinite hang.
+
+function spawnCurl(url: string, bodyObj: object, headers?: Record<string, string>): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const body = JSON.stringify(bodyObj);
+    const args = ["-s", "-X", "POST", url, "-H", "Content-Type: application/json", "--max-time", "90", "--data-binary", body];
+    if (headers) {
+      for (const [k, v] of Object.entries(headers)) args.push("-H", `${k}: ${v}`);
+    }
+    const proc = spawn("curl", args);
+    let out = "";
+    proc.stdout.on("data", (d: Buffer) => { out += d.toString(); });
+    proc.on("close", (code) => { code === 0 ? resolve(out) : reject(new Error(`curl exited ${code}: ${out.slice(0, 200)}`)); });
+    proc.on("error", reject);
+    setTimeout(() => { proc.kill(); reject(new Error("curl POST timed out after 90s")); }, 95_000);
+  });
+}
+
+function spawnCurlPut(url: string, body: Buffer, contentType: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const proc = spawn("curl", ["-s", "-X", "PUT", url, "-H", `Content-Type: ${contentType}`, "--max-time", "60", "--data-binary", "@-"]);
+    proc.stdin.write(body);
+    proc.stdin.end();
+    proc.on("close", (code) => { code === 0 ? resolve() : reject(new Error(`curl PUT exited ${code}`)); });
+    proc.on("error", reject);
+    setTimeout(() => { proc.kill(); reject(new Error("curl PUT timed out after 60s")); }, 65_000);
+  });
+}
 
 const storage = new ObjectStorageService();
+
+// ── Local file storage (Kamatera / non-Replit) ────────────────────────────────
+// When CAD_LOCAL_DIR is set, SVGs are written to disk instead of Replit object storage.
+// The objectPath is stored as "local:<filename>" and served via /api/cad-files/local/:filename.
+
+function isLocalMode(): boolean {
+  return !!process.env.CAD_LOCAL_DIR;
+}
+
+async function saveLocalSvg(svgBuffer: Buffer, fileName: string): Promise<string> {
+  const dir = process.env.CAD_LOCAL_DIR!;
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  const safeName = `${randomUUID()}_${fileName}`;
+  const filePath = path.join(dir, safeName);
+  fs.writeFileSync(filePath, svgBuffer);
+  return `local:${safeName}`;
+}
+
+export function getLocalCadFileDir(): string {
+  return process.env.CAD_LOCAL_DIR || "/opt/sirius/cad-files";
+}
+
+export function isLocalObjectPath(objectPath: string): boolean {
+  return objectPath.startsWith("local:");
+}
+
+export function localObjectPathToFileName(objectPath: string): string {
+  return objectPath.replace(/^local:/, "");
+}
 
 const ND_BASE_URL = () =>
   (process.env.NEWDIMENSIONS_BASE_URL || "https://new-dimension-cad.replit.app").replace(/\/$/, "");
@@ -189,56 +253,46 @@ export async function generateAndPostCadDrawing(
     if (apiKey) { ndHeaders["Authorization"] = `Bearer ${apiKey}`; ndHeaders["X-API-Key"] = apiKey; }
 
     // 1. Call New Dimensions AI engine
-    const genRes = await fetch(`${ndBase}/api/ai/generate`, {
-      method: "POST",
-      headers: ndHeaders,
-      body: JSON.stringify({ description }),
-      signal: AbortSignal.timeout(60_000),
-    });
-
-    if (!genRes.ok) {
-      const errText = await genRes.text();
-      throw new Error(`ND /api/ai/generate failed: ${genRes.status} ${errText.slice(0, 200)}`);
-    }
-
-    const drawingData = await genRes.json() as NdDrawingData;
+    console.log(`[CAD Auto-Gen] 🔄 Step 1 — calling ND AI at ${ndBase}/api/ai/generate`);
+    const genRaw = await spawnCurl(`${ndBase}/api/ai/generate`, { description }, apiKey ? { Authorization: `Bearer ${apiKey}`, "X-API-Key": apiKey } : undefined);
+    const drawingData = JSON.parse(genRaw) as NdDrawingData;
     console.log(`[CAD Auto-Gen] ✅ ND generated drawing: "${drawingData.title}" (${drawingData.elements.length} elements)`);
 
     // 2. Save structured drawing to New Dimensions so it renders in the ND canvas
-    const ndDrawRes = await fetch(`${ndBase}/api/projects/${ndProjectId}/drawings`, {
-      method: "POST",
-      headers: ndHeaders,
-      body: JSON.stringify({
-        name: `${projectName} — Technical Drawing`,
-        elements: drawingData.elements,
-        layers: drawingData.layers,
-        description: drawingData.description,
-      }),
-    });
-
-    if (!ndDrawRes.ok) {
-      const errText = await ndDrawRes.text();
-      console.warn(`[CAD Auto-Gen] ⚠ ND drawing save failed: ${ndDrawRes.status} ${errText.slice(0, 200)}`);
-    } else {
-      const saved = await ndDrawRes.json() as any;
-      console.log(`[CAD Auto-Gen] ✅ Drawing saved to New Dimensions (drawing #${saved.id})`);
+    console.log(`[CAD Auto-Gen] 🔄 Step 2 — saving drawing to ND project #${ndProjectId}`);
+    try {
+      const ndDrawRaw = await spawnCurl(
+        `${ndBase}/api/projects/${ndProjectId}/drawings`,
+        { name: `${projectName} — Technical Drawing`, elements: drawingData.elements, layers: drawingData.layers, description: drawingData.description },
+        apiKey ? { Authorization: `Bearer ${apiKey}`, "X-API-Key": apiKey } : undefined,
+      );
+      const saved = JSON.parse(ndDrawRaw) as any;
+      console.log(`[CAD Auto-Gen] ✅ Drawing saved to New Dimensions (drawing #${saved?.id})`);
+    } catch (ndErr: any) {
+      console.warn(`[CAD Auto-Gen] ⚠ ND drawing save failed: ${ndErr.message}`);
     }
 
     // 3. Convert structured elements to SVG programmatically
+    console.log(`[CAD Auto-Gen] 🔄 Step 3 — converting ${drawingData.elements.length} elements to SVG`);
+    const safeFileName = `${projectName.replace(/[^a-z0-9_\-]/gi, "_")}_drawing.svg`;
     const svgContent = elementsToSvg(drawingData);
     const svgBuffer  = Buffer.from(svgContent, "utf-8");
+    console.log(`[CAD Auto-Gen] ✅ SVG generated (${svgBuffer.length} bytes)`);
 
-    // 4. Upload SVG to object storage
-    const uploadURL  = await storage.getObjectEntityUploadURL();
-    const objectPath = storage.normalizeObjectEntityPath(uploadURL);
-    await fetch(uploadURL, {
-      method: "PUT",
-      headers: { "Content-Type": "image/svg+xml" },
-      body: svgBuffer,
-    });
+    // 4. Save SVG — local disk (Kamatera) or Replit object storage
+    console.log(`[CAD Auto-Gen] 🔄 Step 4 — saving SVG (localMode=${isLocalMode()})`);
+    let objectPath: string;
+    if (isLocalMode()) {
+      objectPath = await saveLocalSvg(svgBuffer, safeFileName);
+      console.log(`[CAD Auto-Gen] 💾 Saved SVG to local disk: ${objectPath}`);
+    } else {
+      const uploadURL = await storage.getObjectEntityUploadURL();
+      objectPath = storage.normalizeObjectEntityPath(uploadURL);
+      await spawnCurlPut(uploadURL, svgBuffer, "image/svg+xml");
+    }
 
     // 5. Store in Star Lab's cad_files
-    const safeFileName = `${projectName.replace(/[^a-z0-9_\-]/gi, "_")}_drawing.svg`;
+    console.log(`[CAD Auto-Gen] 🔄 Step 5 — inserting cad_files record`);
     await db.insert(cadFiles).values({
       projectId,
       fileName: safeFileName,
@@ -247,8 +301,10 @@ export async function generateAndPostCadDrawing(
       objectPath,
       description: `CAD drawing generated by New Dimensions AI — ${drawingData.elements.length} elements`,
     });
+    console.log(`[CAD Auto-Gen] ✅ cad_files record inserted`);
 
     // 6. Mark cad_job complete
+    console.log(`[CAD Auto-Gen] 🔄 Step 6 — marking cad_job complete`);
     const [job] = await db
       .select({ id: cadJobs.id, status: cadJobs.status })
       .from(cadJobs)
@@ -261,9 +317,12 @@ export async function generateAndPostCadDrawing(
         .update(cadJobs)
         .set({ status: "complete", completedAt: new Date() })
         .where(eq(cadJobs.id, job.id));
+    } else {
+      console.log(`[CAD Auto-Gen] ℹ No pending cad_job to mark — job status: ${job?.status ?? "none"}`);
     }
 
     // 7. Advance project to "launch-ready" if cad-pending
+    console.log(`[CAD Auto-Gen] 🔄 Step 7 — checking project launch status`);
     const [proj] = await db
       .select({ id: labProjects.id, launchStatus: labProjects.launchStatus, name: labProjects.name })
       .from(labProjects)
@@ -276,12 +335,16 @@ export async function generateAndPostCadDrawing(
         .set({ launchStatus: "launch-ready", updatedAt: new Date() })
         .where(eq(labProjects.id, projectId));
       console.log(`[CAD Auto-Gen] ✅ "${proj.name}" → LAUNCH READY`);
+    } else {
+      console.log(`[CAD Auto-Gen] ℹ Project launch status: ${proj?.launchStatus ?? "unknown"} — no update needed`);
     }
 
     console.log(`[CAD Auto-Gen] ✅ Complete — "${projectName}" drawing stored (${svgBuffer.length} bytes)`);
 
   } catch (err: any) {
-    console.error(`[CAD Auto-Gen] ❌ Failed for "${projectName}":`, err.message);
+    const cause = err?.cause;
+    const detail = cause ? ` [cause: ${cause.code ?? ""} ${cause.message ?? ""}]` : "";
+    console.error(`[CAD Auto-Gen] ❌ Failed for "${projectName}":`, err.message + detail);
     try {
       const [job] = await db
         .select({ id: cadJobs.id, status: cadJobs.status })
