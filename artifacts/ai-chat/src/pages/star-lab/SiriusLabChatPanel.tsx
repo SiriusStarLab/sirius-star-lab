@@ -382,7 +382,7 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
       [["system audit", "sysaudit", "platform audit", "audit", "health check", "platform health"], "sysaudit"],
       [["upgrades", "upgrade wishlist", "what sirius needs", "sirius upgrades", "buy for sirius", "capability upgrades"], "upgrades"],
     ];
-    const goVerbs = ["go to", "take me to", "open", "show me", "navigate to", "switch to", "go"];
+    const goVerbs = ["go to", "take me to", "open", "show me", "navigate to", "switch to"];
     const hasGoVerb = goVerbs.some(v => t.includes(v));
     if (!hasGoVerb) return null;
     for (const [keywords, mode] of navMap) {
