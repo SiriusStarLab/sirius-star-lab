@@ -53,9 +53,9 @@ export async function extractAndSaveMemories(
 
     if (!serialised.trim()) return;
 
-    // Hard timeout so a slow/hanging OpenRouter call never blocks the background job
+    // Hard timeout — 25s gives OpenRouter enough headroom without hanging forever
     const abort = new AbortController();
-    const timer = setTimeout(() => abort.abort(), 12_000);
+    const timer = setTimeout(() => abort.abort(), 25_000);
 
     let response;
     try {
