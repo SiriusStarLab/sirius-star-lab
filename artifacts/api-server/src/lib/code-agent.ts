@@ -14,7 +14,11 @@ import { openai } from "@workspace/integrations-openai-ai-server";
 
 const execAsync = promisify(exec);
 
-const WORKSPACE = "/home/runner/workspace";
+// Resolve workspace root relative to this file's runtime location so it works
+// on both Replit (/home/runner/workspace) and Kamatera (/opt/sirius).
+// Bundle output lives at <root>/artifacts/api-server/dist/index.cjs, so
+// three levels up lands on the monorepo root.
+const WORKSPACE = process.env.SIRIUS_WORKSPACE ?? path.resolve(__dirname, "../../..");
 
 // Safe paths Sirius is allowed to operate in
 const ALLOWED_PATHS = [
