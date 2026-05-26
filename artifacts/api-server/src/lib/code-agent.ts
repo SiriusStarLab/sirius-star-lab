@@ -8,6 +8,7 @@
 
 import * as fs from "fs/promises";
 import * as path from "path";
+import { fileURLToPath } from "url";
 import { exec } from "child_process";
 import { promisify } from "util";
 import { openai } from "@workspace/integrations-openai-ai-server";
@@ -18,6 +19,8 @@ const execAsync = promisify(exec);
 // on both Replit (/home/runner/workspace) and Kamatera (/opt/sirius).
 // Bundle output lives at <root>/artifacts/api-server/dist/index.cjs, so
 // three levels up lands on the monorepo root.
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const WORKSPACE = process.env.SIRIUS_WORKSPACE ?? path.resolve(__dirname, "../../..");
 
 // Safe paths Sirius is allowed to operate in
