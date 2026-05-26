@@ -16,12 +16,13 @@ import { openai } from "@workspace/integrations-openai-ai-server";
 const execAsync = promisify(exec);
 
 // Resolve workspace root relative to this file's runtime location so it works
-// on both Replit (/home/runner/workspace) and Kamatera (/opt/sirius).
-// Bundle output lives at <root>/artifacts/api-server/dist/index.cjs, so
-// three levels up lands on the monorepo root.
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const WORKSPACE = process.env.SIRIUS_WORKSPACE ?? path.resolve(__dirname, "../../..");
+// on both Replit (ESM via tsx) and Kamatera (CJS bundle via esbuild).
+// In CJS, __dirname is a native global. In ESM, we derive it from import.meta.url.
+// Bundle output: <root>/artifacts/api-server/dist/index.cjs → three levels up = monorepo root.
+const _dirname: string = typeof __dirname !== "undefined"
+  ? __dirname
+  : path.dirname(fileURLToPath(import.meta.url));
+const WORKSPACE = process.env.SIRIUS_WORKSPACE ?? path.resolve(_dirname, "../../..");
 
 // Safe paths Sirius is allowed to operate in
 const ALLOWED_PATHS = [
