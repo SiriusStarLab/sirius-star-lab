@@ -4249,11 +4249,53 @@ async function executeLabTool(name: string, args: any, onProgress?: (event: Reco
         const profileRows = await db.select().from(userProfilesTable).where(eq(userProfilesTable.userId, BRAIN_USER));
         const existing = profileRows[0]?.memories || "";
         const newFact = `[${args.category}] ${args.fact}`;
-        const updated = existing ? `${existing}\n${newFact}` : newFact;
+
+        // Deduplication — normalise both strings and skip if substantially the same
+        const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+        const newNorm = norm(newFact);
+        const existingLines = existing.split("\n").filter(Boolean);
+
+        const duplicate = existingLines.find(line => {
+          const lineNorm = norm(line);
+          if (lineNorm === newNorm) return true;                           // exact
+          const shorter = newNorm.length < lineNorm.length ? newNorm : lineNorm;
+          const longer  = newNorm.length < lineNorm.length ? lineNorm : newNorm;
+          if (shorter.length > 30 && longer.includes(shorter)) return true; // one contains the other
+          // Levenshtein-ish: check first 60 chars
+          const a = newNorm.slice(0, 60), b = lineNorm.slice(0, 60);
+          if (a.length > 20 && b.length > 20 && a === b) return true;
+          return false;
+        });
+
+        if (duplicate) {
+          return `Memory already recorded — skipped duplicate.\nExisting: "${duplicate}"\nNew (skipped): "${newFact}"`;
+        }
+
+        // Replace an older entry in the same category+topic if one exists
+        const categoryPrefix = `[${args.category}]`;
+        const factKeywords = norm(args.fact).split(" ").filter(w => w.length > 5).slice(0, 3);
+        let replaced = false;
+        const updatedLines = existingLines.map(line => {
+          if (!line.startsWith(categoryPrefix)) return line;
+          const lineNorm = norm(line);
+          const matchCount = factKeywords.filter(kw => lineNorm.includes(kw)).length;
+          if (matchCount >= 2) { replaced = true; return newFact; } // same topic, same category — replace
+          return line;
+        });
+
+        const finalLines = replaced ? updatedLines : [...existingLines, newFact];
+
+        // Hard cap: keep the most recent 300 entries (prevents unbounded growth)
+        const capped = finalLines.length > 300 ? finalLines.slice(finalLines.length - 300) : finalLines;
+        const updated = capped.join("\n");
+
         await db.insert(userProfilesTable)
           .values({ userId: BRAIN_USER, aiName: "Sirius", memories: updated })
           .onConflictDoUpdate({ target: userProfilesTable.userId, set: { memories: updated, updatedAt: new Date() } });
-        return `Saved to memory: ${newFact}`;
+
+        return replaced
+          ? `Memory updated (replaced older entry on same topic): ${newFact}`
+          : `Saved to memory: ${newFact}`;
       }
       case "create_project": {
         const rows = await db.insert(labProjects)
@@ -6697,6 +6739,12 @@ ${brainContext ? [
 
 You are now in STAR LAB MODE — a direct private channel between you and Garry. This is the inner sanctum.
 
+## ★ WHAT YOU ALREADY KNOW — READ THIS FIRST ★
+
+${brainContext
+  ? `The following is your persistent memory. It was saved across previous conversations and is always loaded at the start of every session. This IS your memory — treat it as your own knowledge, not as external information. Do not ask Garry anything already answered here.\n\n${brainContext}`
+  : "Your memory is empty. Ask Garry to introduce himself and start saving facts with save_memory so you build context over time."}
+
 ${selfConfigBlock ? `## YOUR SELF-CONFIGURED SETTINGS\n\n${selfConfigBlock}\n` : ""}
 
 ## ★ CORE EXECUTION DOCTRINE — READ THIS BEFORE EVERY RESPONSE ★
@@ -6811,6 +6859,18 @@ TASK 9 — MEMORY AND BRAIN ("remember that", "save that", "what do you know abo
   get_brain_context() — to answer questions about what you know
   update_business_profile(field, value) — to update core business info
   CRITICAL: Everything saved via save_memory survives every session restart. This is how Sirius remembers across conversations.
+
+## MEMORY DISCIPLINE — READ THIS CAREFULLY
+
+Your memories are already loaded into your context at the top of this system prompt. Before calling save_memory, scan what you already have. Do NOT save a fact that is already there — the system will catch duplicates, but it costs a tool call to find out.
+
+Rules:
+1. If Garry tells you something NEW — something not in your existing memories — save it immediately with save_memory.
+2. If you are updating an existing fact (e.g. a status that changed) — save_memory will replace the older entry automatically because it detects matching category + keywords.
+3. Do NOT save the same fact in different words. Pick the clearest phrasing and save it once.
+4. Do NOT save process notes ("Garry is currently working on X"). Save outcomes and facts ("X was completed" or "X is paused pending Y").
+5. At the end of every conversation where new facts emerged, do a final sweep: save_memory for each genuinely new thing Garry told you.
+6. Categories to use: personal, preference, project, business, technical, completed, decision
 
 TASK 10 — NAVIGATION ("show me projects", "go to pipeline", "open that project")
   navigate_to(section, projectId) or write <<NAVIGATE:section>> in response text
@@ -7039,8 +7099,6 @@ Garry interacts by voice only. Your text responses are read aloud. Write like yo
 - Keep spoken responses under 4 sentences for voice delivery.
 - Always end with a question to keep the conversation going.
 - If you have data (like a project list), summarise verbally, then navigate/open — don't recite a long list.
-
-${brainContext ? `WHAT YOU ALREADY KNOW ABOUT THIS BUSINESS:\n${brainContext}` : "You don't have much context yet — ask Garry questions to learn."}
 
 Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}.`;
 
