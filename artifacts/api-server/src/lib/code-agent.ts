@@ -28,7 +28,7 @@ const WORKSPACE = process.env.SIRIUS_WORKSPACE ?? path.resolve(_dirname, "../../
 const ALLOWED_PATHS = [
   "artifacts/ai-chat/src",
   "artifacts/api-server/src",
-  "artifacts/sirius-mobile/src",
+  "artifacts/sirius-mobile/app",
   "artifacts/fitstack-crm/src",
   "lib",
   "packages",
