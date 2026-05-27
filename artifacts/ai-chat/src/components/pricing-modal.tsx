@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Zap, Check, Crown, Loader2, Building2, Copy, CheckCheck, RotateCcw } from "lucide-react";
+import { X, Zap, Check, Crown, Loader2, Building2, Copy, CheckCheck, CreditCard } from "lucide-react";
 import { getUserId } from "@/lib/user-id";
 import { getApiBase } from "@/lib/api-base";
 
@@ -27,6 +27,7 @@ export function PricingModal({ isOpen, onClose, currentTier = "free", defaultTie
   const [copied, setCopied] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [payMethod, setPayMethod] = useState<"bank" | "card">("bank");
   const userId = getUserId();
   const isPremium = currentTier !== "free";
 
@@ -60,16 +61,38 @@ export function PricingModal({ isOpen, onClose, currentTier = "free", defaultTie
     }
   }
 
+  async function handleStripeCheckout() {
+    setLoading(true);
+    try {
+      const base = getApiBase();
+      const res = await fetch(`${base}stripe/checkout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, tier: selectedTier }),
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch (e) {
+      console.error("Stripe checkout failed", e);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   function handleClose() {
     setStep("plans");
     setDone(false);
     setName("");
     setEmail("");
+    setPayMethod("bank");
     onClose();
   }
 
   function startPay(tier: "plus" | "pro") {
     setSelectedTier(tier);
+    setPayMethod("bank");
     setStep("pay");
   }
 
@@ -141,7 +164,7 @@ export function PricingModal({ isOpen, onClose, currentTier = "free", defaultTie
                         Get more from Sirius
                       </h2>
                       <p style={{ fontSize: 14, color: "rgba(255,255,255,0.45)", lineHeight: 1.5 }}>
-                        Pay by bank transfer — no card details needed.
+                        Bank transfer, Apple Pay, Google Pay, or card.
                       </p>
                     </div>
 
@@ -262,95 +285,159 @@ export function PricingModal({ isOpen, onClose, currentTier = "free", defaultTie
 
                     <div style={{ textAlign: "center", marginBottom: 20 }}>
                       <h2 style={{ fontSize: 20, fontWeight: 800, color: "#fff", marginBottom: 4 }}>
-                        Pay by bank transfer
-                      </h2>
-                      <p style={{ fontSize: 14, color: "rgba(255,255,255,0.45)" }}>
                         {price.label} · {price.monthly}
+                      </h2>
+                      <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)" }}>
+                        Choose how you'd like to pay
                       </p>
                     </div>
 
-                    {/* Bank details */}
-                    <div style={{
-                      borderRadius: 16, background: "rgba(0,212,255,0.06)",
-                      border: "1px solid rgba(0,212,255,0.2)", padding: "18px 20px", marginBottom: 16,
-                    }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
-                        <Building2 size={16} style={{ color: "#00d4ff" }} />
-                        <span style={{ fontSize: 13, fontWeight: 700, color: "#00d4ff" }}>Bank Transfer Details</span>
-                      </div>
-
-                      {[
-                        { label: "Pay to", value: BANK.name, key: "name" },
-                        { label: "Bank", value: BANK.bank, key: "bank" },
-                        { label: "Account number", value: BANK.account, key: "account" },
-                        { label: "Sort code", value: BANK.sortCode, key: "sort" },
-                        { label: "Amount", value: price.amount, key: "amount" },
-                        { label: "Reference", value: `SIRIUS-${userId.substring(0, 8).toUpperCase()}-${selectedTier.toUpperCase()}`, key: "ref" },
-                      ].map(({ label, value, key }) => (
-                        <div key={key} style={{
-                          display: "flex", alignItems: "center", justifyContent: "space-between",
-                          padding: "8px 0",
-                          borderBottom: "1px solid rgba(255,255,255,0.05)",
-                        }}>
-                          <span style={{ fontSize: 12, color: "rgba(255,255,255,0.35)" }}>{label}</span>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <span style={{ fontSize: 13, fontWeight: 600, color: "#fff" }}>{value}</span>
-                            <button
-                              onClick={() => copy(value, key)}
-                              style={{ background: "none", border: "none", cursor: "pointer", color: copied === key ? "#00d4ff" : "rgba(255,255,255,0.3)", padding: 2 }}
-                            >
-                              {copied === key ? <CheckCheck size={13} /> : <Copy size={13} />}
-                            </button>
-                          </div>
-                        </div>
+                    {/* Payment method toggle */}
+                    <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+                      {(["bank", "card"] as const).map(m => (
+                        <button
+                          key={m}
+                          onClick={() => setPayMethod(m)}
+                          style={{
+                            flex: 1, padding: "12px 8px", borderRadius: 12, cursor: "pointer",
+                            border: payMethod === m ? "1.5px solid #00d4ff" : "1.5px solid rgba(255,255,255,0.1)",
+                            background: payMethod === m ? "rgba(0,212,255,0.1)" : "rgba(255,255,255,0.04)",
+                            display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
+                          }}
+                        >
+                          {m === "bank"
+                            ? <Building2 size={18} style={{ color: payMethod === "bank" ? "#00d4ff" : "rgba(255,255,255,0.4)" }} />
+                            : <CreditCard size={18} style={{ color: payMethod === "card" ? "#00d4ff" : "rgba(255,255,255,0.4)" }} />}
+                          <span style={{ fontSize: 12, fontWeight: 600, color: payMethod === m ? "#00d4ff" : "rgba(255,255,255,0.4)" }}>
+                            {m === "bank" ? "Bank transfer" : "Apple / Google Pay"}
+                          </span>
+                          {m === "bank" && (
+                            <span style={{ fontSize: 10, color: "rgba(0,212,255,0.6)" }}>No fees · UK only</span>
+                          )}
+                          {m === "card" && (
+                            <span style={{ fontSize: 10, color: "rgba(0,212,255,0.6)" }}>Instant · Worldwide</span>
+                          )}
+                        </button>
                       ))}
                     </div>
 
-                    <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginBottom: 16, lineHeight: 1.6 }}>
-                      Make the transfer in your banking app, then tap the button below. Your account will be upgraded within a few hours once we confirm receipt.
-                    </p>
+                    {/* Card / Apple Pay / Google Pay */}
+                    {payMethod === "card" && (
+                      <>
+                        <div style={{
+                          borderRadius: 14, background: "rgba(255,255,255,0.04)",
+                          border: "1px solid rgba(255,255,255,0.1)", padding: "16px 18px", marginBottom: 16,
+                        }}>
+                          <p style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", lineHeight: 1.6, marginBottom: 0 }}>
+                            You'll be taken to a secure Stripe checkout page. <strong style={{ color: "#fff" }}>Apple Pay</strong> and <strong style={{ color: "#fff" }}>Google Pay</strong> will appear automatically if your device supports them — no card number needed. All major cards accepted. Payments are processed by Stripe.
+                          </p>
+                        </div>
+                        <button
+                          onClick={handleStripeCheckout}
+                          disabled={loading}
+                          style={{
+                            width: "100%", padding: "15px", borderRadius: 12, border: "none",
+                            background: loading ? "rgba(0,212,255,0.2)" : "#00d4ff",
+                            color: loading ? "#00d4ff" : "#080c1a",
+                            fontSize: 15, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer",
+                            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                          }}
+                        >
+                          {loading
+                            ? <><Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> Loading…</>
+                            : <><CreditCard size={16} /> Continue to checkout</>}
+                        </button>
+                        <p style={{ fontSize: 11, color: "rgba(255,255,255,0.25)", textAlign: "center", marginTop: 10 }}>
+                          Secured by Stripe · Cancel any time
+                        </p>
+                      </>
+                    )}
 
-                    {/* Optional name/email */}
-                    <div style={{ marginBottom: 16 }}>
-                      <input
-                        placeholder="Your name (optional)"
-                        value={name}
-                        onChange={e => setName(e.target.value)}
-                        style={{
-                          width: "100%", padding: "12px 14px", borderRadius: 10,
-                          background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)",
-                          color: "#fff", fontSize: 14, marginBottom: 8, boxSizing: "border-box",
-                          outline: "none",
-                        }}
-                      />
-                      <input
-                        placeholder="Email for confirmation (optional)"
-                        value={email}
-                        onChange={e => setEmail(e.target.value)}
-                        style={{
-                          width: "100%", padding: "12px 14px", borderRadius: 10,
-                          background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)",
-                          color: "#fff", fontSize: 14, boxSizing: "border-box",
-                          outline: "none",
-                        }}
-                      />
-                    </div>
+                    {/* Bank transfer */}
+                    {payMethod === "bank" && (
+                      <>
+                        <div style={{
+                          borderRadius: 16, background: "rgba(0,212,255,0.06)",
+                          border: "1px solid rgba(0,212,255,0.2)", padding: "18px 20px", marginBottom: 16,
+                        }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+                            <Building2 size={16} style={{ color: "#00d4ff" }} />
+                            <span style={{ fontSize: 13, fontWeight: 700, color: "#00d4ff" }}>Bank Transfer Details</span>
+                          </div>
 
-                    <button
-                      onClick={handleConfirm}
-                      disabled={loading}
-                      style={{
-                        width: "100%", padding: "15px", borderRadius: 12, border: "none",
-                        background: loading ? "rgba(0,212,255,0.2)" : "#00d4ff",
-                        color: loading ? "#00d4ff" : "#080c1a",
-                        fontSize: 15, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer",
-                        display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                      }}
-                    >
-                      {loading
-                        ? <><Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> Sending…</>
-                        : "I've made the transfer"}
-                    </button>
+                          {[
+                            { label: "Pay to", value: BANK.name, key: "name" },
+                            { label: "Bank", value: BANK.bank, key: "bank" },
+                            { label: "Account number", value: BANK.account, key: "account" },
+                            { label: "Sort code", value: BANK.sortCode, key: "sort" },
+                            { label: "Amount", value: price.amount, key: "amount" },
+                            { label: "Reference", value: `SIRIUS-${userId.substring(0, 8).toUpperCase()}-${selectedTier.toUpperCase()}`, key: "ref" },
+                          ].map(({ label, value, key }) => (
+                            <div key={key} style={{
+                              display: "flex", alignItems: "center", justifyContent: "space-between",
+                              padding: "8px 0",
+                              borderBottom: "1px solid rgba(255,255,255,0.05)",
+                            }}>
+                              <span style={{ fontSize: 12, color: "rgba(255,255,255,0.35)" }}>{label}</span>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <span style={{ fontSize: 13, fontWeight: 600, color: "#fff" }}>{value}</span>
+                                <button
+                                  onClick={() => copy(value, key)}
+                                  style={{ background: "none", border: "none", cursor: "pointer", color: copied === key ? "#00d4ff" : "rgba(255,255,255,0.3)", padding: 2 }}
+                                >
+                                  {copied === key ? <CheckCheck size={13} /> : <Copy size={13} />}
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginBottom: 16, lineHeight: 1.6 }}>
+                          Make the transfer in your banking app, then tap the button below. Your account will be upgraded within a few hours once we confirm receipt.
+                        </p>
+
+                        <div style={{ marginBottom: 16 }}>
+                          <input
+                            placeholder="Your name (optional)"
+                            value={name}
+                            onChange={e => setName(e.target.value)}
+                            style={{
+                              width: "100%", padding: "12px 14px", borderRadius: 10,
+                              background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)",
+                              color: "#fff", fontSize: 14, marginBottom: 8, boxSizing: "border-box",
+                              outline: "none",
+                            }}
+                          />
+                          <input
+                            placeholder="Email for confirmation (optional)"
+                            value={email}
+                            onChange={e => setEmail(e.target.value)}
+                            style={{
+                              width: "100%", padding: "12px 14px", borderRadius: 10,
+                              background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)",
+                              color: "#fff", fontSize: 14, boxSizing: "border-box",
+                              outline: "none",
+                            }}
+                          />
+                        </div>
+
+                        <button
+                          onClick={handleConfirm}
+                          disabled={loading}
+                          style={{
+                            width: "100%", padding: "15px", borderRadius: 12, border: "none",
+                            background: loading ? "rgba(0,212,255,0.2)" : "#00d4ff",
+                            color: loading ? "#00d4ff" : "#080c1a",
+                            fontSize: 15, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer",
+                            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                          }}
+                        >
+                          {loading
+                            ? <><Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> Sending…</>
+                            : "I've made the transfer"}
+                        </button>
+                      </>
+                    )}
                   </>
                 )}
 
