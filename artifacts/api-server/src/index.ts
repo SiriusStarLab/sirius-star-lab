@@ -1,11 +1,7 @@
 import app from "./app";
-import { startScheduledSweeps } from "./routes/intelligence-sweep.js";
-import { startLabAutoScanner } from "./lib/lab-auto-scan.js";
-import { startAiArchSweep } from "./lib/ai-arch-sweep.js";
 import { startProjectPipeline, advanceCadPendingWithNotes } from "./lib/project-pipeline.js";
 import { tickAutomations } from "./lib/sirius-automation.js";
 import { runInvestmentRule } from "./lib/investment-rule.js";
-import { startProactiveEngine } from "./lib/sirius-proactive.js";
 import { startPaymentExpiryJob } from "./lib/payment-expiry.js";
 import { startHealthMonitor } from "./lib/health-monitor.js";
 import { startSelfRepairEngine } from "./lib/self-repair.js";
@@ -31,12 +27,6 @@ if (Number.isNaN(port) || port <= 0) {
 
 app.listen(port, () => {
   console.log(`Server listening on port ${port}`);
-  // Intelligence sweep — MANUAL ONLY (disabled auto-schedule to conserve credits)
-  // startScheduledSweeps(6);
-  // Lab Auto-Scan — MANUAL ONLY (trigger via Sirius chat command)
-  // startLabAutoScanner(24);
-  // AI Architecture sweep — MANUAL ONLY (disabled auto-schedule to conserve credits)
-  // startAiArchSweep(24);
   startProjectPipeline();
   // Unblock any cad-pending projects that already have drawing notes
   advanceCadPendingWithNotes().catch(e => console.error("[Pipeline] Migration failed:", e));
@@ -48,8 +38,6 @@ app.listen(port, () => {
   // Sirius self-management — run automations she has created
   setInterval(() => tickAutomations(), 60_000);
   console.log("[Sirius Automations] Self-management engine started — checking every 60 seconds");
-  // Sirius proactive engine — MANUAL ONLY (disabled auto-enrichment to conserve credits)
-  // startProactiveEngine(15);
   console.log("[Sirius] Lean mode active — market scans & proactive enrichment are manual-only. Use chat commands to trigger.");
   // Payment expiry — downgrade unconfirmed subscribers after 48 hours
   startPaymentExpiryJob();
