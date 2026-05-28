@@ -1,3 +1,4 @@
 - [Kamatera deploy path](kamatera-deploy-path.md) — PM2 runs from `/opt/sirius/artifacts/api-server/dist/index.cjs`, NOT `/opt/sirius/dist/index.cjs`; wrong path = zero effect.
 - [Sirius independence roadmap](independence-roadmap.md) — status of moving off Replit; AI proxy cut, GitHub set up, Kamatera self-builds, object storage migrated to AWS S3. Clerk still on Replit.
 - [Object storage S3 migration](object-storage-migration.md) — AWS SDK must be in build.ts allowlist or esbuild marks it external and PM2 can't find it at runtime.
+- [Sirius Intelligence Layer](sirius-intelligence-layer.md) — Docker service on port 3001, deploy pattern, Garry's userId="garry", DB tables, context sync hook locations.

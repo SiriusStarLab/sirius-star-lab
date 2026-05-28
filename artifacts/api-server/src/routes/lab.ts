@@ -16,6 +16,7 @@ import { recordPinFailure, clearPinRecord, securityLog } from "../middlewares/se
 import { getLabPin, setLabPin, getPinRole, authMiddleware, sseHeaders, loadLabPinFromDb, TODAY } from "../lib/lab-auth.js";
 import { runCodeAgent, type CodeAgentEvent } from "../lib/code-agent.js";
 import { runSecurityScan } from "../lib/security-scanner.js";
+import { intelligence } from "../lib/intelligence-client.js";
 
 // Active code-agent SSE streams (sessionId → Response)
 const codeAgentStreams = new Map<string, Response>();
@@ -939,6 +940,14 @@ CRITICAL EXECUTION RULES — READ CAREFULLY:
     }
 
     await db.insert(labMessages).values({ projectId, role: "assistant", content: contentBuffer });
+
+    intelligence.syncContext(
+      "garry",
+      "star_lab",
+      `Project: ${project.name} (${project.phase})\nUser: ${message.slice(0, 300)}\nSirius: ${contentBuffer.slice(0, 500)}`,
+      { projectId, tab, phase: project.phase },
+    ).catch(() => {});
+
     res.write(`data: ${JSON.stringify({ done: true, savedFields })}\n\n`);
   } catch (err: any) {
     res.write(`data: ${JSON.stringify({ error: err.message || "Stream failed" })}\n\n`);

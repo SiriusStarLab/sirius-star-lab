@@ -15,6 +15,7 @@ import {
 } from "@workspace/api-zod";
 import { generateImageBuffer } from "@workspace/ai-client/image";
 import { getUncachableSpotifyClient } from "../../lib/spotify";
+import { intelligence } from "../../lib/intelligence-client.js";
 
 const router: IRouter = Router();
 
@@ -1138,6 +1139,13 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
       { role: "assistant", content: fullResponse },
     ];
     extractAndSaveMemories(userId, conversationForMemory as any, profile.memories).catch(() => {});
+
+    intelligence.syncContext(
+      userId,
+      "chat",
+      `User: ${body.data.content?.slice(0, 300)}\nSirius: ${fullResponse.slice(0, 500)}`,
+      { conversationId },
+    ).catch(() => {});
 
     // Increment daily message count — atomic conditional update to prevent race conditions
     db.execute(sql`
