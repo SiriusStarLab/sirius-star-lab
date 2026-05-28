@@ -90,6 +90,8 @@ async function alreadyLogged(message: string): Promise<boolean> {
 
 // ── Step 1: Watch PM2 error logs ──────────────────────────────────────────────
 async function watchPm2Logs(): Promise<void> {
+  // PM2 only exists on the production VPS — skip silently in dev
+  if (process.env.NODE_ENV !== "production") return;
   try {
     const { stdout } = await execAsync(
       "pm2 logs sirius-api --lines 80 --nostream 2>&1",
