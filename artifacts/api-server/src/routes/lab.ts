@@ -7414,9 +7414,39 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
       ];
     }
 
-    // If Sirius never produced a text response (hit round limit or all rounds were tool calls)
+    // If Sirius never produced a text response (hit round limit or all rounds were tool calls),
+    // force a synthesis round — she has all tool results in context, just needs to write them out.
     if (!finalText) {
-      sendEvent({ type: "text", delta: "All done — checks complete. What would you like to know from what I found?" });
+      try {
+        const synthStream = await openai.chat.completions.create({
+          model: "anthropic/claude-sonnet-4.6",
+          messages: [
+            ...loopMessages,
+            {
+              role: "user" as const,
+              content: "Write your complete report now. Include the FULL OUTPUT of every tool you ran — every command result, every file you read, every finding. Do not ask what I want to know. Write everything out completely and inline.",
+            },
+          ],
+          max_tokens: 8000,
+          stream: true,
+        } as any);
+
+        for await (const chunk of synthStream as AsyncIterable<any>) {
+          const choice = chunk.choices?.[0];
+          if (choice?.delta?.content) {
+            finalText += choice.delta.content;
+            sendEvent({ type: "text", delta: choice.delta.content });
+          }
+        }
+      } catch {
+        // synthesis failed — give a minimal honest fallback
+      }
+
+      if (!finalText) {
+        const fallback = "I ran all the checks but hit a round limit before I could write the report. Ask me to repeat the specific check you need.";
+        finalText = fallback;
+        sendEvent({ type: "text", delta: fallback });
+      }
     }
 
     // Background: auto-extract facts from this exchange (owner only)
