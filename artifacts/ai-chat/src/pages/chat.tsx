@@ -23,7 +23,7 @@ const SURPRISE_PROMPTS = [
   "What do we actually know about consciousness from neuroscience — and where does it break down?",
   "Tell me something about the ocean that most people have no idea about.",
   "What is the most incredible animal ability on Earth — something that makes our senses look primitive?",
-  "Give me a philosophical question so deep that even the greatest minds couldn't answer it.",
+  "Give me the most profound philosophical question ever asked — one so deep even the greatest minds couldn't answer it.",
   "What ancient wisdom have modern scientists confirmed is actually correct?",
   "What does physics say about parallel universes? The actual serious academic theories.",
 ];
