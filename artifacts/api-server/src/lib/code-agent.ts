@@ -8,6 +8,7 @@
 
 import * as fs from "fs/promises";
 import * as path from "path";
+import { fileURLToPath } from "url";
 import { exec } from "child_process";
 import { promisify } from "util";
 import { openai } from "@workspace/integrations-openai-ai-server";
@@ -15,8 +16,11 @@ import { openai } from "@workspace/integrations-openai-ai-server";
 const execAsync = promisify(exec);
 
 // Resolve workspace root. SIRIUS_WORKSPACE env var takes priority (set on Kamatera).
-// Falls back to __dirname-relative path for local dev (CJS bundle: 3 levels up = monorepo root).
-const WORKSPACE = process.env.SIRIUS_WORKSPACE ?? path.resolve(__dirname ?? process.cwd(), "../../..");
+// Falls back to import.meta.url-relative path for local dev (3 levels up = monorepo root).
+const _dirname = typeof __dirname !== "undefined"
+  ? __dirname
+  : path.dirname(fileURLToPath(import.meta.url));
+const WORKSPACE = process.env.SIRIUS_WORKSPACE ?? path.resolve(_dirname, "../../..");
 
 // Safe paths Sirius is allowed to operate in
 const ALLOWED_PATHS = [
