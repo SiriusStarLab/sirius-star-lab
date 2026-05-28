@@ -8,21 +8,15 @@
 
 import * as fs from "fs/promises";
 import * as path from "path";
-import { fileURLToPath } from "url";
 import { exec } from "child_process";
 import { promisify } from "util";
 import { openai } from "@workspace/integrations-openai-ai-server";
 
 const execAsync = promisify(exec);
 
-// Resolve workspace root relative to this file's runtime location so it works
-// on both Replit (ESM via tsx) and Kamatera (CJS bundle via esbuild).
-// In CJS, __dirname is a native global. In ESM, we derive it from import.meta.url.
-// Bundle output: <root>/artifacts/api-server/dist/index.cjs → three levels up = monorepo root.
-const _dirname: string = typeof __dirname !== "undefined"
-  ? __dirname
-  : path.dirname(fileURLToPath(import.meta.url));
-const WORKSPACE = process.env.SIRIUS_WORKSPACE ?? path.resolve(_dirname, "../../..");
+// Resolve workspace root. SIRIUS_WORKSPACE env var takes priority (set on Kamatera).
+// Falls back to __dirname-relative path for local dev (CJS bundle: 3 levels up = monorepo root).
+const WORKSPACE = process.env.SIRIUS_WORKSPACE ?? path.resolve(__dirname ?? process.cwd(), "../../..");
 
 // Safe paths Sirius is allowed to operate in
 const ALLOWED_PATHS = [
