@@ -10,8 +10,6 @@ const __dirname = path.dirname(__filename);
 // which helps cold start times without risking some
 // packages that are not bundle compatible
 const allowlist = [
-  "@aws-sdk/client-s3",
-  "@aws-sdk/s3-request-presigner",
   "@google/generative-ai",
   "axios",
   "connect-pg-simple",
@@ -27,7 +25,6 @@ const allowlist = [
   "multer",
   "nanoid",
   "nodemailer",
-  "openai",
   "passport",
   "passport-local",
   "pg",
@@ -55,6 +52,31 @@ async function buildAll() {
       !(pkg.dependencies?.[dep]?.startsWith("workspace:")),
   );
 
+  // Packages that may not be declared in package.json but must be external
+  // (e.g. transitive deps used directly, or packages not installed in this env)
+  const alwaysExternal = [
+    "@aws-sdk/client-s3",
+    "@aws-sdk/s3-request-presigner",
+    "openai",
+  ];
+  for (const pkg of alwaysExternal) {
+    if (!externals.includes(pkg)) externals.push(pkg);
+  }
+
+  // Resolve @workspace/* packages by path — needed when pnpm symlinks aren't
+  // present (e.g. on the production VPS where only the source is rsynced).
+  const aiClientSrc = path.resolve(__dirname, "../../lib/ai-client/src");
+  const workspaceAliases: Record<string, string> = {};
+  try {
+    // Only add aliases when the source directory actually exists
+    const { stat } = await import("fs/promises");
+    await stat(aiClientSrc);
+    workspaceAliases["@workspace/ai-client"] = path.join(aiClientSrc, "index.ts");
+    workspaceAliases["@workspace/ai-client/image"] = path.join(aiClientSrc, "image.ts");
+  } catch {
+    // On Replit, pnpm symlinks handle resolution — aliases not needed
+  }
+
   // Build to CJS with `conditions: ["require"]` so esbuild picks the CJS
   // entry point for dual-format packages (e.g. openai, stripe) instead of
   // bundling their ESM code — which caused the fileURLToPath crash in prod.
@@ -70,6 +92,7 @@ async function buildAll() {
     conditions: ["require", "node", "default"],
     minify: true,
     external: externals,
+    alias: workspaceAliases,
     logLevel: "info",
   });
 }
