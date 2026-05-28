@@ -7285,7 +7285,7 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
     // ── Agentic loop — runs until Sirius produces a text response or hits MAX_ROUNDS ──
     // Replaces the old 2-phase system. Sirius can now call tools across multiple rounds
     // (check → fix → verify → respond) without getting stuck mid-sequence.
-    const MAX_TOOL_ROUNDS = 6;
+    const MAX_TOOL_ROUNDS = 16;
     const MAX_TOOL_RESULT_CHARS = 8000; // truncate huge results to prevent context overflow
 
     let loopMessages: any[] = [...chatMessages];
@@ -7307,7 +7307,7 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
         ...(isLastRound ? {} : { tools: activeTools, tool_choice: "auto" }),
         temperature: 0.75,
         // First round needs fewer tokens (just picking tools). Later rounds need room to write.
-        max_tokens: roundCount === 1 ? 2000 : 4000,
+        max_tokens: roundCount === 1 ? 2000 : 8000,
         stream: true,
       }, { signal: loopController.signal });
 
