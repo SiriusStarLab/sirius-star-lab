@@ -1176,7 +1176,7 @@ LOOP PREVENTION: If you have already called a tool and received its result, DO N
 
     for (let round = 0; round < MAX_ROUNDS; round++) {
       const completion = await openai.chat.completions.create({
-        model: "anthropic/claude-sonnet-4-5",
+        model: "anthropic/claude-sonnet-4.6",
         messages: agentMessages,
         tools: OWNER_TOOLS,
         tool_choice: "auto",

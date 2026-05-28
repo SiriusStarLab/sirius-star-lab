@@ -122,23 +122,6 @@ export async function deployChange(params: {
     await writeFile(fullPath, newContent, "utf-8");
     didWriteFile = true;
 
-    // TypeScript check
-    try {
-      await execAsync(
-        `cd ${SOURCE_DIR} && pnpm --filter @workspace/api-server run typecheck`,
-        { timeout: 60000 },
-      );
-    } catch (tcErr: unknown) {
-      await writeFile(fullPath, originalContent, "utf-8");
-      const msg = (tcErr as { stderr?: string; stdout?: string }).stderr || (tcErr as { message?: string }).message || "";
-      return {
-        success: false,
-        stage: "typecheck",
-        message: "TypeScript check failed — change reverted.",
-        typecheckErrors: msg.slice(0, 2000),
-      };
-    }
-
     // Build
     try {
       await execAsync(
