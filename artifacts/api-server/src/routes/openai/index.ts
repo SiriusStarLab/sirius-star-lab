@@ -16,6 +16,8 @@ import {
 import { generateImageBuffer } from "@workspace/ai-client/image";
 import { getUncachableSpotifyClient } from "../../lib/spotify";
 import { intelligence } from "../../lib/intelligence-client.js";
+import { executeCode } from "../../lib/code-sandbox.js";
+import { readSourceFile, deployChange, triggerReload, runServerDiagnostic } from "../../lib/self-deploy.js";
 
 const router: IRouter = Router();
 
@@ -1039,6 +1041,259 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
     }
     return { role: m.role as "user" | "assistant", content: m.content };
   });
+
+  // ── Owner agentic loop (Garry only) ────────────────────────────────────────
+  if (userId === "garry") {
+    const OWNER_TOOLS: any[] = [
+      {
+        type: "function",
+        function: {
+          name: "search_web",
+          description: "Search the web for current, live information. Use for news, research, prices, facts, anything that may have changed since training.",
+          parameters: {
+            type: "object",
+            properties: {
+              query: { type: "string", description: "The search query" },
+            },
+            required: ["query"],
+          },
+        },
+      },
+      {
+        type: "function",
+        function: {
+          name: "read_source_file",
+          description: "Read a file from Sirius's own source code on the server. Use before modifying any file — always read it first to get the exact current content. Reads from /opt/sirius-source/artifacts/api-server/.",
+          parameters: {
+            type: "object",
+            properties: {
+              path: { type: "string", description: "Path relative to artifacts/api-server/ e.g. 'src/routes/openai/index.ts' or 'src/lib/memory.ts'" },
+            },
+            required: ["path"],
+          },
+        },
+      },
+      {
+        type: "function",
+        function: {
+          name: "server_diagnostic",
+          description: "Run a safe diagnostic command against the live production server. Use this to verify what is actually running — NOT execute_code (which is isolated and has no server access). Commands: bundle_contains (grep compiled bundle for a string), pm2_status, pm2_logs, health_check, list_backups, list_source_files.",
+          parameters: {
+            type: "object",
+            properties: {
+              command: {
+                type: "string",
+                enum: ["bundle_contains", "pm2_status", "pm2_logs", "health_check", "list_backups", "list_source_files"],
+                description: "Which diagnostic to run",
+              },
+              arg: { type: "string", description: "For bundle_contains: the string to search for. For pm2_logs: number of lines. For list_source_files: subdirectory path." },
+            },
+            required: ["command"],
+          },
+        },
+      },
+      {
+        type: "function",
+        function: {
+          name: "execute_code",
+          description: "Execute JavaScript or Python in a COMPLETELY ISOLATED Docker sandbox. This sandbox has NO access to the server filesystem, NO network, NO PM2, NO production files. Use it ONLY to test pure logic, algorithms, or calculations. DO NOT use it to check if something is running on the server — use server_diagnostic for that.",
+          parameters: {
+            type: "object",
+            properties: {
+              code: { type: "string", description: "Code to run" },
+              language: { type: "string", enum: ["javascript", "python"] },
+            },
+            required: ["code", "language"],
+          },
+        },
+      },
+      {
+        type: "function",
+        function: {
+          name: "propose_code_change",
+          description: "Propose a change to Sirius's own source code. Pipeline: AI review (GPT-4o) → TypeScript check → build → backup → deploy → PM2 reload. Always read_source_file first. Provide the COMPLETE new file content. Protected files that can never be changed: src/app.ts, src/middlewares/security.ts, src/lib/lab-auth.ts, build.ts, src/index.ts, src/routes/index.ts.",
+          parameters: {
+            type: "object",
+            properties: {
+              filePath: { type: "string", description: "Path relative to artifacts/api-server/ e.g. 'src/lib/my-feature.ts'. Only src/ files." },
+              newContent: { type: "string", description: "Complete new file content — not a snippet." },
+              description: { type: "string", description: "Specific explanation of what changed and why. The reviewer reads this." },
+            },
+            required: ["filePath", "newContent", "description"],
+          },
+        },
+      },
+    ];
+
+    const ownerSystemPrompt = systemPrompt + `
+
+## YOUR SELF-MODIFICATION CAPABILITIES
+
+You have real tools that execute on the live production server. These are not descriptions — they are actual function calls.
+
+TOOL RULES (critical — read carefully):
+- **server_diagnostic** → runs against the LIVE SERVER. Use this to check what's actually running, check PM2, grep the compiled bundle. This is your verification tool.
+- **read_source_file** → reads actual source files from /opt/sirius-source/. Always use this BEFORE proposing any code change.
+- **execute_code** → runs in a COMPLETELY ISOLATED Docker container with NO server access, NO filesystem access, NO network. Only use for pure logic testing.
+- **propose_code_change** → submits a code change through the full pipeline: GPT-4o review → TypeScript check → build → deploy. Provide the complete file, not a snippet.
+- **search_web** → calls Perplexity for live web results.
+
+IMPORTANT: The compiled bundle is MINIFIED. Function names disappear. To verify something is in the bundle, search for ERROR MESSAGE STRINGS or unique string literals — not function names. Use server_diagnostic with bundle_contains.
+
+LOOP PREVENTION: If you have already called a tool and received its result, DO NOT call the same tool with the same arguments again. Act on what you find. If a check shows something is already in place, say so and stop.`;
+
+    let agentMessages: any[] = [
+      { role: "system", content: ownerSystemPrompt },
+      ...chatMessages,
+    ];
+
+    let agentResponse = "";
+    const MAX_ROUNDS = 8;
+
+    for (let round = 0; round < MAX_ROUNDS; round++) {
+      const completion = await openai.chat.completions.create({
+        model: "anthropic/claude-sonnet-4-5",
+        messages: agentMessages,
+        tools: OWNER_TOOLS,
+        tool_choice: "auto",
+        stream: true,
+        max_tokens: 3000,
+      } as any) as unknown as AsyncIterable<any>;
+
+      let roundContent = "";
+      const toolCallBuffers: Record<number, { id: string; name: string; arguments: string }> = {};
+      let finishReason = "";
+
+      for await (const chunk of completion) {
+        const choice = chunk.choices?.[0];
+        if (!choice) continue;
+        finishReason = choice.finish_reason || finishReason;
+
+        if (choice.delta?.content) {
+          roundContent += choice.delta.content;
+          agentResponse += choice.delta.content;
+          res.write(`data: ${JSON.stringify({ content: choice.delta.content })}\n\n`);
+        }
+        if (choice.delta?.tool_calls) {
+          for (const tc of choice.delta.tool_calls) {
+            const idx = tc.index ?? 0;
+            if (!toolCallBuffers[idx]) toolCallBuffers[idx] = { id: "", name: "", arguments: "" };
+            if (tc.id) toolCallBuffers[idx].id = tc.id;
+            if (tc.function?.name) toolCallBuffers[idx].name = tc.function.name;
+            if (tc.function?.arguments) toolCallBuffers[idx].arguments += tc.function.arguments;
+          }
+        }
+      }
+
+      const toolCalls = Object.values(toolCallBuffers);
+
+      if (finishReason !== "tool_calls" || toolCalls.length === 0) break;
+
+      const toolResults: any[] = [];
+
+      for (const tc of toolCalls) {
+        let args: any = {};
+        try { args = JSON.parse(tc.arguments); } catch { /* ignore */ }
+
+        if (tc.name === "search_web") {
+          const { query } = args;
+          res.write(`data: ${JSON.stringify({ type: "searching", query })}\n\n`);
+          try {
+            const sonarRes = await openai.chat.completions.create({
+              model: "perplexity/sonar",
+              messages: [{ role: "user", content: query }],
+              max_tokens: 1200,
+            } as any) as any;
+            const sonarText = sonarRes.choices?.[0]?.message?.content ?? "No results.";
+            toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: `Search results for "${query}":\n\n${sonarText}` });
+          } catch {
+            toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: "Search failed. Use your training knowledge." });
+          }
+
+        } else if (tc.name === "read_source_file") {
+          const { path } = args;
+          res.write(`data: ${JSON.stringify({ type: "reading_file", path })}\n\n`);
+          try {
+            const content = await readSourceFile(path);
+            toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: `File: ${path}\n\`\`\`typescript\n${content}\n\`\`\`` });
+          } catch (e: any) {
+            toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: `Error reading ${path}: ${e.message}` });
+          }
+
+        } else if (tc.name === "server_diagnostic") {
+          const { command, arg } = args;
+          res.write(`data: ${JSON.stringify({ type: "running_diagnostic", command })}\n\n`);
+          const result = await runServerDiagnostic(command, arg);
+          toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: result });
+
+        } else if (tc.name === "execute_code") {
+          const { code, language } = args;
+          res.write(`data: ${JSON.stringify({ type: "executing_code", language })}\n\n`);
+          const result = await executeCode(code, language);
+          const output = result.success
+            ? `Output:\n${result.stdout}${result.stderr ? `\nStderr:\n${result.stderr}` : ""}`
+            : `Execution failed: ${result.error}\n${result.stderr}`;
+          toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: output });
+
+        } else if (tc.name === "propose_code_change") {
+          const { filePath, newContent, description } = args;
+          res.write(`data: ${JSON.stringify({ type: "proposing_change", filePath })}\n\n`);
+          const apiKey = process.env.OPENROUTER_API_KEY || "";
+          const result = await deployChange({ filePath, newContent, description, apiKey });
+
+          let resultMsg = result.success
+            ? `✅ DEPLOYED: ${result.reviewSummary || description}. Sirius reloading in ~3 seconds.`
+            : `❌ REJECTED at [${result.stage}]: ${result.message}${result.typecheckErrors ? `\n\nTypeScript errors:\n${result.typecheckErrors}` : ""}${result.reviewConcerns?.length ? `\n\nReviewer concerns:\n${result.reviewConcerns.join("\n")}` : ""}`;
+
+          res.write(`data: ${JSON.stringify({ type: "deploy_result", success: result.success, stage: result.stage })}\n\n`);
+          toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: resultMsg });
+
+          if (result.success) {
+            setTimeout(() => triggerReload().catch(() => {}), 3000);
+          }
+        }
+      }
+
+      agentMessages = [
+        ...agentMessages,
+        {
+          role: "assistant" as const,
+          content: roundContent || null,
+          tool_calls: toolCalls.map(tc => ({ id: tc.id, type: "function" as const, function: { name: tc.name, arguments: tc.arguments } })),
+        },
+        ...toolResults,
+      ];
+    }
+
+    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+    res.end();
+
+    // Save response and extract memories
+    if (agentResponse) {
+      await db.insert(messagesTable).values({ conversationId, role: "assistant", content: agentResponse });
+      await db.execute(sql`
+        UPDATE ${userProfilesTable}
+        SET
+          daily_message_count = CASE
+            WHEN daily_message_reset IS NULL OR DATE(daily_message_reset) != CURRENT_DATE
+            THEN '1'
+            ELSE CAST(CAST(daily_message_count AS INTEGER) + 1 AS TEXT)
+          END,
+          daily_message_reset = CASE
+            WHEN daily_message_reset IS NULL OR DATE(daily_message_reset) != CURRENT_DATE
+            THEN NOW()
+            ELSE daily_message_reset
+          END
+        WHERE user_id = ${userId}
+      `).catch(() => {});
+      const [dbProfile] = await db.select().from(userProfilesTable).where(eq(userProfilesTable.userId, userId));
+      if (dbProfile) {
+        extractAndSaveMemories(userId, [{ role: "user", content: body.data.content }, { role: "assistant", content: agentResponse }], dbProfile.memories || "");
+      }
+    }
+    return;
+  }
+  // ── End owner agentic loop ──────────────────────────────────────────────────
 
   try {
     // Primary: perplexity/sonar (has built-in real-time web search, works via OpenRouter Chat Completions)

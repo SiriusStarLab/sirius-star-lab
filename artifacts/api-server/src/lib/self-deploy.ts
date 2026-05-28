@@ -202,3 +202,77 @@ export async function rollbackLatest(): Promise<{ success: boolean; message: str
 export async function triggerReload(): Promise<void> {
   await execAsync("pm2 reload sirius-api --update-env").catch(() => {});
 }
+
+type DiagnosticCommand =
+  | "bundle_contains"
+  | "pm2_status"
+  | "pm2_logs"
+  | "health_check"
+  | "list_backups"
+  | "list_source_files";
+
+export async function runServerDiagnostic(
+  command: DiagnosticCommand,
+  arg?: string,
+): Promise<string> {
+  try {
+    switch (command) {
+      case "bundle_contains": {
+        if (!arg) return "Error: pattern required for bundle_contains";
+        const safePattern = arg.replace(/'/g, "").slice(0, 100);
+        const { stdout } = await execAsync(
+          `grep -c '${safePattern}' ${PROD_DIST} 2>/dev/null || echo 0`,
+          { timeout: 10000 },
+        );
+        const count = parseInt(stdout.trim(), 10);
+        return count > 0
+          ? `Found ${count} occurrence(s) of '${safePattern}' in the compiled bundle.`
+          : `Pattern '${safePattern}' NOT found in compiled bundle. (Note: function names are minified — use error message strings or unique string literals to search, not function names.)`;
+      }
+      case "pm2_status": {
+        const { stdout } = await execAsync("pm2 show sirius-api 2>&1", { timeout: 10000 });
+        return stdout.slice(0, 3000);
+      }
+      case "pm2_logs": {
+        const lines = arg ? parseInt(arg, 10) || 30 : 30;
+        const { stdout } = await execAsync(
+          `pm2 logs sirius-api --lines ${Math.min(lines, 100)} --nostream 2>&1`,
+          { timeout: 15000 },
+        );
+        return stdout.slice(0, 4000);
+      }
+      case "health_check": {
+        const { stdout } = await execAsync(
+          `curl -s --max-time 5 http://127.0.0.1:4000/api/health 2>&1 || echo 'health check failed'`,
+          { timeout: 10000 },
+        );
+        return stdout.slice(0, 1000);
+      }
+      case "list_backups": {
+        const { stdout } = await execAsync(
+          `ls -lht ${BACKUP_DIR}/ 2>/dev/null || echo 'No backups found'`,
+          { timeout: 5000 },
+        );
+        return stdout.slice(0, 2000);
+      }
+      case "list_source_files": {
+        const subdir = arg ? arg.replace(/\.\./g, "").replace(/^\//, "") : "src";
+        const fullPath = join(SOURCE_DIR, "artifacts/api-server", subdir);
+        const { stdout } = await execAsync(
+          `find ${fullPath} -type f -name "*.ts" | sort 2>/dev/null || echo 'not found'`,
+          { timeout: 10000 },
+        );
+        return stdout
+          .trim()
+          .split("\n")
+          .filter(Boolean)
+          .map((p) => p.replace(join(SOURCE_DIR, "artifacts/api-server") + "/", ""))
+          .join("\n") || "No files found";
+      }
+      default:
+        return `Unknown diagnostic command: ${command}`;
+    }
+  } catch (err: unknown) {
+    return `Diagnostic error: ${err instanceof Error ? err.message : String(err)}`;
+  }
+}

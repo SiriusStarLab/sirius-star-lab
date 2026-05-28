@@ -28,6 +28,20 @@ propose_code_change tool → AI review (GPT-4o-mini, separate model) → TypeScr
 - execute_code — Docker sandbox (node:22-alpine / python:3.12-alpine), no network, 128MB, 20s timeout
 - propose_code_change — full review+deploy pipeline
 
+## Tools in MAIN Sirius chat (userId === "garry" agentic loop)
+All 5 tools available: search_web, read_source_file, server_diagnostic, execute_code, propose_code_change.
+Uses Claude Sonnet with function tools. Other users get existing Perplexity streaming (no tools).
+
+## server_diagnostic — the critical missing piece
+Runs FROM WITHIN the Node.js process — has real server filesystem access.
+Commands: bundle_contains, pm2_status, pm2_logs, health_check, list_backups, list_source_files.
+execute_code CANNOT do this — it's in an isolated Docker container with no server access.
+
+## Bundle verification rule
+The compiled bundle is MINIFIED. Function names disappear.
+To verify code is in the bundle: grep for ERROR MESSAGE STRINGS or unique string literals.
+Never grep for function names — always returns 0 even when the code IS there.
+
 ## Critical: Use fetch, not openai npm package
 The api-server does NOT have `openai` in package.json. Use native fetch for OpenRouter calls everywhere. Build will fail with "Could not resolve openai" otherwise.
 
