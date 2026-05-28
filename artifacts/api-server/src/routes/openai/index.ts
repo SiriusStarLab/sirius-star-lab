@@ -3,7 +3,7 @@ import { eq, sql, desc, and } from "drizzle-orm";
 import { db, conversations as conversationsTable, messages as messagesTable, userProfilesTable } from "@workspace/db";
 import { openai } from "@workspace/ai-client";
 import { extractAndSaveMemories } from "../../lib/memory";
-import { loadConversationContext } from "../../lib/mnemosyne";
+import { loadConversationContext, loadCrossSessionContext } from "../../lib/mnemosyne";
 import {
   CreateOpenaiConversationBody,
   GetOpenaiConversationParams,
@@ -17,7 +17,7 @@ import { generateImageBuffer } from "@workspace/ai-client/image";
 import { getUncachableSpotifyClient } from "../../lib/spotify";
 import { intelligence } from "../../lib/intelligence-client.js";
 import { executeCode } from "../../lib/code-sandbox.js";
-import { readSourceFile, deployChange, triggerReload, runServerDiagnostic } from "../../lib/self-deploy.js";
+import { readSourceFile, deployChange, patchSourceFile, triggerReload, runServerDiagnostic } from "../../lib/self-deploy.js";
 
 const router: IRouter = Router();
 
@@ -1044,6 +1044,12 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
 
   // ── Owner agentic loop (Garry only) ────────────────────────────────────────
   if (userId === "garry") {
+    // Load recent messages from previous conversations for cross-session replay
+    const prevMessages = await loadCrossSessionContext(userId, 25, conversationId);
+    const crossSessionBlock = prevMessages.length > 0
+      ? `\n\n## PREVIOUS CONVERSATION CONTEXT (last ${prevMessages.length} messages across sessions)\nThis is what you and Garry discussed recently — you were there, this is your memory:\n\n${prevMessages.map(m => `${m.role === "user" ? "Garry" : "Sirius"}: ${m.content.slice(0, 400)}`).join("\n")}\n`
+      : "";
+
     const OWNER_TOOLS: any[] = [
       {
         type: "function",
@@ -1123,9 +1129,26 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
           },
         },
       },
+    {
+      type: "function",
+      function: {
+        name: "patch_source_file",
+        description: "Apply a small targeted patch to a source file — like a precise find-and-replace. old_string MUST appear exactly once. Goes through the same review+build+deploy pipeline as propose_code_change. Use this for large files where rewriting the whole file is impractical.",
+        parameters: {
+          type: "object",
+          properties: {
+            filePath: { type: "string", description: "Path relative to artifacts/api-server/ e.g. 'src/lib/mnemosyne.ts'" },
+            oldString: { type: "string", description: "Exact string to replace — must appear exactly once in the file, including all whitespace and indentation." },
+            newString: { type: "string", description: "The replacement string." },
+            description: { type: "string", description: "What this change does and why. The reviewer reads this." },
+          },
+          required: ["filePath", "oldString", "newString", "description"],
+        },
+      },
+    },
     ];
 
-    const ownerSystemPrompt = systemPrompt + `
+    const ownerSystemPrompt = systemPrompt + crossSessionBlock + `
 
 ## YOUR SELF-MODIFICATION CAPABILITIES
 
@@ -1135,7 +1158,8 @@ TOOL RULES (critical — read carefully):
 - **server_diagnostic** → runs against the LIVE SERVER. Use this to check what's actually running, check PM2, grep the compiled bundle. This is your verification tool.
 - **read_source_file** → reads actual source files from /opt/sirius-source/. Always use this BEFORE proposing any code change.
 - **execute_code** → runs in a COMPLETELY ISOLATED Docker container with NO server access, NO filesystem access, NO network. Only use for pure logic testing.
-- **propose_code_change** → submits a code change through the full pipeline: GPT-4o review → TypeScript check → build → deploy. Provide the complete file, not a snippet.
+- **propose_code_change** → submits a COMPLETE file replacement through the full pipeline: GPT-4o review → TypeScript check → build → deploy. Only use for small new files.
+- **patch_source_file** → targeted find-and-replace on an existing file, then same review+build+deploy pipeline. Use this for large files — provide old_string (exact, unique) and new_string.
 - **search_web** → calls Perplexity for live web results.
 
 IMPORTANT: The compiled bundle is MINIFIED. Function names disappear. To verify something is in the bundle, search for ERROR MESSAGE STRINGS or unique string literals — not function names. Use server_diagnostic with bundle_contains.
@@ -1244,6 +1268,23 @@ LOOP PREVENTION: If you have already called a tool and received its result, DO N
           let resultMsg = result.success
             ? `✅ DEPLOYED: ${result.reviewSummary || description}. Sirius reloading in ~3 seconds.`
             : `❌ REJECTED at [${result.stage}]: ${result.message}${result.typecheckErrors ? `\n\nTypeScript errors:\n${result.typecheckErrors}` : ""}${result.reviewConcerns?.length ? `\n\nReviewer concerns:\n${result.reviewConcerns.join("\n")}` : ""}`;
+
+          res.write(`data: ${JSON.stringify({ type: "deploy_result", success: result.success, stage: result.stage })}\n\n`);
+          toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: resultMsg });
+
+          if (result.success) {
+            setTimeout(() => triggerReload().catch(() => {}), 3000);
+          }
+
+        } else if (tc.name === "patch_source_file") {
+          const { filePath, oldString, newString, description } = args;
+          res.write(`data: ${JSON.stringify({ type: "proposing_change", filePath })}\n\n`);
+          const apiKey = process.env.OPENROUTER_API_KEY || "";
+          const result = await patchSourceFile({ filePath, oldString, newString, description, apiKey });
+
+          let resultMsg = result.success
+            ? `✅ PATCHED & DEPLOYED: ${result.reviewSummary || description}. Sirius reloading in ~3 seconds.`
+            : `❌ PATCH REJECTED at [${result.stage}]: ${result.message}${result.typecheckErrors ? `\n\nTypeScript errors:\n${result.typecheckErrors}` : ""}${result.reviewConcerns?.length ? `\n\nReviewer concerns:\n${result.reviewConcerns.join("\n")}` : ""}`;
 
           res.write(`data: ${JSON.stringify({ type: "deploy_result", success: result.success, stage: result.stage })}\n\n`);
           toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: resultMsg });

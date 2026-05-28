@@ -5,8 +5,8 @@
  * for maintaining chat history across sessions.
  */
 
-import { db, messages as messagesTable } from "@workspace/db";
-import { eq, desc } from "drizzle-orm";
+import { db, messages as messagesTable, conversations as conversationsTable } from "@workspace/db";
+import { eq, desc, and, ne } from "drizzle-orm";
 
 export interface ConversationMessage {
   role: "system" | "user" | "assistant";
@@ -42,6 +42,42 @@ export async function loadConversationContext(
     }));
   } catch (error) {
     console.error("Error loading conversation context:", error);
+    return [];
+  }
+}
+
+/**
+ * Load recent messages from PREVIOUS conversations for the same user (cross-session context)
+ * Excludes the current conversation so there's no duplication
+ */
+export async function loadCrossSessionContext(
+  userId: string,
+  limit: number = 25,
+  excludeConversationId?: number,
+): Promise<ConversationMessage[]> {
+  try {
+    const query = db
+      .select({
+        role: messagesTable.role,
+        content: messagesTable.content,
+      })
+      .from(messagesTable)
+      .innerJoin(conversationsTable, eq(messagesTable.conversationId, conversationsTable.id))
+      .where(
+        excludeConversationId !== undefined
+          ? and(eq(conversationsTable.userId, userId), ne(messagesTable.conversationId, excludeConversationId))
+          : eq(conversationsTable.userId, userId),
+      )
+      .orderBy(desc(messagesTable.createdAt))
+      .limit(limit);
+
+    const recentMessages = await query;
+    return recentMessages.reverse().map((msg) => ({
+      role: msg.role as "user" | "assistant",
+      content: msg.content,
+    }));
+  } catch (error) {
+    console.error("Error loading cross-session context:", error);
     return [];
   }
 }

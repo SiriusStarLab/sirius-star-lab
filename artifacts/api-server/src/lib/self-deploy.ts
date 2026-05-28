@@ -184,6 +184,37 @@ export async function deployChange(params: {
   }
 }
 
+export async function patchSourceFile(params: {
+  filePath: string;
+  oldString: string;
+  newString: string;
+  description: string;
+  apiKey: string;
+}): Promise<DeployResult> {
+  const { filePath, oldString, newString, description, apiKey } = params;
+
+  const safePath = filePath.replace(/\.\./g, "").replace(/^\//, "");
+
+  let currentContent: string;
+  try {
+    currentContent = await readSourceFile(safePath);
+  } catch (err: unknown) {
+    return { success: false, stage: "validation", message: `Cannot read ${safePath}: ${err instanceof Error ? err.message : String(err)}` };
+  }
+
+  if (!currentContent.includes(oldString)) {
+    return { success: false, stage: "validation", message: "old_string not found in file — must match exactly including whitespace." };
+  }
+
+  const occurrences = currentContent.split(oldString).length - 1;
+  if (occurrences > 1) {
+    return { success: false, stage: "validation", message: `old_string appears ${occurrences} times — it must be unique. Add more surrounding context to make it unique.` };
+  }
+
+  const newContent = currentContent.replace(oldString, newString);
+  return deployChange({ filePath: safePath, newContent, description, apiKey });
+}
+
 export async function rollbackLatest(): Promise<{ success: boolean; message: string }> {
   try {
     const { stdout } = await execAsync(
