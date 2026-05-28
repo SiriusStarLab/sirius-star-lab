@@ -11,7 +11,7 @@ import * as path from "path";
 import { fileURLToPath } from "url";
 import { exec } from "child_process";
 import { promisify } from "util";
-import { openai } from "@workspace/integrations-openai-ai-server";
+import { openai } from "@workspace/ai-client";
 
 const execAsync = promisify(exec);
 

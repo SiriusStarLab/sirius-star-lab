@@ -2,7 +2,7 @@ import { Router, Request, Response, NextFunction } from "express";
 import Stripe from "stripe";
 import { db, labReports, labCommissions, labBlueprints, labBlueprintPurchases, labProjects } from "@workspace/db";
 import { eq, desc, sum, count, and } from "drizzle-orm";
-import { openai } from "@workspace/integrations-openai-ai-server";
+import { openai } from "@workspace/ai-client";
 import { getLabPin, getBaseUrl } from "../lib/lab-auth.js";
 
 const router = Router();

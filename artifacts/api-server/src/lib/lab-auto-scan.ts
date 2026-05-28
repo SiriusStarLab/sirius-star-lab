@@ -15,7 +15,7 @@
 import crypto from "crypto";
 import { eq, desc } from "drizzle-orm";
 import { db, labProjects, labScanHistory, appBuilderSessions } from "@workspace/db";
-import { openai } from "@workspace/integrations-openai-ai-server";
+import { openai } from "@workspace/ai-client";
 
 const TODAY = () => new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 

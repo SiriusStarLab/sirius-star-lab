@@ -1,4 +1,4 @@
-import { openai } from "@workspace/integrations-openai-ai-server";
+import { openai } from "@workspace/ai-client";
 import { db, aiDiscoveries, aiSweepLog } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 import crypto from "crypto";

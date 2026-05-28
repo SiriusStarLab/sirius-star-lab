@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { eq, desc, and } from "drizzle-orm";
 import { db, dreamLabProfiles, dreamLabIdeas, dreamLabManifestations, dreamLabJournal } from "@workspace/db";
-import { openai } from "@workspace/integrations-openai-ai-server";
+import { openai } from "@workspace/ai-client";
 
 const router: IRouter = Router();
 

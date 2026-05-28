@@ -16,7 +16,7 @@
 
 import { eq } from "drizzle-orm";
 import { db, labProjects } from "@workspace/db";
-import { openai } from "@workspace/integrations-openai-ai-server";
+import { openai } from "@workspace/ai-client";
 import { analyseProject } from "./ai-arch-sweep.js";
 import { triggerAutoBuildForProject, triggerFundingForProject } from "./lab-auto-scan.js";
 

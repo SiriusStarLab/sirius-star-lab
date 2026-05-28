@@ -1,0 +1,13 @@
+{
+  "name": "@workspace/ai-client",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./image": "./src/image.ts"
+  },
+  "dependencies": {
+    "openai": "^4.98.0"
+  }
+}

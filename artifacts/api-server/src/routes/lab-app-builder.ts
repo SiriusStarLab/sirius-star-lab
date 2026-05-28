@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { eq, desc, or } from "drizzle-orm";
 import { db, appBuilderSessions, labProjects } from "@workspace/db";
-import { openai } from "@workspace/integrations-openai-ai-server";
+import { openai } from "@workspace/ai-client";
 import { authMiddleware } from "../lib/lab-auth.js";
 
 const router: IRouter = Router();

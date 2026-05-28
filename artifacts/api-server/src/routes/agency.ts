@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from "express";
-import { openai } from "@workspace/integrations-openai-ai-server";
+import { openai } from "@workspace/ai-client";
 import Stripe from "stripe";
 import { getLabPin, sseHeaders } from "../lib/lab-auth.js";
 

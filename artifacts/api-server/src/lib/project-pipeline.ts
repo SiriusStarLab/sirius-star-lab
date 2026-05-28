@@ -17,7 +17,7 @@
 import { eq, isNull, or, and, asc, ne, sql, inArray, desc } from "drizzle-orm";
 import { db, labProjects, appBuilderSessions, cadFiles, cadJobs } from "@workspace/db";
 import { triggerAutoBuildForProject, isSoftwareBuildable } from "./lab-auto-scan.js";
-import { openai } from "@workspace/integrations-openai-ai-server";
+import { openai } from "@workspace/ai-client";
 import { generateAndPostCadDrawing } from "./cad-auto-gen.js";
 
 const ND_BASE_URL = () => (process.env.NEWDIMENSIONS_BASE_URL || "https://new-dimension-cad.replit.app").replace(/\/$/, "");
@@ -190,7 +190,7 @@ export async function triggerBuildNow(projectId: number): Promise<{ ok: boolean;
 
       // Auto drawing notes
       try {
-        const drawingRes = await (await import("@workspace/integrations-openai-ai-server")).openai.chat.completions.create({
+        const drawingRes = await (await import("@workspace/ai-client")).openai.chat.completions.create({
           model: "anthropic/claude-haiku-4.5",
           messages: [{ role: "user", content: `Write concise CAD drawing specs for "${project.name}" (${project.industry}): ${(project.brief || "").slice(0, 400)}. Under 200 words, numbered.` }],
           max_tokens: 300,

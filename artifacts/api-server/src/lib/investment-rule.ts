@@ -10,7 +10,7 @@
 
 import { eq, isNull, or, and, ne } from "drizzle-orm";
 import { db, labProjects } from "@workspace/db";
-import { openai } from "@workspace/integrations-openai-ai-server";
+import { openai } from "@workspace/ai-client";
 
 const THRESHOLD = 10_000; // £10,000
 

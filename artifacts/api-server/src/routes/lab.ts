@@ -3,8 +3,8 @@ import { eq, desc, gte, lte, and, or, like, sql, isNull, ne } from "drizzle-orm"
 import { db, labProjects, labMessages, scoutReports, cadFiles, techDocs, labScanHistory, userProfilesTable, mediaOutlets, appBuilderSessions, voiceJournalTable, siriusConfig, siriusAutomations, siriusCustomTools, siriusErrors, cadJobs, siriusUpgrades, siriusNotifications } from "@workspace/db";
 import { getSiriusConfigValue, setSiriusConfigValue, executeCustomTool, runAutomation, logSiriusError } from "../lib/sirius-automation.js";
 import { extractAndSaveMemories } from "../lib/memory.js";
-import { openai } from "@workspace/integrations-openai-ai-server";
-import { generateImageBuffer } from "@workspace/integrations-openai-ai-server/image";
+import { openai } from "@workspace/ai-client";
+import { generateImageBuffer } from "@workspace/ai-client/image";
 import { ObjectStorageService } from "../lib/objectStorage";
 import { runLabAutoScan, isLabScanRunning } from "../lib/lab-auto-scan.js";
 import { runAiArchSweep, getAiArchSweepStatus } from "../lib/ai-arch-sweep.js";
@@ -8122,7 +8122,7 @@ router.post("/lab/projects/:id/ai-arch/analyze", authMiddleware, async (req: Req
   // Run in background
   (async () => {
     try {
-      const { openai: oai } = await import("@workspace/integrations-openai-ai-server");
+      const { openai: oai } = await import("@workspace/ai-client");
       const SYSTEM = `You are Sirius, an elite AI product architect. Respond ONLY with valid JSON — no markdown, no extra text.`;
       const USER = `Analyse this R&D project and determine if it needs app/software development to reach market.
 

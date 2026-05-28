@@ -15,7 +15,7 @@
 
 import { and, asc, desc, eq, inArray, isNull, ne, not, or, sql } from "drizzle-orm";
 import { db, labProjects } from "@workspace/db";
-import { openai } from "@workspace/integrations-openai-ai-server";
+import { openai } from "@workspace/ai-client";
 
 export type AiArchInsights = {
   needsAppDev: boolean;

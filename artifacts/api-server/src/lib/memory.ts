@@ -1,5 +1,5 @@
 import { db, userProfilesTable } from "@workspace/db";
-import { openai } from "@workspace/integrations-openai-ai-server";
+import { openai } from "@workspace/ai-client";
 
 /**
  * THE SINGLE CANONICAL MEMORY ENGINE.

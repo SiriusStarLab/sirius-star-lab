@@ -1,6 +1,6 @@
 import { db, labProjects } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { openai } from "@workspace/integrations-openai-ai-server";
+import { openai } from "@workspace/ai-client";
 
 const ENGINEERING_SECTORS = [
   "oil_gas", "oil & gas", "aerospace", "medical", "medical_devices",

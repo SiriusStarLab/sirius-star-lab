@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, sql, desc, and } from "drizzle-orm";
 import { db, conversations as conversationsTable, messages as messagesTable, userProfilesTable } from "@workspace/db";
-import { openai } from "@workspace/integrations-openai-ai-server";
+import { openai } from "@workspace/ai-client";
 import { extractAndSaveMemories } from "../../lib/memory";
 import { loadConversationContext } from "../../lib/mnemosyne";
 import {
@@ -13,7 +13,7 @@ import {
   SendOpenaiMessageBody,
   GenerateOpenaiImageBody,
 } from "@workspace/api-zod";
-import { generateImageBuffer } from "@workspace/integrations-openai-ai-server/image";
+import { generateImageBuffer } from "@workspace/ai-client/image";
 import { getUncachableSpotifyClient } from "../../lib/spotify";
 
 const router: IRouter = Router();
