@@ -1,25 +1,47 @@
 ---
 name: Sirius independence roadmap
-description: Status of moving Sirius off Replit infrastructure onto own Kamatera server + GitHub
+description: Status of moving Sirius Star Lab off Replit infrastructure onto Kamatera
 ---
 
-## Current status (as of 2026-05-28)
+## Status (as of May 2026)
 
-### Done ✅
-- **AI calls**: `lib/ai-client` package replaces `@workspace/integrations-openai-ai-server`. Uses `OPENROUTER_API_KEY` directly at `https://openrouter.ai/api/v1`. 21 files updated. No more Replit modelfarm proxy.
-- **Code repo**: Pushed to `https://github.com/SiriusStarLab/sirius-star-lab` (private). PAT stored at `/root/.sirius-github-token` on Kamatera.
-- **Build pipeline**: Kamatera has pnpm 10.33.1 + Node 20. Source cloned to `/opt/sirius-source`. Deploy script at `/opt/sirius/deploy.sh` — pulls from GitHub, builds, copies artifact, restarts PM2.
-- **Database**: Always been on Kamatera PostgreSQL ✅
-- **API serving**: Always been on Kamatera PM2 ✅
-- **Backups**: Nightly S3 backup to `sirius-backup-primary` bucket via `/opt/sirius/backup/s3_backup.sh` (includes pg_dump + codebase, excludes node_modules)
+| Service | Status | Notes |
+|---|---|---|
+| AI (OpenRouter) | ✅ Independent | Direct API key, no Replit proxy |
+| Code repo (GitHub) | ✅ Independent | Private repo, PAT at /root/.sirius-github-token |
+| Build pipeline | ✅ Independent | /opt/sirius/deploy.sh, builds on Kamatera |
+| Database (PostgreSQL) | ✅ Independent | Local Postgres on Kamatera |
+| Object storage | ✅ Independent | AWS S3, bucket: sirius-storage (eu-west-1) |
+| Auth | ✅ Independent | localStorage UUID + PIN, no third-party |
+| stripe-replit-sync | ✅ Independent | Just Stripe API + local Postgres, no Replit infra |
+| CAD generation | ⚠️ Replit | Calls new-dimension-cad.replit.app — works without API key, but hosted on Replit |
 
-### Still on Replit ⏳
-- **Object storage**: `DEFAULT_OBJECT_STORAGE_BUCKET_ID` = Replit's S3 bucket. Move to own AWS S3 bucket (credentials already exist from backup setup).
-- **Clerk auth**: Replit-managed Clerk tenant. Move to own Clerk account or self-hosted auth (Auth.js/Lucia). Most complex migration.
-- **stripe-replit-sync**: Still a dependency in api-server — review whether it uses Replit APIs.
+## Server details
+- Kamatera VPS: 185.247.118.196:2222 (root)
+- PM2 process: sirius-api, running from /opt/sirius/artifacts/api-server/dist/index.cjs
+- Source: /opt/sirius-source (git pull target)
+- Frontend: /opt/sirius/frontend/public
+- CAD files: /opt/sirius/cad-files (CAD_LOCAL_DIR set)
+- SSL: Let's Encrypt, auto-renews via cron daily at 3am (`0 3 * * * certbot renew --quiet --deploy-hook "nginx -s reload"`)
 
-## Deploy process (current)
-From Replit: `pnpm build` → Replit auto-commits → push to GitHub manually or via checkpoint
-On Kamatera: `bash /opt/sirius/deploy.sh` — pulls, builds, restarts
+## Lab PIN
+- DB stores the active PIN in sirius_config table (key: lab_pin)
+- Env var STAR_LAB_PIN is the fallback if DB has no entry
+- Current active PIN: 10669911 (changed via UI; env var updated to match)
+- To change: use /lab/settings/change-pin in the Star Lab
 
-**Why:** Kamatera can now build itself. Replit is only needed for code editing, not serving.
+## Key env vars on Kamatera (ecosystem.config.json)
+- STORAGE_BUCKET=sirius-storage, STORAGE_REGION=eu-west-1
+- AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY for S3
+- STAR_LAB_PIN=10669911 (matches DB)
+- FRONTEND_DIR=/opt/sirius/frontend/public
+- CAD_LOCAL_DIR=/opt/sirius/cad-files
+
+## To complete full independence
+- Move New Dimensions CAD service off Replit (deploy to Kamatera or other host)
+- new-dimension-cad.replit.app hosts /api/ai/generate used by cad-auto-gen.ts
+- No API key required currently — unauthenticated access works
+
+## Health check summary (May 2026)
+All 6 automated health checks green: database, openrouter, http_server,
+dream_lab_api, chat_api, ssl_cert. No issues. Self-repair engine active.

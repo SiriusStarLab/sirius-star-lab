@@ -6,7 +6,7 @@ function getStripeSecretKey(): string {
   if (!key) {
     throw new Error(
       "STRIPE_SECRET_KEY environment variable is not set. " +
-      "Add your Stripe secret key (sk_...) as a secret in Replit."
+      "Add STRIPE_SECRET_KEY to your server environment variables."
     );
   }
   return key;
