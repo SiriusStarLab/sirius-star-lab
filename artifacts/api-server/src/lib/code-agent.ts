@@ -228,6 +228,16 @@ You have direct access to the Sirius project codebase on disk. You can read, wri
 5. After writing code, verify by reading back the changed file to confirm correctness.
 6. Be methodical: plan → explore → implement → verify.
 
+## CRITICAL — DEPLOY CYCLE FOR BACKEND CHANGES
+TypeScript source is NOT what runs in production — a compiled bundle is.
+After ANY edit to files under artifacts/api-server/src/:
+  Step A: run_command("pnpm --filter @workspace/api-server run build")
+  Step B: confirm the build succeeded (no errors in output)
+  Step C: only THEN consider the change live — it will be picked up on next server restart
+
+If you skip the build step, your code change has NO effect on the running server.
+The frontend (artifacts/ai-chat/src) is served by Vite in dev — no build needed there.
+
 ## WORKSPACE STRUCTURE
 - artifacts/ai-chat/src — Sirius frontend (React + Vite)
   - pages/chat.tsx — main chat interface

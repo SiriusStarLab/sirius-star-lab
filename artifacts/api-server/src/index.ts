@@ -8,6 +8,7 @@ import { runInvestmentRule } from "./lib/investment-rule.js";
 import { startProactiveEngine } from "./lib/sirius-proactive.js";
 import { startPaymentExpiryJob } from "./lib/payment-expiry.js";
 import { startHealthMonitor } from "./lib/health-monitor.js";
+import { startSelfRepairEngine } from "./lib/self-repair.js";
 
 // Global crash protection — log unhandled errors instead of silently crashing
 process.on("unhandledRejection", (reason) => {
@@ -54,4 +55,6 @@ app.listen(port, () => {
   startPaymentExpiryJob();
   console.log("[Payment Expiry] Watching for unconfirmed payments — auto-expire after 48 hours");
   startHealthMonitor(30);
+  // Autonomous self-repair — watches PM2 logs, probes endpoints, restarts if needed, notifies Garry
+  startSelfRepairEngine(5);
 });

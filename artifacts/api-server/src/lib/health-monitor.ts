@@ -1,4 +1,4 @@
-import { db } from "@workspace/db";
+import { db, siriusErrors, siriusNotifications } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import * as tls from "tls";
 
@@ -99,38 +99,33 @@ async function checkDreamLabApi(): Promise<CheckResult> {
   }
 }
 
-async function checkSslCertificate(): Promise<CheckResult> {
+// Exported so self-repair.ts can call it directly for SSL expiry warnings
+export function checkSslCertificateDays(): Promise<number | null> {
   const domain = "sirius-ai.live";
   return new Promise((resolve) => {
     const socket = tls.connect(443, domain, { servername: domain }, () => {
       try {
         const cert = socket.getPeerCertificate();
         socket.destroy();
-        if (!cert || !cert.valid_to) {
-          return resolve({ name: "ssl_cert", status: "warn", detail: "Could not read certificate" });
-        }
+        if (!cert || !cert.valid_to) return resolve(null);
         const expiresAt = new Date(cert.valid_to);
-        const daysLeft = Math.floor((expiresAt.getTime() - Date.now()) / 86_400_000);
-        if (daysLeft <= 7) {
-          resolve({ name: "ssl_cert", status: "fail", detail: `Expires in ${daysLeft} days — RENEW NOW` });
-        } else if (daysLeft <= 30) {
-          resolve({ name: "ssl_cert", status: "warn", detail: `Expires in ${daysLeft} days` });
-        } else {
-          resolve({ name: "ssl_cert", status: "ok", detail: `Valid for ${daysLeft} more days` });
-        }
-      } catch (e: any) {
+        resolve(Math.floor((expiresAt.getTime() - Date.now()) / 86_400_000));
+      } catch {
         socket.destroy();
-        resolve({ name: "ssl_cert", status: "warn", detail: e.message });
+        resolve(null);
       }
     });
-    socket.setTimeout(8000, () => {
-      socket.destroy();
-      resolve({ name: "ssl_cert", status: "warn", detail: "TLS connection timed out" });
-    });
-    socket.on("error", (e) => {
-      resolve({ name: "ssl_cert", status: "warn", detail: e.message });
-    });
+    socket.setTimeout(8000, () => { socket.destroy(); resolve(null); });
+    socket.on("error", () => resolve(null));
   });
+}
+
+async function checkSslCertificate(): Promise<CheckResult> {
+  const daysLeft = await checkSslCertificateDays();
+  if (daysLeft === null) return { name: "ssl_cert", status: "warn", detail: "Could not read certificate" };
+  if (daysLeft <= 7)  return { name: "ssl_cert", status: "fail", detail: `Expires in ${daysLeft} days — RENEW NOW` };
+  if (daysLeft <= 30) return { name: "ssl_cert", status: "warn", detail: `Expires in ${daysLeft} days` };
+  return { name: "ssl_cert", status: "ok", detail: `Valid for ${daysLeft} more days` };
 }
 
 export async function runHealthCheck(): Promise<HealthReport> {
@@ -164,6 +159,41 @@ export async function runHealthCheck(): Promise<HealthReport> {
     console.log("[HealthMonitor] ✅ All systems OK");
   } else {
     console.warn(`[HealthMonitor] ⚠️ ${overall.toUpperCase()} — ${issues.join("; ")}`);
+
+    // Pipe failures into sirius_errors so Sirius sees them at conversation start
+    const failedChecks = checks.filter(c => c.status === "fail");
+    for (const c of failedChecks) {
+      try {
+        await db.insert(siriusErrors).values({
+          toolName: `health_monitor_${c.name}`,
+          errorMessage: `${c.name} failed: ${c.detail ?? "no detail"}`,
+          context: `Detected by HealthMonitor at ${runAt}. Overall status: ${overall}.`,
+        } as any);
+      } catch {}
+    }
+
+    // If something critical is down, also send Garry a notification (max once per 2 hours)
+    if (overall === "down") {
+      try {
+        const recentNotif = await db.execute(
+          sql`SELECT id FROM sirius_notifications
+              WHERE type = 'health_alert'
+                AND created_at > NOW() - INTERVAL '2 hours'
+              LIMIT 1`
+        ) as any;
+        const rows = recentNotif.rows ?? recentNotif;
+        if (!rows || rows.length === 0) {
+          await db.insert(siriusNotifications).values({
+            title: `🔴 System health: ${overall.toUpperCase()}`,
+            message: `Health check at ${runAt} found critical failures:\n${issues.join("\n")}\n\nI've logged these errors. I'll investigate when we next talk.`,
+            type: "health_alert",
+            urgency: "high",
+            read: false,
+            sentEmail: false,
+          } as any);
+        }
+      } catch {}
+    }
   }
 
   return report;
