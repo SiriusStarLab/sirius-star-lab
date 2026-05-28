@@ -16,6 +16,7 @@ import fitstackRouter from "./fitstack";
 import dreamLabRouter from "./dream-lab";
 import paymentRouter from "./payment";
 import intelligenceProxyRouter from "./intelligence-proxy.js";
+import selfModifyRouter from "./self-modify.js";
 
 const router: IRouter = Router();
 
@@ -36,5 +37,6 @@ router.use("/fitstack", fitstackRouter);
 router.use(dreamLabRouter);
 router.use(paymentRouter);
 router.use(intelligenceProxyRouter);
+router.use("/lab", selfModifyRouter);
 
 export default router;

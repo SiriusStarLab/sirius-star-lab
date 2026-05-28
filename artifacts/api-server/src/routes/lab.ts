@@ -17,6 +17,8 @@ import { getLabPin, setLabPin, getPinRole, authMiddleware, sseHeaders, loadLabPi
 import { runCodeAgent, type CodeAgentEvent } from "../lib/code-agent.js";
 import { runSecurityScan } from "../lib/security-scanner.js";
 import { intelligence } from "../lib/intelligence-client.js";
+import { executeCode } from "../lib/code-sandbox.js";
+import { readSourceFile, deployChange, triggerReload } from "../lib/self-deploy.js";
 
 // Active code-agent SSE streams (sessionId → Response)
 const codeAgentStreams = new Map<string, Response>();
@@ -744,6 +746,51 @@ const PROJECT_CHAT_TOOLS: any[] = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "read_source_file",
+      description: "Read a file from Sirius's own source code. Use before modifying any file — always read it first so you have the exact current content.",
+      parameters: {
+        type: "object",
+        properties: {
+          path: { type: "string", description: "File path relative to artifacts/api-server/ (e.g. 'src/routes/lab.ts', 'src/lib/memory.ts')" },
+        },
+        required: ["path"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "execute_code",
+      description: "Execute JavaScript or Python in a secure sandbox to test logic, verify algorithms, or validate calculations before using results. Returns stdout and stderr.",
+      parameters: {
+        type: "object",
+        properties: {
+          code: { type: "string", description: "The code to run" },
+          language: { type: "string", enum: ["javascript", "python"], description: "Programming language" },
+        },
+        required: ["code", "language"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "propose_code_change",
+      description: "Propose a change to Sirius's own source code. Runs TypeScript check, AI review by a separate model (GPT-4o), then auto-deploys if both pass. Always read_source_file first. Provide the complete new file content — not a snippet.",
+      parameters: {
+        type: "object",
+        properties: {
+          filePath: { type: "string", description: "File path relative to artifacts/api-server/ e.g. 'src/lib/my-feature.ts'. Only src/ files allowed." },
+          newContent: { type: "string", description: "Complete new content of the file. Full file, not a snippet." },
+          description: { type: "string", description: "Specific explanation of what changed and why. The reviewer reads this." },
+        },
+        required: ["filePath", "newContent", "description"],
+      },
+    },
+  },
 ];
 
 router.post("/lab/projects/:id/chat", authMiddleware, async (req: Request, res: Response) => {
@@ -924,6 +971,48 @@ CRITICAL EXECUTION RULES — READ CAREFULLY:
           const searchResults = await doWebSearch(query);
           res.write(`data: ${JSON.stringify({ type: "search_done", query })}\n\n`);
           toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: `Search results for "${query}" (purpose: ${purpose}):\n\n${searchResults}` });
+
+        } else if (tc.name === "read_source_file") {
+          const { path } = args;
+          res.write(`data: ${JSON.stringify({ type: "reading_file", path })}\n\n`);
+          try {
+            const content = await readSourceFile(path);
+            toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: `File: ${path}\n\`\`\`typescript\n${content}\n\`\`\`` });
+          } catch (e: any) {
+            toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: `Error reading ${path}: ${e.message}` });
+          }
+
+        } else if (tc.name === "execute_code") {
+          const { code, language } = args;
+          res.write(`data: ${JSON.stringify({ type: "executing_code", language })}\n\n`);
+          const result = await executeCode(code, language);
+          const output = result.success
+            ? `Output:\n${result.stdout}${result.stderr ? `\nStderr:\n${result.stderr}` : ""}`
+            : `Execution failed: ${result.error}\n${result.stderr}`;
+          res.write(`data: ${JSON.stringify({ type: "code_result", success: result.success, executionMs: result.executionMs })}\n\n`);
+          toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: output });
+
+        } else if (tc.name === "propose_code_change") {
+          const { filePath, newContent, description } = args;
+          res.write(`data: ${JSON.stringify({ type: "proposing_change", filePath })}\n\n`);
+          const apiKey = process.env.OPENROUTER_API_KEY || "";
+          const result = await deployChange({ filePath, newContent, description, apiKey });
+
+          let resultMsg = "";
+          if (result.success) {
+            resultMsg = `✅ DEPLOYED: ${result.reviewSummary || description}. Sirius is reloading with the new code in ~3 seconds.`;
+          } else {
+            resultMsg = `❌ REJECTED at [${result.stage}]: ${result.message}`;
+            if (result.typecheckErrors) resultMsg += `\n\nTypeScript errors:\n${result.typecheckErrors}`;
+            if (result.reviewConcerns?.length) resultMsg += `\n\nReviewer concerns:\n${result.reviewConcerns.join("\n")}`;
+          }
+
+          res.write(`data: ${JSON.stringify({ type: "deploy_result", success: result.success, stage: result.stage })}\n\n`);
+          toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: resultMsg });
+
+          if (result.success) {
+            setTimeout(() => triggerReload().catch(() => {}), 3000);
+          }
         }
       }
 
