@@ -19,6 +19,7 @@ import { runSecurityScan } from "../lib/security-scanner.js";
 import { intelligence } from "../lib/intelligence-client.js";
 import { executeCode } from "../lib/code-sandbox.js";
 import { readSourceFile, deployChange, triggerReload } from "../lib/self-deploy.js";
+import { loadCrossSessionContext } from "../lib/mnemosyne.js";
 
 // Active code-agent SSE streams (sessionId → Response)
 const codeAgentStreams = new Map<string, Response>();
@@ -7269,8 +7270,17 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
     // Detect whether this is the first message of a conversation (no prior assistant replies)
     const hasExistingAssistantMessage = messages.some((m: { role: string }) => m.role === "assistant");
 
+    // Load cross-session memory — gives Sirius context from previous conversations
+    const crossSessionMsgs = role === "owner"
+      ? await loadCrossSessionContext(BRAIN_USER, 25).catch(() => [])
+      : [];
+
     const chatMessages: any[] = [
       { role: "system", content: activeSystemPrompt },
+      ...(crossSessionMsgs.length > 0 ? [{
+        role: "system" as const,
+        content: `CROSS-SESSION MEMORY — recent messages from previous conversations with Garry:\n${crossSessionMsgs.map(m => `${m.role}: ${m.content}`).join("\n")}`,
+      }] : []),
       ...messages.map((m: { role: string; content: string }) => ({ role: m.role, content: m.content })),
     ];
 
