@@ -3,6 +3,7 @@ import { eq, sql, desc, and } from "drizzle-orm";
 import { db, conversations as conversationsTable, messages as messagesTable, userProfilesTable } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { extractAndSaveMemories } from "../../lib/memory";
+import { loadConversationContext } from "../../lib/mnemosyne";
 import {
   CreateOpenaiConversationBody,
   GetOpenaiConversationParams,
@@ -939,12 +940,8 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
     content: body.data.content,
   });
 
-  // Load full conversation history
-  const allMessages = await db
-    .select()
-    .from(messagesTable)
-    .where(eq(messagesTable.conversationId, conversationId))
-    .orderBy(messagesTable.createdAt);
+  // Load conversation history via Mnemosyne (capped at 40 messages to stay within token limits)
+  const allMessages = await loadConversationContext(conversationId, 40);
 
   const inputMessages = allMessages.map((m, i) => {
     const isLastUserMsg = i === allMessages.length - 1 && m.role === "user";
