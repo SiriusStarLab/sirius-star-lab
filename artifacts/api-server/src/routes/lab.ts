@@ -735,6 +735,18 @@ const PROJECT_CHAT_TOOLS: any[] = [
   {
     type: "function",
     function: {
+      name: "send_to_new_dimensions",
+      description: "Send the current project to New Dimensions CAD to generate professional engineering drawings. Use when the user asks for CAD drawings, engineering drawings, 2D/3D technical drawings, or wants to push the project specs into New Dimensions. The project must have specs or drawing notes before this will work.",
+      parameters: {
+        type: "object",
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "search_web",
       description: "Search the web for current information, market data, technical standards, competitor analysis, pricing, or any real-world information needed for the project. Call this BEFORE writing sections that need current facts, market data, or research.",
       parameters: {
@@ -965,6 +977,23 @@ CRITICAL EXECUTION RULES — READ CAREFULLY:
               });
             } catch { /* silently ignore */ }
           });
+
+        } else if (tc.name === "send_to_new_dimensions") {
+          res.write(`data: ${JSON.stringify({ type: "sending_to_cad" })}\n\n`);
+          try {
+            const cadRes = await fetch(`http://localhost:${process.env.PORT || 3001}/api/lab/projects/${projectId}/send-to-cad`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "x-lab-pin": getLabPin() },
+            });
+            const cadData = await cadRes.json().catch(() => ({})) as any;
+            if (!cadRes.ok) {
+              toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: `CAD submission failed: ${cadData?.error || cadRes.statusText}` });
+            } else {
+              toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: `Project sent to New Dimensions. ${cadData?.message || ""} Open it here: ${cadData?.ndProjectUrl || "check the CAD tab"}` });
+            }
+          } catch (e: any) {
+            toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: `Error sending to New Dimensions: ${e.message}` });
+          }
 
         } else if (tc.name === "search_web") {
           const { query, purpose } = args;
