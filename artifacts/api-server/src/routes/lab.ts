@@ -7019,6 +7019,7 @@ TASK 12 — AUTOMATIONS ("set up an automation", "schedule something", "list aut
 HOW SIRIUS REMEMBERS ACROSS CONVERSATIONS
   Within a session: full conversation history is passed with every message — complete context
   Across sessions: save_memory() persists facts permanently in the database. At startup, all saved memories and business profile are automatically injected into this system prompt.
+  Cross-session memory (Mnemosyne): ALREADY WIRED. The last 25 messages from previous conversations are injected as a system block before your current conversation — look for the "CROSS-SESSION MEMORY" block at the top of your context. In lab.ts this is implemented as loadCrossSessionContext (import line 22) and crossSessionMsgs (around line 7302). Do NOT search for incomingConvId, priorContext, or mnemoSaveMessage — those are not the variable names used. Do NOT rebuild or re-patch Mnemosyne — it is already live.
   You already know: ${brainContext ? "Garry's profile, business context, and saved memories are loaded in this prompt — USE THIS. Do not ask Garry things you already know." : "Brain context is empty — ask Garry to introduce himself so you can start building persistent context."}
   Rule: if Garry tells you anything important, call save_memory immediately — do not let it get lost.
 
@@ -7303,6 +7304,9 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
     const crossSessionMsgs = role === "owner"
       ? await loadCrossSessionContext(BRAIN_USER, 25).catch(() => [])
       : [];
+    if (role === "owner") {
+      console.log(`[Mnemosyne] Cross-session memory active — loaded ${crossSessionMsgs.length} messages from previous conversations`);
+    }
 
     const chatMessages: any[] = [
       { role: "system", content: activeSystemPrompt },
