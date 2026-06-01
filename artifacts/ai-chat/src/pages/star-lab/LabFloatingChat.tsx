@@ -45,6 +45,7 @@ export function LabFloatingChat({ pin, navMode, activeProject, onNavigate, onOpe
   const bottomRef = React.useRef<HTMLDivElement>(null);
   const recognitionRef = React.useRef<any>(null);
   const stoppedRef = React.useRef(false);
+  const conversationIdRef = React.useRef<number | null>(null);
   const base = getApiBase();
   const prevNavModeRef = React.useRef(navMode);
 
@@ -269,7 +270,7 @@ VOICE STYLE: Short, direct sentences. No bullet points or markdown. Report what 
       const res = await fetch(`${base}lab/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-lab-pin": pin },
-        body: JSON.stringify({ messages: apiMessages }),
+        body: JSON.stringify({ messages: apiMessages, conversationId: conversationIdRef.current }),
         signal: fetchController.signal,
       });
       if (!res.ok || !res.body) { clearTimeout(fetchTimeout); throw new Error("Chat failed"); }
@@ -335,6 +336,9 @@ VOICE STYLE: Short, direct sentences. No bullet points or markdown. Report what 
                 onNavigate(evt.section as NavMode);
                 setTimeout(() => setOpen(false), 600);
               }
+            }
+            if (evt.type === "conversation_id" && evt.conversationId) {
+              conversationIdRef.current = evt.conversationId;
             }
           } catch {}
         }

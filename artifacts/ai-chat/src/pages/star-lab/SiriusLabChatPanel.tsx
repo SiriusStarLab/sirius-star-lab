@@ -48,6 +48,7 @@ export function SiriusLabChatPanel({ pin, accessLevel, navMode, activeProject, o
   const chatInputModeRef = useRef<"voice" | "keyboard">("voice");
   const [textInput, setTextInput] = useState("");
   const [queuedMessage, setQueuedMessage] = useState("");
+  const conversationIdRef = useRef<number | null>(null);
   const textInputRef = useRef<HTMLTextAreaElement>(null);
   const recognitionRef = useRef<any>(null);
   const messagesRef = useRef<LabChatMsg[]>([]);
@@ -207,7 +208,7 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
       const res = await fetch(`${base}lab/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-lab-pin": pin },
-        body: JSON.stringify({ messages: messagesWithContext }),
+        body: JSON.stringify({ messages: messagesWithContext, conversationId: conversationIdRef.current }),
         signal: controller.signal,
       });
       clearTimeout(timeout);
@@ -263,6 +264,8 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
               } else if (evt.section) {
                 pendingNavRef.current = { section: evt.section as NavMode };
               }
+            } else if (evt.type === "conversation_id" && evt.conversationId) {
+              conversationIdRef.current = evt.conversationId;
             } else if (evt.type === "error") {
               fullText = evt.message || "Something went wrong.";
               streamDone = true;

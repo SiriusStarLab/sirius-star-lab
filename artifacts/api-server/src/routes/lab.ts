@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { eq, desc, gte, lte, and, or, like, sql, isNull, ne } from "drizzle-orm";
-import { db, labProjects, labMessages, scoutReports, cadFiles, techDocs, labScanHistory, userProfilesTable, mediaOutlets, appBuilderSessions, voiceJournalTable, siriusConfig, siriusAutomations, siriusCustomTools, siriusErrors, cadJobs, siriusUpgrades, siriusNotifications } from "@workspace/db";
+import { db, labProjects, labMessages, scoutReports, cadFiles, techDocs, labScanHistory, userProfilesTable, mediaOutlets, appBuilderSessions, voiceJournalTable, siriusConfig, siriusAutomations, siriusCustomTools, siriusErrors, cadJobs, siriusUpgrades, siriusNotifications, messages as messagesTable, conversations as conversationsTable } from "@workspace/db";
 import { getSiriusConfigValue, setSiriusConfigValue, executeCustomTool, runAutomation, logSiriusError } from "../lib/sirius-automation.js";
 import { extractAndSaveMemories } from "../lib/memory.js";
 import { openai } from "@workspace/ai-client";
@@ -6810,8 +6810,21 @@ router.post("/lab/chat", async (req, res): Promise<void> => {
   const role = getPinRole(pinHeader);
   if (!role) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const { messages } = req.body ?? {};
+  const { messages, conversationId: clientConvId } = req.body ?? {};
   if (!Array.isArray(messages) || messages.length === 0) { res.status(400).json({ error: "messages required" }); return; }
+
+  // Track conversation for cross-session memory (owner only)
+  let activeConvId: number | null = clientConvId ? parseInt(clientConvId) : null;
+  if (role === "owner" && !activeConvId) {
+    try {
+      const firstMsg = messages.find((m: any) => m.role === "user")?.content || "Star Lab conversation";
+      const [newConv] = await db.insert(conversationsTable).values({
+        title: String(firstMsg).slice(0, 80),
+        userId: BRAIN_USER,
+      }).returning({ id: conversationsTable.id });
+      activeConvId = newConv.id;
+    } catch { /* non-critical — never block chat */ }
+  }
 
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache, no-transform");
@@ -7501,6 +7514,23 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
       ];
       extractAndSaveMemories(BRAIN_USER, exchange, currentMemories).catch(() => {});
     });
+
+    // Background: save user + assistant messages for cross-session memory (Mnemosyne)
+    if (role === "owner" && activeConvId) {
+      setImmediate(async () => {
+        try {
+          const lastUser = (messages as Array<{ role: string; content: string }>).findLast(m => m.role === "user");
+          if (lastUser?.content) {
+            await db.insert(messagesTable).values({ conversationId: activeConvId!, role: "user", content: lastUser.content.slice(0, 8000) });
+          }
+          if (finalText) {
+            await db.insert(messagesTable).values({ conversationId: activeConvId!, role: "assistant", content: finalText.slice(0, 8000) });
+          }
+        } catch { /* non-critical */ }
+      });
+      // Tell the frontend the conversation ID so it can send it back on the next message
+      sendEvent({ type: "conversation_id", conversationId: activeConvId });
+    }
 
     clearInterval(heartbeat);
     res.write("data: [DONE]\n\n");
