@@ -4367,6 +4367,53 @@ const LAB_TOOLS: any[] = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "generate_image",
+      description: "Generate an image from a text prompt using DALL-E 3. Use this when Garry asks you to create, visualise, or render anything — concepts, logos, mockups, diagrams, product renders, illustrations. Returns a permanent URL you can share.",
+      parameters: {
+        type: "object",
+        properties: {
+          prompt: { type: "string", description: "Detailed description of the image to generate. Be specific about style, composition, colours, and subject." },
+          size: { type: "string", enum: ["1024x1024", "1792x1024", "1024x1792"], description: "Image dimensions. Default: 1024x1024 (square). Use 1792x1024 for landscape, 1024x1792 for portrait." },
+        },
+        required: ["prompt"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "query_database",
+      description: "Run a read-only SQL query against the production database. Use this for analytics, business intelligence, debugging, counting records, checking data quality, or any time you need raw data. Only SELECT statements are allowed — any mutation will be rejected.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "A valid SQL SELECT statement. Can include JOINs, aggregations, WHERE clauses, ORDER BY, LIMIT, etc." },
+          description: { type: "string", description: "What you are querying and why — shown in the action card." },
+        },
+        required: ["query", "description"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "stripe_lookup",
+      description: "Look up live Stripe data — revenue, payments, customers, subscriptions. Use this to check actual payment data, verify a transaction, check MRR, or investigate a payment issue. Returns real live data from Stripe.",
+      parameters: {
+        type: "object",
+        properties: {
+          resource: { type: "string", enum: ["balance", "payments", "customers", "subscriptions", "invoices", "payment_intents"], description: "Which Stripe resource to look up." },
+          limit: { type: "number", description: "Max records to return (default 10, max 100)." },
+          customer_id: { type: "string", description: "Optional: filter by a specific Stripe customer ID (cus_...)." },
+          query: { type: "string", description: "Optional: search query for customer email or name lookup." },
+        },
+        required: ["resource"],
+      },
+    },
+  },
 ];
 
 async function executeLabTool(name: string, args: any, onProgress?: (event: Record<string, unknown>) => void): Promise<string> {
@@ -6700,6 +6747,116 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
         return `Server restart scheduled — it will happen in ~3 seconds. The connection will drop momentarily then recover automatically. Reason: ${reason}`;
       }
 
+      case "generate_image": {
+        const { prompt, size = "1024x1024" } = args as { prompt: string; size?: string };
+        onProgress?.({ type: "status", message: `Generating image: "${prompt.slice(0, 60)}…"` });
+
+        const apiKey = process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY;
+        if (!apiKey) return "Image generation requires OPENROUTER_API_KEY — not configured on this server.";
+
+        const useOpenAI = !!process.env.OPENAI_API_KEY;
+        const endpoint = useOpenAI
+          ? "https://api.openai.com/v1/images/generations"
+          : "https://openrouter.ai/api/v1/images/generations";
+
+        const imgRes = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: useOpenAI ? "dall-e-3" : "openai/dall-e-3",
+            prompt,
+            n: 1,
+            size,
+            response_format: "b64_json",
+          }),
+        });
+
+        if (!imgRes.ok) {
+          const err = await imgRes.text().catch(() => imgRes.statusText);
+          return `Image generation failed: ${err}`;
+        }
+
+        const imgData = await imgRes.json() as { data?: { b64_json?: string }[] };
+        const b64 = imgData.data?.[0]?.b64_json;
+        if (!b64) return "No image data returned from generation API.";
+
+        // Save to public renders directory so it's permanently accessible
+        const { writeFileSync, mkdirSync } = await import("fs");
+        const { join } = await import("path");
+        const { randomUUID } = await import("crypto");
+        const rendersDir = join(process.env.SIRIUS_WORKSPACE || "/opt/sirius", "artifacts/api-server/public/renders");
+        try { mkdirSync(rendersDir, { recursive: true }); } catch {}
+        const filename = `${randomUUID()}.png`;
+        writeFileSync(join(rendersDir, filename), Buffer.from(b64, "base64"));
+
+        const baseUrl = process.env.PUBLIC_BASE_URL || "https://sirius-ai.live";
+        const imageUrl = `${baseUrl}/api/lab/renders/${filename}`;
+        return `✅ Image generated.\n\nURL: ${imageUrl}\n\nPrompt used: ${prompt}`;
+      }
+
+      case "query_database": {
+        const { query, description } = args as { query: string; description: string };
+        onProgress?.({ type: "status", message: `Query: ${description}` });
+
+        const trimmed = query.trim().toLowerCase();
+        if (!trimmed.startsWith("select") && !trimmed.startsWith("with")) {
+          return "Only SELECT (and CTEs starting with WITH...SELECT) queries are allowed. No mutations permitted.";
+        }
+
+        const result = await db.execute(sql.raw(query)) as any;
+        const rows = result.rows ?? result ?? [];
+        if (!Array.isArray(rows) || rows.length === 0) return `Query returned no rows.\n\nQuery: ${query}`;
+
+        const cols = Object.keys(rows[0]);
+        const header = cols.join(" | ");
+        const divider = cols.map(c => "-".repeat(c.length + 2)).join("|");
+        const body = rows.slice(0, 100).map((r: any) => cols.map(c => String(r[c] ?? "")).join(" | ")).join("\n");
+        return `**${description}** — ${rows.length} row${rows.length === 1 ? "" : "s"}${rows.length > 100 ? " (showing first 100)" : ""}:\n\n${header}\n${divider}\n${body}`;
+      }
+
+      case "stripe_lookup": {
+        const { resource, limit = 10, customer_id, query: searchQuery } = args as { resource: string; limit?: number; customer_id?: string; query?: string };
+        const stripeKey = process.env.STRIPE_SECRET_KEY;
+        if (!stripeKey) return "STRIPE_SECRET_KEY is not configured on this server.";
+
+        onProgress?.({ type: "status", message: `Fetching Stripe ${resource}…` });
+
+        const cap = Math.min(limit, 100);
+        let url = `https://api.stripe.com/v1/${resource === "payments" ? "charges" : resource}?limit=${cap}`;
+        if (customer_id) url += `&customer=${customer_id}`;
+        if (searchQuery && resource === "customers") url = `https://api.stripe.com/v1/customers/search?query=email:"${searchQuery}"&limit=${cap}`;
+
+        const stripeRes = await fetch(url, {
+          headers: { "Authorization": `Bearer ${stripeKey}` },
+        });
+
+        if (!stripeRes.ok) {
+          const err = await stripeRes.json().catch(() => ({})) as any;
+          return `Stripe API error (${stripeRes.status}): ${err?.error?.message || stripeRes.statusText}`;
+        }
+
+        const data = await stripeRes.json() as any;
+
+        if (resource === "balance") {
+          const avail = data.available?.map((b: any) => `${b.currency.toUpperCase()}: ${(b.amount / 100).toFixed(2)}`).join(", ") || "none";
+          const pend = data.pending?.map((b: any) => `${b.currency.toUpperCase()}: ${(b.amount / 100).toFixed(2)}`).join(", ") || "none";
+          return `**Stripe Balance**\nAvailable: ${avail}\nPending: ${pend}`;
+        }
+
+        const items = data.data ?? [];
+        if (items.length === 0) return `No ${resource} found in Stripe.`;
+
+        const summary = items.map((item: any) => {
+          if (resource === "customers") return `${item.id} | ${item.email || "no email"} | ${item.name || "no name"} | Created: ${new Date(item.created * 1000).toISOString().split("T")[0]}`;
+          if (resource === "payments" || resource === "charges") return `${item.id} | ${item.currency?.toUpperCase()} ${((item.amount || 0) / 100).toFixed(2)} | ${item.status} | ${item.description || ""} | ${new Date(item.created * 1000).toISOString().split("T")[0]}`;
+          if (resource === "subscriptions") return `${item.id} | ${item.status} | ${item.plan?.nickname || item.items?.data?.[0]?.price?.nickname || "plan"} | Customer: ${item.customer} | ${new Date(item.current_period_end * 1000).toISOString().split("T")[0]}`;
+          if (resource === "invoices") return `${item.id} | ${item.currency?.toUpperCase()} ${((item.amount_due || 0) / 100).toFixed(2)} | ${item.status} | ${item.customer_email || item.customer} | ${new Date(item.created * 1000).toISOString().split("T")[0]}`;
+          return JSON.stringify(item).slice(0, 120);
+        }).join("\n");
+
+        return `**Stripe ${resource}** (${items.length} result${items.length === 1 ? "" : "s"}):\n\n${summary}`;
+      }
+
       default:
         return `Unknown tool: ${name}`;
     }
@@ -6771,6 +6928,9 @@ const TOOL_META: Record<string, { label: string; color: string; icon: string }> 
   patch_source_file: { label: "Patching source file", color: "hsl(25,100%,45%)", icon: "🔩" },
   run_command: { label: "Running command", color: "hsl(155,70%,38%)", icon: "⚡" },
   restart_server: { label: "Restarting server", color: "hsl(0,80%,50%)", icon: "♻️" },
+  generate_image: { label: "Generating image", color: "hsl(280,80%,55%)", icon: "🎨" },
+  query_database: { label: "Querying database", color: "hsl(193,100%,40%)", icon: "🗃️" },
+  stripe_lookup: { label: "Checking Stripe", color: "hsl(155,70%,42%)", icon: "💳" },
 };
 
 // Detect whether a message is primarily an information/research query
@@ -8874,6 +9034,19 @@ router.post("/lab/admin/restore-archived", authMiddleware, async (_req: Request,
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// Serve AI-generated images saved by the generate_image tool
+router.get("/lab/renders/:filename", (req: Request, res: Response) => {
+  const { filename } = req.params;
+  if (!/^[\w-]+\.png$/.test(filename)) { res.status(400).json({ error: "Invalid filename" }); return; }
+  const { join } = require("path");
+  const { createReadStream, existsSync } = require("fs");
+  const filePath = join(process.env.SIRIUS_WORKSPACE || "/opt/sirius", "artifacts/api-server/public/renders", filename);
+  if (!existsSync(filePath)) { res.status(404).json({ error: "Render not found" }); return; }
+  res.setHeader("Content-Type", "image/png");
+  res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+  createReadStream(filePath).pipe(res);
 });
 
 export default router;
