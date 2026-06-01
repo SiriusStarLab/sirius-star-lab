@@ -37,6 +37,14 @@ interface DBMessage {
   createdAt: string;
 }
 
+interface ActionStep {
+  tool: string;
+  label: string;
+  detail?: string;
+  color: string;
+  icon: string;
+}
+
 const MOODS = [
   { label: "Alive & open",      emoji: "🌤️", color: "#00d4ff", prompt: "My heart feels light today — genuinely open. I want to share this energy and maybe explore something that gives it more meaning. Meet me here." },
   { label: "Need holding",      emoji: "💙", color: "#60a5fa", prompt: "Something in me is asking for gentleness right now. I don't need solutions — I need to feel less alone. Can you just be here with me for a while?" },
@@ -80,6 +88,8 @@ export default function ChatScreen() {
   const [showTyping, setShowTyping] = useState(false);
   const [conversationId, setConversationId] = useState<number | null>(null);
   const [voiceMode, setVoiceMode] = useState(true);
+  const [actionSteps, setActionSteps] = useState<ActionStep[]>([]);
+  const [stepsExpanded, setStepsExpanded] = useState(false);
 
   const promptHandledRef = useRef<string | undefined>(undefined);
   const convoHandledRef = useRef<string | undefined>(undefined);
@@ -95,6 +105,8 @@ export default function ChatScreen() {
     setMessages(prev => [...prev, userMsg]);
     setIsStreaming(true);
     setShowTyping(true);
+    setActionSteps([]);
+    setStepsExpanded(false);
 
     try {
       let activeId = conversationId;
@@ -174,6 +186,18 @@ export default function ChatScreen() {
                 }
                 return updated;
               });
+              continue;
+            }
+
+            if (parsed.type === "action" && parsed.tool) {
+              setActionSteps(prev => [...prev, {
+                tool: parsed.tool,
+                label: parsed.label || parsed.tool,
+                detail: parsed.detail || undefined,
+                color: parsed.color || "hsl(193,100%,40%)",
+                icon: parsed.icon || "⚡",
+              }]);
+              setShowTyping(false);
               continue;
             }
 
@@ -286,6 +310,8 @@ export default function ChatScreen() {
     setConversationId(null);
     setIsStreaming(false);
     setShowTyping(false);
+    setActionSteps([]);
+    setStepsExpanded(false);
   }, []);
 
   return (
@@ -393,7 +419,58 @@ export default function ChatScreen() {
           keyExtractor={item => item.id}
           renderItem={({ item }) => <MessageBubble message={item} />}
           inverted
-          ListHeaderComponent={showTyping ? <TypingIndicator /> : null}
+          ListHeaderComponent={
+            <>
+              {showTyping && <TypingIndicator />}
+              {isStreaming && actionSteps.length > 0 && (
+                <View style={styles.actionLogLive}>
+                  {actionSteps.map((step, i) => (
+                    <View key={i} style={styles.actionStep}>
+                      <Text style={styles.actionStepIcon}>{step.icon}</Text>
+                      <View style={styles.actionStepText}>
+                        <Text style={[styles.actionStepLabel, { color: step.color }]}>{step.label}</Text>
+                        {step.detail ? <Text style={styles.actionStepDetail}>{step.detail}</Text> : null}
+                      </View>
+                    </View>
+                  ))}
+                  <View style={styles.actionLogPulse}>
+                    <View style={[styles.actionLogDot, { backgroundColor: Colors.primary }]} />
+                    <Text style={styles.actionLogWorking}>Working…</Text>
+                  </View>
+                </View>
+              )}
+              {!isStreaming && actionSteps.length > 0 && (
+                <Pressable
+                  onPress={() => setStepsExpanded(e => !e)}
+                  style={styles.actionLogCollapsed}
+                >
+                  <Text style={styles.actionLogCollapsedIcon}>⚡</Text>
+                  <Text style={styles.actionLogCollapsedText}>
+                    {actionSteps.length} action{actionSteps.length !== 1 ? "s" : ""} taken
+                  </Text>
+                  <Feather
+                    name={stepsExpanded ? "chevron-down" : "chevron-up"}
+                    size={13}
+                    color={Colors.textMuted}
+                    style={{ marginLeft: "auto" }}
+                  />
+                </Pressable>
+              )}
+              {!isStreaming && stepsExpanded && actionSteps.length > 0 && (
+                <View style={styles.actionLogExpanded}>
+                  {actionSteps.map((step, i) => (
+                    <View key={i} style={styles.actionStep}>
+                      <Text style={styles.actionStepIcon}>{step.icon}</Text>
+                      <View style={styles.actionStepText}>
+                        <Text style={[styles.actionStepLabel, { color: step.color }]}>{step.label}</Text>
+                        {step.detail ? <Text style={styles.actionStepDetail}>{step.detail}</Text> : null}
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </>
+          }
           keyboardDismissMode="interactive"
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={{ paddingTop: 8, paddingBottom: 12 }}
@@ -609,6 +686,96 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: Colors.background,
     fontFamily: "Inter_600SemiBold",
+  },
+
+  /* ── Action log (live tool narration) ── */
+  actionLogLive: {
+    marginHorizontal: 12,
+    marginBottom: 8,
+    backgroundColor: "rgba(0,180,216,0.06)",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(0,180,216,0.15)",
+    padding: 12,
+    gap: 6,
+  },
+  actionStep: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    paddingVertical: 2,
+  },
+  actionStepIcon: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  actionStepText: {
+    flex: 1,
+  },
+  actionStepLabel: {
+    fontSize: 12,
+    fontFamily: "Inter_500Medium",
+    fontWeight: "500",
+    lineHeight: 18,
+  },
+  actionStepDetail: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.4)",
+    fontFamily: "Inter_400Regular",
+    lineHeight: 16,
+    marginTop: 1,
+  },
+  actionLogPulse: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 4,
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(0,180,216,0.1)",
+  },
+  actionLogDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    opacity: 0.8,
+  },
+  actionLogWorking: {
+    fontSize: 11,
+    color: "rgba(0,212,255,0.7)",
+    fontFamily: "Inter_400Regular",
+    fontStyle: "italic",
+  },
+  actionLogCollapsed: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    marginHorizontal: 12,
+    marginBottom: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    backgroundColor: "rgba(0,180,216,0.06)",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(0,180,216,0.15)",
+  },
+  actionLogCollapsedIcon: {
+    fontSize: 12,
+  },
+  actionLogCollapsedText: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.45)",
+    fontFamily: "Inter_400Regular",
+  },
+  actionLogExpanded: {
+    marginHorizontal: 12,
+    marginBottom: 8,
+    backgroundColor: "rgba(0,180,216,0.05)",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(0,180,216,0.12)",
+    padding: 12,
+    gap: 6,
   },
 
   /* Quick action chips (active conversation) */
