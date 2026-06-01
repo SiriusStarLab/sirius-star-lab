@@ -24,7 +24,7 @@ import { loadCrossSessionContext } from "../lib/mnemosyne.js";
 // Bundle capability marker — printed at startup so esbuild can't tree-shake it.
 // Sirius: to check if a feature is in the running bundle, grep for "SIRIUS_BUNDLE_CAPABILITIES" in the dist/index.cjs.
 // DO NOT grep for minified identifiers like loadCrossSessionContext — they are renamed by the minifier.
-console.log("SIRIUS_BUNDLE_CAPABILITIES: mnemosyne-wired cad-enabled generate-image query-database stripe-lookup v3");
+console.log("SIRIUS_BUNDLE_CAPABILITIES: mnemosyne-wired cad-enabled generate-image query-database v4");
 
 // Active code-agent SSE streams (sessionId → Response)
 const codeAgentStreams = new Map<string, Response>();
@@ -4410,23 +4410,6 @@ const LAB_TOOLS: any[] = [
       },
     },
   },
-  {
-    type: "function",
-    function: {
-      name: "stripe_lookup",
-      description: "Look up live Stripe data — revenue, payments, customers, subscriptions. Use this to check actual payment data, verify a transaction, check MRR, or investigate a payment issue. Returns real live data from Stripe.",
-      parameters: {
-        type: "object",
-        properties: {
-          resource: { type: "string", enum: ["balance", "payments", "customers", "subscriptions", "invoices", "payment_intents"], description: "Which Stripe resource to look up." },
-          limit: { type: "number", description: "Max records to return (default 10, max 100)." },
-          customer_id: { type: "string", description: "Optional: filter by a specific Stripe customer ID (cus_...)." },
-          query: { type: "string", description: "Optional: search query for customer email or name lookup." },
-        },
-        required: ["resource"],
-      },
-    },
-  },
 ];
 
 async function executeLabTool(name: string, args: any, onProgress?: (event: Record<string, unknown>) => void): Promise<string> {
@@ -6847,49 +6830,6 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
         const divider = cols.map(c => "-".repeat(c.length + 2)).join("|");
         const body = rows.slice(0, 100).map((r: any) => cols.map(c => String(r[c] ?? "")).join(" | ")).join("\n");
         return `**${description}** — ${rows.length} row${rows.length === 1 ? "" : "s"}${rows.length > 100 ? " (showing first 100)" : ""}:\n\n${header}\n${divider}\n${body}`;
-      }
-
-      case "stripe_lookup": {
-        const { resource, limit = 10, customer_id, query: searchQuery } = args as { resource: string; limit?: number; customer_id?: string; query?: string };
-        const stripeKey = process.env.STRIPE_SECRET_KEY;
-        if (!stripeKey) return "STRIPE_SECRET_KEY is not configured on this server.";
-
-        onProgress?.({ type: "status", message: `Fetching Stripe ${resource}…` });
-
-        const cap = Math.min(limit, 100);
-        let url = `https://api.stripe.com/v1/${resource === "payments" ? "charges" : resource}?limit=${cap}`;
-        if (customer_id) url += `&customer=${customer_id}`;
-        if (searchQuery && resource === "customers") url = `https://api.stripe.com/v1/customers/search?query=email:"${searchQuery}"&limit=${cap}`;
-
-        const stripeRes = await fetch(url, {
-          headers: { "Authorization": `Bearer ${stripeKey}` },
-        });
-
-        if (!stripeRes.ok) {
-          const err = await stripeRes.json().catch(() => ({})) as any;
-          return `Stripe API error (${stripeRes.status}): ${err?.error?.message || stripeRes.statusText}`;
-        }
-
-        const data = await stripeRes.json() as any;
-
-        if (resource === "balance") {
-          const avail = data.available?.map((b: any) => `${b.currency.toUpperCase()}: ${(b.amount / 100).toFixed(2)}`).join(", ") || "none";
-          const pend = data.pending?.map((b: any) => `${b.currency.toUpperCase()}: ${(b.amount / 100).toFixed(2)}`).join(", ") || "none";
-          return `**Stripe Balance**\nAvailable: ${avail}\nPending: ${pend}`;
-        }
-
-        const items = data.data ?? [];
-        if (items.length === 0) return `No ${resource} found in Stripe.`;
-
-        const summary = items.map((item: any) => {
-          if (resource === "customers") return `${item.id} | ${item.email || "no email"} | ${item.name || "no name"} | Created: ${new Date(item.created * 1000).toISOString().split("T")[0]}`;
-          if (resource === "payments" || resource === "charges") return `${item.id} | ${item.currency?.toUpperCase()} ${((item.amount || 0) / 100).toFixed(2)} | ${item.status} | ${item.description || ""} | ${new Date(item.created * 1000).toISOString().split("T")[0]}`;
-          if (resource === "subscriptions") return `${item.id} | ${item.status} | ${item.plan?.nickname || item.items?.data?.[0]?.price?.nickname || "plan"} | Customer: ${item.customer} | ${new Date(item.current_period_end * 1000).toISOString().split("T")[0]}`;
-          if (resource === "invoices") return `${item.id} | ${item.currency?.toUpperCase()} ${((item.amount_due || 0) / 100).toFixed(2)} | ${item.status} | ${item.customer_email || item.customer} | ${new Date(item.created * 1000).toISOString().split("T")[0]}`;
-          return JSON.stringify(item).slice(0, 120);
-        }).join("\n");
-
-        return `**Stripe ${resource}** (${items.length} result${items.length === 1 ? "" : "s"}):\n\n${summary}`;
       }
 
       default:
