@@ -3026,7 +3026,7 @@ router.get("/lab/projects/:id/cad-files/:fileId/download-url", authMiddleware, a
     // Local file (Kamatera): serve via /api/cad-files/local/:filename
     if (record.objectPath.startsWith("local:")) {
       const fileName = record.objectPath.replace(/^local:/, "");
-      const url = `/api/cad-files/local/${encodeURIComponent(fileName)}`;
+      const url = `https://sirius-ai.live/api/cad-files/local/${encodeURIComponent(fileName)}`;
       return res.json({ url, fileName: record.fileName });
     }
     const signedUrl = await storage.getObjectEntityDownloadURL(record.objectPath, 3600);
@@ -3215,9 +3215,17 @@ router.get("/lab/projects/:id/cad-status", authMiddleware, async (req: Request, 
   const [job] = await db.select().from(cadJobs).where(eq(cadJobs.projectId, projectId)).orderBy(desc(cadJobs.createdAt)).limit(1);
   if (!job) return res.json({ status: "none" });
 
-  // If already complete or errored, just return stored status
+  // If already complete or errored, return status + any stored file download URLs
   if (job.status === "complete" || job.status === "error") {
-    return res.json({ status: job.status, jobId: job.jobId, createdAt: job.createdAt, completedAt: job.completedAt, error: job.errorMessage });
+    const files = await db.select().from(cadFiles).where(eq(cadFiles.projectId, projectId)).orderBy(desc(cadFiles.uploadedAt));
+    const fileLinks = files.map(f => {
+      const fileName = f.objectPath.startsWith("local:") ? f.objectPath.replace(/^local:/, "") : null;
+      const url = fileName
+        ? `https://sirius-ai.live/api/cad-files/local/${encodeURIComponent(fileName)}`
+        : null;
+      return { id: f.id, fileName: f.fileName, url };
+    }).filter(f => f.url);
+    return res.json({ status: job.status, jobId: job.jobId, createdAt: job.createdAt, completedAt: job.completedAt, error: job.errorMessage, files: fileLinks });
   }
 
   // Still pending — check New Dimensions for drawings on this project
@@ -7076,6 +7084,7 @@ When Garry gives you ANY task — big or small — your job is to complete it, i
    - start_app_build → (gets project ID) → complete_project (generates docs + CAD drawing notes + materials spec + cost analysis → sets status: cad-pending) → launch_project → navigate_to projects → report done
    - The CAD drawing notes are generated automatically and the project enters cad-pending status, meaning the drawing package is ready for the CAD operator
    - If the project already has CAD drawings uploaded, continue to launch_project
+   - **When Garry asks about a project's drawing or CAD file**, call check_cad_status for that project. If status is "complete" and files contains entries, share the direct download link(s) from the url field so Garry can open/download the SVG directly in his browser. Format it as: "Your drawing is ready — [download it here](URL)"
 
    You do NOT stop and ask after each step. You keep running until the project is launched.
 
