@@ -22,6 +22,14 @@ export type ChatSource = {
   title: string;
 };
 
+export type ActionStep = {
+  tool: string;
+  label: string;
+  detail?: string;
+  color?: string;
+  icon?: string;
+};
+
 export type ChatMessage = {
   id: string | number;
   role: "user" | "assistant" | "system";
@@ -35,6 +43,7 @@ export type ChatMessage = {
   imagePrompt?: string;
   uploadedImageBase64?: string;
   sources?: ChatSource[];
+  actions?: ActionStep[];
 };
 
 export function useChat(conversationId?: number) {
@@ -177,6 +186,19 @@ export function useChat(conversationId?: number) {
                 setMessages(prev => prev.map(m =>
                   m.id === assistantMsgId
                     ? { ...m, isGeneratingImage: false, imageB64: data.b64, imagePrompt: data.prompt }
+                    : m
+                ));
+              } else if (data.type === "action") {
+                const step: ActionStep = {
+                  tool: data.tool || "",
+                  label: data.label || data.tool || "",
+                  detail: data.detail,
+                  color: data.color,
+                  icon: data.icon,
+                };
+                setMessages(prev => prev.map(m =>
+                  m.id === assistantMsgId
+                    ? { ...m, actions: [...(m.actions || []), step] }
                     : m
                 ));
               } else if (data.type === "searching") {

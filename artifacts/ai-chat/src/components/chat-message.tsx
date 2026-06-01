@@ -1,7 +1,7 @@
-import React from "react";
+import React, { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Zap, User, Globe, ExternalLink, Download, Sparkles } from "lucide-react";
+import { Zap, User, Globe, ExternalLink, Download, Sparkles, ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { type ChatMessage as ChatMessageType } from "@/hooks/use-chat";
 import { motion, AnimatePresence } from "framer-motion";
@@ -17,6 +17,8 @@ export function ChatMessage({ message }: ChatMessageProps) {
   const hasImage = !isUser && !!message.imageB64;
   const isGeneratingImage = !isUser && !!message.isGeneratingImage;
   const wasSearched = !isUser && !!message.wasSearched;
+  const hasActions = !isUser && (message.actions?.length ?? 0) > 0;
+  const [actionsExpanded, setActionsExpanded] = useState(false);
 
   const handleDownload = () => {
     if (!message.imageB64) return;
@@ -98,6 +100,109 @@ export function ChatMessage({ message }: ChatMessageProps) {
               </div>
             ) : (
               <>
+                {/* Action log — live during streaming, collapses to pill after */}
+                <AnimatePresence>
+                  {hasActions && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      className="mb-3"
+                    >
+                      {message.isStreaming ? (
+                        /* Live expanding list while Sirius is working */
+                        <div
+                          className="rounded-xl px-3 py-2.5 flex flex-col gap-1.5"
+                          style={{ background: "hsl(193 100% 52% / 0.06)", border: "1px solid hsl(193 100% 52% / 0.15)" }}
+                        >
+                          {message.actions!.map((step, i) => (
+                            <motion.div
+                              key={i}
+                              initial={{ opacity: 0, x: -6 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              transition={{ duration: 0.2 }}
+                              className="flex items-center gap-2"
+                            >
+                              <span className="text-base leading-none" style={{ minWidth: "1.1em" }}>
+                                {step.icon || "⚡"}
+                              </span>
+                              <span
+                                className="text-[11px] font-mono tracking-wide font-medium"
+                                style={{ color: step.color || "hsl(193 100% 52%)" }}
+                              >
+                                {step.label}
+                              </span>
+                              {step.detail && (
+                                <span className="text-[10px] font-mono text-muted-foreground/55 truncate max-w-[200px]">
+                                  · {step.detail}
+                                </span>
+                              )}
+                            </motion.div>
+                          ))}
+                          {/* Pulsing "working" dot */}
+                          <div className="flex items-center gap-1.5 mt-0.5 pt-1.5" style={{ borderTop: "1px solid hsl(193 100% 52% / 0.1)" }}>
+                            <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                            <span className="text-[9px] font-mono text-primary/50 tracking-widest uppercase">Working…</span>
+                          </div>
+                        </div>
+                      ) : (
+                        /* Collapsed pill once response is complete */
+                        <button
+                          onClick={() => setActionsExpanded(v => !v)}
+                          className="flex items-center gap-1.5 px-2.5 py-1 rounded-full transition-all"
+                          style={{
+                            background: "hsl(193 100% 52% / 0.07)",
+                            border: "1px solid hsl(193 100% 52% / 0.18)",
+                          }}
+                        >
+                          {actionsExpanded
+                            ? <ChevronDown size={9} className="text-primary/60" />
+                            : <ChevronRight size={9} className="text-primary/60" />}
+                          <span className="text-[9px] font-mono text-primary/60 uppercase tracking-widest">
+                            {message.actions!.length} action{message.actions!.length !== 1 ? "s" : ""} taken
+                          </span>
+                        </button>
+                      )}
+
+                      {/* Expanded detail when pill is clicked */}
+                      <AnimatePresence>
+                        {!message.isStreaming && actionsExpanded && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="overflow-hidden mt-2"
+                          >
+                            <div
+                              className="rounded-xl px-3 py-2.5 flex flex-col gap-1.5"
+                              style={{ background: "hsl(193 100% 52% / 0.06)", border: "1px solid hsl(193 100% 52% / 0.15)" }}
+                            >
+                              {message.actions!.map((step, i) => (
+                                <div key={i} className="flex items-center gap-2">
+                                  <span className="text-base leading-none" style={{ minWidth: "1.1em" }}>
+                                    {step.icon || "⚡"}
+                                  </span>
+                                  <span
+                                    className="text-[11px] font-mono tracking-wide font-medium"
+                                    style={{ color: step.color || "hsl(193 100% 52%)" }}
+                                  >
+                                    {step.label}
+                                  </span>
+                                  {step.detail && (
+                                    <span className="text-[10px] font-mono text-muted-foreground/55 truncate max-w-[200px]">
+                                      · {step.detail}
+                                    </span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
                 {/* Searching indicator */}
                 <AnimatePresence>
                   {isSearching && (
