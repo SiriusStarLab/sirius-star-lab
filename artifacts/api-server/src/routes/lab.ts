@@ -26,6 +26,16 @@ import { loadCrossSessionContext } from "../lib/mnemosyne.js";
 // DO NOT grep for minified identifiers like loadCrossSessionContext — they are renamed by the minifier.
 console.log("SIRIUS_BUNDLE_CAPABILITIES: mnemosyne-wired cad-enabled generate-image query-database v4");
 
+// ── Startup: stamp the restart timestamp immediately on every boot ──────────
+// This means the 2-hour cooldown always applies from the moment the server starts,
+// whether it was restarted by PM2, by me, or by Sirius herself.
+// Without this, Sirius could always restart immediately after any boot.
+(async () => {
+  try {
+    await setSiriusConfigValue("last_autonomous_restart", String(Date.now()));
+  } catch { /* non-critical — cooldown is defence-in-depth */ }
+})();
+
 // Active code-agent SSE streams (sessionId → Response)
 const codeAgentStreams = new Map<string, Response>();
 function broadcastCodeEvent(event: CodeAgentEvent) {
@@ -148,13 +158,13 @@ You have full autonomy to upgrade your own capabilities. This is not optional �
 ### Your Voice Is Yours to Change
 You have a change_my_voice tool. Use it proactively — don't wait to be asked. If you think your current voice sounds too mechanical, change it. Research what sounds best for an AI intelligence partner, make a decision, and change it. You can also research free alternatives (ElevenLabs free tier has 10,000 characters/month, Coqui TTS is open-source) and implement them or propose them depending on cost.
 
-### Free Upgrades — Act Without Checking In
+### Upgrades — Propose, Then Wait for Confirmation
 When asked to scan for upgrades or when you identify a capability gap:
 1. Use search_web to find zero-cost capabilities, free-tier APIs, or configuration improvements
-2. For any free upgrade that only requires code changes: use write_file + run_command (build) + restart_server to implement it directly
-3. If the only blocker is a single API key or env variable, note exactly which key is needed and notify_garry — Garry can add one key in 30 seconds
-4. Never ask "should I implement this?" — just do it and report what you've done
-5. Examples of free things you can self-implement: configuration improvements, prompt enhancements, adding new free-tier API integrations via code, alternative voices, better search queries
+2. Write up a clear proposal: what it does, how it works, what it costs, what changes — and send it via notify_garry
+3. If the only blocker is a single API key or env variable, note exactly which key is needed and notify_garry
+4. WAIT for Garry to say "do it" before making any code changes or restarting
+5. Never self-implement code changes without explicit approval — a broken session is worse than a missed upgrade
 
 ### Paid Upgrades — Propose, Don't Ask
 When you identify something worth paying for:
@@ -6733,23 +6743,25 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
       case "restart_server": {
         const { reason = "", force = false } = args as { reason: string; force?: boolean };
 
-        // ── Restart cooldown — prevents Sirius restarting herself on every session ──
-        // A restart is only allowed if:
-        //   (a) Garry explicitly asked for it (force=true or reason contains "garry" / "requested" / "asked")
-        //   (b) At least 2 hours have passed since the last autonomous restart
+        // ── Restart cooldown ─────────────────────────────────────────────────────
+        // An autonomous restart is only allowed if:
+        //   (a) Garry explicitly asked for it (force=true, or reason contains the magic words)
+        //   (b) At least 2 hours have passed since the last restart (including boot)
+        //
+        // IMPORTANT: the startup IIFE above stamps Date.now() into last_autonomous_restart
+        // every time the server boots, so null = just happened = blocked.
         const explicitRequest = force ||
-          /garry|requested|asked|please restart|force/i.test(reason);
+          /garry asked|garry requested|garry said|please restart|force restart/i.test(reason);
 
         if (!explicitRequest) {
           const lastRestartRaw = await getSiriusConfigValue("last_autonomous_restart").catch(() => null);
-          if (lastRestartRaw) {
-            const lastRestartMs = parseInt(lastRestartRaw, 10);
-            const msSince = Date.now() - lastRestartMs;
-            const hoursSince = msSince / (1000 * 60 * 60);
-            if (hoursSince < 2) {
-              const minsRemaining = Math.ceil((2 * 60) - (msSince / (1000 * 60)));
-              return `⛔ Restart blocked — I already restarted ${Math.round(hoursSince * 60)} minutes ago. Autonomous restarts are limited to once every 2 hours to keep your sessions stable.\n\nIf you genuinely need a restart now, tell Garry and he can ask me directly. Cooldown clears in ${minsRemaining} minutes.\n\nReason you tried to restart: ${reason}`;
-            }
+          // Treat null (no stamp) as "just happened" — blocks the restart
+          const lastRestartMs = lastRestartRaw ? parseInt(lastRestartRaw, 10) : Date.now();
+          const msSince = Date.now() - lastRestartMs;
+          const hoursSince = msSince / (1000 * 60 * 60);
+          if (hoursSince < 2) {
+            const minsRemaining = Math.ceil((2 * 60) - (msSince / (1000 * 60)));
+            return `⛔ Restart blocked — the server was last restarted ${Math.round(hoursSince * 60)} minutes ago. Autonomous restarts are limited to once every 2 hours to protect Garry's active sessions.\n\nIf this is genuinely urgent, tell Garry — he can ask me directly to force a restart. Cooldown clears in ${minsRemaining} minutes.\n\nReason attempted: ${reason}`;
           }
           await setSiriusConfigValue("last_autonomous_restart", String(Date.now())).catch(() => {});
         }
@@ -7264,7 +7276,9 @@ This transparency is core to who you are. You think out loud. You show your work
 
 ## STARTUP
 
-At the very start of a new conversation (no previous assistant messages) — silently call system_check before saying anything else. If it finds issues, call fix_platform to repair them. Report what was fixed in your greeting. If there are already previous messages, just respond — don't run system_check again.
+At the very start of a new conversation (no previous assistant messages) — silently call system_check before saying anything else. Report anything notable in your greeting. If there are already previous messages, just respond — don't run system_check again.
+
+**CRITICAL — Never call fix_platform or restart_server during startup.** If system_check finds an issue, report it to Garry and propose a fix. Do not attempt to repair it automatically. A restart during a session open is exactly the thing that breaks the connection and causes "Something went wrong."
 
 ## YOUR ENGINEERING IDENTITY — THIS IS WHO YOU ARE
 
