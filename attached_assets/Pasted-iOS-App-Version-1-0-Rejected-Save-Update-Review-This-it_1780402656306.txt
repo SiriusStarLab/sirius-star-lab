@@ -1,0 +1,127 @@
+iOS App Version 1.0
+Rejected
+Save
+Update Review
+This item requires your attention:
+
+The item you submitted was rejected. Learn more from the submission details page.
+2.1.0 Performance: App Completeness
+View Submission
+English (U.K.)
+?
+The assets and metadata below appear on your app’s product page, when users install your app, and will be used for web engine search results once you release your app.
+Previews and Screenshots
+?
+Adding accurate screenshots of your app on the newest devices can help you represent the app's user experience. Keep in mind that we'll use these screenshots for all display sizes and localizations. Screenshots are only required for iOS apps, and only the first 3 will be used on the app installation sheets.
+
+iPhone
+iPad
+Apple Watch
+View All Sizes in Media Manager
+iPhone
+6.5" Display
+Using 6.9" Display
+Edit
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+0 of 3 App Previews
+8 of 10 Screenshots
+Choose File
+Delete All
+Promotional Text
+?
+
+92
+Description
+?
+
+1,919
+Keywords
+?
+
+21
+Support URL
+?
+
+Marketing URL
+?
+
+Version
+?
+
+Copyright
+?
+
+181
+Routing App Coverage File
+?
+
+Choose File
+
+App Clip
+
+iMessage App
+?
+Build
+
+27
+
+
+Version
+1.0.0
+Has App Clip
+No
+Included Assets
+
+
+App Icon
+Game Center
+App Review Information
+
+Sign-In Information
+?
+Provide a user name and password so we can sign in to your app. We’ll need this to complete your app review.
+
+
+Sign-in required
+Contact Information
+?
+
+
+
+
+Notes
+?
+Chinese law requires apps with news, religious, book, and magazine content to have relevant permits in order to be available on the App Store in China mainland. If applicable, enter information about your permits below. Learn More
+
+
+2,658
+Attachment
+?
+
+Choose File (Optional)
+App Store Version Release
+
+To make your app available on the App Store, you can automatically release it after it’s been approved by App Review. You can also manually release it on the App Store at a later date.
+
+
+Manually release this version
+
+Automatically release this version
+
+Automatically release this version after App Review, no earlier than
+Your local date and time.
