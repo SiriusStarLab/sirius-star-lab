@@ -3,6 +3,7 @@ import { Star, Lock, Loader2 } from "lucide-react";
 import { getApiBase } from "@/lib/api-base";
 
 const SESSION_KEY = "lab_pin";
+const PERSIST_KEY = "lab_pin_persist";
 
 interface Props {
   children: React.ReactNode;
@@ -18,8 +19,10 @@ export function LabAuthGate({ children, title = "Star Lab" }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const stored = sessionStorage.getItem(SESSION_KEY);
+    const stored = sessionStorage.getItem(SESSION_KEY) || localStorage.getItem(PERSIST_KEY);
     if (stored) {
+      // Sync to sessionStorage so the API header checks still work
+      sessionStorage.setItem(SESSION_KEY, stored);
       setStatus("unlocked");
     } else {
       setStatus("locked");
@@ -45,6 +48,7 @@ export function LabAuthGate({ children, title = "Star Lab" }: Props) {
 
       if (res.ok && data.success) {
         sessionStorage.setItem(SESSION_KEY, pin.trim());
+        localStorage.setItem(PERSIST_KEY, pin.trim());
         setStatus("unlocked");
       } else if (res.status === 403) {
         setError("Access locked — too many incorrect attempts. Try again in 15 minutes.");
