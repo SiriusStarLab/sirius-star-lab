@@ -1,10 +1,7 @@
 import { Feather } from "@expo/vector-icons";
-import * as AppleAuthentication from "expo-apple-authentication";
-import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Linking,
   Modal,
   Platform,
@@ -15,7 +12,6 @@ import {
   TextInput,
   View,
 } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors from "@/constants/colors";
@@ -89,52 +85,6 @@ export default function SettingsScreen() {
   const [editingAiName, setEditingAiName] = useState(false);
   const [nameValue, setNameValue] = useState(profile.userName);
   const [aiNameValue, setAiNameValue] = useState(profile.aiName);
-
-  const [appleConnected, setAppleConnected] = useState<string | null>(null);
-  const [appleLoading, setAppleLoading] = useState(false);
-
-  useEffect(() => {
-    AsyncStorage.getItem("sirius_apple_user_id").then(v => setAppleConnected(v));
-  }, []);
-
-  const handleAppleSignIn = async () => {
-    setAppleLoading(true);
-    try {
-      const credential = await AppleAuthentication.signInAsync({
-        requestedScopes: [
-          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
-          AppleAuthentication.AppleAuthenticationScope.EMAIL,
-        ],
-      });
-      await AsyncStorage.setItem("sirius_apple_user_id", credential.user);
-      if (credential.fullName?.givenName) {
-        const name = [credential.fullName.givenName, credential.fullName.familyName].filter(Boolean).join(" ");
-        await updateLocalProfile({ userName: name });
-      }
-      setAppleConnected(credential.user);
-      Alert.alert("Signed in with Apple", "Your Apple ID is now linked to your Sirius account.");
-    } catch (e: any) {
-      if (e.code !== "ERR_REQUEST_CANCELED") {
-        Alert.alert("Sign-in failed", "Apple Sign-In could not be completed. Please try again.");
-      }
-    } finally {
-      setAppleLoading(false);
-    }
-  };
-
-  const handleAppleSignOut = () => {
-    Alert.alert("Unlink Apple ID", "This will unlink your Apple ID from Sirius. You can sign in again at any time.", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Unlink",
-        style: "destructive",
-        onPress: async () => {
-          await AsyncStorage.removeItem("sirius_apple_user_id");
-          setAppleConnected(null);
-        },
-      },
-    ]);
-  };
 
   const [portrait, setPortrait] = useState<string | null>(null);
   const [portraitLoading, setPortraitLoading] = useState(false);
@@ -438,44 +388,6 @@ export default function SettingsScreen() {
           onPress={() => Linking.openURL(`${WEB_URL}/terms`)}
         />
       </View>
-
-      {/* Apple Sign-In — iOS only */}
-      {isIOS && (
-        <View style={styles.card}>
-          <SectionHeader title="APPLE ID" />
-          {appleConnected ? (
-            <>
-              <View style={styles.appleConnectedRow}>
-                <Feather name="check-circle" size={16} color={Colors.primary} />
-                <Text style={styles.appleConnectedText}>Signed in with Apple</Text>
-              </View>
-              <SettingRow
-                icon="log-out"
-                label="Unlink Apple ID"
-                onPress={handleAppleSignOut}
-                danger
-              />
-            </>
-          ) : (
-            <>
-              <Text style={styles.appleDesc}>
-                Link your Apple ID to your Sirius account for quick, secure sign-in.
-              </Text>
-              {appleLoading ? (
-                <ActivityIndicator color={Colors.primary} style={{ marginVertical: 12 }} />
-              ) : (
-                <AppleAuthentication.AppleAuthenticationButton
-                  buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
-                  buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE_OUTLINE}
-                  cornerRadius={12}
-                  style={styles.appleBtn}
-                  onPress={handleAppleSignIn}
-                />
-              )}
-            </>
-          )}
-        </View>
-      )}
 
       <Text style={styles.versionText}>Sirius Star Lab · v1.0</Text>
     </ScrollView>
@@ -930,35 +842,6 @@ const styles = StyleSheet.create({
   refreshText: {
     fontSize: 12,
     color: Colors.primary,
-    fontFamily: "Inter_500Medium",
-  },
-  appleDesc: {
-    fontSize: 13,
-    color: Colors.textDim,
-    fontFamily: "Inter_400Regular",
-    lineHeight: 19,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
-  },
-  appleBtn: {
-    height: 48,
-    marginHorizontal: 16,
-    marginVertical: 12,
-    alignSelf: "stretch",
-  },
-  appleConnectedRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  appleConnectedText: {
-    fontSize: 14,
-    color: Colors.text,
     fontFamily: "Inter_500Medium",
   },
 });
