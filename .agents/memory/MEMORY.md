@@ -5,5 +5,6 @@
 - [Sirius Self-Modification System](sirius-self-modify.md) — review gate, protected files, deploy pipeline, Star Lab tool names, fetch-not-openai rule.
 - [Sirius server self-build pipeline](sirius-server-self-build.md) — what files were missing on the server and how the build.ts was fixed for server-side self-rebuild.
 - [Lab.ts agentic loop](lab-agentic-loop.md) — hardcoded fallback bug replaced with forced synthesis round; MAX_TOOL_ROUNDS=16, max_tokens=8000; real Sirius route is lab.ts /lab/chat.
+- [Sirius context budget](sirius-context-budget.md) — prompt hit 223K tokens with claude-haiku-4.5's 200K limit; caps: memories 4K chars, cross-session 8 msgs/600 chars each, selfConfigBlock 2K chars.
 - [Sirius self-repair guardrails](sirius-self-repair-guardrails.md) — autonomous restarts broke every session; cooldown + system prompt rewrite deployed.
 - [Payments — not Stripe](payments-not-stripe.md) — Sirius does NOT use Stripe. Do not suggest Stripe for anything.

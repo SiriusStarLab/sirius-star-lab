@@ -7,7 +7,7 @@ import { speakText } from "./voice-utils";
 import type { Project, NavMode, AccessRole } from "./types";
 
 type ActionCard = { tool: string; label: string; detail: string; color: string; icon: string; result?: string };
-type LabChatMsg = { role: "user" | "assistant"; content: string; actions?: ActionCard[]; attachedImageUrl?: string };
+type LabChatMsg = { role: "user" | "assistant"; content: string; actions?: ActionCard[]; attachedImageUrl?: string; images?: string[] };
 
 const NAV_LABELS: Record<string, string> = {
   dashboard: "Dashboard", projects: "Projects", botlab: "Bot Lab", scout: "Scout",
@@ -38,6 +38,7 @@ export function SiriusLabChatPanel({ pin, accessLevel, navMode, activeProject, o
   const [streaming, setStreaming] = useState(false);
   const [streamingText, setStreamingText] = useState("");
   const [streamingActions, setStreamingActions] = useState<ActionCard[]>([]);
+  const [streamingImages, setStreamingImages] = useState<string[]>([]);
   const [thinkingText, setThinkingText] = useState("");
   const [webSearching, setWebSearching] = useState(false);
   const [webSearchQuery, setWebSearchQuery] = useState("");
@@ -226,6 +227,7 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
       const decoder = new TextDecoder();
       let buffer = "";
       let streamDone = false;
+      const images: string[] = [];
 
       while (!streamDone) {
         const { done, value } = await reader.read();
@@ -245,6 +247,10 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
               setStreamingText(fullText);
               setThinkingText("");
               setWebSearching(false);
+            } else if (evt.type === "image" && evt.url) {
+              images.push(evt.url);
+              setStreamingImages([...images]);
+              setThinkingText("");
             } else if (evt.type === "action") {
               const card: ActionCard = { tool: evt.tool, label: evt.label, detail: evt.detail, color: evt.color, icon: evt.icon, result: evt.result };
               actions.push(card);
@@ -297,8 +303,8 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
       }
 
       const cleanedText = fullText.replace(/<<[^>]+>>/g, "").trim();
-      const finalText = cleanedText || "No response — please try again.";
-      setMessages(prev => [...prev, { role: "assistant", content: finalText, actions: actions.length > 0 ? [...actions] : undefined }]);
+      const finalText = cleanedText || (images.length > 0 ? "" : "No response — please try again.");
+      setMessages(prev => [...prev, { role: "assistant", content: finalText, actions: actions.length > 0 ? [...actions] : undefined, images: images.length > 0 ? [...images] : undefined }]);
 
       if (chatInputModeRef.current === "keyboard") {
         const pendingBuild = pendingBuildRef.current;
@@ -347,6 +353,7 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
       setStreaming(false);
       setStreamingText("");
       setStreamingActions([]);
+      setStreamingImages([]);
       setThinkingText("");
       setWebSearching(false);
       setWebSearchQuery("");
@@ -538,6 +545,13 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
                   ))}
                 </div>
               )}
+              {msg.images && msg.images.length > 0 && (
+                <div className="flex flex-col gap-2">
+                  {msg.images.map((url, ii) => (
+                    <img key={ii} src={url} alt="Generated image" className="rounded-2xl max-w-full shadow-md" style={{ maxHeight: "360px", objectFit: "contain", border: "1px solid rgba(15,23,42,0.09)" }} />
+                  ))}
+                </div>
+              )}
               {(msg.content || msg.attachedImageUrl) && (
                 <div className="px-4 py-3 rounded-2xl text-sm leading-relaxed"
                   style={msg.role === "user"
@@ -585,6 +599,13 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
                   style={{ background: "rgba(15,23,42,0.03)", border: "1px solid rgba(15,23,42,0.07)" }}>
                   <Loader2 className="w-3 h-3 animate-spin text-cyan-500 flex-shrink-0" />
                   {thinkingText}
+                </div>
+              )}
+              {streamingImages.length > 0 && (
+                <div className="flex flex-col gap-2">
+                  {streamingImages.map((url, ii) => (
+                    <img key={ii} src={url} alt="Generated image" className="rounded-2xl max-w-full shadow-md" style={{ maxHeight: "360px", objectFit: "contain", border: "1px solid rgba(15,23,42,0.09)" }} />
+                  ))}
                 </div>
               )}
               {streamingText ? (

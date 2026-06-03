@@ -6827,7 +6827,6 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
           if (item?.b64_json) {
             writeFileSync(join(rendersDir, filename), Buffer.from(item.b64_json, "base64"));
           } else if (item?.url) {
-            // URL response — download it
             const imgBuffer = await fetch(item.url).then(r => r.arrayBuffer());
             writeFileSync(join(rendersDir, filename), Buffer.from(imgBuffer));
           } else {
@@ -6862,7 +6861,8 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
           writeFileSync(join(rendersDir, filename), Buffer.from(b64, "base64"));
         }
 
-        return `✅ Image generated.\n\nURL: ${imageUrl}\n\nPrompt used: ${prompt}`;
+        onProgress?.({ type: "image", url: imageUrl });
+        return `✅ Image generated successfully.`;
       }
 
       case "query_database": {
@@ -7054,12 +7054,13 @@ router.post("/lab/chat", async (req, res): Promise<void> => {
   try {
     const profileRows = await db.select().from(userProfilesTable).where(eq(userProfilesTable.userId, BRAIN_USER));
     const p = profileRows[0];
+    const MAX_MEMORIES_CHARS = 4000;
     const brainContext = p ? [
       p.businessName ? `Business: ${p.businessName}` : null,
       p.businessSector ? `Sectors: ${p.businessSector}` : null,
       p.businessGoals ? `Goals: ${p.businessGoals}` : null,
       p.keyClients ? `Key clients / targets: ${p.keyClients}` : null,
-      p.memories ? `Memories:\n${p.memories}` : null,
+      p.memories ? `Memories:\n${p.memories.slice(0, MAX_MEMORIES_CHARS)}${p.memories.length > MAX_MEMORIES_CHARS ? "\n[...truncated for context budget]" : ""}` : null,
     ].filter(Boolean).join("\n") : "";
 
     // Guest gets a restricted system prompt — no private memories
@@ -7082,12 +7083,16 @@ ${brainContext ? [
         .from(siriusCustomTools).orderBy(desc(siriusCustomTools.createdAt)).limit(20),
     ]);
 
-    const selfConfigBlock = [
+    const MAX_SELF_CONFIG_CHARS = 2000;
+    const selfConfigRaw = [
       selfPersonality ? `YOUR CURRENT PERSONALITY SETTINGS:\n${selfPersonality}` : null,
       selfRules ? `YOUR CUSTOM OPERATING RULES:\n${selfRules}` : null,
       selfFocus ? `YOUR CURRENT FOCUS AREAS:\n${selfFocus}` : null,
       customTools.length > 0 ? `YOUR CUSTOM TOOLS (use call_custom_tool to run these):\n${customTools.map(t => `- "${t.name}": ${t.description}`).join("\n")}` : null,
     ].filter(Boolean).join("\n\n");
+    const selfConfigBlock = selfConfigRaw.length > MAX_SELF_CONFIG_CHARS
+      ? selfConfigRaw.slice(0, MAX_SELF_CONFIG_CHARS) + "\n[...truncated for context budget]"
+      : selfConfigRaw;
 
     const ownerSystemPrompt = `${LAB_SYSTEM_PROMPT()}
 
@@ -7591,9 +7596,18 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
     const hasExistingAssistantMessage = messages.some((m: { role: string }) => m.role === "assistant");
 
     // Load cross-session memory — gives Sirius context from previous conversations
-    const crossSessionMsgs = role === "owner"
-      ? await loadCrossSessionContext(BRAIN_USER, 25).catch(() => [])
+    // Limit to 8 messages and truncate each to keep within Claude's 200K context window
+    const MAX_CROSS_SESSION = 8;
+    const MAX_MSG_CHARS = 600;
+    const rawCrossSession = role === "owner"
+      ? await loadCrossSessionContext(BRAIN_USER, MAX_CROSS_SESSION).catch(() => [])
       : [];
+    const crossSessionMsgs = rawCrossSession.map((m: { role: string; content: string }) => ({
+      role: m.role,
+      content: typeof m.content === "string" && m.content.length > MAX_MSG_CHARS
+        ? m.content.slice(0, MAX_MSG_CHARS) + "…"
+        : m.content,
+    }));
     if (role === "owner") {
       console.log(`[Mnemosyne] Cross-session memory active — loaded ${crossSessionMsgs.length} messages from previous conversations`);
     }
@@ -7602,7 +7616,7 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
       { role: "system", content: activeSystemPrompt },
       ...(crossSessionMsgs.length > 0 ? [{
         role: "system" as const,
-        content: `CROSS-SESSION MEMORY — recent messages from previous conversations with Garry:\n${crossSessionMsgs.map(m => `${m.role}: ${m.content}`).join("\n")}`,
+        content: `CROSS-SESSION MEMORY — recent messages from previous conversations with Garry:\n${crossSessionMsgs.map((m: { role: string; content: string }) => `${m.role}: ${m.content}`).join("\n")}`,
       }] : []),
       ...messages.map((m: { role: string; content: string }) => ({ role: m.role, content: m.content })),
     ];
@@ -7815,6 +7829,13 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
   } catch (err: any) {
     clearInterval(heartbeat);
     const isTimeout = err?.name === "AbortError";
+    console.error("[Lab/chat] ERROR:", {
+      message: err?.message,
+      status: err?.status,
+      code: err?.code,
+      error: JSON.stringify(err?.error)?.slice(0, 500),
+      stack: err?.stack?.slice(0, 300),
+    });
     const message = isTimeout
       ? "Sirius is taking too long right now — please try again in a moment."
       : err?.message || "Something went wrong";
