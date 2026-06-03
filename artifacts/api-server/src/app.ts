@@ -28,20 +28,9 @@ const isDev = process.env.NODE_ENV !== "production";
 app.use(helmetMiddleware);
 
 // ── 2. CORS — locked to known origins in production ──────────────────────────
-// Always include the custom production domain in addition to Replit's domains
 const CUSTOM_DOMAINS = ["https://sirius-ai.live", "https://www.sirius-ai.live"];
 
-const allowedOrigins = isDev
-  ? true
-  : [
-      ...CUSTOM_DOMAINS,
-      ...(process.env.REPLIT_DOMAINS || "")
-        .split(",")
-        .flatMap(d => {
-          const domain = d.trim();
-          return domain ? [`https://${domain}`, `https://www.${domain}`] : [];
-        }),
-    ];
+const allowedOrigins = isDev ? true : CUSTOM_DOMAINS;
 
 app.use(cors({
   origin: allowedOrigins,

@@ -14,7 +14,6 @@ import {
   GenerateOpenaiImageBody,
 } from "@workspace/api-zod";
 import { generateImageBuffer } from "@workspace/ai-client/image";
-import { getUncachableSpotifyClient } from "../../lib/spotify";
 import { intelligence } from "../../lib/intelligence-client.js";
 import { executeCode } from "../../lib/code-sandbox.js";
 import { readSourceFile, deployChange, patchSourceFile, triggerReload, runServerDiagnostic } from "../../lib/self-deploy.js";
@@ -1467,71 +1466,6 @@ LOOP PREVENTION: If you have already called a tool and received its result, do N
   }
 });
 
-router.get("/openai/spotify/now-playing", async (_req, res): Promise<void> => {
-  try {
-    const spotify = await getUncachableSpotifyClient();
-    const playback = await spotify.player.getCurrentlyPlayingTrack();
-
-    if (!playback || !playback.item) {
-      res.json({ isPlaying: false, trackName: "", artistName: "", albumName: "", albumArt: null, trackUrl: "", progressMs: 0, durationMs: 0 });
-      return;
-    }
-
-    const track = playback.item as any;
-    const artists = track.artists?.map((a: any) => a.name).join(", ") ?? "";
-    const albumArt = track.album?.images?.[0]?.url ?? null;
-
-    res.json({
-      isPlaying: playback.is_playing,
-      trackName: track.name ?? "",
-      artistName: artists,
-      albumName: track.album?.name ?? "",
-      albumArt,
-      trackUrl: track.external_urls?.spotify ?? "",
-      progressMs: (playback as any).progress_ms ?? 0,
-      durationMs: track.duration_ms ?? 0,
-    });
-  } catch (err: any) {
-    res.status(503).json({ error: "Spotify not available", detail: err?.message });
-  }
-});
-
-router.get("/openai/spotify/recently-played", async (_req, res): Promise<void> => {
-  try {
-    const spotify = await getUncachableSpotifyClient();
-    const recent = await spotify.player.getRecentlyPlayedTracks(10);
-
-    const tracks = (recent.items ?? []).map((item: any) => ({
-      trackName: item.track?.name ?? "",
-      artistName: item.track?.artists?.map((a: any) => a.name).join(", ") ?? "",
-      albumArt: item.track?.album?.images?.[0]?.url ?? null,
-      trackUrl: item.track?.external_urls?.spotify ?? "",
-      playedAt: item.played_at,
-    }));
-
-    res.json(tracks);
-  } catch (err: any) {
-    res.status(503).json({ error: "Spotify not available", detail: err?.message });
-  }
-});
-
-router.get("/openai/spotify/top-tracks", async (_req, res): Promise<void> => {
-  try {
-    const spotify = await getUncachableSpotifyClient();
-    const top = await spotify.currentUser.topItems("tracks", "short_term", 5);
-
-    const tracks = (top.items ?? []).map((item: any) => ({
-      trackName: item.name ?? "",
-      artistName: item.artists?.map((a: any) => a.name).join(", ") ?? "",
-      albumArt: item.album?.images?.[0]?.url ?? null,
-      trackUrl: item.external_urls?.spotify ?? "",
-    }));
-
-    res.json(tracks);
-  } catch (err: any) {
-    res.status(503).json({ error: "Spotify not available", detail: err?.message });
-  }
-});
 
 router.post("/openai/generate-image", async (req, res): Promise<void> => {
   const parsed = GenerateOpenaiImageBody.safeParse(req.body);

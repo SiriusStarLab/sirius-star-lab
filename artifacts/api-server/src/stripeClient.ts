@@ -1,12 +1,10 @@
 import Stripe from "stripe";
-import { StripeSync } from "stripe-replit-sync";
 
 function getStripeSecretKey(): string {
   const key = (process.env.STRIPE_SECRET_KEY ?? "").trim();
   if (!key) {
     throw new Error(
-      "STRIPE_SECRET_KEY environment variable is not set. " +
-      "Add STRIPE_SECRET_KEY to your server environment variables."
+      "STRIPE_SECRET_KEY environment variable is not set."
     );
   }
   return key;
@@ -21,19 +19,6 @@ export function getUncachableStripeClient(): Stripe {
   return new Stripe(secretKey, { apiVersion: "2025-03-31.basil" as any });
 }
 
-let _stripeSync: StripeSync | null = null;
-
-export function getStripeSync(): StripeSync {
-  if (_stripeSync) return _stripeSync;
-
-  const secretKey = getStripeSecretKey();
-  const databaseUrl = process.env.DATABASE_URL;
-  if (!databaseUrl) throw new Error("DATABASE_URL required for Stripe sync.");
-
-  _stripeSync = new StripeSync({
-    poolConfig: { connectionString: databaseUrl, max: 5 },
-    stripeSecretKey: secretKey,
-  });
-
-  return _stripeSync;
+export function getStripeSync(): never {
+  throw new Error("Stripe sync is not used in this deployment.");
 }
