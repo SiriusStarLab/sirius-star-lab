@@ -6798,10 +6798,12 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
         const { prompt, size = "1024x1024" } = args as { prompt: string; size?: string };
         onProgress?.({ type: "status", message: `Generating image: "${prompt.slice(0, 60)}…"` });
 
-        const apiKey = process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY;
-        if (!apiKey) return "Image generation requires OPENROUTER_API_KEY — not configured on this server.";
+        const openaiKey = process.env.OPENAI_API_KEY;
+        const openrouterKey = process.env.OPENROUTER_API_KEY;
+        if (!openaiKey && !openrouterKey) return "Image generation requires OPENAI_API_KEY — not configured on this server.";
 
-        const useOpenAI = !!process.env.OPENAI_API_KEY;
+        const useOpenAI = !!openaiKey;
+        const apiKey = useOpenAI ? openaiKey! : openrouterKey!;
         const endpoint = useOpenAI
           ? "https://api.openai.com/v1/images/generations"
           : "https://openrouter.ai/api/v1/images/generations";
@@ -7506,7 +7508,12 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
     const activeSystemPrompt = role === "owner" ? ownerSystemPrompt : guestSystemPrompt;
     const activeTools = role === "owner" ? LAB_TOOLS : GUEST_TOOLS;
 
-    const lastUserMsg = messages[messages.length - 1]?.content || "";
+    const lastUserMsgRaw = messages[messages.length - 1]?.content;
+    const lastUserMsg = typeof lastUserMsgRaw === "string"
+      ? lastUserMsgRaw
+      : Array.isArray(lastUserMsgRaw)
+        ? (lastUserMsgRaw.find((p: any) => p.type === "text")?.text || "")
+        : "";
 
     // ── Research branch: use Responses API with live web search ────────────────
     // When the query is informational/research (not a tool action like "create project"),
