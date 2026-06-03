@@ -14,7 +14,7 @@ import {
   Banknote, CreditCard, ShoppingBag, BarChart3, ArrowRight, FileSearch, Hammer, ClipboardList,
   Brain, MessageSquare, Activity, Target, Building, Mic, MicOff, ShieldAlert, Rocket,
   LayoutDashboard, ArrowLeft, Clock, Award, Layers3, Share, Keyboard, CornerDownLeft, Search,
-  Archive
+  Archive, Paperclip
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { getApiBase } from "@/lib/api-base";
@@ -748,7 +748,7 @@ function CompleteAllModal({ project, pin, onClose, onDone }: { project: Project;
 }
 
 function ChatPanel({ project, pin, mode, onUpdate }: { project: Project; pin: string; mode: "engineering" | "bot"; onUpdate?: (p: Project) => void }) {
-  const [messages, setMessages] = useState<{ role: string; content: string; copied?: boolean; savedFields?: string[] }[]>([]);
+  const [messages, setMessages] = useState<{ role: string; content: string; attachedImageUrl?: string; copied?: boolean; savedFields?: string[] }[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [searching, setSearching] = useState(false);
@@ -758,9 +758,13 @@ function ChatPanel({ project, pin, mode, onUpdate }: { project: Project; pin: st
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const [lastSaved, setLastSaved] = useState<{ field: string; label: string } | null>(null);
   const [voicePhase, setVoicePhase] = useState<"idle" | "listening">("idle");
+  const [attachedFile, setAttachedFile] = useState<string | null>(null);
+  const [attachedName, setAttachedName] = useState<string | null>(null);
+  const [attachedMime, setAttachedMime] = useState<string | null>(null);
   const voiceRecRef = useRef<any>(null);
   const projectRef = useRef(project);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const base = getApiBase();
 
   const startVoice = () => {
@@ -818,18 +822,42 @@ function ChatPanel({ project, pin, mode, onUpdate }: { project: Project; pin: st
     URL.revokeObjectURL(url);
   };
 
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      setAttachedFile(ev.target?.result as string);
+      setAttachedName(file.name);
+      setAttachedMime(file.type || "application/octet-stream");
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
+  const clearAttachment = () => { setAttachedFile(null); setAttachedName(null); setAttachedMime(null); };
+
+  const isImageMime = (mime: string | null) => !!(mime && mime.startsWith("image/"));
+
   const send = async (override?: string) => {
     const msg = (override || input).trim();
-    if (!msg || streaming) return;
-    setInput(""); setStreaming(true); setSearching(false);
-    setMessages(prev => [...prev, { role: "user", content: msg }, { role: "assistant", content: "" }]);
+    if (!msg && !attachedFile || streaming) return;
+    const imgForDisplay = attachedFile && isImageMime(attachedMime) ? attachedFile : undefined;
+    const imgB64 = attachedFile && isImageMime(attachedMime) ? attachedFile : undefined;
+    const docB64 = attachedFile && !isImageMime(attachedMime) ? attachedFile : undefined;
+    const docName = attachedName && !isImageMime(attachedMime) ? attachedName : undefined;
+    setInput(""); clearAttachment(); setStreaming(true); setSearching(false);
+    setMessages(prev => [...prev, { role: "user", content: msg, attachedImageUrl: imgForDisplay }, { role: "assistant", content: "" }]);
     let assistant = "";
     const savedFieldLabels: string[] = [];
     try {
+      const body: any = { message: msg, tab: activeTab, mode: mode === "bot" ? "bot" : "engineering" };
+      if (imgB64) body.imageBase64 = imgB64;
+      if (docB64) { body.documentBase64 = docB64; body.documentName = docName; }
       const res = await fetch(`${base}lab/projects/${project.id}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-lab-pin": pin },
-        body: JSON.stringify({ message: msg, tab: activeTab, mode: mode === "bot" ? "bot" : "engineering" }),
+        body: JSON.stringify(body),
       });
       const reader = res.body!.getReader(); const decoder = new TextDecoder();
       let buf = ""; let streamDone = false;
@@ -973,7 +1001,14 @@ function ChatPanel({ project, pin, mode, onUpdate }: { project: Project; pin: st
                         </div>
                       )
                       : <LabMarkdown content={m.content} streaming={streaming && i === messages.length - 1} />
-                    : <p className="text-slate-800 text-xs leading-relaxed">{m.content}</p>}
+                    : (
+                      <div>
+                        {m.attachedImageUrl && (
+                          <img src={m.attachedImageUrl} alt="Attached" className="rounded-xl mb-2 max-w-full" style={{ maxHeight: "240px", objectFit: "contain" }} />
+                        )}
+                        {m.content && <p className="text-white text-xs leading-relaxed">{m.content}</p>}
+                      </div>
+                    )}
                 </div>
                 {m.role === "assistant" && m.content && (
                   <div className="flex items-center gap-2 mt-1 px-1">
@@ -1009,6 +1044,22 @@ function ChatPanel({ project, pin, mode, onUpdate }: { project: Project; pin: st
           </div>
         )}
         <div className="p-3 border-t flex-shrink-0" style={{ borderColor: "rgba(15,23,42,0.06)" }}>
+          {/* Attachment preview */}
+          {attachedFile && (
+            <div className="flex items-center gap-2 mb-2 px-2 py-1.5 rounded-xl" style={{ background: "rgba(0,198,255,0.08)", border: "1px solid rgba(0,198,255,0.2)" }}>
+              {isImageMime(attachedMime) ? (
+                <img src={attachedFile} alt="preview" className="w-8 h-8 rounded-lg object-cover flex-shrink-0" />
+              ) : (
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "rgba(0,198,255,0.15)" }}>
+                  <Paperclip className="w-3.5 h-3.5" style={{ color: "hsl(193,100%,40%)" }} />
+                </div>
+              )}
+              <span className="text-xs font-medium flex-1 truncate" style={{ color: "hsl(193,100%,35%)" }}>{attachedName}</span>
+              <button onClick={clearAttachment} className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: "rgba(15,23,42,0.08)" }}>
+                <X className="w-3 h-3" style={{ color: "rgba(15,23,42,0.5)" }} />
+              </button>
+            </div>
+          )}
           <div className="flex gap-2 mb-2">
             {/* Voice button */}
             <button
@@ -1025,20 +1076,40 @@ function ChatPanel({ project, pin, mode, onUpdate }: { project: Project; pin: st
                 ? <Loader2 className="w-3.5 h-3.5 text-white animate-spin" />
                 : <Mic className="w-3.5 h-3.5" style={{ color: "rgba(15,23,42,0.5)" }} />}
             </button>
+            {/* Attach button */}
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={streaming}
+              title="Attach image or document"
+              className="w-9 h-9 rounded-xl flex items-center justify-center self-end transition-all flex-shrink-0"
+              style={{
+                background: attachedFile ? "rgba(0,198,255,0.15)" : "rgba(15,23,42,0.07)",
+                border: attachedFile ? "1px solid rgba(0,198,255,0.4)" : "1px solid rgba(15,23,42,0.1)",
+                opacity: streaming ? 0.4 : 1,
+              }}>
+              <Paperclip className="w-3.5 h-3.5" style={{ color: attachedFile ? "hsl(193,100%,40%)" : "rgba(15,23,42,0.5)" }} />
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,.pdf,.docx,.doc,.txt,.csv,.md,.json,.xls,.xlsx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/csv,text/markdown,application/json"
+              className="hidden"
+              onChange={handleFileSelect}
+            />
             <textarea value={input} onChange={e => setInput(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-              placeholder={voicePhase === "listening" ? "Listening…" : mode === "bot" ? "Ask the bot architect…" : "Type or tap mic to speak · Ask anything…"}
+              placeholder={voicePhase === "listening" ? "Listening…" : mode === "bot" ? "Ask the bot architect…" : "Type or tap mic · attach image/doc · ask anything…"}
               rows={2}
               className="flex-1 px-3 py-2 rounded-xl text-xs placeholder-slate-400 resize-none outline-none"
               style={{ background: voicePhase === "listening" ? "hsla(0,80%,55%,0.05)" : "#F8FAFC", border: `1px solid ${voicePhase === "listening" ? "hsla(0,80%,55%,0.3)" : "rgba(15,23,42,0.09)"}`, color: "#0F172A" }} />
-            <button onClick={() => send()} disabled={streaming || !input.trim()}
+            <button onClick={() => send()} disabled={streaming || (!input.trim() && !attachedFile)}
               className="w-9 h-9 rounded-xl flex items-center justify-center self-end transition-all flex-shrink-0"
-              style={{ background: "hsl(193,100%,35%)", opacity: streaming || !input.trim() ? 0.3 : 1 }}>
+              style={{ background: "hsl(193,100%,35%)", opacity: streaming || (!input.trim() && !attachedFile) ? 0.3 : 1 }}>
               {streaming ? <Loader2 className="w-3.5 h-3.5 text-slate-800 animate-spin" /> : <Send className="w-3.5 h-3.5 text-slate-800" />}
             </button>
           </div>
           <p className="text-xs text-center" style={{ color: "rgba(15,23,42,0.35)" }}>
-            🎤 Speak or type · Sirius writes &amp; saves every section
+            🎤 Speak or type · 📎 attach images, PDFs, docs · Sirius writes &amp; saves
           </p>
         </div>
       </div>

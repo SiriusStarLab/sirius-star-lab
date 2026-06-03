@@ -1,7 +1,17 @@
 import React, { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Check, Copy } from "lucide-react";
+import { Check, Copy, Download } from "lucide-react";
+
+const IMAGE_EXT_RE = /\.(png|jpg|jpeg|gif|webp|bmp|svg)(\?.*)?$/i;
+const IMAGE_URL_LINE_RE = /^URL:\s*(https?:\/\/\S+)$/m;
+
+function preprocessContent(content: string): string {
+  return content.replace(
+    /URL:\s*(https?:\/\/\S+\.(png|jpg|jpeg|gif|webp|bmp|svg)(\?\S*)?)/gi,
+    (_, url) => `\n\n![Generated image](${url})\n\n`
+  );
+}
 
 export function LabMarkdown({ content, streaming }: { content: string; streaming: boolean }) {
   const [copiedBlock, setCopiedBlock] = useState<number | null>(null);
@@ -13,6 +23,7 @@ export function LabMarkdown({ content, streaming }: { content: string; streaming
   };
 
   let codeBlockIdx = 0;
+  const processed = preprocessContent(content);
 
   return (
     <div style={{ fontSize: "0.82rem", color: "rgba(15,23,42,0.82)", lineHeight: 1.65 }}>
@@ -39,6 +50,40 @@ export function LabMarkdown({ content, streaming }: { content: string; streaming
               {children}
             </blockquote>
           ),
+          img: ({ src, alt }) => {
+            if (!src) return null;
+            return (
+              <div className="my-3">
+                <img
+                  src={src}
+                  alt={alt || "Generated image"}
+                  className="rounded-xl max-w-full"
+                  style={{ maxHeight: "480px", objectFit: "contain", border: "1px solid rgba(15,23,42,0.1)", background: "#f8fafc" }}
+                  onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
+                />
+                <div className="flex items-center gap-2 mt-1.5">
+                  <a
+                    href={src}
+                    download
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg transition-all"
+                    style={{ background: "rgba(0,198,255,0.1)", color: "hsl(193,100%,40%)", border: "1px solid rgba(0,198,255,0.2)" }}>
+                    <Download className="w-3 h-3" />
+                    Download
+                  </a>
+                  <a
+                    href={src}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs"
+                    style={{ color: "rgba(15,23,42,0.4)" }}>
+                    Open full size ↗
+                  </a>
+                </div>
+              </div>
+            );
+          },
           table: ({ children }) => (
             <div className="overflow-x-auto my-2 rounded-lg" style={{ border: "1px solid rgba(15,23,42,0.1)" }}>
               <table className="w-full text-xs" style={{ borderCollapse: "collapse" }}>{children}</table>
@@ -78,7 +123,7 @@ export function LabMarkdown({ content, streaming }: { content: string; streaming
           },
         }}
       >
-        {content}
+        {processed}
       </ReactMarkdown>
       {streaming && <span className="inline-block w-1.5 h-3.5 ml-0.5 rounded-sm animate-pulse" style={{ background: "hsl(193,100%,50%)", verticalAlign: "middle" }} />}
     </div>

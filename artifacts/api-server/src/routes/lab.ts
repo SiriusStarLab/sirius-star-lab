@@ -823,7 +823,7 @@ const PROJECT_CHAT_TOOLS: any[] = [
 
 router.post("/lab/projects/:id/chat", authMiddleware, async (req: Request, res: Response) => {
   const projectId = parseInt(req.params.id as string);
-  const { message, tab, mode } = req.body;
+  const { message, tab, mode, imageBase64, documentBase64, documentName } = req.body;
 
   const [project] = await db.select().from(labProjects).where(eq(labProjects.id, projectId));
   if (!project) { res.status(404).json({ error: "Project not found" }); return; }
@@ -832,7 +832,8 @@ router.post("/lab/projects/:id/chat", authMiddleware, async (req: Request, res: 
     .where(eq(labMessages.projectId, projectId))
     .orderBy(labMessages.createdAt);
 
-  await db.insert(labMessages).values({ projectId, role: "user", content: message });
+  const userMessageText = message || (documentName ? `[Attached: ${documentName}]` : "[Attached file]");
+  await db.insert(labMessages).values({ projectId, role: "user", content: userMessageText });
 
   const projectContext = `## PROJECT: ${project.name.toUpperCase()}
 Industry: ${project.industry} | Phase: ${project.phase || "design"} | Current focus: ${tab || "general"}${(project.manufacturingProcess || "") ? ` | Manufacturing Process: ${project.manufacturingProcess}` : ""}
@@ -888,10 +889,26 @@ CRITICAL EXECUTION RULES — READ CAREFULLY:
 
   try {
     const chatHistory: any[] = history.map(m => ({ role: m.role as "user" | "assistant", content: m.content }));
+    // Build user message — support vision (image) and document attachments
+    let userMessageContent: any = message || "";
+    if (imageBase64) {
+      const mimeMatch = imageBase64.match(/^data:([^;]+);base64,/);
+      const mime = mimeMatch ? mimeMatch[1] : "image/jpeg";
+      const b64 = imageBase64.replace(/^data:[^;]+;base64,/, "");
+      userMessageContent = [
+        ...(message ? [{ type: "text", text: message }] : []),
+        { type: "image_url", image_url: { url: `data:${mime};base64,${b64}`, detail: "high" } },
+      ];
+    } else if (documentBase64) {
+      const b64 = documentBase64.replace(/^data:[^;]+;base64,/, "");
+      const docText = Buffer.from(b64, "base64").toString("utf-8").slice(0, 20000);
+      userMessageContent = `${message ? message + "\n\n" : ""}[Document: ${documentName || "attached"}]\n\n${docText}`;
+    }
+
     const chatMessages: any[] = [
       { role: "system", content: systemPrompt },
       ...chatHistory,
-      { role: "user", content: message },
+      { role: "user", content: userMessageContent },
     ];
 
     // Helper: generate research content using the AI's training knowledge
