@@ -6816,16 +6816,23 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
           const imgRes = await fetch("https://api.openai.com/v1/images/generations", {
             method: "POST",
             headers: { "Authorization": `Bearer ${openaiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ model: "dall-e-3", prompt, n: 1, size, response_format: "b64_json" }),
+            body: JSON.stringify({ model: "gpt-image-1", prompt, n: 1, size }),
           });
           if (!imgRes.ok) {
             const err = await imgRes.text().catch(() => imgRes.statusText);
             return `Image generation failed: ${err}`;
           }
-          const imgData = await imgRes.json() as { data?: { b64_json?: string }[] };
-          const b64 = imgData.data?.[0]?.b64_json;
-          if (!b64) return "No image data returned from OpenAI.";
-          writeFileSync(join(rendersDir, filename), Buffer.from(b64, "base64"));
+          const imgData = await imgRes.json() as { data?: { b64_json?: string; url?: string }[] };
+          const item = imgData.data?.[0];
+          if (item?.b64_json) {
+            writeFileSync(join(rendersDir, filename), Buffer.from(item.b64_json, "base64"));
+          } else if (item?.url) {
+            // URL response — download it
+            const imgBuffer = await fetch(item.url).then(r => r.arrayBuffer());
+            writeFileSync(join(rendersDir, filename), Buffer.from(imgBuffer));
+          } else {
+            return `No image data returned from OpenAI. Response: ${JSON.stringify(imgData).slice(0, 200)}`;
+          }
         } else {
           // OpenRouter — uses chat completions with gpt-image-1, returns base64 in content
           const imgRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
