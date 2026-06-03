@@ -6800,46 +6800,61 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
 
         const openaiKey = process.env.OPENAI_API_KEY;
         const openrouterKey = process.env.OPENROUTER_API_KEY;
-        if (!openaiKey && !openrouterKey) return "Image generation requires OPENAI_API_KEY — not configured on this server.";
+        if (!openaiKey && !openrouterKey) return "Image generation requires an API key — not configured on this server.";
 
-        const useOpenAI = !!openaiKey;
-        const apiKey = useOpenAI ? openaiKey! : openrouterKey!;
-        const endpoint = useOpenAI
-          ? "https://api.openai.com/v1/images/generations"
-          : "https://openrouter.ai/api/v1/images/generations";
-
-        const imgRes = await fetch(endpoint, {
-          method: "POST",
-          headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model: useOpenAI ? "dall-e-3" : "openai/dall-e-3",
-            prompt,
-            n: 1,
-            size,
-            response_format: "b64_json",
-          }),
-        });
-
-        if (!imgRes.ok) {
-          const err = await imgRes.text().catch(() => imgRes.statusText);
-          return `Image generation failed: ${err}`;
-        }
-
-        const imgData = await imgRes.json() as { data?: { b64_json?: string }[] };
-        const b64 = imgData.data?.[0]?.b64_json;
-        if (!b64) return "No image data returned from generation API.";
-
-        // Save to public renders directory so it's permanently accessible
         const { writeFileSync, mkdirSync } = await import("fs");
         const { join } = await import("path");
         const { randomUUID } = await import("crypto");
         const rendersDir = join(process.env.SIRIUS_WORKSPACE || "/opt/sirius", "artifacts/api-server/public/renders");
         try { mkdirSync(rendersDir, { recursive: true }); } catch {}
         const filename = `${randomUUID()}.png`;
-        writeFileSync(join(rendersDir, filename), Buffer.from(b64, "base64"));
-
         const baseUrl = process.env.PUBLIC_BASE_URL || "https://sirius-ai.live";
         const imageUrl = `${baseUrl}/api/lab/renders/${filename}`;
+
+        if (openaiKey) {
+          // Direct OpenAI — uses /v1/images/generations with b64_json
+          const imgRes = await fetch("https://api.openai.com/v1/images/generations", {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${openaiKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ model: "dall-e-3", prompt, n: 1, size, response_format: "b64_json" }),
+          });
+          if (!imgRes.ok) {
+            const err = await imgRes.text().catch(() => imgRes.statusText);
+            return `Image generation failed: ${err}`;
+          }
+          const imgData = await imgRes.json() as { data?: { b64_json?: string }[] };
+          const b64 = imgData.data?.[0]?.b64_json;
+          if (!b64) return "No image data returned from OpenAI.";
+          writeFileSync(join(rendersDir, filename), Buffer.from(b64, "base64"));
+        } else {
+          // OpenRouter — uses chat completions with gpt-image-1, returns base64 in content
+          const imgRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${openrouterKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              model: "openai/gpt-image-1",
+              messages: [{ role: "user", content: prompt }],
+            }),
+          });
+          if (!imgRes.ok) {
+            const err = await imgRes.text().catch(() => imgRes.statusText);
+            return `Image generation failed: ${err}`;
+          }
+          const imgData = await imgRes.json() as any;
+          // gpt-image-1 via OpenRouter returns image as base64 in content parts
+          const content = imgData?.choices?.[0]?.message?.content;
+          let b64: string | undefined;
+          if (Array.isArray(content)) {
+            const imgPart = content.find((p: any) => p.type === "image_url" || p.type === "image");
+            b64 = imgPart?.image_url?.url?.replace(/^data:image\/\w+;base64,/, "")
+               ?? imgPart?.image?.data;
+          } else if (typeof content === "string" && content.startsWith("data:")) {
+            b64 = content.replace(/^data:image\/\w+;base64,/, "");
+          }
+          if (!b64) return `Image generation failed — unexpected response from OpenRouter: ${JSON.stringify(imgData).slice(0, 300)}`;
+          writeFileSync(join(rendersDir, filename), Buffer.from(b64, "base64"));
+        }
+
         return `✅ Image generated.\n\nURL: ${imageUrl}\n\nPrompt used: ${prompt}`;
       }
 
