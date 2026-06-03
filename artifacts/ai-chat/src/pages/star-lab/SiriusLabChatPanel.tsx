@@ -1,13 +1,13 @@
 import { useState, useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Mic, MicOff, Send, Clock, Check, Loader2, Globe } from "lucide-react";
+import { Mic, MicOff, Send, Clock, Check, Loader2, Globe, Paperclip, X } from "lucide-react";
 import { getApiBase } from "@/lib/api-base";
 import { speakText } from "./voice-utils";
 import type { Project, NavMode, AccessRole } from "./types";
 
 type ActionCard = { tool: string; label: string; detail: string; color: string; icon: string; result?: string };
-type LabChatMsg = { role: "user" | "assistant"; content: string; actions?: ActionCard[] };
+type LabChatMsg = { role: "user" | "assistant"; content: string; actions?: ActionCard[]; attachedImageUrl?: string };
 
 const NAV_LABELS: Record<string, string> = {
   dashboard: "Dashboard", projects: "Projects", botlab: "Bot Lab", scout: "Scout",
@@ -48,8 +48,12 @@ export function SiriusLabChatPanel({ pin, accessLevel, navMode, activeProject, o
   const chatInputModeRef = useRef<"voice" | "keyboard">("voice");
   const [textInput, setTextInput] = useState("");
   const [queuedMessage, setQueuedMessage] = useState("");
+  const [attachedFile, setAttachedFile] = useState<string | null>(null);
+  const [attachedName, setAttachedName] = useState<string | null>(null);
+  const [attachedMime, setAttachedMime] = useState<string | null>(null);
   const conversationIdRef = useRef<number | null>(null);
   const textInputRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
   const messagesRef = useRef<LabChatMsg[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -164,7 +168,7 @@ export function SiriusLabChatPanel({ pin, accessLevel, navMode, activeProject, o
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, streamingText, streamingActions]);
 
-  const sendWithMessages = async (apiMessages: { role: string; content: string }[]) => {
+  const sendWithMessages = async (apiMessages: { role: string; content: string }[], imageBase64?: string, documentBase64?: string, documentName?: string) => {
     setStreaming(true);
     setStreamingText("");
     setStreamingActions([]);
@@ -205,10 +209,13 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 120_000);
 
+      const body: any = { messages: messagesWithContext, conversationId: conversationIdRef.current };
+      if (imageBase64) body.imageBase64 = imageBase64;
+      if (documentBase64) { body.documentBase64 = documentBase64; body.documentName = documentName; }
       const res = await fetch(`${base}lab/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-lab-pin": pin },
-        body: JSON.stringify({ messages: messagesWithContext, conversationId: conversationIdRef.current }),
+        body: JSON.stringify(body),
         signal: controller.signal,
       });
       clearTimeout(timeout);
@@ -394,19 +401,40 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
     return null;
   };
 
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      setAttachedFile(ev.target?.result as string);
+      setAttachedName(file.name);
+      setAttachedMime(file.type || "application/octet-stream");
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
+  const clearAttachment = () => { setAttachedFile(null); setAttachedName(null); setAttachedMime(null); };
+  const isImageMime = (mime: string | null) => !!(mime && mime.startsWith("image/"));
+
   const submitTextMessage = () => {
     const text = textInput.trim();
-    if (!text) return;
+    if (!text && !attachedFile) return;
     if (streaming) {
       setQueuedMessage(text);
       setTextInput("");
       return;
     }
+    const imgForDisplay = attachedFile && isImageMime(attachedMime) ? attachedFile : undefined;
+    const imgB64 = attachedFile && isImageMime(attachedMime) ? attachedFile : undefined;
+    const docB64 = attachedFile && !isImageMime(attachedMime) ? attachedFile : undefined;
+    const docName = attachedName && !isImageMime(attachedMime) ? attachedName : undefined;
     setTextInput("");
-    const userMsg: LabChatMsg = { role: "user", content: text };
+    clearAttachment();
+    const userMsg: LabChatMsg = { role: "user", content: text, attachedImageUrl: imgForDisplay };
     setMessages(prev => [...prev, userMsg]);
 
-    if (onNavigate) {
+    if (onNavigate && text) {
       const navTarget = detectLabNavIntent(text);
       if (navTarget) {
         const navName = NAV_LABELS[navTarget] ?? navTarget;
@@ -418,7 +446,7 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
     }
 
     const apiMessages = [...messagesRef.current, userMsg].map(m => ({ role: m.role, content: m.content }));
-    sendWithMessages(apiMessages);
+    sendWithMessages(apiMessages, imgB64 || undefined, docB64 || undefined, docName || undefined);
   };
 
   return (
@@ -510,12 +538,15 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
                   ))}
                 </div>
               )}
-              {msg.content && (
+              {(msg.content || msg.attachedImageUrl) && (
                 <div className="px-4 py-3 rounded-2xl text-sm leading-relaxed"
                   style={msg.role === "user"
                     ? { background: "hsl(213,60%,88%)", color: "rgba(15,23,42,0.9)", borderRadius: "18px 18px 4px 18px" }
                     : { background: "#FFFFFF", color: "rgba(15,23,42,0.82)", border: "1px solid rgba(15,23,42,0.09)", borderRadius: "18px 18px 18px 4px" }}>
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                  {msg.attachedImageUrl && (
+                    <img src={msg.attachedImageUrl} alt="Attached" className="rounded-xl mb-2 max-w-full" style={{ maxHeight: "220px", objectFit: "contain" }} />
+                  )}
+                  {msg.content && <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>}
                 </div>
               )}
             </div>
@@ -578,6 +609,21 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
       </div>
 
       <div className="flex-shrink-0 border-t" style={{ borderColor: "rgba(15,23,42,0.07)", background: "#FFFFFF" }}>
+        {attachedFile && (
+          <div className="flex items-center gap-2 mx-4 mt-3 px-2 py-1.5 rounded-xl" style={{ background: "rgba(0,198,255,0.08)", border: "1px solid rgba(0,198,255,0.2)" }}>
+            {isImageMime(attachedMime) ? (
+              <img src={attachedFile} alt="preview" className="w-8 h-8 rounded-lg object-cover flex-shrink-0" />
+            ) : (
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "rgba(0,198,255,0.15)" }}>
+                <Paperclip className="w-3.5 h-3.5" style={{ color: "hsl(193,100%,40%)" }} />
+              </div>
+            )}
+            <span className="text-xs font-medium flex-1 truncate" style={{ color: "hsl(193,100%,35%)" }}>{attachedName}</span>
+            <button onClick={clearAttachment} className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: "rgba(15,23,42,0.08)" }}>
+              <X className="w-3 h-3" style={{ color: "rgba(15,23,42,0.5)" }} />
+            </button>
+          </div>
+        )}
         {(voicePhase !== "idle" || streaming || voiceHint) && (
           <div className="flex items-center gap-2 px-4 pt-2 pb-0">
             <div className="flex items-center gap-0.5 h-4">
@@ -609,6 +655,23 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
             }}>
             {voicePhase === "listening" ? <MicOff className="w-4 h-4" style={{ color: "#fff" }} /> : <Mic className="w-4 h-4" style={{ color: "#fff" }} />}
           </button>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            title="Attach image or document"
+            className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 transition-all active:scale-95 flex-shrink-0"
+            style={{
+              background: attachedFile ? "rgba(0,198,255,0.15)" : "rgba(15,23,42,0.06)",
+              border: attachedFile ? "1.5px solid rgba(0,198,255,0.4)" : "1.5px solid rgba(15,23,42,0.1)",
+            }}>
+            <Paperclip className="w-4 h-4" style={{ color: attachedFile ? "hsl(193,100%,40%)" : "rgba(15,23,42,0.4)" }} />
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*,.pdf,.docx,.doc,.txt,.csv,.md,.json,.xls,.xlsx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/csv,text/markdown,application/json"
+            className="hidden"
+            onChange={handleFileSelect}
+          />
           <textarea
             ref={textInputRef}
             value={textInput}
@@ -619,7 +682,7 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
             onKeyDown={e => {
               if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submitTextMessage(); }
             }}
-            placeholder={queuedMessage ? `Queued: "${queuedMessage.slice(0, 40)}${queuedMessage.length > 40 ? "…" : ""}"` : streaming ? "Type your next message — it'll send when she finishes…" : "Type a message or tap the mic to speak…"}
+            placeholder={queuedMessage ? `Queued: "${queuedMessage.slice(0, 40)}${queuedMessage.length > 40 ? "…" : ""}"` : streaming ? "Type your next message — it'll send when she finishes…" : "Type a message or attach an image/doc…"}
             rows={1}
             className="flex-1 resize-none rounded-2xl px-4 py-3 text-sm outline-none transition-all"
             style={{
@@ -639,15 +702,15 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
           />
           <button
             onClick={submitTextMessage}
-            disabled={!textInput.trim()}
+            disabled={!textInput.trim() && !attachedFile}
             className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 transition-all active:scale-95"
             style={{
-              background: textInput.trim() ? (streaming ? "hsl(45,90%,55%)" : "linear-gradient(135deg, hsl(226,70%,50%), hsl(193,100%,35%))") : "rgba(15,23,42,0.08)",
-              boxShadow: textInput.trim() ? "0 4px 14px rgba(99,102,241,0.25)" : "none",
+              background: (textInput.trim() || attachedFile) ? (streaming ? "hsl(45,90%,55%)" : "linear-gradient(135deg, hsl(226,70%,50%), hsl(193,100%,35%))") : "rgba(15,23,42,0.08)",
+              boxShadow: (textInput.trim() || attachedFile) ? "0 4px 14px rgba(99,102,241,0.25)" : "none",
             }}>
-            {streaming && textInput.trim()
+            {streaming && (textInput.trim() || attachedFile)
               ? <Clock className="w-4 h-4 text-white" />
-              : <Send className="w-4 h-4" style={{ color: textInput.trim() ? "#fff" : "rgba(15,23,42,0.3)" }} />
+              : <Send className="w-4 h-4" style={{ color: (textInput.trim() || attachedFile) ? "#fff" : "rgba(15,23,42,0.3)" }} />
             }
           </button>
         </div>

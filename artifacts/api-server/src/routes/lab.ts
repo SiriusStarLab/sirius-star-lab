@@ -6974,8 +6974,34 @@ router.post("/lab/chat", async (req, res): Promise<void> => {
   const role = getPinRole(pinHeader);
   if (!role) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const { messages, conversationId: clientConvId } = req.body ?? {};
+  const { messages, conversationId: clientConvId, imageBase64, documentBase64, documentName } = req.body ?? {};
   if (!Array.isArray(messages) || messages.length === 0) { res.status(400).json({ error: "messages required" }); return; }
+
+  // If an image or document is attached, inject it into the last user message
+  if (imageBase64 || documentBase64) {
+    const lastUserIdx = [...messages].reverse().findIndex((m: any) => m.role === "user");
+    if (lastUserIdx !== -1) {
+      const idx = messages.length - 1 - lastUserIdx;
+      const orig = messages[idx];
+      if (imageBase64) {
+        const mimeMatch = imageBase64.match(/^data:([^;]+);base64,/);
+        const mime = mimeMatch ? mimeMatch[1] : "image/jpeg";
+        const b64 = imageBase64.replace(/^data:[^;]+;base64,/, "");
+        messages[idx] = {
+          role: "user",
+          content: [
+            ...(orig.content ? [{ type: "text", text: typeof orig.content === "string" ? orig.content : "" }] : []),
+            { type: "image_url", image_url: { url: `data:${mime};base64,${b64}`, detail: "high" } },
+          ],
+        };
+      } else if (documentBase64) {
+        const b64 = documentBase64.replace(/^data:[^;]+;base64,/, "");
+        const docText = Buffer.from(b64, "base64").toString("utf-8").slice(0, 20000);
+        const existing = typeof orig.content === "string" ? orig.content : "";
+        messages[idx] = { role: "user", content: `${existing ? existing + "\n\n" : ""}[Document: ${documentName || "attached"}]\n\n${docText}` };
+      }
+    }
+  }
 
   // Track conversation for cross-session memory (owner only)
   let activeConvId: number | null = clientConvId ? parseInt(clientConvId) : null;
