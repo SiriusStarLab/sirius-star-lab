@@ -17,6 +17,8 @@ import { getLabPin, setLabPin, getPinRole, authMiddleware, sseHeaders, loadLabPi
 import { runCodeAgent, type CodeAgentEvent } from "../lib/code-agent.js";
 import { runSecurityScan } from "../lib/security-scanner.js";
 import { intelligence } from "../lib/intelligence-client.js";
+import Stripe from "stripe";
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? "", { apiVersion: "2025-05-28.basil" });
 import { executeCode } from "../lib/code-sandbox.js";
 import { readSourceFile, deployChange, triggerReload } from "../lib/self-deploy.js";
 import { loadCrossSessionContext } from "../lib/mnemosyne.js";
@@ -4064,6 +4066,32 @@ const LAB_TOOLS: any[] = [
   {
     type: "function" as const,
     function: {
+      name: "create_stripe_product",
+      description: "Create a Stripe product, price, and payment link for a Star Lab project so it can be sold immediately. Use when Garry says 'list this for sale', 'create a payment link', 'put it on Stripe', or 'I want to sell this'. Automatically stores the Stripe IDs and payment link on the project record.",
+      parameters: {
+        type: "object",
+        properties: {
+          project_id: { type: "number", description: "Star Lab project ID to attach the Stripe product to" },
+          name: { type: "string", description: "Product name (defaults to the project name if omitted)" },
+          description: { type: "string", description: "Short product description shown on the Stripe checkout page" },
+          price_pence: { type: "number", description: "Price in pence GBP (e.g. 5000 = £50.00)" },
+          price_type: { type: "string", enum: ["one_time", "recurring_monthly", "recurring_yearly"], description: "Billing model — one_time for a single charge, recurring_monthly/yearly for subscriptions" },
+        },
+        required: ["project_id", "price_pence", "price_type"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "list_stripe_products",
+      description: "List all Stripe products and their payment links. Use when Garry asks what's for sale, what's on Stripe, or wants an overview of current products and their prices.",
+      parameters: { type: "object", properties: { limit: { type: "number", description: "Max results (default 20)" } }, required: [] },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
       name: "run_code_agent",
       description: "Autonomously write, edit, or fix real code in the Sirius project. Use when Garry asks you to add a feature, fix a bug, edit the UI, improve yourself, or build something directly in the codebase. The code agent reads actual source files, writes targeted changes, and applies them live. Returns a summary of what was changed.",
       parameters: {
@@ -6745,6 +6773,93 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
           lines.push(``);
         }
         return lines.join("\n");
+      }
+
+      case "create_stripe_product": {
+        const { project_id, price_pence, price_type } = args as { project_id: number; name?: string; description?: string; price_pence: number; price_type: string };
+        const [proj] = await db.select().from(labProjects).where(eq(labProjects.id, project_id)).limit(1);
+        if (!proj) return `❌ Project #${project_id} not found.`;
+
+        const productName = (args as any).name || proj.name;
+        const productDesc = (args as any).description || (proj.brief || "").slice(0, 400) || productName;
+        const isRecurring = price_type.startsWith("recurring");
+        const interval = price_type === "recurring_yearly" ? "year" : "month";
+        const priceGbp = (price_pence / 100).toFixed(2);
+
+        try {
+          // 1. Create product
+          const product = await stripe.products.create({
+            name: productName,
+            description: productDesc.slice(0, 500),
+            metadata: { sirius_project_id: String(project_id) },
+          });
+
+          // 2. Create price
+          const price = await stripe.prices.create({
+            product: product.id,
+            unit_amount: price_pence,
+            currency: "gbp",
+            ...(isRecurring ? { recurring: { interval } } : {}),
+          });
+
+          // 3. Create payment link
+          const paymentLink = await stripe.paymentLinks.create({
+            line_items: [{ price: price.id, quantity: 1 }],
+            metadata: { sirius_project_id: String(project_id) },
+          });
+
+          // 4. Save to project record
+          await db.update(labProjects).set({
+            stripeProductId: product.id,
+            stripePriceId: price.id,
+            stripePaymentLink: paymentLink.url,
+            sellPrice: String(price_pence),
+            sellPriceType: price_type,
+            updatedAt: new Date(),
+          } as any).where(eq(labProjects.id, project_id));
+
+          return [
+            `✅ **Stripe product created for "${productName}"**`,
+            ``,
+            `💷 **Price:** £${priceGbp}${isRecurring ? `/${interval}` : " (one-time)"}`,
+            `🔗 **Payment link:** ${paymentLink.url}`,
+            `📦 **Product ID:** ${product.id}`,
+            `💰 **Price ID:** ${price.id}`,
+            ``,
+            `The payment link is now saved on the project. Share it directly or embed it anywhere.`,
+          ].join("\n");
+        } catch (err: any) {
+          return `❌ Stripe error: ${err?.message}`;
+        }
+      }
+
+      case "list_stripe_products": {
+        const limit = (args as any).limit || 20;
+        try {
+          const products = await stripe.products.list({ limit, active: true, expand: ["data.default_price"] });
+          if (!products.data.length) return `📦 No Stripe products found. Use create_stripe_product to add one.`;
+
+          const lines = [`📦 **Stripe Products (${products.data.length})**`, ``];
+          for (const p of products.data) {
+            const dp = p.default_price as Stripe.Price | null;
+            const priceStr = dp ? `£${((dp.unit_amount ?? 0) / 100).toFixed(2)}${dp.recurring ? `/${dp.recurring.interval}` : ""}` : "No price";
+            lines.push(`**${p.name}** — ${priceStr}`);
+            lines.push(`  ID: ${p.id} | Active: ${p.active}`);
+            if (p.description) lines.push(`  ${p.description.slice(0, 100)}`);
+            lines.push(``);
+          }
+
+          const links = await stripe.paymentLinks.list({ limit: 10 });
+          if (links.data.length) {
+            lines.push(`🔗 **Payment Links (${links.data.length})**`, ``);
+            for (const l of links.data) {
+              lines.push(`${l.active ? "✅" : "❌"} ${l.url}`);
+            }
+          }
+          return lines.join("\n");
+        } catch (err: any) {
+          return `❌ Stripe error: ${err?.message}`;
+        }
       }
 
       case "run_security_scan": {
