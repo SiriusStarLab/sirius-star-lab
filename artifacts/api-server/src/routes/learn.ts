@@ -39,13 +39,13 @@ A 2-3 sentence summary of what the learner will achieve.
 
 ## Week-by-Week Breakdown
 For each week:
-### Week N: [Theme]
+### Week N: Theme Name Here
 **Focus:** What this week covers
 **Topics:**
 - Topic 1
 - Topic 2
 **Practice:** What to actually do to reinforce learning
-**Resources:** Types of resources to seek out (books, videos, courses, practice sites)
+**Resources:** Specific real resources — name actual books (with author), YouTube channels, free courses (Coursera, Khan Academy, freeCodeCamp, MIT OpenCourseWare), websites, or tools that are genuinely useful for this topic
 **Milestone:** What you should be able to do by end of week
 
 ## Key Concepts to Master
@@ -140,7 +140,7 @@ router.post("/learn/quiz", async (req: Request, res: Response) => {
 ${source}
 Difficulty: ${difficulty || "Medium"}
 
-Return a JSON object with this exact structure:
+Return ONLY a valid JSON object with no extra text, no markdown code fences, no explanation — just the raw JSON:
 {
   "questions": [
     {
@@ -159,25 +159,39 @@ Rules:
 - Explanations should be educational and specific
 - Vary question styles: definition, application, comparison, scenario-based
 - Make wrong answers plausible (not obviously wrong)
-- If the topic is broad (e.g. "engineering", "science", "history"), pick a diverse spread of subtopics within it`;
+- If the topic is broad (e.g. "engineering", "science", "history"), pick a diverse spread of subtopics within it
+- Start your response with { and end with } — nothing else`;
 
     const response = await openai.chat.completions.create({
       model: "anthropic/claude-sonnet-4.6",
       messages: [{ role: "user", content: prompt }],
-      response_format: { type: "json_object" },
       max_tokens: 4000,
     });
 
     const raw = response.choices[0]?.message?.content || "{}";
     let parsed: any;
     try {
-      const obj = JSON.parse(raw);
+      // Strip any accidental markdown fences
+      const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
+      const obj = JSON.parse(cleaned);
       const arr = Array.isArray(obj)
         ? obj
         : obj.questions || obj.quiz || obj.items || (Object.values(obj).find(Array.isArray) as any[]);
       parsed = Array.isArray(arr) && arr.length > 0 ? arr : null;
     } catch {
-      parsed = null;
+      // Fallback: try to extract JSON block from text
+      try {
+        const match = raw.match(/\{[\s\S]*\}/);
+        if (match) {
+          const obj = JSON.parse(match[0]);
+          const arr = Array.isArray(obj)
+            ? obj
+            : obj.questions || obj.quiz || obj.items || (Object.values(obj).find(Array.isArray) as any[]);
+          parsed = Array.isArray(arr) && arr.length > 0 ? arr : null;
+        }
+      } catch {
+        parsed = null;
+      }
     }
 
     if (!parsed) {

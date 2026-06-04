@@ -198,10 +198,10 @@ export function ChatPage() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => setLocation("/")}
+            onClick={() => { clearMessages(); setLocation("/"); }}
             title="New session"
             className="text-muted-foreground hover:text-foreground"
-            style={{ opacity: conversationId ? 1 : 0.35 }}
+            style={{ opacity: messages.length > 0 ? 1 : 0.35 }}
           >
             <Home size={18} />
           </Button>
@@ -254,7 +254,7 @@ export function ChatPage() {
             </div>
           ) : isEmpty ? (
             /* ── Welcome screen: Gemini-inspired clean layout ── */
-            <div className="relative min-h-full flex flex-col items-center justify-center pb-44 px-5 md:px-8 max-w-2xl mx-auto w-full">
+            <div className="relative min-h-full flex flex-col items-center justify-center pb-56 px-5 md:px-8 max-w-2xl mx-auto w-full">
 
               {/* Ambient background glow */}
               <div
@@ -398,6 +398,17 @@ export function ChatPage() {
                     transition={{ duration: 0.25 }}
                     className="relative z-10 w-full"
                   >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[11px] font-mono uppercase tracking-[0.2em] text-muted-foreground/50">World subjects</span>
+                      <button
+                        onClick={() => setExpandedSection(null)}
+                        className="flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-lg transition-colors"
+                        style={{ color: "hsl(220 18% 52%)", background: "hsl(210 30% 95%)", border: "1px solid hsl(210 25% 88%)" }}
+                      >
+                        <span>✕</span>
+                        <span>Close</span>
+                      </button>
+                    </div>
                     <TopicHub onSelect={handleSend} />
                   </motion.div>
                 )}
@@ -411,6 +422,17 @@ export function ChatPage() {
                     transition={{ duration: 0.25 }}
                     className="relative z-10 w-full"
                   >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[11px] font-mono uppercase tracking-[0.2em] text-muted-foreground/50">How are you feeling?</span>
+                      <button
+                        onClick={() => setExpandedSection(null)}
+                        className="flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-lg transition-colors"
+                        style={{ color: "hsl(220 18% 52%)", background: "hsl(210 30% 95%)", border: "1px solid hsl(210 25% 88%)" }}
+                      >
+                        <span>✕</span>
+                        <span>Close</span>
+                      </button>
+                    </div>
                     <MoodCheckin onSelect={handleSend} />
                   </motion.div>
                 )}
@@ -424,6 +446,17 @@ export function ChatPage() {
                     transition={{ duration: 0.25 }}
                     className="relative z-10 w-full"
                   >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[11px] font-mono uppercase tracking-[0.2em] text-muted-foreground/50">Daily wisdom</span>
+                      <button
+                        onClick={() => setExpandedSection(null)}
+                        className="flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-lg transition-colors"
+                        style={{ color: "hsl(220 18% 52%)", background: "hsl(210 30% 95%)", border: "1px solid hsl(210 25% 88%)" }}
+                      >
+                        <span>✕</span>
+                        <span>Close</span>
+                      </button>
+                    </div>
                     <DailyWisdom onReflect={handleSend} />
                   </motion.div>
                 )}
