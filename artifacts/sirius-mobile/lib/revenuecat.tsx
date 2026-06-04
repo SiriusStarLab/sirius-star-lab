@@ -1,3 +1,15 @@
+/**
+ * INTENTIONAL STUB — Apple Guideline 3.1.1 compliance.
+ *
+ * RevenueCat/IAP was removed after Apple rejected the app under Guideline 3.1.1
+ * (apps must use Apple's IAP system, not third-party payment flows). The app was
+ * rebuilt as fully free with anonymous access so Apple can review it without
+ * encountering any paywall or purchase flow.
+ *
+ * Do NOT re-add real RevenueCat/IAP here without first getting Apple approval.
+ * If subscriptions are needed in a future build, implement them via Apple's
+ * native StoreKit APIs (through RevenueCat's iOS SDK) — not via web payments.
+ */
 import React, { createContext, useContext } from "react";
 
 export const ENTITLEMENT_PLUS = "sirius_plus";
