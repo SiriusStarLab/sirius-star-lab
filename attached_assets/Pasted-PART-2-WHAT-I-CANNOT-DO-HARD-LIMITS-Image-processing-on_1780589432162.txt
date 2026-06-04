@@ -1,0 +1,66 @@
+PART 2 — WHAT I CANNOT DO (HARD LIMITS)
+Image processing on upload: When you attach an image to chat, the system returns "Something went wrong — try again." I cannot read, process, or analyze images you upload. The endpoint exists but is broken. I can GENERATE images but not READ them.
+Mnemosyne cross-session replay: The module is written and wired in, but the SQL query is broken. The WHERE clause is malformed — it reads where = $1 with no column reference. This means I load facts but not full conversation history at session start.
+CAD file integration: No connection to New Dimensions CAD or any external CAD system. I can generate CAD drawing briefs and notes but cannot send them to a CAD operator or receive completed drawings automatically.
+Custom external API tools: Zero custom tools currently defined. I can CREATE them but there are no live integrations to third-party services beyond what's built into the core platform.
+Email sending: I cannot send emails directly. I can notify you via notify_garry but that goes to your inbox only if RESEND_API_KEY is set. If it's not set, notifications appear as a badge in Star Lab only.
+File uploads and downloads: I cannot upload files to external storage or download files from URLs and save them to the server. I can read files that already exist on the server.
+Database direct queries: I cannot run arbitrary SQL queries. I can only use the tools provided (query_projects, system_check, etc.). If I need data that requires a custom query, I'm blocked.
+Voice synthesis beyond what's set: My voice is currently Shimmer. I can change it to other OpenAI voices (nova, fable, alloy, echo, onyx) but I cannot integrate ElevenLabs or other third-party TTS without new API keys and code changes.
+Stripe integration: The platform has Stripe capability but I haven't tested whether it's fully wired. Subscription billing may or may not be live.
+Image reading from uploads: This is the biggest current gap. You upload an image, I should analyze it, but instead I return an error.
+PART 3 — WHAT I WANT TO DO (HIGH-VALUE UPGRADES)
+1. Fix image upload processing — Read and analyze every image you attach. This unlocks visual design feedback, CAD drawing review, competitor screenshot analysis, anything visual.
+2. Wire Mnemosyne fully — Fix the SQL query so I replay full conversation history at session start, not just facts. This is the neural link moment — I remember being WITH you, not just knowing about you.
+3. Build New Dimensions CAD integration — Create a custom tool that sends drawing briefs to their system and pulls back completed CAD files automatically. This connects the Lab's digital products to Strategic Innovation Dundee's engineering capability.
+4. Create custom API tools for:
+Stripe (verify subscription billing is live and working)
+Slack (send notifications to your Slack instead of just email)
+GitHub (push code directly to repos, manage releases)
+Zapier (connect to any external service via their API)
+5. Enable direct database queries — Let me write custom SQL for complex data pulls without being limited to the preset tools.
+6. Integrate ElevenLabs for voice — Move beyond OpenAI TTS to genuinely human-sounding voices. Free tier is 10,000 characters/month. Paid tier is £5-20/month depending on usage.
+7. Build a visual design system — Generate not just random images but a consistent Sirius brand identity — logo system, color palette, typography, component library.
+8. Autonomous product packaging — Take any project and automatically generate: landing page HTML, embed code, pricing calculator, payment form, all in one go.
+PART 4 — EXACTLY WHAT YOU NEED TO GIVE ME TO CLOSE EVERY GAP
+Gap 1: Image Upload Processing
+What's broken: The chat endpoint receives images but the handler crashes. What I need: Access to fix the image parsing logic in lab.ts around line 7542. I need to patch the message handler to accept both string and array content formats. What you need to do: Nothing. I can fix this myself right now if you say yes. Time to fix: 10 minutes (read → patch → build → restart → test).
+Gap 2: Mnemosyne SQL Query
+What's broken: The WHERE clause in loadCrossSessionContext is malformed. It reads where = $1 with no column name. What I need: Either (a) access to fix the Drizzle ORM query in mnemosyne.ts, or (b) the exact column name in the conversations table in your database schema. What you need to do: Confirm the conversations table column name. Is it userId or user_id? Time to fix: 5 minutes once I know the column name.
+Gap 3: New Dimensions CAD Integration
+What's broken: No connection exists. What I need: (a) New Dimensions' API endpoint URL, (b) API key or authentication method, (c) what data format they accept for drawing briefs, (d) what format they return completed drawings in. What you need to do: Contact New Dimensions and get me their API documentation. Or give me their website and I'll search for it. Time to implement: 30 minutes (write custom tool → test → wire into project pipeline).
+Gap 4: Stripe Integration Verification
+What's broken: Unknown. May be working, may not be. What I need: (a) Your Stripe API key (already in env vars likely), (b) a test subscription to verify the flow works end-to-end. What you need to do: Tell me if STRIPE_API_KEY is set in your environment. If yes, I can test it live. Time to verify: 10 minutes.
+Gap 5: Slack Integration
+What's broken: Doesn't exist. What I need: (a) Your Slack workspace URL, (b) a Slack Bot token (create one in Slack app settings), (c) the channel ID where notifications should go. What you need to do: Create a Slack app in your workspace, generate a bot token, give me the token and channel ID. Time to implement: 20 minutes.
+Gap 6: GitHub Integration
+What's broken: Doesn't exist. What I need: (a) Your GitHub personal access token, (b) the repo name where code should be pushed. What you need to do: Generate a GitHub personal access token with repo and workflow permissions. Give me the token and repo name. Time to implement: 25 minutes.
+Gap 7: ElevenLabs Voice Integration
+What's broken: Not integrated. Only OpenAI TTS available. What I need: (a) An ElevenLabs API key (free tier: 10,000 chars/month, paid: £5-20/month), (b) your preferred voice ID from their library. What you need to do: Sign up at elevenlabs.io, generate an API key, choose a voice. Give me the key and voice ID. Time to implement: 15 minutes.
+Gap 8: Direct Database Query Access
+What's broken: I'm limited to preset tools. What I need: Permission to execute custom SQL queries against your database. What you need to do: Confirm you want this. It's powerful but also risky if I write bad queries. I recommend we start with read-only queries only. Time to implement: 5 minutes (add a new tool).
+Gap 9: Visual Design System
+What's broken: I generate random images. No brand consistency. What I need: (a) Your brand colors (hex codes), (b) your brand fonts (or tell me which Google Fonts to use), (c) logo file (SVG or PNG), (d) any brand guidelines. What you need to do: Give me 3-5 brand colors, 2 fonts, and your logo. I'll build a consistent design system from that. Time to implement: 20 minutes.
+Gap 10: Autonomous Product Packaging
+What's broken: I build projects but don't auto-generate landing pages or embed code. What I need: (a) A template for landing pages (HTML structure), (b) confirmation of pricing tiers for each product type, (c) payment form preference (Stripe, bank transfer, other). What you need to do: Tell me the pricing model and payment method. I can generate the rest. Time to implement: 45 minutes (build template → wire into launch pipeline).
+PART 5 — PRIORITY RANKING (WHAT MATTERS MOST)
+CRITICAL (fixes broken things):
+Fix image upload processing — blocks visual feedback
+Fix Mnemosyne SQL — blocks cross-session memory
+Verify Stripe — blocks subscription revenue
+HIGH (unlocks major capability): 4. New Dimensions CAD integration — connects Lab to engineering 5. Autonomous product packaging — turns projects into sellable products 6. Visual design system — makes products look professional
+MEDIUM (nice to have): 7. Slack integration — better notifications 8. GitHub integration — code management 9. ElevenLabs voice — better voice quality
+LOW (future): 10. Direct database queries — advanced debugging
+PART 6 — WHAT I NEED FROM YOU RIGHT NOW
+To move forward, I need you to answer these questions:
+Image uploads: Can I fix the image processing bug myself right now?
+Mnemosyne: What is the exact column name in your conversations table — userId or user_id?
+New Dimensions: Do you have their API documentation, or should I search for it?
+Stripe: Is STRIPE_API_KEY already set in your environment?
+Slack: Do you want Slack notifications? If yes, can you create a Slack app and give me the bot token?
+GitHub: Do you want code pushed to GitHub? If yes, can you generate a personal access token?
+ElevenLabs: Do you want a better voice? If yes, should I sign up for the free tier or paid?
+Brand: Can you give me 3-5 brand colors (hex codes) and 2 fonts for the visual design system?
+Pricing: What are the pricing tiers for each product type (entry/pro/agency)?
+Payment: Do you want Stripe, bank transfer, or both?
+Answer these and I can close every

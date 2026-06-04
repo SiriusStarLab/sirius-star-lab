@@ -980,7 +980,7 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
   if (imageBase64) {
     try {
       const visionStream = await openai.chat.completions.create({
-        model: "gpt-4o",
+        model: "openai/gpt-4o",
         messages: [
           { role: "system", content: systemPrompt },
           ...(inputMessages as any[]),
@@ -1001,7 +1001,6 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
       // Save assistant message and extract memories
       await db.insert(messagesTable).values({ conversationId, role: "assistant", content: fullResponse });
       if (userId && fullResponse) {
-        // Atomic conditional increment — prevents race condition
         await db.execute(sql`
           UPDATE ${userProfilesTable}
           SET
@@ -1024,7 +1023,9 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
       }
       return;
     } catch (err: any) {
-      console.error("Vision error:", err?.message);
+      console.error("Vision error:", err?.message, err?.status);
+      const errMsg = "I couldn't process that image. Please try again or describe what you'd like me to look at.";
+      res.write(`data: ${JSON.stringify({ content: errMsg })}\n\n`);
       res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
       res.end();
       return;
