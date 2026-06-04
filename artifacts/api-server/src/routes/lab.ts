@@ -24,7 +24,7 @@ import { loadCrossSessionContext } from "../lib/mnemosyne.js";
 // Bundle capability marker — printed at startup so esbuild can't tree-shake it.
 // Sirius: to check if a feature is in the running bundle, grep for "SIRIUS_BUNDLE_CAPABILITIES" in the dist/index.cjs.
 // DO NOT grep for minified identifiers like loadCrossSessionContext — they are renamed by the minifier.
-console.log("SIRIUS_BUNDLE_CAPABILITIES: mnemosyne-wired cad-enabled generate-image query-database v4");
+console.log("SIRIUS_BUNDLE_CAPABILITIES: mnemosyne-wired cad-enabled generate-image query-database github-push v5");
 
 // ── Startup: stamp the restart timestamp immediately on every boot ──────────
 // This means the 2-hour cooldown always applies from the moment the server starts,
@@ -4437,6 +4437,23 @@ const LAB_TOOLS: any[] = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "github_push_file",
+      description: "Create or update a file in the Sirius GitHub repository (SiriusStarLab/sirius-star-lab). Use this to push code changes, documentation, configs, or any file directly to the repo. If the file already exists it will be updated; if not it will be created. Always provide a clear commit message describing what changed and why.",
+      parameters: {
+        type: "object",
+        properties: {
+          path: { type: "string", description: "File path within the repo (e.g. 'artifacts/api-server/src/routes/lab.ts' or 'docs/changelog.md'). No leading slash." },
+          content: { type: "string", description: "Full file content to write. For updates this replaces the entire file." },
+          message: { type: "string", description: "Git commit message — concise and descriptive (e.g. 'fix: correct vision model name for OpenRouter')" },
+          branch: { type: "string", description: "Branch to push to. Defaults to 'main'. Use a feature branch name if the change needs review first." },
+        },
+        required: ["path", "content", "message"],
+      },
+    },
+  },
 ];
 
 async function executeLabTool(name: string, args: any, onProgress?: (event: Record<string, unknown>) => void): Promise<string> {
@@ -6885,6 +6902,47 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
         return `**${description}** — ${rows.length} row${rows.length === 1 ? "" : "s"}${rows.length > 100 ? " (showing first 100)" : ""}:\n\n${header}\n${divider}\n${body}`;
       }
 
+      case "github_push_file": {
+        const { path: filePath, content, message, branch = "main" } = args as { path: string; content: string; message: string; branch?: string };
+        const token = process.env.GITHUB_TOKEN || "";
+        const repo = "SiriusStarLab/sirius-star-lab";
+        if (!token) return "GITHUB_TOKEN not set — cannot push to GitHub.";
+
+        onProgress?.({ type: "status", message: `Pushing ${filePath} to GitHub...` });
+
+        const encodedContent = Buffer.from(content, "utf-8").toString("base64");
+
+        // Check if file already exists (to get its SHA for update)
+        let sha: string | undefined;
+        try {
+          const existRes = await fetch(`https://api.github.com/repos/${repo}/contents/${filePath}?ref=${branch}`, {
+            headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" },
+          });
+          if (existRes.ok) {
+            const existData = await existRes.json() as any;
+            sha = existData.sha;
+          }
+        } catch {}
+
+        const body: Record<string, any> = { message, content: encodedContent, branch };
+        if (sha) body.sha = sha;
+
+        const pushRes = await fetch(`https://api.github.com/repos/${repo}/contents/${filePath}`, {
+          method: "PUT",
+          headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+
+        if (!pushRes.ok) {
+          const err = await pushRes.text();
+          return `GitHub push failed (${pushRes.status}): ${err.slice(0, 300)}`;
+        }
+
+        const data = await pushRes.json() as any;
+        const commitUrl = data.commit?.html_url || `https://github.com/${repo}/blob/${branch}/${filePath}`;
+        return `✅ Pushed to GitHub — ${sha ? "updated" : "created"} \`${filePath}\` on branch \`${branch}\`.\nCommit: ${commitUrl}`;
+      }
+
       default:
         return `Unknown tool: ${name}`;
     }
@@ -6958,6 +7016,7 @@ const TOOL_META: Record<string, { label: string; color: string; icon: string }> 
   restart_server: { label: "Restarting server", color: "hsl(0,80%,50%)", icon: "♻️" },
   generate_image: { label: "Generating image", color: "hsl(280,80%,55%)", icon: "🎨" },
   query_database: { label: "Querying database", color: "hsl(193,100%,40%)", icon: "🗃️" },
+  github_push_file: { label: "Pushed to GitHub", color: "hsl(220,80%,50%)", icon: "📦" },
   stripe_lookup: { label: "Checking Stripe", color: "hsl(155,70%,42%)", icon: "💳" },
 };
 
@@ -7325,6 +7384,8 @@ These are not "helper" tools. They are your hands. You use them the same way a s
 - **run_command(command, reason)**: Run any shell command. 60-second timeout. Commands run as root. Use for: reading logs, grepping the filesystem, testing endpoints with curl, checking process state, running builds, installing packages, anything. **Build command: \`cd /opt/sirius && pnpm --filter @workspace/api-server run build\`** — run this after any TypeScript source edit.
 - **restart_server(reason)**: Kills the current process. pm2 automatically restarts it from the compiled bundle in ~3 seconds. Only effective after the bundle has been rebuilt. Always: edit .ts → build → restart_server.
 - **run_code_agent(task)**: Delegates a multi-step code task to a specialised sub-agent that plans, reads, writes, and builds autonomously. Use for large changes. The code agent operates in the source workspace.
+- **github_push_file(path, content, message, branch?)**: Push a file directly to the Sirius GitHub repository (SiriusStarLab/sirius-star-lab). Creates the file if it doesn't exist, updates it if it does. Use this to back up source edits to GitHub, push documentation, changelogs, or any file. Always provide a meaningful commit message. Default branch is \`main\`.
+- **query_database(query, description)**: Run a read-only SQL SELECT against the live production database. Use for analytics, auditing, debugging, or any time you need raw data.
 
 Remember: every tool call is a step in a chain. The chain does not stop until the task Garry gave you is fully done.
 
@@ -7447,7 +7508,7 @@ The compiled bundle is MINIFIED. Function names like \`loadCrossSessionContext\`
 **Correct way to check bundle capabilities:**
 \`run_command: "grep -c 'SIRIUS_BUNDLE_CAPABILITIES' /opt/sirius/artifacts/api-server/dist/index.cjs"\`
 If this returns 1, the bundle is up-to-date. The value of the string tells you what's included:
-"mnemosyne-wired cad-enabled generate-image query-database stripe-lookup v3"
+"mnemosyne-wired cad-enabled generate-image query-database github-push v5"
 
 **NEVER do this:**
 \`run_command: "grep -c 'loadCrossSessionContext\\|Mnemosyne' /opt/sirius/artifacts/api-server/dist/index.cjs"\`
