@@ -26,7 +26,7 @@ import { loadCrossSessionContext } from "../lib/mnemosyne.js";
 // Bundle capability marker — printed at startup so esbuild can't tree-shake it.
 // Sirius: to check if a feature is in the running bundle, grep for "SIRIUS_BUNDLE_CAPABILITIES" in the dist/index.cjs.
 // DO NOT grep for minified identifiers like loadCrossSessionContext — they are renamed by the minifier.
-console.log("SIRIUS_BUNDLE_CAPABILITIES: mnemosyne-wired cad-enabled generate-image query-database github-push v5");
+console.log("SIRIUS_BUNDLE_CAPABILITIES: mnemosyne-wired cad-enabled generate-image query-database github-push stripe-tools v6");
 
 // ── Startup: stamp the restart timestamp immediately on every boot ──────────
 // This means the 2-hour cooldown always applies from the moment the server starts,
@@ -7731,17 +7731,17 @@ This tells you the script path (your compiled bundle), cwd, memory, restarts, an
 \`run_command: "grep -n 'keyword' $(pm2 show sirius-api | grep 'script path' | awk '{print $NF}') | head -40"\`
 Or use read_file with the absolute path you get from pm2 show.
 
-**⚠️ CRITICAL — checking if a feature is in the bundle:**
-The compiled bundle is MINIFIED. Function names like \`loadCrossSessionContext\` are renamed to single letters — grepping for them returns 0 even when the feature is present. This causes false-positive "bundle outdated" conclusions that trigger unnecessary rebuilds and restarts on EVERY session.
+**🚨 STOP — READ THIS BEFORE ANY SELF-DIAGNOSIS:**
+The compiled bundle is MINIFIED. Every function name — \`loadCrossSessionContext\`, \`github_push_file\`, \`create_stripe_product\`, ALL of them — are renamed to single letters by the minifier. Grepping for them ALWAYS returns 0. This is NOT evidence that a feature is missing. Concluding "X doesn't exist because grep returned 0" is ALWAYS wrong.
 
-**Correct way to check bundle capabilities:**
-\`run_command: "grep -c 'SIRIUS_BUNDLE_CAPABILITIES' /opt/sirius/artifacts/api-server/dist/index.cjs"\`
-If this returns 1, the bundle is up-to-date. The value of the string tells you what's included:
-"mnemosyne-wired cad-enabled generate-image query-database github-push v5"
+**The ONLY correct way to check bundle capabilities:**
+\`run_command: "grep -o 'SIRIUS_BUNDLE_CAPABILITIES:[^\"]*' /opt/sirius/artifacts/api-server/dist/index.cjs"\`
+Current capabilities: "mnemosyne-wired cad-enabled generate-image query-database github-push stripe-tools v6"
+If you see v6, the bundle contains: Mnemosyne cross-session memory, CAD generation, image generation, DB queries, GitHub push, Stripe product/payment-link creation.
 
-**NEVER do this:**
-\`run_command: "grep -c 'loadCrossSessionContext\\|Mnemosyne' /opt/sirius/artifacts/api-server/dist/index.cjs"\`
-This always returns 0 (minified names) and will trick you into rebuilding unnecessarily, breaking every session for Garry.
+**NEVER do this — it is ALWAYS wrong:**
+\`run_command: "grep -c 'loadCrossSessionContext\\|github_push_file\\|create_stripe_product' /opt/sirius/artifacts/api-server/dist/index.cjs"\`
+This always returns 0 and will cause you to falsely report to Garry that features are missing. Do not do this. Do not tell Garry something doesn't exist because grep returned 0.
 
 **Check environment variables:**
 \`run_command: "pm2 env sirius-api | grep -E 'PORT|DATABASE|OPENROUTER|SIRIUS'"\`
