@@ -2,6 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Linking,
   Modal,
   Platform,
@@ -17,6 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 import { generatePortrait, getApiBase } from "@/lib/api";
+import { useSubscription } from "@/lib/revenuecat";
 
 const TIER_LABELS: Record<string, string> = {
   free: "Free",
@@ -139,6 +141,33 @@ export default function SettingsScreen() {
     setShowPayment(true);
   };
 
+  // RevenueCat IAP — iOS only
+  const subscription = useSubscription();
+
+  const handleIAPPurchase = async (pkg: any) => {
+    if (!pkg) return;
+    try {
+      await subscription.purchase(pkg);
+      await refreshProfile();
+    } catch (err: any) {
+      if (err?.userCancelled) return;
+      Alert.alert("Purchase failed", err?.message ?? "Something went wrong. Please try again.");
+    }
+  };
+
+  const handleRestorePurchases = async () => {
+    try {
+      await subscription.restore();
+      await refreshProfile();
+      Alert.alert("Restored", "Your purchases have been restored.");
+    } catch (err: any) {
+      Alert.alert("Restore failed", err?.message ?? "Unable to restore purchases. Please try again.");
+    }
+  };
+
+  const iapAvailable = !!(subscription.plusPackage || subscription.proPackage);
+  const iapSubscribed = subscription.isPlus || subscription.isPro;
+
   const handlePayConfirm = async () => {
     setPayLoading(true);
     try {
@@ -184,14 +213,17 @@ export default function SettingsScreen() {
         </View>
         <View>
           <Text style={styles.avatarName}>{profile.userName || "You"}</Text>
-          <View style={[styles.tierBadge, { borderColor: TIER_COLORS[profile.subscriptionTier] }]}>
-            <Text style={[styles.tierBadgeText, { color: TIER_COLORS[profile.subscriptionTier] }]}>
-              {TIER_LABELS[profile.subscriptionTier]}
-            </Text>
-          </View>
+          {!isIOS && (
+            <View style={[styles.tierBadge, { borderColor: TIER_COLORS[profile.subscriptionTier] }]}>
+              <Text style={[styles.tierBadgeText, { color: TIER_COLORS[profile.subscriptionTier] }]}>
+                {TIER_LABELS[profile.subscriptionTier]}
+              </Text>
+            </View>
+          )}
         </View>
       </View>
 
+      {!isIOS && (
       <View style={styles.usageBar}>
         <View style={styles.usageRow}>
           <Text style={styles.usageLabel}>Daily messages</Text>
@@ -216,6 +248,7 @@ export default function SettingsScreen() {
           </View>
         )}
       </View>
+      )}
 
       <View style={styles.card}>
         <SectionHeader title="PERSONALISATION" />
@@ -344,8 +377,8 @@ export default function SettingsScreen() {
         </View>
       )}
 
-      {/* Subscription info for paid users */}
-      {(isPlus || isPro) && (
+      {/* Subscription info for paid users — Android/Web only */}
+      {(isPlus || isPro) && !isIOS && (
         <View style={styles.card}>
           <SectionHeader title="SUBSCRIPTION" />
           <SettingRow
@@ -357,14 +390,101 @@ export default function SettingsScreen() {
             <SettingRow
               icon="arrow-up-circle"
               label="Upgrade to Pro"
-              onPress={isIOS ? () => Linking.openURL(`${WEB_URL}/pricing`) : () => handleUpgrade("pro")}
+              onPress={() => handleUpgrade("pro")}
             />
           )}
           <SettingRow
             icon="info"
-            label={isIOS ? "Manage subscription at sirius-ai.live" : "To cancel, stop your bank transfer"}
-            onPress={isIOS ? () => Linking.openURL(`${WEB_URL}/pricing`) : undefined}
+            label="To cancel, stop your bank transfer"
             value=""
+          />
+        </View>
+      )}
+
+      {/* iOS IAP upgrade section — shown when RevenueCat is configured with products */}
+      {isIOS && iapAvailable && !iapSubscribed && (
+        <View style={styles.upgradeSection}>
+          <Text style={styles.upgradeHeading}>Get more from Sirius</Text>
+          <Text style={styles.upgradeSubheading}>Unlock unlimited conversations and deep memory.</Text>
+
+          {subscription.plusPackage && (
+            <Pressable
+              onPress={() => handleIAPPurchase(subscription.plusPackage)}
+              disabled={subscription.isPurchasing}
+              style={({ pressed }) => [styles.plusCard, { opacity: pressed || subscription.isPurchasing ? 0.85 : 1 }]}
+            >
+              <View style={styles.plusCardInner}>
+                <View style={styles.plusIconWrap}>
+                  {subscription.isPurchasing
+                    ? <ActivityIndicator color={Colors.background} />
+                    : <Feather name="zap" size={22} color={Colors.background} />}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.plusCardTitle}>
+                    Sirius Plus — {subscription.plusPackage.product.priceString}/month
+                  </Text>
+                  <Text style={styles.plusCardDesc}>200 messages/day · Image analysis · Sirius remembers you</Text>
+                </View>
+                <Feather name="arrow-right" size={18} color={Colors.background} />
+              </View>
+              <Text style={styles.plusCardNote}>Billed monthly · Cancel any time in Settings</Text>
+            </Pressable>
+          )}
+
+          {subscription.proPackage && (
+            <Pressable
+              onPress={() => handleIAPPurchase(subscription.proPackage)}
+              disabled={subscription.isPurchasing}
+              style={({ pressed }) => [styles.proCard, { opacity: pressed || subscription.isPurchasing ? 0.85 : 1 }]}
+            >
+              <Feather name="award" size={18} color="#f59e0b" />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.proCardTitle}>
+                  Sirius Pro — {subscription.proPackage.product.priceString}/month
+                </Text>
+                <Text style={styles.proCardDesc}>Unlimited everything · Deep memory · Priority speed</Text>
+              </View>
+              <Feather name="chevron-right" size={16} color="rgba(245,158,11,0.5)" />
+            </Pressable>
+          )}
+
+          <Pressable
+            onPress={handleRestorePurchases}
+            disabled={subscription.isRestoring}
+            style={({ pressed }) => [styles.restoreBtn, { opacity: pressed || subscription.isRestoring ? 0.6 : 1 }]}
+          >
+            {subscription.isRestoring
+              ? <ActivityIndicator size="small" color={Colors.textMuted} />
+              : <Text style={styles.restoreBtnText}>Restore purchases</Text>}
+          </Pressable>
+        </View>
+      )}
+
+      {/* iOS IAP — subscription management for active IAP subscribers */}
+      {isIOS && iapSubscribed && (
+        <View style={styles.card}>
+          <SectionHeader title="SUBSCRIPTION" />
+          <SettingRow
+            icon="check-circle"
+            label={`Active: Sirius ${subscription.isPro ? "Pro" : "Plus"}`}
+            value={subscription.isPro ? "Unlimited" : "200/day"}
+          />
+          {!subscription.isPro && subscription.proPackage && (
+            <SettingRow
+              icon="arrow-up-circle"
+              label={`Upgrade to Pro — ${subscription.proPackage.product.priceString}/mo`}
+              onPress={() => handleIAPPurchase(subscription.proPackage)}
+            />
+          )}
+          <SettingRow
+            icon="refresh-cw"
+            label="Restore purchases"
+            onPress={handleRestorePurchases}
+          />
+          <SettingRow
+            icon="info"
+            label="Manage in Apple Settings"
+            onPress={() => Linking.openURL("https://apps.apple.com/account/subscriptions")}
           />
         </View>
       )}
@@ -374,7 +494,7 @@ export default function SettingsScreen() {
         <SectionHeader title="ACCOUNT" />
         <SettingRow
           icon="refresh-cw"
-          label="Refresh subscription"
+          label={isIOS ? "Refresh account" : "Refresh subscription"}
           onPress={() => refreshProfile()}
         />
         <SettingRow
@@ -768,6 +888,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.textMuted,
     fontFamily: "Inter_400Regular",
+  },
+  restoreBtn: {
+    alignItems: "center",
+    paddingVertical: 12,
+    marginTop: 4,
+  },
+  restoreBtnText: {
+    fontSize: 13,
+    color: Colors.textMuted,
+    fontFamily: "Inter_400Regular",
+    textDecorationLine: "underline",
   },
   versionText: {
     fontSize: 12,
