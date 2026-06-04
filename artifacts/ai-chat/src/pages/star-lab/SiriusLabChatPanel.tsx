@@ -52,7 +52,14 @@ export function SiriusLabChatPanel({ pin, accessLevel, navMode, activeProject, o
   const [attachedFile, setAttachedFile] = useState<string | null>(null);
   const [attachedName, setAttachedName] = useState<string | null>(null);
   const [attachedMime, setAttachedMime] = useState<string | null>(null);
-  const conversationIdRef = useRef<number | null>(null);
+  const CONV_ID_KEY = `lab_conv_${accessLevel}`;
+  const getSavedConvId = (): number | null => {
+    try {
+      const saved = localStorage.getItem(`lab_conv_${accessLevel}`);
+      return saved ? parseInt(saved, 10) : null;
+    } catch { return null; }
+  };
+  const conversationIdRef = useRef<number | null>(getSavedConvId());
   const textInputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
@@ -279,6 +286,7 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
               }
             } else if (evt.type === "conversation_id" && evt.conversationId) {
               conversationIdRef.current = evt.conversationId;
+              try { localStorage.setItem(CONV_ID_KEY, String(evt.conversationId)); } catch {}
             } else if (evt.type === "error") {
               fullText = evt.message || "Something went wrong.";
               streamDone = true;
