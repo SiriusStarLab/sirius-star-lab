@@ -130,41 +130,6 @@ export function LabFloatingChat({ pin, navMode, activeProject, onNavigate, onOpe
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, streamText]);
 
-  const detectNavIntent = (text: string): NavMode | null => {
-    const t = text.toLowerCase();
-    const navMap: [string[], NavMode][] = [
-      [["dashboard", "home", "overview"], "dashboard"],
-      [["project", "portfolio", "innovations"], "projects"],
-      [["bot lab", "botlab", "automation bots", "bots"], "botlab"],
-      [["scout", "scan", "opportunities", "scanning"], "scout"],
-      [["intelligence feed", "feed", "market signals", "trends"], "feed"],
-      [["funding radar", "grants", "funding", "grant"], "grants"],
-      [["commerce", "e-commerce", "retail", "shop"], "commerce"],
-      [["outreach", "sales contacts", "partners"], "outreach"],
-      [["auto lab", "autolab", "pending approval"], "autolab"],
-      [["revenue", "sales plan", "unit economics", "commission"], "revenue"],
-      [["agency", "client delivery"], "agency"],
-      [["mission", "kpi", "objectives"], "mission"],
-      [["growth", "marketing", "growth engine"], "growth"],
-      [["brain", "strategic intelligence", "deep analysis"], "brain"],
-      [["deep research", "research"], "research"],
-      [["document", "docs", "upload"], "docs"],
-      [["lab chat", "labchat", "full conversation"], "labchat"],
-      [["app builder", "appbuilder", "build app"], "appbuilder"],
-      [["ai architecture", "ai arch", "architecture"], "ai-arch"],
-      [["command centre", "orchestrate", "orchestration", "full pipeline"], "orchestrate"],
-      [["system audit", "sysaudit", "platform audit", "audit", "health check", "platform health"], "sysaudit"],
-      [["upgrades", "upgrade wishlist", "what sirius needs", "sirius upgrades", "buy for sirius", "capability upgrades"], "upgrades"],
-    ];
-    const goVerbs = ["go to", "take me to", "open", "show me", "navigate to", "switch to", "go"];
-    const hasGoVerb = goVerbs.some(v => t.includes(v));
-    if (!hasGoVerb) return null;
-    for (const [keywords, mode] of navMap) {
-      if (keywords.some(k => t.includes(k))) return mode;
-    }
-    return null;
-  };
-
   const extractProjectQuery = (text: string): string | null => {
     const t = text.toLowerCase();
     const goVerbs = ["take me to", "go to", "open", "show me", "navigate to", "find", "pull up", "load"];
@@ -186,22 +151,6 @@ export function LabFloatingChat({ pin, navMode, activeProject, onNavigate, onOpe
     stopListeningNow();
     const newMsg = { role: "user" as const, content: text };
     setMessages(prev => [...prev, newMsg]);
-
-    const navTarget = detectNavIntent(text);
-    if (navTarget) {
-      const navName = NAV_LABELS[navTarget] ?? navTarget;
-      const reply = `Taking you to ${navName} now.`;
-      setMessages(prev => [...prev, { role: "assistant", content: reply }]);
-      stoppedRef.current = true;
-      stopListeningNow();
-      setVoicePhase("speaking");
-      speakText(reply, () => {
-        setVoicePhase("idle");
-        onNavigate(navTarget);
-        setTimeout(() => setOpen(false), 300);
-      });
-      return;
-    }
 
     const projQuery = extractProjectQuery(text);
     if (projQuery && onOpenProject) {

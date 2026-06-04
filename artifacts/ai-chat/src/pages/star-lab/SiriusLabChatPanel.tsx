@@ -373,43 +373,6 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
     }
   };
 
-  const detectLabNavIntent = (text: string): NavMode | null => {
-    // Only fire for short, explicit nav commands — never on pasted content
-    if (text.length > 120) return null;
-    const t = text.toLowerCase().trim();
-    const navMap: [string[], NavMode][] = [
-      [["dashboard", "home", "overview"], "dashboard"],
-      [["project", "portfolio", "innovations"], "projects"],
-      [["bot lab", "botlab", "automation bots", "bots"], "botlab"],
-      [["scout", "scan", "opportunities", "scanning"], "scout"],
-      [["intelligence feed", "feed", "market signals", "trends"], "feed"],
-      [["funding radar", "grants", "funding", "grant"], "grants"],
-      [["commerce", "e-commerce", "retail", "shop"], "commerce"],
-      [["outreach", "sales contacts", "partners"], "outreach"],
-      [["auto lab", "autolab", "pending approval"], "autolab"],
-      [["revenue", "sales plan", "unit economics", "commission"], "revenue"],
-      [["agency", "client delivery"], "agency"],
-      [["mission", "kpi", "objectives"], "mission"],
-      [["growth", "marketing", "growth engine"], "growth"],
-      [["brain", "strategic intelligence", "deep analysis"], "brain"],
-      [["deep research", "research"], "research"],
-      [["document", "docs", "upload"], "docs"],
-      [["lab chat", "labchat", "full conversation"], "labchat"],
-      [["app builder", "appbuilder", "build app"], "appbuilder"],
-      [["ai architecture", "ai arch", "architecture"], "ai-arch"],
-      [["command centre", "orchestrate", "orchestration", "full pipeline"], "orchestrate"],
-      [["system audit", "sysaudit", "platform audit", "audit", "health check", "platform health"], "sysaudit"],
-      [["upgrades", "upgrade wishlist", "what sirius needs", "sirius upgrades", "buy for sirius", "capability upgrades"], "upgrades"],
-    ];
-    const goVerbs = ["go to", "take me to", "navigate to", "switch to", "open the", "show me the"];
-    const hasGoVerb = goVerbs.some(v => t.startsWith(v));
-    if (!hasGoVerb) return null;
-    for (const [keywords, mode] of navMap) {
-      if (keywords.some(k => t.includes(k))) return mode;
-    }
-    return null;
-  };
-
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -442,17 +405,6 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
     clearAttachment();
     const userMsg: LabChatMsg = { role: "user", content: text, attachedImageUrl: imgForDisplay };
     setMessages(prev => [...prev, userMsg]);
-
-    if (onNavigate && text) {
-      const navTarget = detectLabNavIntent(text);
-      if (navTarget) {
-        const navName = NAV_LABELS[navTarget] ?? navTarget;
-        setMessages(prev => [...prev, { role: "assistant", content: `Taking you to ${navName} now.` }]);
-        speakText(`Taking you to ${navName}.`);
-        setTimeout(() => onNavigate!(navTarget), 200);
-        return;
-      }
-    }
 
     const apiMessages = [...messagesRef.current, userMsg].map(m => ({ role: m.role, content: m.content }));
     sendWithMessages(apiMessages, imgB64 || undefined, docB64 || undefined, docName || undefined);
