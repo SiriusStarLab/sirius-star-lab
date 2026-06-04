@@ -11,7 +11,14 @@ interface Props {
 }
 
 export function LabAuthGate({ children, title = "Star Lab" }: Props) {
-  const [status, setStatus] = useState<"checking" | "locked" | "unlocked">("checking");
+  const [status, setStatus] = useState<"locked" | "unlocked">(() => {
+    const stored = sessionStorage.getItem(SESSION_KEY) || localStorage.getItem(PERSIST_KEY);
+    if (stored) {
+      sessionStorage.setItem(SESSION_KEY, stored);
+      return "unlocked";
+    }
+    return "locked";
+  });
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [attemptsLeft, setAttemptsLeft] = useState<number | null>(null);
@@ -19,16 +26,10 @@ export function LabAuthGate({ children, title = "Star Lab" }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const stored = sessionStorage.getItem(SESSION_KEY) || localStorage.getItem(PERSIST_KEY);
-    if (stored) {
-      // Sync to sessionStorage so the API header checks still work
-      sessionStorage.setItem(SESSION_KEY, stored);
-      setStatus("unlocked");
-    } else {
-      setStatus("locked");
+    if (status === "locked") {
       setTimeout(() => inputRef.current?.focus(), 100);
     }
-  }, []);
+  }, [status]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,8 +71,6 @@ export function LabAuthGate({ children, title = "Star Lab" }: Props) {
       setLoading(false);
     }
   };
-
-  if (status === "checking") return null;
 
   if (status === "unlocked") return <>{children}</>;
 

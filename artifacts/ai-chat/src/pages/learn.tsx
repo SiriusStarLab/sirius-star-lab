@@ -69,7 +69,7 @@ function HomePanel({ onSelect }: { onSelect: (p: Panel) => void }) {
       {/* Hero strip */}
       <div className="px-6 pt-10 pb-8 flex flex-col items-center text-center">
         <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
+          initial={{ opacity: 1, scale: 1 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.4 }}
           className="w-16 h-16 rounded-2xl flex items-center justify-center mb-5"
@@ -78,7 +78,7 @@ function HomePanel({ onSelect }: { onSelect: (p: Panel) => void }) {
           <GraduationCap className="w-8 h-8 text-white" />
         </motion.div>
         <motion.h1
-          initial={{ opacity: 0, y: 10 }}
+          initial={{ opacity: 1, y: 0 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.05 }}
           className="text-3xl font-bold mb-2"
@@ -87,7 +87,7 @@ function HomePanel({ onSelect }: { onSelect: (p: Panel) => void }) {
           Learn with Sirius
         </motion.h1>
         <motion.p
-          initial={{ opacity: 0, y: 8 }}
+          initial={{ opacity: 1, y: 0 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.1 }}
           className="text-sm max-w-md"
@@ -104,7 +104,7 @@ function HomePanel({ onSelect }: { onSelect: (p: Panel) => void }) {
           return (
             <motion.button
               key={card.id}
-              initial={{ opacity: 0, y: 16 }}
+              initial={{ opacity: 1, y: 0 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.08, duration: 0.4 }}
               onClick={() => onSelect(card.id)}
@@ -1012,22 +1012,22 @@ export function LearnPage() {
       <div className="flex-1 flex min-h-0">
         <AnimatePresence mode="wait">
           {panel === "home" && (
-            <motion.div key="home" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 flex min-h-0">
+            <motion.div key="home" initial={{ opacity: 1 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 flex min-h-0">
               <HomePanel onSelect={setPanel} />
             </motion.div>
           )}
           {panel === "study-plan" && (
-            <motion.div key="study-plan" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 flex min-h-0">
+            <motion.div key="study-plan" initial={{ opacity: 1 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 flex min-h-0">
               <StudyPlanPanel />
             </motion.div>
           )}
           {panel === "quiz" && (
-            <motion.div key="quiz" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 flex min-h-0">
+            <motion.div key="quiz" initial={{ opacity: 1 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 flex min-h-0">
               <QuizPanel />
             </motion.div>
           )}
           {panel === "document" && (
-            <motion.div key="document" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 flex min-h-0">
+            <motion.div key="document" initial={{ opacity: 1 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 flex min-h-0">
               <DocumentPanel />
             </motion.div>
           )}
