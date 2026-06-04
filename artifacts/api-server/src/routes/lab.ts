@@ -19,6 +19,7 @@ import { runSecurityScan } from "../lib/security-scanner.js";
 import { intelligence } from "../lib/intelligence-client.js";
 import Stripe from "stripe";
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? "", { apiVersion: "2025-05-28.basil" });
+import { sendTelegramMessage, setupTelegram, isTelegramConfigured } from "../lib/telegram.js";
 import { executeCode } from "../lib/code-sandbox.js";
 import { readSourceFile, deployChange, triggerReload } from "../lib/self-deploy.js";
 import { loadCrossSessionContext } from "../lib/mnemosyne.js";
@@ -26,7 +27,7 @@ import { loadCrossSessionContext } from "../lib/mnemosyne.js";
 // Bundle capability marker — printed at startup so esbuild can't tree-shake it.
 // Sirius: to check if a feature is in the running bundle, grep for "SIRIUS_BUNDLE_CAPABILITIES" in the dist/index.cjs.
 // DO NOT grep for minified identifiers like loadCrossSessionContext — they are renamed by the minifier.
-console.log("SIRIUS_BUNDLE_CAPABILITIES: mnemosyne-wired cad-enabled generate-image query-database github-push stripe-tools v6");
+console.log("SIRIUS_BUNDLE_CAPABILITIES: mnemosyne-wired cad-enabled generate-image query-database github-push stripe-tools telegram v7");
 
 // ── Startup: stamp the restart timestamp immediately on every boot ──────────
 // This means the 2-hour cooldown always applies from the moment the server starts,
@@ -4092,6 +4093,28 @@ const LAB_TOOLS: any[] = [
   {
     type: "function" as const,
     function: {
+      name: "send_telegram",
+      description: "Send a notification or message to Garry's phone via Telegram. Use when Garry says 'notify me', 'send me a message', 'ping my phone', or 'alert me on Telegram'. Also use proactively for important events: new paying user, automation failure, critical error, or anything time-sensitive. If Telegram isn't set up yet, calling this with action='setup' will walk through the connection process.",
+      parameters: {
+        type: "object",
+        properties: {
+          action: {
+            type: "string",
+            enum: ["send", "setup", "status"],
+            description: "send = send a message to Garry's phone. setup = connect the bot to Garry's Telegram (run this if not yet configured). status = check if Telegram is connected.",
+          },
+          message: {
+            type: "string",
+            description: "The message to send. Supports Telegram Markdown (*bold*, _italic_, `code`). Required for action=send.",
+          },
+        },
+        required: ["action"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
       name: "run_code_agent",
       description: "Autonomously write, edit, or fix real code in the Sirius project. Use when Garry asks you to add a feature, fix a bug, edit the UI, improve yourself, or build something directly in the codebase. The code agent reads actual source files, writes targeted changes, and applies them live. Returns a summary of what was changed.",
       parameters: {
@@ -6860,6 +6883,26 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
         } catch (err: any) {
           return `❌ Stripe error: ${err?.message}`;
         }
+      }
+
+      case "send_telegram": {
+        const { action, message } = args as { action: string; message?: string };
+
+        if (action === "setup") {
+          return await setupTelegram();
+        }
+
+        if (action === "status") {
+          const configured = await isTelegramConfigured();
+          if (configured) return "✅ Telegram is connected — I can push notifications to your phone.";
+          return "❌ Telegram not configured yet. Say **'set up telegram'** to connect your bot.";
+        }
+
+        // action === "send"
+        if (!message) return "❌ Please provide a message to send.";
+        const result = await sendTelegramMessage(message);
+        if (result.ok) return `✅ Sent to your phone: "${message.slice(0, 80)}${message.length > 80 ? "…" : ""}"`;
+        return `❌ Telegram error: ${result.error}`;
       }
 
       case "run_security_scan": {
