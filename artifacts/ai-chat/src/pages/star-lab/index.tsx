@@ -633,6 +633,7 @@ const ALL_TABS = [
   { id: "sales-plan", label: "Sales Plan", icon: TrendingUp, field: null, phase: "all", placeholder: "", generated: false },
   { id: "ai-arch", label: "AI Architecture", icon: Layers, field: null, phase: "all", placeholder: "", generated: false },
   { id: "launch", label: "Launch", icon: Send, field: null, phase: "all", placeholder: "", generated: false },
+  { id: "package", label: "Package", icon: Globe, field: null, phase: "all", placeholder: "", generated: false },
 ];
 
 
@@ -2369,7 +2370,11 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack, allProjects, onNavig
             <LaunchPanel project={project} pin={pin} onUpdate={onUpdate} />
           )}
 
-          {activeTab !== "overview" && activeTab !== "renders" && activeTab !== "funding" && activeTab !== "sales-plan" && activeTab !== "ai-arch" && activeTab !== "launch" && tab && (
+          {activeTab === "package" && (
+            <ProductPackageTab project={project} pin={pin} onUpdate={onUpdate} />
+          )}
+
+          {activeTab !== "overview" && activeTab !== "renders" && activeTab !== "funding" && activeTab !== "sales-plan" && activeTab !== "ai-arch" && activeTab !== "launch" && activeTab !== "package" && tab && (
             <div className="flex flex-col h-full">
               {["specs", "drawings", "workflows"].includes(activeTab) && (
                 <div className="px-4 py-2 border-b flex items-center gap-2 flex-shrink-0" style={{ borderColor: "rgba(15,23,42,0.07)", background: "#F8FAFC" }}>
@@ -2485,6 +2490,142 @@ type AiArchInsights = {
   architectureNotes: string;
   sweptAt: string;
 };
+
+function ProductPackageTab({ project, pin, onUpdate }: { project: Project; pin: string; onUpdate: (p: Project) => void }) {
+  const [copied, setCopied] = useState<"landing" | "embed" | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const base = getApiBase();
+
+  const copy = async (text: string, type: "landing" | "embed") => {
+    try { await navigator.clipboard.writeText(text); setCopied(type); setTimeout(() => setCopied(null), 2500); } catch {}
+  };
+
+  const previewLanding = () => {
+    if (!project.landingPage) return;
+    const blob = new Blob([project.landingPage], { type: "text/html" });
+    window.open(URL.createObjectURL(blob), "_blank");
+  };
+
+  const generate = async () => {
+    setGenerating(true);
+    try {
+      const res = await fetch(`${base}lab/projects/${project.id}/generate-package`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+      });
+      if (res.ok) {
+        const reader = res.body?.getReader(); const dec = new TextDecoder(); let buf = "";
+        if (reader) {
+          while (true) {
+            const { done, value } = await reader.read(); if (done) break;
+            buf += dec.decode(value, { stream: true });
+          }
+        }
+        const updated = await fetch(`${base}lab/projects/${project.id}`, { headers: { "x-lab-pin": pin } }).then(r => r.json());
+        if (updated && updated.id) onUpdate(updated);
+      }
+    } catch {}
+    setGenerating(false);
+  };
+
+  const hasLanding = !!project.landingPage;
+  const hasEmbed = !!project.embedCode;
+
+  return (
+    <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 min-h-0">
+      <div className="flex items-start justify-between gap-3 flex-shrink-0">
+        <div>
+          <h3 className="text-sm font-semibold" style={{ color: "rgba(15,23,42,0.8)" }}>Product Package</h3>
+          <p className="text-xs mt-0.5" style={{ color: "rgba(15,23,42,0.45)" }}>Landing page + embed widget — ready to host or drop on any site</p>
+        </div>
+        <button onClick={generate} disabled={generating}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all flex-shrink-0"
+          style={{ background: "hsl(193,100%,32%)", color: "white", opacity: generating ? 0.6 : 1 }}>
+          {generating
+            ? <><Loader2 className="w-3 h-3 animate-spin" />Generating…</>
+            : <><Sparkles className="w-3 h-3" />{hasLanding || hasEmbed ? "Regenerate" : "Generate Package"}</>}
+        </button>
+      </div>
+
+      {!hasLanding && !hasEmbed && !generating && (
+        <div className="flex flex-col items-center justify-center py-14 gap-3 text-center">
+          <Globe className="w-8 h-8" style={{ color: "hsl(193,100%,55%)", opacity: 0.4 }} />
+          <p className="text-sm font-medium" style={{ color: "rgba(15,23,42,0.45)" }}>No package yet</p>
+          <p className="text-xs max-w-52" style={{ color: "rgba(15,23,42,0.35)" }}>
+            Click <strong>Generate Package</strong> to create a landing page and embed widget for this product.
+            Works best after Brief and Go-to-Market are filled in.
+          </p>
+        </div>
+      )}
+
+      {generating && !hasLanding && (
+        <div className="flex items-center gap-2 py-6 px-4 rounded-xl" style={{ background: "hsl(193,100%,97%)", border: "1px solid hsl(193,100%,88%)" }}>
+          <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" style={{ color: "hsl(193,100%,35%)" }} />
+          <span className="text-xs" style={{ color: "hsl(193,100%,28%)" }}>Generating landing page and embed widget…</span>
+        </div>
+      )}
+
+      {hasLanding && (
+        <div className="rounded-xl border overflow-hidden flex-shrink-0" style={{ borderColor: "rgba(15,23,42,0.09)" }}>
+          <div className="flex items-center justify-between px-3 py-2.5 border-b" style={{ borderColor: "rgba(15,23,42,0.07)", background: "#F8FAFC" }}>
+            <div className="flex items-center gap-1.5">
+              <Globe className="w-3.5 h-3.5" style={{ color: "hsl(193,100%,35%)" }} />
+              <span className="text-xs font-medium" style={{ color: "rgba(15,23,42,0.65)" }}>Landing Page HTML</span>
+              <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: "hsl(155,70%,92%)", color: "hsl(155,70%,30%)" }}>
+                {Math.round(project.landingPage.length / 1024)}KB
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button onClick={previewLanding}
+                className="flex items-center gap-1 text-xs px-2 py-1 rounded-md transition-all"
+                style={{ background: "rgba(15,23,42,0.05)", color: "rgba(15,23,42,0.55)" }}>
+                <ExternalLink className="w-3 h-3" /> Preview
+              </button>
+              <button onClick={() => copy(project.landingPage, "landing")}
+                className="flex items-center gap-1 text-xs px-2 py-1 rounded-md transition-all"
+                style={{ background: copied === "landing" ? "hsl(155,70%,90%)" : "rgba(15,23,42,0.05)", color: copied === "landing" ? "hsl(155,70%,32%)" : "rgba(15,23,42,0.55)" }}>
+                {copied === "landing" ? <><Check className="w-3 h-3" /> Copied!</> : <><Copy className="w-3 h-3" /> Copy HTML</>}
+              </button>
+            </div>
+          </div>
+          <pre className="p-3 text-xs overflow-x-auto" style={{
+            color: "rgba(15,23,42,0.45)", background: "#FAFBFC", maxHeight: "180px", overflowY: "auto",
+            fontFamily: "'Fira Code','Cascadia Code','Consolas',monospace", lineHeight: 1.55, whiteSpace: "pre-wrap", margin: 0
+          }}>
+            {project.landingPage.slice(0, 600)}{project.landingPage.length > 600 ? "\n…" : ""}
+          </pre>
+        </div>
+      )}
+
+      {hasEmbed && (
+        <div className="rounded-xl border overflow-hidden flex-shrink-0" style={{ borderColor: "rgba(15,23,42,0.09)" }}>
+          <div className="flex items-center justify-between px-3 py-2.5 border-b" style={{ borderColor: "rgba(15,23,42,0.07)", background: "#F8FAFC" }}>
+            <div className="flex items-center gap-1.5">
+              <Code className="w-3.5 h-3.5" style={{ color: "hsl(280,70%,55%)" }} />
+              <span className="text-xs font-medium" style={{ color: "rgba(15,23,42,0.65)" }}>Embed Widget</span>
+            </div>
+            <button onClick={() => copy(project.embedCode, "embed")}
+              className="flex items-center gap-1 text-xs px-2 py-1 rounded-md transition-all"
+              style={{ background: copied === "embed" ? "hsl(155,70%,90%)" : "rgba(15,23,42,0.05)", color: copied === "embed" ? "hsl(155,70%,32%)" : "rgba(15,23,42,0.55)" }}>
+              {copied === "embed" ? <><Check className="w-3 h-3" /> Copied!</> : <><Copy className="w-3 h-3" /> Copy Snippet</>}
+            </button>
+          </div>
+          <pre className="p-3 text-xs" style={{
+            color: "rgba(15,23,42,0.55)", background: "#FAFBFC",
+            fontFamily: "'Fira Code','Cascadia Code','Consolas',monospace", lineHeight: 1.6, whiteSpace: "pre-wrap", margin: 0
+          }}>
+            {project.embedCode}
+          </pre>
+          <div className="px-3 py-2 border-t" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
+            <p className="text-xs" style={{ color: "rgba(15,23,42,0.38)" }}>
+              Paste anywhere on a website to promote this product. Self-contained — no dependencies.
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function AiArchProjectTab({ project, pin, onUpdate }: { project: Project; pin: string; onUpdate: (p: Project) => void }) {
   const [triggering, setTriggering] = useState(false);

@@ -664,10 +664,11 @@ router.put("/lab/projects/:id", authMiddleware, async (req: Request, res: Respon
     brief, research, specs, code, drawingNotes, cadUrl, materials,
     workflows, industryProblem, uses,
     brochure, pitch, costToBuild, profitMargin,
-    businessCase, goToMarket, renders
+    businessCase, goToMarket, renders,
+    landingPage, embedCode,
   } = req.body;
   const updatePayload: Record<string, any> = { updatedAt: new Date() };
-  const fields = { name, industry, phase, status, manufacturingProcess, brief, research, specs, code, drawingNotes, cadUrl, materials, workflows, industryProblem, uses, brochure, pitch, costToBuild, profitMargin, businessCase, goToMarket, renders };
+  const fields = { name, industry, phase, status, manufacturingProcess, brief, research, specs, code, drawingNotes, cadUrl, materials, workflows, industryProblem, uses, brochure, pitch, costToBuild, profitMargin, businessCase, goToMarket, renders, landingPage, embedCode };
   for (const [k, v] of Object.entries(fields)) { if (v !== undefined) (updatePayload as any)[k] = v; }
   const [updated] = await db.update(labProjects).set(updatePayload).where(eq(labProjects.id, id)).returning();
   res.json(updated);
@@ -1215,6 +1216,76 @@ router.delete("/lab/scout/reports/:id", authMiddleware, async (req: Request, res
 });
 
 // ─── PRODUCT RENDER GENERATION ─────────────────────────────────────────────
+
+router.post("/lab/projects/:id/generate-package", authMiddleware, async (req: Request, res: Response) => {
+  const projectId = parseInt(req.params.id as string);
+  const [project] = await db.select().from(labProjects).where(eq(labProjects.id, projectId));
+  if (!project) { res.status(404).json({ error: "Project not found" }); return; }
+
+  sseHeaders(res);
+  const send = (data: Record<string, unknown>) => res.write(`data: ${JSON.stringify(data)}\n\n`);
+
+  const ctx = `Product: "${project.name}"\nIndustry: ${project.industry || "General"}\nBrief: ${(project.brief || "").slice(0, 600)}`;
+  const gen = async (systemPrompt: string, userPrompt: string, tokens: number): Promise<string> => {
+    const r = await openai.chat.completions.create({
+      model: "anthropic/claude-haiku-4.5",
+      messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
+      max_tokens: tokens,
+    });
+    return r.choices[0]?.message?.content?.trim() || "";
+  };
+
+  const updates: Record<string, string> = {};
+
+  send({ type: "status", message: "Generating landing page…" });
+  try {
+    const html = await gen(
+      "You are a world-class frontend developer and conversion copywriter. Write complete, self-contained HTML landing pages. No external dependencies.",
+      `Write a complete standalone HTML landing page for "${project.name}" (${project.industry || "General"}).
+
+REQUIREMENTS:
+- Single self-contained HTML file (<!DOCTYPE html> to </html>), no CDN links, no external fonts
+- Brand colours: primary #006680 (deep teal), background #F5F8FF, text #0F172A, accent #00A3C4
+- Font: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif
+- Sections: nav bar, hero (headline + tagline + CTA), 3 feature cards, about section, CTA footer, footer
+- CTA buttons: href="mailto:contact@sirius-ai.live"
+- Responsive (640px breakpoint via media query)
+- Return ONLY the complete HTML (<!DOCTYPE html> through </html>)
+
+${ctx}
+Brief: ${(project.brief || "").slice(0, 500)}`,
+      3000
+    );
+    if (html) { updates.landingPage = html; send({ type: "status", message: "Landing page done ✓" }); }
+  } catch (e: any) { send({ type: "status", message: `Landing page error: ${e?.message}` }); }
+
+  send({ type: "status", message: "Generating embed widget…" });
+  try {
+    const snippet = await gen(
+      "You are a frontend developer. Write minimal self-contained HTML embed widgets.",
+      `Write a compact HTML embed widget for "${project.name}" (${project.industry || "General"}).
+
+REQUIREMENTS:
+- Single <div> block, max 20 lines, all styles inline
+- Shows: product name (bold), one-sentence tagline, "Learn more →" button
+- Button href: "mailto:contact@sirius-ai.live"
+- Style: white bg, 1px solid #E2E8F0 border, 12px radius, 20px padding, max-width 360px, shadow 0 2px 12px rgba(0,102,128,0.08)
+- Button: bg #006680, white text, 8px 18px padding, 8px radius
+- Return ONLY the <div>...</div>
+
+${ctx}`,
+      500
+    );
+    if (snippet) { updates.embedCode = snippet; send({ type: "status", message: "Embed widget done ✓" }); }
+  } catch (e: any) { send({ type: "status", message: `Embed error: ${e?.message}` }); }
+
+  if (Object.keys(updates).length > 0) {
+    await db.update(labProjects).set({ ...(updates as any), updatedAt: new Date() }).where(eq(labProjects.id, projectId));
+  }
+
+  send({ type: "done", generated: Object.keys(updates) });
+  res.end();
+});
 
 router.post("/lab/projects/:id/render", authMiddleware, async (req: Request, res: Response) => {
   const projectId = parseInt(req.params.id as string);
@@ -4802,7 +4873,50 @@ async function executeLabTool(name: string, args: any, onProgress?: (event: Reco
             userPrompt: `Cost-to-build estimate for "${name}" (${industry}): development hours (frontend, backend, AI/ML, DevOps), infrastructure monthly costs (hosting, DB, APIs), tooling costs, and time-to-market estimate. Include ongoing monthly operating costs and break-even analysis.\n\n${ctx}`,
             tokens: 600,
           },
-          ...(isEngineeringProject ? [
+          {
+    field: "landingPage", label: "Landing Page",
+    current: (project as any).landingPage || "",
+    systemPrompt: "You are a world-class frontend developer and conversion copywriter. Write complete, self-contained HTML landing pages that look professional and convert visitors to customers. Use clean, modern design with no external dependencies.",
+    userPrompt: `Write a complete standalone HTML landing page for "${name}" (${industry}).
+
+REQUIREMENTS:
+- Single self-contained HTML file (<!DOCTYPE html> to </html>), no CDN links, no external fonts
+- Brand colours: primary #006680 (deep teal), background #F5F8FF, text #0F172A, secondary #E8F0FE, accent #00A3C4
+- Font: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif
+- Sections in order:
+  1. Nav bar: product name left, CTA button right
+  2. Hero: large headline, 1-line tagline, brief value prop (2 sentences), primary CTA button
+  3. Features: 3 cards in a grid (icon emoji + title + 2-line description)
+  4. About/Why section: 2-column, text left, decorative element right
+  5. CTA footer section: headline + button
+  6. Footer: product name, tagline, copyright
+- CTA buttons link to "mailto:contact@sirius-ai.live"
+- Responsive (mobile breakpoint at 640px with CSS media query)
+- Return ONLY the complete HTML
+
+Context: ${ctx}
+Brief: ${(project.brief || "").slice(0, 500)}`,
+    tokens: 3000,
+  },
+  {
+    field: "embedCode", label: "Embed Widget",
+    current: (project as any).embedCode || "",
+    systemPrompt: "You are a frontend developer. Write minimal, self-contained HTML embed snippets that work on any website.",
+    userPrompt: `Write a compact HTML embed widget for "${name}" (${industry}).
+
+REQUIREMENTS:
+- Single <div> block, max 20 lines
+- All styles inline — no <style> tags, works anywhere
+- Shows: product name (bold), one-sentence tagline, "Learn more →" button (mailto:contact@sirius-ai.live)
+- Style: white background, 1px solid #E2E8F0 border, 12px border-radius, 20px padding, max-width 360px, box-shadow 0 2px 12px rgba(0,102,128,0.08)
+- Button: background #006680, white text, 8px 18px padding, 8px border-radius, no underline
+- Font: -apple-system, system-ui, sans-serif
+- Return ONLY the <div>...</div> snippet
+
+Context: ${ctx}`,
+    tokens: 400,
+  },
+  ...(isEngineeringProject ? [
             {
               field: "materials", label: "Materials Specification",
               current: project.materials || "",

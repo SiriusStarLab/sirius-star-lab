@@ -240,6 +240,8 @@ app.post("/api/deploy/fix-server", async (req, res) => {
     `ALTER TABLE lab_projects ADD COLUMN IF NOT EXISTS stripe_payment_link text DEFAULT ''`,
     `ALTER TABLE lab_projects ADD COLUMN IF NOT EXISTS sell_price text DEFAULT ''`,
     `ALTER TABLE lab_projects ADD COLUMN IF NOT EXISTS sell_price_type text DEFAULT ''`,
+    `ALTER TABLE lab_projects ADD COLUMN IF NOT EXISTS landing_page text DEFAULT ''`,
+    `ALTER TABLE lab_projects ADD COLUMN IF NOT EXISTS embed_code text DEFAULT ''`,
   ];
   for (const stmt of projectCols) {
     try { await db.execute(sql.raw(stmt)); results.push(`OK: ${stmt.slice(0, 60)}`); }

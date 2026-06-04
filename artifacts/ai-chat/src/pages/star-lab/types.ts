@@ -19,6 +19,7 @@ export type Project = {
   investmentRequired: number | null; investmentAssessedAt: string | null;
   stripeProductId: string; stripePriceId: string; stripePaymentLink: string;
   sellPrice: number | null; sellPriceType: string;
+  landingPage: string; embedCode: string;
   messages?: Message[];
 };
 

@@ -83,6 +83,10 @@ export const labProjects = pgTable("lab_projects", {
   sellPrice: integer("sell_price"),                          // Price in pence (GBP), null = not set
   sellPriceType: text("sell_price_type").default(""),        // "one_time" | "monthly" | "yearly"
 
+  // Product Packaging — auto-generated when project completes
+  landingPage: text("landing_page").default(""),   // Complete standalone HTML landing page
+  embedCode: text("embed_code").default(""),       // Compact HTML embed widget snippet
+
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
