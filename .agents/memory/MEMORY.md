@@ -8,3 +8,4 @@
 - [Sirius context budget](sirius-context-budget.md) — prompt hit 223K tokens with claude-haiku-4.5's 200K limit; caps: memories 4K chars, cross-session 8 msgs/600 chars each, selfConfigBlock 2K chars.
 - [Sirius self-repair guardrails](sirius-self-repair-guardrails.md) — autonomous restarts broke every session; cooldown + system prompt rewrite deployed.
 - [Stripe on web vs iOS](payments-not-stripe.md) — Stripe IS valid for web subscriptions; forbidden for iOS IAP (Apple 3.1.1). LIVE keys set, no products created yet.
+- [Sirius OpenRouter key source](sirius-openrouter-key.md) — NEVER use Replit's $OPENROUTER_API_KEY to restart PM2; always read from ecosystem.config.json on server.
