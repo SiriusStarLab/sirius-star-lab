@@ -374,7 +374,9 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
   };
 
   const detectLabNavIntent = (text: string): NavMode | null => {
-    const t = text.toLowerCase();
+    // Only fire for short, explicit nav commands — never on pasted content
+    if (text.length > 120) return null;
+    const t = text.toLowerCase().trim();
     const navMap: [string[], NavMode][] = [
       [["dashboard", "home", "overview"], "dashboard"],
       [["project", "portfolio", "innovations"], "projects"],
@@ -399,8 +401,8 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
       [["system audit", "sysaudit", "platform audit", "audit", "health check", "platform health"], "sysaudit"],
       [["upgrades", "upgrade wishlist", "what sirius needs", "sirius upgrades", "buy for sirius", "capability upgrades"], "upgrades"],
     ];
-    const goVerbs = ["go to", "take me to", "open", "show me", "navigate to", "switch to"];
-    const hasGoVerb = goVerbs.some(v => t.includes(v));
+    const goVerbs = ["go to", "take me to", "navigate to", "switch to", "open the", "show me the"];
+    const hasGoVerb = goVerbs.some(v => t.startsWith(v));
     if (!hasGoVerb) return null;
     for (const [keywords, mode] of navMap) {
       if (keywords.some(k => t.includes(k))) return mode;
