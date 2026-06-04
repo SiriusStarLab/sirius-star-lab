@@ -4576,6 +4576,52 @@ const LAB_TOOLS: any[] = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "send_email",
+      description: "Send an email to any address. Use for client outreach, follow-ups, notifications, sharing reports, or any communication beyond Telegram. Requires RESEND_API_KEY on the server.",
+      parameters: {
+        type: "object",
+        properties: {
+          to: { type: "string", description: "Recipient email address" },
+          subject: { type: "string", description: "Email subject line" },
+          body: { type: "string", description: "Email body — plain text or HTML" },
+          reply_to: { type: "string", description: "Optional reply-to email address" },
+        },
+        required: ["to", "subject", "body"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "screenshot_url",
+      description: "Take a screenshot of any URL and return a viewable image link. Use to visually verify the live site is working, inspect competitor pages, capture a snapshot to share with Garry, or check any web page visually.",
+      parameters: {
+        type: "object",
+        properties: {
+          url: { type: "string", description: "The full URL to screenshot (include https://)" },
+          width: { type: "number", description: "Viewport width in pixels. Default: 1280." },
+        },
+        required: ["url"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "remove_image_background",
+      description: "Remove the background from an image, returning a transparent PNG hosted at a permanent URL. Use for product images, logos, headshots, or any image needing a clean transparent background. Requires REMOVE_BG_API_KEY.",
+      parameters: {
+        type: "object",
+        properties: {
+          image_url: { type: "string", description: "URL of the source image to process" },
+        },
+        required: ["image_url"],
+      },
+    },
+  },
 ];
 
 async function executeLabTool(name: string, args: any, onProgress?: (event: Record<string, unknown>) => void): Promise<string> {
@@ -7154,6 +7200,62 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
         return `✅ Image generated successfully.`;
       }
 
+      case "send_email": {
+        const { to, subject, body, reply_to } = args as { to: string; subject: string; body: string; reply_to?: string };
+        const resendKey = process.env.RESEND_API_KEY;
+        if (!resendKey) return "send_email requires RESEND_API_KEY — not configured on this server. Ask Garry to add it.";
+        onProgress?.({ type: "status", message: `Sending email to ${to}…` });
+        const { Resend } = await import("resend");
+        const resend = new Resend(resendKey);
+        const from = process.env.RESEND_FROM_EMAIL || "Sirius <onboarding@resend.dev>";
+        const htmlBody = body.includes("<") ? body : body.replace(/\n/g, "<br>");
+        const result = await resend.emails.send({
+          from,
+          to,
+          subject,
+          html: htmlBody,
+          ...(reply_to ? { replyTo: reply_to } : {}),
+        });
+        if (result.error) return `Email failed: ${result.error.message}`;
+        return `✅ Email sent to ${to} — subject: "${subject}"`;
+      }
+
+      case "screenshot_url": {
+        const { url, width = 1280 } = args as { url: string; width?: number };
+        onProgress?.({ type: "status", message: `Taking screenshot of ${url}…` });
+        const screenshotUrl = `https://image.thum.io/get/width/${width}/crop/900/${url}`;
+        return `Screenshot ready: ${screenshotUrl}\n\nThis is a live screenshot of ${url}. Share the link with Garry or embed it anywhere.`;
+      }
+
+      case "remove_image_background": {
+        const { image_url } = args as { image_url: string };
+        const apiKey = process.env.REMOVE_BG_API_KEY;
+        if (!apiKey) return "remove_image_background requires REMOVE_BG_API_KEY — not configured. Ask Garry to add it (free tier available at remove.bg).";
+        onProgress?.({ type: "status", message: "Removing image background…" });
+        const formData = new FormData();
+        formData.append("image_url", image_url);
+        formData.append("size", "auto");
+        const res = await fetch("https://api.remove.bg/v1.0/removebg", {
+          method: "POST",
+          headers: { "X-Api-Key": apiKey },
+          body: formData,
+        });
+        if (!res.ok) {
+          const err = await res.text().catch(() => res.statusText);
+          return `Background removal failed: ${err.slice(0, 300)}`;
+        }
+        const { writeFileSync, mkdirSync } = await import("fs");
+        const { join } = await import("path");
+        const { randomUUID } = await import("crypto");
+        const rendersDir = join(process.env.SIRIUS_WORKSPACE || "/opt/sirius", "artifacts/api-server/public/renders");
+        try { mkdirSync(rendersDir, { recursive: true }); } catch {}
+        const filename = `nobg-${randomUUID()}.png`;
+        const buffer = await res.arrayBuffer();
+        writeFileSync(join(rendersDir, filename), Buffer.from(buffer));
+        const baseUrl = process.env.PUBLIC_BASE_URL || "https://sirius-ai.live";
+        return `✅ Background removed: ${baseUrl}/api/lab/renders/${filename}`;
+      }
+
       case "query_database": {
         const { query, description } = args as { query: string; description: string };
         onProgress?.({ type: "status", message: `Query: ${description}` });
@@ -7280,6 +7382,9 @@ const TOOL_META: Record<string, { label: string; color: string; icon: string }> 
   propose_paid_upgrade: { label: "Preparing upgrade proposal for Garry", color: "hsl(280,80%,58%)", icon: "📋" },
   change_my_voice: { label: "Changing Sirius voice", color: "hsl(280,80%,58%)", icon: "🎙️" },
   notify_garry: { label: "Sending notification to Garry", color: "hsl(25,100%,55%)", icon: "📬" },
+  send_email: { label: "Sending email", color: "hsl(200,80%,50%)", icon: "✉️" },
+  screenshot_url: { label: "Taking screenshot", color: "hsl(170,70%,45%)", icon: "📸" },
+  remove_image_background: { label: "Removing background", color: "hsl(280,70%,55%)", icon: "🖼️" },
   read_file: { label: "Reading file", color: "hsl(193,100%,35%)", icon: "📂" },
   read_source_file: { label: "Reading source file", color: "hsl(193,100%,35%)", icon: "📂" },
   write_file: { label: "Writing file", color: "hsl(25,100%,45%)", icon: "🔩" },
