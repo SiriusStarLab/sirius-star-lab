@@ -152,7 +152,7 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
     const reader = new FileReader();
     reader.onload = (ev) => {
       const result = ev.target?.result as string;
-      setImageBase64(result.split(",")[1]);
+      setImageBase64(result);
       setImagePreview(result);
       setDocumentBase64(null);
       setDocumentName(null);

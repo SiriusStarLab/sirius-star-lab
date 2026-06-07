@@ -953,7 +953,7 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
         role: "user" as const,
         content: [
           { type: "text" as const, text: m.content || "What's in this image?" },
-          { type: "image_url" as const, image_url: { url: `data:image/jpeg;base64,${imageBase64}` } },
+          { type: "image_url" as const, image_url: { url: (() => { const m = imageBase64.match(/^data:([^;]+);base64,/); return m ? imageBase64 : `data:image/jpeg;base64,${imageBase64}`; })() } },
         ],
       };
     }

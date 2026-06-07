@@ -90,7 +90,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
               <div>
                 {message.uploadedImageBase64 && (
                   <img
-                    src={`data:image/jpeg;base64,${message.uploadedImageBase64}`}
+                    src={message.uploadedImageBase64}
                     alt="Uploaded image"
                     className="max-w-[280px] rounded-lg mb-2 block"
                     style={{ border: "1px solid hsl(193 100% 52% / 0.2)" }}
