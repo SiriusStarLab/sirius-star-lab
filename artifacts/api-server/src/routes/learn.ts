@@ -62,7 +62,7 @@ Make it practical, specific, and motivating. Write as Sirius — a brilliant int
     let fullPlan = "";
 
     const stream = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.6",
+      model: "anthropic/claude-sonnet-4.5",
       messages: [{ role: "user", content: prompt }],
       stream: true,
       max_tokens: 3000,
@@ -163,7 +163,7 @@ Rules:
 - Start your response with { and end with } — nothing else`;
 
     const response = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.6",
+      model: "anthropic/claude-sonnet-4.5",
       messages: [{ role: "user", content: prompt }],
       max_tokens: 4000,
     });
@@ -248,7 +248,7 @@ Write 3 questions the learner should be able to answer after reading this. Don't
 Write as a knowledgeable partner who finds this genuinely interesting — not as a textbook summary.`;
 
     const stream = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.6",
+      model: "anthropic/claude-sonnet-4.5",
       messages: [{ role: "user", content: prompt }],
       stream: true,
       max_tokens: 2500,
