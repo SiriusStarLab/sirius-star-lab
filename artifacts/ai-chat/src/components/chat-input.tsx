@@ -79,8 +79,16 @@ const MODES = [
     label: "Research",
     emoji: "🌐",
     desc: "Deep web research with cited sources",
-    detail: "Sirius runs live web searches, cross-references sources, and synthesises a comprehensive research brief with citations. Takes a little longer — worth it for important questions.",
-    when: "Market research, academic topics, current events, fact-checking, competitive analysis, anything that needs the latest information",
+    detail: "Sirius runs live web searches, cross-references sources, and synthesises a comprehensive research brief with citations. Also searches PubMed and arXiv for academic papers. Takes a little longer — worth it for important questions.",
+    when: "Market research, academic topics, current events, fact-checking, competitive analysis, scientific literature, anything that needs the latest information",
+  },
+  {
+    id: "think",
+    label: "Think",
+    emoji: "🧠",
+    desc: "Extended reasoning — works through problems step by step",
+    detail: "Sirius uses an extended thinking model that reasons through your question carefully before answering. You can see the full reasoning chain. Best for complex problems that need depth over speed.",
+    when: "Complex reasoning, maths, logic, strategy, ethical dilemmas, anything that benefits from careful step-by-step thought",
   },
 ];
 

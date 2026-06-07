@@ -1,13 +1,72 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Zap, User, Globe, ExternalLink, Download, Sparkles, ChevronDown, ChevronRight } from "lucide-react";
+import { Zap, User, Globe, ExternalLink, Download, Sparkles, ChevronDown, ChevronRight, Brain, Play, Loader2, CheckCircle, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { type ChatMessage as ChatMessageType } from "@/hooks/use-chat";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface ChatMessageProps {
   message: ChatMessageType;
+}
+
+type CodeRunState = { status: "idle" | "running" | "done" | "error"; output?: string; error?: string };
+
+function CodeBlock({ language, code }: { language: string; code: string }) {
+  const runnable = ["python", "javascript", "js", "py"].includes((language || "").toLowerCase());
+  const [runState, setRunState] = useState<CodeRunState>({ status: "idle" });
+
+  const runCode = useCallback(async () => {
+    setRunState({ status: "running" });
+    const lang = ["python", "py"].includes(language.toLowerCase()) ? "python" : "javascript";
+    try {
+      const res = await fetch("/api/openai/run-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code, language: lang }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setRunState({ status: "done", output: data.stdout || "(no output)" });
+      } else {
+        setRunState({ status: "error", error: data.stderr || data.error || "Unknown error" });
+      }
+    } catch (err: any) {
+      setRunState({ status: "error", error: err?.message || "Failed to connect" });
+    }
+  }, [code, language]);
+
+  return (
+    <div className="my-2 rounded-xl overflow-hidden" style={{ border: "1px solid hsl(193 100% 52% / 0.18)", background: "hsl(220 13% 9%)" }}>
+      <div className="flex items-center justify-between px-3 py-1.5" style={{ borderBottom: "1px solid hsl(193 100% 52% / 0.12)", background: "hsl(220 13% 7%)" }}>
+        <span className="text-[10px] font-mono text-muted-foreground/50 uppercase tracking-widest">{language || "code"}</span>
+        {runnable && (
+          <button
+            onClick={runCode}
+            disabled={runState.status === "running"}
+            className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono transition-all"
+            style={{ background: runState.status === "running" ? "hsl(193 100% 52% / 0.1)" : "hsl(193 100% 52% / 0.15)", color: "hsl(193 100% 52%)", border: "1px solid hsl(193 100% 52% / 0.25)" }}
+          >
+            {runState.status === "running" ? <Loader2 size={9} className="animate-spin" /> : <Play size={9} />}
+            {runState.status === "running" ? "Running…" : "▶ Run"}
+          </button>
+        )}
+      </div>
+      <pre className="p-3 text-[13px] font-mono text-foreground/85 overflow-x-auto leading-relaxed"><code>{code}</code></pre>
+      {(runState.status === "done" || runState.status === "error") && (
+        <div className="px-3 py-2.5" style={{ borderTop: "1px solid hsl(193 100% 52% / 0.12)", background: "hsl(220 13% 6%)" }}>
+          <div className="flex items-center gap-1.5 mb-1.5">
+            {runState.status === "done"
+              ? <><CheckCircle size={10} className="text-green-400" /><span className="text-[9px] font-mono text-green-400 uppercase tracking-widest">Output</span></>
+              : <><XCircle size={10} className="text-red-400" /><span className="text-[9px] font-mono text-red-400 uppercase tracking-widest">Error</span></>}
+          </div>
+          <pre className="text-[12px] font-mono whitespace-pre-wrap" style={{ color: runState.status === "done" ? "hsl(142 71% 70%)" : "hsl(0 72% 65%)" }}>
+            {runState.status === "done" ? runState.output : runState.error}
+          </pre>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function ChatMessage({ message }: ChatMessageProps) {
@@ -18,7 +77,9 @@ export function ChatMessage({ message }: ChatMessageProps) {
   const isGeneratingImage = !isUser && !!message.isGeneratingImage;
   const wasSearched = !isUser && !!message.wasSearched;
   const hasActions = !isUser && (message.actions?.length ?? 0) > 0;
+  const hasThinking = !isUser && !!message.thinkingContent;
   const [actionsExpanded, setActionsExpanded] = useState(false);
+  const [thinkingExpanded, setThinkingExpanded] = useState(false);
 
   const handleDownload = () => {
     if (!message.imageB64) return;
@@ -100,6 +161,48 @@ export function ChatMessage({ message }: ChatMessageProps) {
               </div>
             ) : (
               <>
+                {/* Thinking block — shown when extended reasoning is active */}
+                <AnimatePresence>
+                  {hasThinking && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="mb-3"
+                    >
+                      <button
+                        onClick={() => setThinkingExpanded(v => !v)}
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-xl w-full text-left transition-all"
+                        style={{ background: "hsl(270 70% 60% / 0.08)", border: "1px solid hsl(270 70% 60% / 0.2)" }}
+                      >
+                        <Brain size={11} style={{ color: "hsl(270 70% 65%)" }} className={message.isStreaming && !message.content ? "animate-pulse" : ""} />
+                        <span className="text-[10px] font-mono uppercase tracking-widest" style={{ color: "hsl(270 70% 65%)" }}>
+                          {message.isStreaming && !message.content ? "Thinking…" : "Reasoning trace"}
+                        </span>
+                        <span className="ml-auto">
+                          {thinkingExpanded ? <ChevronDown size={9} style={{ color: "hsl(270 70% 60%)" }} /> : <ChevronRight size={9} style={{ color: "hsl(270 70% 60%)" }} />}
+                        </span>
+                      </button>
+                      <AnimatePresence>
+                        {thinkingExpanded && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="overflow-hidden"
+                          >
+                            <div
+                              className="mt-1 px-3 py-2.5 rounded-xl text-[12px] font-mono leading-relaxed whitespace-pre-wrap max-h-64 overflow-y-auto"
+                              style={{ background: "hsl(270 70% 60% / 0.05)", border: "1px solid hsl(270 70% 60% / 0.12)", color: "hsl(270 50% 70%)" }}
+                            >
+                              {message.thinkingContent}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
                 {/* Action log — live during streaming, collapses to pill after */}
                 <AnimatePresence>
                   {hasActions && (
@@ -239,7 +342,19 @@ export function ChatMessage({ message }: ChatMessageProps) {
 
                 {/* Message text */}
                 {message.content ? (
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      code({ node, className, children, ...props }: any) {
+                        const match = /language-(\w+)/.exec(className || "");
+                        const isBlock = !props.inline;
+                        if (isBlock) {
+                          return <CodeBlock language={match?.[1] || ""} code={String(children).replace(/\n$/, "")} />;
+                        }
+                        return <code className={className} {...props}>{children}</code>;
+                      },
+                    }}
+                  >{message.content}</ReactMarkdown>
                 ) : !isSearching ? (
                   <div className="flex items-center gap-1 h-6">
                     {[0, 150, 300].map(d => (

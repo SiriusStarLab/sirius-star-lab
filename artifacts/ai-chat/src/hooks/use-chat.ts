@@ -45,6 +45,7 @@ export type ChatMessage = {
   sources?: ChatSource[];
   actions?: ActionStep[];
   followups?: string[];
+  thinkingContent?: string;
 };
 
 export function useChat(conversationId?: number) {
@@ -208,6 +209,14 @@ export function useChat(conversationId?: number) {
                     ? { ...m, isSearching: true, wasSearched: true }
                     : m
                 ));
+              } else if (data.type === "thinking_chunk" && data.content) {
+                setMessages(prev => prev.map(m =>
+                  m.id === assistantMsgId
+                    ? { ...m, thinkingContent: (m.thinkingContent || "") + data.content }
+                    : m
+                ));
+              } else if (data.type === "thinking_done") {
+                // thinking complete — no state change needed, content streaming begins
               } else if (data.type === "followups" && Array.isArray(data.questions)) {
                 setMessages(prev => prev.map(m =>
                   m.id === assistantMsgId

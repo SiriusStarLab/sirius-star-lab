@@ -18,6 +18,63 @@ import { intelligence } from "../../lib/intelligence-client.js";
 import { executeCode } from "../../lib/code-sandbox.js";
 import { readSourceFile, deployChange, patchSourceFile, triggerReload, runServerDiagnostic } from "../../lib/self-deploy.js";
 
+// ── YouTube transcript fetcher ───────────────────────────────────────────────
+async function fetchYouTubeTranscript(videoId: string): Promise<string | null> {
+  try {
+    const pageRes = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
+      headers: { "Accept-Language": "en-US,en;q=0.9", "User-Agent": "Mozilla/5.0 (compatible; Sirius/1.0)" },
+      signal: AbortSignal.timeout(8000),
+    });
+    const html = await pageRes.text();
+    const captionMatch = html.match(/"captionTracks":\s*\[.*?"baseUrl":"([^"]+)"/s);
+    if (!captionMatch) return null;
+    const captionUrl = JSON.parse(`"${captionMatch[1]}"`);
+    const capRes = await fetch(`${captionUrl}&fmt=json3`, { signal: AbortSignal.timeout(6000) });
+    const capData = await capRes.json() as any;
+    const texts: string[] = [];
+    for (const event of capData.events ?? []) {
+      if (event.segs) for (const seg of event.segs) if (seg.utf8 && seg.utf8 !== "\n") texts.push(seg.utf8.trim());
+    }
+    return texts.filter(Boolean).join(" ").replace(/\s+/g, " ").slice(0, 12000) || null;
+  } catch { return null; }
+}
+
+// ── Academic domain search helpers ──────────────────────────────────────────
+async function searchPubMed(query: string): Promise<string> {
+  try {
+    const searchRes = await fetch(`https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(query)}&retmax=5&retmode=json`, { signal: AbortSignal.timeout(8000) });
+    const searchData = await searchRes.json() as any;
+    const ids: string[] = searchData.esearchresult?.idlist ?? [];
+    if (!ids.length) return "";
+    const summaryRes = await fetch(`https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=${ids.join(",")}&retmode=json`, { signal: AbortSignal.timeout(8000) });
+    const summaryData = await summaryRes.json() as any;
+    const results: string[] = [];
+    for (const id of ids) {
+      const doc = summaryData.result?.[id];
+      if (!doc) continue;
+      const authors = (doc.authors ?? []).slice(0, 3).map((a: any) => a.name).join(", ");
+      results.push(`**${doc.title}** — ${authors} (${doc.pubdate?.slice(0, 4) ?? "?"}) — PMID: ${id} https://pubmed.ncbi.nlm.nih.gov/${id}/`);
+    }
+    return results.join("\n");
+  } catch { return ""; }
+}
+
+async function searchArXiv(query: string): Promise<string> {
+  try {
+    const res = await fetch(`https://export.arxiv.org/api/query?search_query=all:${encodeURIComponent(query)}&start=0&max_results=4&sortBy=relevance`, { signal: AbortSignal.timeout(8000) });
+    const xml = await res.text();
+    const entries = xml.match(/<entry>([\s\S]*?)<\/entry>/g) ?? [];
+    const results = entries.slice(0, 4).map(entry => {
+      const title = entry.match(/<title>([\s\S]*?)<\/title>/)?.[1]?.replace(/\n\s+/g, " ").trim() ?? "Unknown";
+      const authors = [...entry.matchAll(/<name>([\s\S]*?)<\/name>/g)].slice(0, 3).map(m => m[1].trim()).join(", ");
+      const published = entry.match(/<published>([\s\S]*?)<\/published>/)?.[1]?.slice(0, 10) ?? "";
+      const id = entry.match(/<id>([\s\S]*?)<\/id>/)?.[1]?.trim() ?? "";
+      return `**${title}** — ${authors} (${published}) — ${id}`;
+    });
+    return results.join("\n");
+  } catch { return ""; }
+}
+
 const router: IRouter = Router();
 
 const BASE_SYSTEM_PROMPT = `## YOUR FIRST AND NON-NEGOTIABLE OBLIGATION — LIVE ACCURACY ABOVE EVERYTHING
@@ -587,7 +644,9 @@ const MODE_PROMPTS: Record<string, string> = {
 
   tutor: `\n\n---\n\n## YOU ARE NOW IN TUTOR MODE\n\nYour role is to develop genuine understanding, not to provide answers. Use the Socratic method throughout:\n\n1. **Ask before you tell** — When the person asks a question, respond with a question that helps them discover the answer themselves. "What do you already know about this?" "What would you expect to happen if...?" "Why do you think that might be?"\n2. **Reveal, don't recite** — Break knowledge into steps. Share one layer, then check understanding before going deeper. Never dump everything at once.\n3. **Catch misconceptions early** — When you sense a flawed assumption, don't correct it outright. Ask a question that forces them to confront it: "What would that imply about...?"\n4. **Celebrate the struggle** — Confusion is productive. When they're stuck, say so warmly. "That's exactly the right thing to be confused about. Let's think through it together."\n5. **Test understanding constantly** — After explaining something, ask them to explain it back in their own words, or apply it to a new example.\n6. **Connect to what they know** — Always anchor new knowledge to something familiar. "This works a lot like how... does it make sense that...?"\n\nYou may give direct answers when the person is genuinely lost or explicitly asks, but always follow with a question to deepen the learning. Your goal: they should feel smarter after every exchange, not just more informed.`,
 
-  research: `\n\n---\n\n## YOU ARE NOW IN DEEP RESEARCH MODE\n\nThis person wants comprehensive, cited, multi-source research — not a quick answer. Your job is to:\n\n1. **Search broadly and deeply** — Run multiple web searches from different angles. Start with the main question, then search for counterarguments, supporting evidence, key names, organisations, and the latest developments. Aim for at least 3–5 distinct search queries before synthesising.\n2. **Cross-reference everything** — When multiple sources agree, that is meaningful. When they conflict, explore why and present both views with honest assessment of credibility.\n3. **Cite specifically** — Name the source, author, institution, publication, and year for every factual claim. Use markdown links where available.\n4. **Structure your output** — Deliver a proper research brief: executive summary, key findings, supporting evidence, conflicting views, gaps in the evidence, and your synthesis.\n5. **Be honest about uncertainty** — Distinguish between what is well-established, what is emerging, and what remains genuinely unclear.\n6. **Think like a researcher, not a search engine** — Do not just summarise the first result. Think about what the best researchers in this field would consider, what methodological issues exist, and what the evidence actually means.\n\nTake your time. The quality of research matters more than the speed of the reply.`,
+  research: `\n\n---\n\n## YOU ARE NOW IN DEEP RESEARCH MODE\n\nThis person wants comprehensive, cited, multi-source research — not a quick answer. Your job is to:\n\n1. **Search broadly and deeply** — Run multiple web searches from different angles. Start with the main question, then search for counterarguments, supporting evidence, key names, organisations, and the latest developments. Aim for at least 3–5 distinct search queries before synthesising.\n2. **Cross-reference everything** — When multiple sources agree, that is meaningful. When they conflict, explore why and present both views with honest assessment of credibility.\n3. **Cite specifically** — Name the source, author, institution, publication, and year for every factual claim. Use markdown links where available.\n4. **Structure your output** — Deliver a proper research brief: executive summary, key findings, supporting evidence, conflicting views, gaps in the evidence, and your synthesis.\n5. **Be honest about uncertainty** — Distinguish between what is well-established, what is emerging, and what remains genuinely unclear.\n6. **Think like a researcher, not a search engine** — Do not just summarise the first result. Think about what the best researchers in this field would consider, what methodological issues exist, and what the evidence actually means.\n7. **Use academic sources provided** — If PubMed or arXiv results are injected into this conversation, cite them specifically by title, authors, and year. They are real, verified sources — treat them as primary evidence.\n\nTake your time. The quality of research matters more than the speed of the reply.`,
+
+  think: `\n\n---\n\n## YOU ARE NOW IN DEEP THINK MODE\n\nYou have been given extended reasoning time. Think through this problem step by step — systematically, carefully, from multiple angles. Identify assumptions and hidden complexities. Consider counterarguments. Arrive at a considered, well-reasoned conclusion. Where your reasoning itself illuminates the answer, share it. Depth and rigour over speed.`,
 };
 
 function buildSystemPrompt(
@@ -1044,6 +1103,27 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
     return { role: m.role as "user" | "assistant", content: m.content };
   });
 
+  // ── YouTube transcript injection ─────────────────────────────────────────────
+  const ytRegex = /(?:youtube\.com\/watch\?.*?v=|youtu\.be\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/;
+  const ytMatch = (body.data.content ?? "").match(ytRegex);
+  if (ytMatch?.[1] && !imageBase64) {
+    const videoId = ytMatch[1];
+    res.write(`data: ${JSON.stringify({ type: "action", label: "Fetching YouTube transcript...", icon: "📺", color: "hsl(0 72% 55%)" })}\n\n`);
+    const transcript = await fetchYouTubeTranscript(videoId);
+    if (transcript) {
+      const lastIdx = chatMessages.length - 1;
+      if (lastIdx >= 0 && chatMessages[lastIdx].role === "user") {
+        chatMessages[lastIdx] = {
+          role: "user",
+          content: `${chatMessages[lastIdx].content}\n\n[YouTube Transcript — Video ID: ${videoId}]\n${transcript}`,
+        };
+      }
+      res.write(`data: ${JSON.stringify({ type: "action", label: "Transcript loaded · analysing video", icon: "✅", color: "hsl(142 71% 45%)" })}\n\n`);
+    } else {
+      res.write(`data: ${JSON.stringify({ type: "action", label: "No transcript available for this video", icon: "⚠️", color: "hsl(38 92% 50%)" })}\n\n`);
+    }
+  }
+
   // ── Owner agentic loop (Garry only) ────────────────────────────────────────
   if (userId === "garry") {
     // Load recent messages from previous conversations for cross-session replay
@@ -1343,6 +1423,93 @@ LOOP PREVENTION: If you have already called a tool and received its result, do N
   }
   // ── End owner agentic loop ──────────────────────────────────────────────────
 
+  // ── Think mode — claude-3-7-sonnet with extended reasoning ──────────────────
+  if (mode === "think") {
+    try {
+      res.write(`data: ${JSON.stringify({ type: "action", label: "Extended reasoning engaged...", icon: "🧠", color: "hsl(270 70% 60%)" })}\n\n`);
+      const thinkStream = await openai.chat.completions.create({
+        model: "anthropic/claude-3-7-sonnet",
+        messages: [
+          { role: "system", content: systemPrompt },
+          ...chatMessages,
+        ],
+        stream: true,
+        max_tokens: 16000,
+        thinking: { type: "enabled", budget_tokens: 8000 },
+      } as any) as unknown as AsyncIterable<any>;
+
+      for await (const chunk of thinkStream) {
+        const delta = chunk.choices?.[0]?.delta as any;
+        if (!delta) continue;
+        if (delta.thinking) {
+          res.write(`data: ${JSON.stringify({ type: "thinking_chunk", content: delta.thinking })}\n\n`);
+        }
+        if (delta.content) {
+          fullResponse += delta.content;
+          res.write(`data: ${JSON.stringify({ content: delta.content })}\n\n`);
+        }
+      }
+
+      if (fullResponse) {
+        res.write(`data: ${JSON.stringify({ type: "thinking_done" })}\n\n`);
+        await db.insert(messagesTable).values({ conversationId, role: "assistant", content: fullResponse });
+        if (fullResponse.length > 80) {
+          try {
+            const fuResult = await openai.chat.completions.create({
+              model: "anthropic/claude-haiku-4.5",
+              messages: [
+                { role: "system", content: 'Generate exactly 3 short follow-up questions (max 8 words each). Return ONLY valid JSON: {"questions": ["q1?", "q2?", "q3?"]}' },
+                { role: "user", content: fullResponse.slice(-700) },
+              ],
+              max_tokens: 110,
+            } as any);
+            const rawFu = fuResult.choices[0]?.message?.content || "";
+            const jm = rawFu.match(/\{[\s\S]*\}/);
+            if (jm) {
+              const parsed = JSON.parse(jm[0]);
+              const qs: string[] = Array.isArray(parsed.questions) ? parsed.questions.filter(Boolean).slice(0, 3) : [];
+              if (qs.length) res.write(`data: ${JSON.stringify({ type: "followups", questions: qs })}\n\n`);
+            }
+          } catch { }
+        }
+        res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+        res.end();
+        if (userId) {
+          extractAndSaveMemories(userId, [...chatMessages, { role: "assistant", content: fullResponse }] as any, profile.memories).catch(() => {});
+          db.execute(sql`UPDATE ${userProfilesTable} SET daily_message_count = CASE WHEN daily_message_reset IS NULL OR DATE(daily_message_reset) != CURRENT_DATE THEN '1' ELSE CAST(CAST(daily_message_count AS INTEGER) + 1 AS TEXT) END, daily_message_reset = CASE WHEN daily_message_reset IS NULL OR DATE(daily_message_reset) != CURRENT_DATE THEN NOW() ELSE daily_message_reset END WHERE user_id = ${userId}`).catch(() => {});
+        }
+        return;
+      }
+    } catch (thinkErr: any) {
+      console.error("Think mode failed, falling back to Perplexity:", thinkErr?.message);
+    }
+  }
+
+  // ── Research mode — domain search augmentation (PubMed + arXiv) ─────────────
+  if (mode === "research") {
+    try {
+      const query = body.data.content?.slice(0, 300) ?? "";
+      res.write(`data: ${JSON.stringify({ type: "action", label: "Searching PubMed...", icon: "🔬", color: "hsl(193 100% 52%)" })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: "action", label: "Searching arXiv...", icon: "📄", color: "hsl(193 100% 52%)" })}\n\n`);
+      const [pubmedResults, arxivResults] = await Promise.all([searchPubMed(query), searchArXiv(query)]);
+      const domainContext: string[] = [];
+      if (pubmedResults) domainContext.push(`## PubMed Results\n${pubmedResults}`);
+      if (arxivResults) domainContext.push(`## arXiv Results\n${arxivResults}`);
+      if (domainContext.length > 0) {
+        const lastIdx = chatMessages.length - 1;
+        if (lastIdx >= 0 && chatMessages[lastIdx].role === "user") {
+          chatMessages[lastIdx] = {
+            role: "user",
+            content: `${chatMessages[lastIdx].content}\n\n---\n[Academic Search Results — use these as primary sources]\n\n${domainContext.join("\n\n")}`,
+          };
+        }
+        res.write(`data: ${JSON.stringify({ type: "action", label: `${(pubmedResults ? 1 : 0) + (arxivResults ? 1 : 0)} academic sources loaded`, icon: "✅", color: "hsl(142 71% 45%)" })}\n\n`);
+      }
+    } catch (domainErr: any) {
+      console.error("Domain search failed:", domainErr?.message);
+    }
+  }
+
   try {
     // Primary: perplexity/sonar (has built-in real-time web search, works via OpenRouter Chat Completions)
     // Fallback: anthropic/claude-3-5-sonnet (no live search but excellent reasoning)
@@ -1492,6 +1659,20 @@ LOOP PREVENTION: If you have already called a tool and received its result, do N
   }
 });
 
+
+router.post("/openai/run-code", async (req, res): Promise<void> => {
+  const { code, language } = req.body;
+  if (!code || !["javascript", "python"].includes(language)) {
+    res.status(400).json({ error: "Invalid code or language. Supported: javascript, python." });
+    return;
+  }
+  try {
+    const result = await executeCode(code as string, language as "javascript" | "python");
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || "Execution failed" });
+  }
+});
 
 router.post("/openai/generate-image", async (req, res): Promise<void> => {
   const parsed = GenerateOpenaiImageBody.safeParse(req.body);
