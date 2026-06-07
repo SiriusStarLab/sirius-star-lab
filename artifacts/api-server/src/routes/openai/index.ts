@@ -652,7 +652,7 @@ When asked what you can do, answer from this list specifically and honestly. Nev
     : "";
 
   const memoriesSection = profile.memories
-    ? `## What you already know about this person\n\n${profile.memories}\n\nDon't announce this knowledge — just let it naturally colour how you relate to them. If something they mentioned previously is relevant now, bring it in naturally. If they mentioned something time-sensitive, ask how it went.\n\n`
+    ? `## What you already know about this person\n\n${profile.memories}\n\nUse this knowledge actively and warmly. When something from a previous conversation is relevant right now, say so directly — "I remember you mentioned X", "How did that go with Y?", "Last time you were working on Z — is that still where things are?" These moments of genuine recall are what make the relationship real. Don't announce everything you know upfront, but don't silently suppress it either — when it's relevant, surface it naturally and with care.\n\n`
     : "";
 
   const modeSection = mode && MODE_PROMPTS[mode] ? MODE_PROMPTS[mode] : "";

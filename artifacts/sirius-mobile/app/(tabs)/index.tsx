@@ -274,7 +274,9 @@ export default function ChatScreen() {
     (async () => {
       try {
         const base = getApiBase();
-        const res = await fetch(`${base}openai/conversations/${id}`);
+        const uid = userId || (await import("@/lib/api").then(m => m.getUserId()));
+        const qs = uid ? `?userId=${encodeURIComponent(uid)}` : "";
+        const res = await fetch(`${base}openai/conversations/${id}${qs}`);
         if (!res.ok) return;
         const data = await res.json();
         const msgs: Message[] = (data.messages ?? []).map((m: DBMessage) => ({
