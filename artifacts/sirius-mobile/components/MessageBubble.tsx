@@ -160,6 +160,13 @@ export const MessageBubble = memo(function MessageBubble({ message }: Props) {
         </View>
       )}
       <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAI]}>
+        {message.uploadedImageBase64 ? (
+          <Image
+            source={{ uri: message.uploadedImageBase64 }}
+            style={styles.uploadedImage}
+            resizeMode="cover"
+          />
+        ) : null}
         {message.imageB64 ? (
           <Image
             source={{ uri: `data:image/png;base64,${message.imageB64}` }}
@@ -168,7 +175,7 @@ export const MessageBubble = memo(function MessageBubble({ message }: Props) {
           />
         ) : null}
         {isUser ? (
-          <Text style={styles.userText}>{message.content}</Text>
+          message.content ? <Text style={styles.userText}>{message.content}</Text> : null
         ) : (
           <Markdown style={markdownStyles}>{message.content}</Markdown>
         )}
@@ -235,6 +242,12 @@ const styles = StyleSheet.create({
     width: 220,
     height: 220,
     borderRadius: 12,
+    marginBottom: 6,
+  },
+  uploadedImage: {
+    width: 180,
+    height: 180,
+    borderRadius: 10,
     marginBottom: 6,
   },
 });

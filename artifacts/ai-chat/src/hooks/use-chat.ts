@@ -44,6 +44,7 @@ export type ChatMessage = {
   uploadedImageBase64?: string;
   sources?: ChatSource[];
   actions?: ActionStep[];
+  followups?: string[];
 };
 
 export function useChat(conversationId?: number) {
@@ -205,6 +206,12 @@ export function useChat(conversationId?: number) {
                 setMessages(prev => prev.map(m =>
                   m.id === assistantMsgId
                     ? { ...m, isSearching: true, wasSearched: true }
+                    : m
+                ));
+              } else if (data.type === "followups" && Array.isArray(data.questions)) {
+                setMessages(prev => prev.map(m =>
+                  m.id === assistantMsgId
+                    ? { ...m, followups: data.questions }
                     : m
                 ));
               } else if (data.sources) {

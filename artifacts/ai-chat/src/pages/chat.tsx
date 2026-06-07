@@ -477,6 +477,31 @@ export function ChatPage() {
                   <ChatMessage key={message.id || index} message={message} />
                 ))}
               </AnimatePresence>
+              {/* Follow-up question chips */}
+              {(() => {
+                const lastMsg = messages[messages.length - 1];
+                if (lastMsg?.role === "assistant" && !lastMsg.isStreaming && lastMsg.followups?.length) {
+                  return (
+                    <div className="flex flex-wrap gap-2 px-4 pb-3 pt-1">
+                      {lastMsg.followups.map((q, i) => (
+                        <button
+                          key={i}
+                          onClick={() => handleSend(q)}
+                          className="text-xs px-3 py-1.5 rounded-full text-left transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+                          style={{
+                            background: "hsl(193 100% 52% / 0.06)",
+                            border: "1px solid hsl(193 100% 52% / 0.22)",
+                            color: "hsl(193 100% 30%)",
+                          }}
+                        >
+                          {q}
+                        </button>
+                      ))}
+                    </div>
+                  );
+                }
+                return null;
+              })()}
               <div ref={messagesEndRef} className="h-4" />
             </div>
           )}

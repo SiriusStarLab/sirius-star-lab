@@ -98,10 +98,10 @@ export default function ChatScreen() {
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : tabBarHeight;
 
-  const handleSend = useCallback(async (text: string) => {
+  const handleSend = useCallback(async (text: string, imageBase64?: string) => {
     if (isStreaming) return;
 
-    const userMsg: Message = { id: generateId(), role: "user", content: text };
+    const userMsg: Message = { id: generateId(), role: "user", content: text, uploadedImageBase64: imageBase64 };
     setMessages(prev => [...prev, userMsg]);
     setIsStreaming(true);
     setShowTyping(true);
@@ -128,6 +128,7 @@ export default function ChatScreen() {
           body: JSON.stringify({
             content: text,
             userId: userId ?? undefined,
+            imageBase64: imageBase64 ?? undefined,
           }),
         }
       );

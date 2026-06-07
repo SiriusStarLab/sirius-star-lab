@@ -1,10 +1,12 @@
 import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system";
+import * as ImagePicker from "expo-image-picker";
 import { Feather } from "@expo/vector-icons";
 import { fetch } from "expo/fetch";
 import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Image,
   Platform,
   Pressable,
   StyleSheet,
@@ -17,7 +19,7 @@ import Colors from "@/constants/colors";
 import { getApiBase } from "@/lib/api";
 
 interface Props {
-  onSend: (text: string) => void;
+  onSend: (text: string, imageBase64?: string) => void;
   disabled?: boolean;
   placeholder?: string;
   voiceMode?: boolean;
@@ -29,15 +31,41 @@ type VoiceState = "idle" | "recording" | "transcribing";
 export function ChatInput({ onSend, disabled = false, placeholder = "Message Sirius…", voiceMode = true, onToggleVoice }: Props) {
   const [text, setText] = useState("");
   const [voiceState, setVoiceState] = useState<VoiceState>("idle");
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const inputRef = useRef<TextInput>(null);
   const recordingRef = useRef<Audio.Recording | null>(null);
 
   const handleSend = () => {
     const trimmed = text.trim();
-    if (!trimmed || disabled) return;
+    if (!trimmed && !selectedImage || disabled) return;
+    const imgToSend = selectedImage;
     setText("");
-    onSend(trimmed);
+    setSelectedImage(null);
+    onSend(trimmed, imgToSend ?? undefined);
     inputRef.current?.focus();
+  };
+
+  const pickImage = async () => {
+    if (disabled) return;
+    try {
+      const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!granted) return;
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: false,
+        quality: 0.8,
+        base64: true,
+      });
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        if (asset.base64) {
+          const mime = asset.mimeType || "image/jpeg";
+          setSelectedImage(`data:${mime};base64,${asset.base64}`);
+        }
+      }
+    } catch (err) {
+      console.error("Image picker failed", err);
+    }
   };
 
   const startRecording = async () => {
@@ -83,7 +111,8 @@ export function ChatInput({ onSend, disabled = false, placeholder = "Message Sir
         const data = await resp.json();
         const transcript: string = data.text || "";
         if (transcript.trim()) {
-          onSend(transcript.trim());
+          onSend(transcript.trim(), selectedImage ?? undefined);
+          setSelectedImage(null);
         }
       }
     } catch (err) {
@@ -99,11 +128,44 @@ export function ChatInput({ onSend, disabled = false, placeholder = "Message Sir
   };
 
   const isVoiceBusy = voiceState !== "idle";
-  const showSend = text.trim().length > 0 && !isVoiceBusy;
+  const showSend = (text.trim().length > 0 || !!selectedImage) && !isVoiceBusy;
 
   return (
     <View style={styles.container}>
+      {/* Image preview strip */}
+      {selectedImage && (
+        <View style={styles.imagePreviewRow}>
+          <Image source={{ uri: selectedImage }} style={styles.imagePreview} />
+          <Pressable
+            onPress={() => setSelectedImage(null)}
+            style={styles.imageRemoveBtn}
+          >
+            <Feather name="x" size={12} color="#fff" />
+          </Pressable>
+          <Text style={styles.imagePreviewLabel}>Image ready — Sirius will analyse it</Text>
+        </View>
+      )}
       <View style={styles.inputRow}>
+        {/* Image picker button */}
+        {!isVoiceBusy && (
+          <Pressable
+            onPress={pickImage}
+            style={({ pressed }) => [
+              styles.actionBtn,
+              styles.imageBtnIdle,
+              selectedImage && styles.imageBtnActive,
+              pressed && { opacity: 0.7 },
+            ]}
+            testID="image-button"
+          >
+            <Feather
+              name="image"
+              size={16}
+              color={selectedImage ? Colors.primary : Colors.textDim}
+            />
+          </Pressable>
+        )}
+
         {isVoiceBusy ? (
           <View style={styles.voiceStatus}>
             {voiceState === "recording" ? (
@@ -220,6 +282,38 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: Colors.border,
   },
+  imagePreviewRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
+  imagePreview: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: `${Colors.primary}40`,
+  },
+  imageRemoveBtn: {
+    position: "absolute",
+    top: -4,
+    left: 36,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: "#555",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  imagePreviewLabel: {
+    flex: 1,
+    fontSize: 11,
+    color: Colors.textDim,
+    fontFamily: "Inter_400Regular",
+    marginLeft: 4,
+  },
   inputRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -227,10 +321,10 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     borderWidth: 1,
     borderColor: Colors.borderLight,
-    paddingLeft: 16,
+    paddingLeft: 8,
     paddingRight: 6,
     paddingVertical: Platform.OS === "ios" ? 10 : 6,
-    gap: 8,
+    gap: 6,
     minHeight: 48,
   },
   input: {
@@ -288,5 +382,13 @@ const styles = StyleSheet.create({
   },
   keyboardBtn: {
     backgroundColor: "transparent",
+  },
+  imageBtnIdle: {
+    backgroundColor: "transparent",
+  },
+  imageBtnActive: {
+    backgroundColor: `${Colors.primary}20`,
+    borderWidth: 1,
+    borderColor: `${Colors.primary}40`,
   },
 });

@@ -83,6 +83,7 @@ export interface Message {
   role: "user" | "assistant";
   content: string;
   imageB64?: string;
+  uploadedImageBase64?: string;
 }
 
 let messageCounter = 0;

@@ -74,6 +74,14 @@ const MODES = [
     detail: "Sirius won't hand you the answer. It asks what you already know, reveals things layer by layer, and checks your understanding. Based on the Socratic method.",
     when: "Learning something new, studying, preparing for an exam, wanting to actually understand — not just be told",
   },
+  {
+    id: "research",
+    label: "Research",
+    emoji: "🌐",
+    desc: "Deep web research with cited sources",
+    detail: "Sirius runs live web searches, cross-references sources, and synthesises a comprehensive research brief with citations. Takes a little longer — worth it for important questions.",
+    when: "Market research, academic topics, current events, fact-checking, competitive analysis, anything that needs the latest information",
+  },
 ];
 
 interface ChatInputProps {
@@ -93,6 +101,7 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [documentBase64, setDocumentBase64] = useState<string | null>(null);
   const [documentName, setDocumentName] = useState<string | null>(null);
+  const [youtubeDetected, setYoutubeDetected] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [upgradingFromLimit, setUpgradingFromLimit] = useState(false);
@@ -140,6 +149,11 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
   };
 
   useEffect(() => { adjustHeight(); }, [input]);
+
+  useEffect(() => {
+    const ytRegex = /(?:youtube\.com\/watch|youtu\.be\/|youtube\.com\/shorts\/)/i;
+    setYoutubeDetected(ytRegex.test(input));
+  }, [input]);
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
@@ -405,6 +419,17 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
               ↳ {MODES.find(m => m.id === mode)?.desc}
             </p>
           )}
+        </div>
+      )}
+
+      {/* YouTube URL detection badge */}
+      {youtubeDetected && !imageBase64 && !documentBase64 && (
+        <div className="mb-2 flex items-center gap-2">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg"
+            style={{ background: "hsl(0 72% 51% / 0.07)", border: "1px solid hsl(0 72% 51% / 0.2)" }}>
+            <span className="text-sm">📺</span>
+            <span className="text-xs font-medium" style={{ color: "hsl(0 72% 45%)" }}>YouTube video detected — Sirius will analyse it</span>
+          </div>
         </div>
       )}
 
