@@ -1,5 +1,6 @@
 import React from "react";
 import { Zap, Sparkles, CheckCircle2, AlertCircle, Send } from "lucide-react";
+import { getApiBase } from "@/lib/api-base";
 import type { NavMode } from "./types";
 
 type OrchStage = "parse" | "create" | "research" | "analyse" | "build" | "fund" | "market" | "complete";
@@ -77,7 +78,7 @@ export function OrchestratorPanel({ pin, onOpenProject }: {
     setPhase("running");
 
     try {
-      const resp = await fetch(`${import.meta.env.BASE_URL}api/lab/orchestrate`, {
+      const resp = await fetch(`${getApiBase()}lab/orchestrate`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-lab-pin": pin },
         body: JSON.stringify({ command: command.trim() }),

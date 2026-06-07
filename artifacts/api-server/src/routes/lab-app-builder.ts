@@ -193,7 +193,7 @@ router.post("/lab/app-builder/architect", authMiddleware, async (req: Request, r
     send({ type: "thinking_start" });
 
     const thinkingStream = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.6",
+      model: "anthropic/claude-sonnet-4.5",
       messages: [
         {
           role: "system",
@@ -430,7 +430,7 @@ router.post("/lab/app-builder/interpret", authMiddleware, async (req: Request, r
 
   try {
     const result = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.6",
+      model: "anthropic/claude-sonnet-4.5",
       response_format: { type: "json_object" },
       messages: [
         {
@@ -475,7 +475,7 @@ router.post("/lab/app-builder/scaffold", authMiddleware, async (req: Request, re
     await delay(500);
 
     const result = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.6",
+      model: "anthropic/claude-sonnet-4.5",
       messages: [{
         role: "user",
         content: `Generate a complete project scaffold specification for:
@@ -615,7 +615,7 @@ router.post("/lab/app-builder/plan", authMiddleware, async (req: Request, res: R
 
   try {
     const result = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.6",
+      model: "anthropic/claude-sonnet-4.5",
       response_format: { type: "json_object" },
       messages: [
         {
@@ -658,7 +658,7 @@ router.post("/lab/app-builder/test", authMiddleware, async (req: Request, res: R
     send({ type: "test_start", message: "Initialising virtual test environment..." });
 
     const stream = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.6",
+      model: "anthropic/claude-sonnet-4.5",
       messages: [{
         role: "user",
         content: `You are a senior QA engineer and code reviewer. Review this ${techStack} application "${appName}" for bugs, errors, and issues.
@@ -741,7 +741,7 @@ router.post("/lab/app-builder/debug", authMiddleware, async (req: Request, res: 
       send({ type: "debug_fixing", filename, bugCount: fileBugs.length });
 
       const stream = await openai.chat.completions.create({
-        model: "anthropic/claude-sonnet-4.6",
+        model: "anthropic/claude-sonnet-4.5",
         messages: [{
           role: "user",
           content: `You are a senior engineer fixing bugs in "${appName}".
@@ -836,7 +836,7 @@ When generating code changes, always output the COMPLETE modified file wrapped i
 For explanations or suggestions, respond in clear Markdown.`;
 
     const stream = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.6",
+      model: "anthropic/claude-sonnet-4.5",
       messages: [
         { role: "system", content: systemPrompt },
         ...history.slice(-6).map(h => ({ role: h.role as "user" | "assistant", content: h.content })),
@@ -947,7 +947,7 @@ Output ONLY the file:
     }
 
     const stream = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.6",
+      model: "anthropic/claude-sonnet-4.5",
       messages,
       stream: true,
       max_tokens: 3000,
@@ -1009,7 +1009,7 @@ async function searchDocsForAgent(agentId: string, techStack: string, appName: s
 
   try {
     const result = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.6",
+      model: "anthropic/claude-sonnet-4.5",
       messages: [
         { role: "system", content: "You are a senior software architect. Return concise, accurate, current best practices." },
         { role: "user", content: `Provide 3-5 bullet points of the most important current best practices and patterns for: ${agentId} development in a ${techStack} application. Be specific and practical. Topic: ${query}` },
@@ -1088,7 +1088,7 @@ router.post("/lab/build-app", authMiddleware, async (req: Request, res: Response
       let raw = "";
       try {
         const stream = await openai.chat.completions.create({
-          model: "anthropic/claude-sonnet-4.6",
+          model: "anthropic/claude-sonnet-4.5",
           messages: [{ role: "user", content: prompt }],
           stream: true,
           max_tokens: 8000,
@@ -1185,7 +1185,7 @@ ${fileSummary}
 Analyse this codebase. Output improvement suggestions as JSON lines.`;
 
     const stream = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.6",
+      model: "anthropic/claude-sonnet-4.5",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },

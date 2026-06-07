@@ -215,7 +215,7 @@ function namesSimilar(a: string, b: string): boolean {
 async function runScanWithWebSearch(systemPrompt: string, userPrompt: string, maxTokens = 8000): Promise<string> {
   // Use the Responses API with web_search_preview for live internet access
   const response = await (openai as any).responses.create({
-    model: "anthropic/claude-sonnet-4.6",
+    model: "anthropic/claude-sonnet-4.5",
     tools: [{ type: "web_search_preview" }],
     instructions: systemPrompt,
     input: [{ role: "user", content: userPrompt }],
@@ -249,7 +249,7 @@ BRIEF: ${(project.brief || "").slice(0, 600)}
 Return JSON: { "opportunities": [{ "projectId": ${project.id}, "projectName": "${project.name}", "matches": [{ "scheme": "...", "type": "tax_credit|grant|equity|loan", "geography": "UK|EU|USA|...", "amount": "...", "matchStrength": "strong|good|possible", "matchReason": "...", "keyEvidence": "...", "nextStep": "...", "url": "..." }] }], "summary": "..." }`;
 
     const resp = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.6",
+      model: "anthropic/claude-sonnet-4.5",
       messages: [
         { role: "system", content: "You are a specialist R&D funding advisor. Return only valid JSON." },
         { role: "user", content: prompt },
@@ -483,7 +483,7 @@ Respond ONLY with valid JSON: { "tasks": [{ "id": "T001", "agent": "Architect Ag
         );
 
         const agentRes = await openai.chat.completions.create({
-          model: "anthropic/claude-sonnet-4.6",
+          model: "anthropic/claude-sonnet-4.5",
           messages: [{ role: "user", content: prompt }],
           max_tokens: 3000,
         });

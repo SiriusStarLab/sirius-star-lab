@@ -93,7 +93,7 @@ No markdown, no explanation — pure JSON array only.`;
 
   try {
     const response = await (openai as any).responses.create({
-      model: "anthropic/claude-sonnet-4.6",
+      model: "anthropic/claude-sonnet-4.5",
       tools: [{ type: "web_search_preview" }],
       input: prompt,
     });
@@ -282,7 +282,7 @@ Write this as if Garry personally wrote it — sharp, direct, no waffle. Referen
 Return valid JSON only: {"subject":"...","body":"..."}`;
 
       const completion = await openai.chat.completions.create({
-        model: "anthropic/claude-sonnet-4.6",
+        model: "anthropic/claude-sonnet-4.5",
         messages: [{ role: "user", content: prompt }],
         response_format: { type: "json_object" },
         temperature: 0.88,
@@ -433,7 +433,7 @@ ${recipient.notes ? `Context: ${recipient.notes}` : ""}
 Return JSON: {"subject":"...","body":"..."}`;
 
       const completion = await openai.chat.completions.create({
-        model: "anthropic/claude-sonnet-4.6",
+        model: "anthropic/claude-sonnet-4.5",
         messages: [{ role: "user", content: prompt }],
         response_format: { type: "json_object" },
         temperature: 0.85,

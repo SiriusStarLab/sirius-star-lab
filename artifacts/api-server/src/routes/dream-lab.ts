@@ -279,7 +279,7 @@ NEVER engage with harmful, violent, exploitative, or hateful content. Gently red
     messages.push({ role: "user", content: message });
 
     const stream = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4-5",
+      model: "anthropic/claude-sonnet-4.5",
       stream: true,
       messages,
       max_tokens: 1500,

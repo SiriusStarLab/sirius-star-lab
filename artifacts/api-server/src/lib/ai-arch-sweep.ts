@@ -74,7 +74,7 @@ export async function analyseProject(p: {
 }): Promise<AiArchInsights | null> {
   try {
     const completion = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.6",
+      model: "anthropic/claude-sonnet-4.5",
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: USER_PROMPT(p) },
