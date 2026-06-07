@@ -193,7 +193,7 @@ router.post("/lab/app-builder/architect", authMiddleware, async (req: Request, r
     send({ type: "thinking_start" });
 
     const thinkingStream = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.5",
+      model: "anthropic/claude-opus-4",
       messages: [
         {
           role: "system",
@@ -343,7 +343,8 @@ UI requirements:
 - Mobile-first responsive — works on 375px and 1440px
 - Every form: client-side zod validation with inline error messages, loading state on submit, success/error toast
 - Every data list: loading skeleton (not spinner), empty state with an action CTA, error retry button
-- Zero dead nav links — every page in the nav must have a corresponding page component`,
+- Zero dead nav links — every page in the nav must have a corresponding page component
+- PREVIEW COMPATIBILITY: Use CDN links for CSS frameworks and JS libraries (Tailwind CDN, Alpine.js CDN, Chart.js CDN, etc.) wherever possible instead of npm packages. Where the app is a simple UI without a complex build pipeline, output a self-contained index.html with styles inlined or loaded from CDN — this enables instant live preview in the browser without any build step.`,
 
     backend: `${base}
 

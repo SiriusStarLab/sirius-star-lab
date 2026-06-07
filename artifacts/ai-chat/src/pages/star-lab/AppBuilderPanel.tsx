@@ -114,6 +114,10 @@ export function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed, onViewP
   const deployRef = useRef<HTMLDivElement>(null);
   const [builtProjectId, setBuiltProjectId] = useState<number | null>(null);
 
+  // Live preview
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
   // Checkpoints — per-agent file snapshots for rollback
   type BuildCheckpoint = {
     id: string; index: number; agentId: string; agentName: string; agentEmoji: string;
@@ -721,6 +725,37 @@ export function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed, onViewP
     a.href = url; a.download = `${reqs?.appName?.replace(/\s+/g, "-").toLowerCase() || "app"}-source.txt`;
     a.click(); URL.revokeObjectURL(url);
   };
+
+  // Live preview — inline local CSS/JS into index.html and open as a blob URL
+  const handlePreview = useCallback(() => {
+    const htmlKey = Object.keys(allFiles).find(k =>
+      k === "index.html" || k.endsWith("/index.html") || k.endsWith(".html")
+    );
+    if (!htmlKey) { setPreviewOpen(false); return; }
+
+    let html = allFiles[htmlKey];
+
+    // Inline local CSS (leave CDN/absolute links alone)
+    html = html.replace(/<link[^>]*href=["']([^"']+\.css)["'][^>]*\/?>/gi, (match, href) => {
+      if (/^https?:\/\/|^\/\//.test(href)) return match;
+      const base = href.replace(/^\.\//, "").split("/").pop()!;
+      const key = Object.keys(allFiles).find(k => k.endsWith(base));
+      return key ? `<style>\n${allFiles[key]}\n</style>` : match;
+    });
+    // Inline local JS (leave CDN/absolute links alone)
+    html = html.replace(/<script([^>]*)\bsrc=["']([^"']+\.js)["']([^>]*)><\/script>/gi, (match, pre, src, post) => {
+      if (/^https?:\/\/|^\/\//.test(src)) return match;
+      const base = src.replace(/^\.\//, "").split("/").pop()!;
+      const key = Object.keys(allFiles).find(k => k.endsWith(base));
+      return key ? `<script${pre}${post}>\n${allFiles[key]}\n</script>` : match;
+    });
+
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    const blob = new Blob([html], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    setPreviewUrl(url);
+    setPreviewOpen(true);
+  }, [allFiles, previewUrl]);
 
   const severityColor = (s: string) =>
     s === "Critical" ? "hsl(0,80%,50%)" : s === "High" ? "hsl(25,90%,55%)" :
@@ -2097,6 +2132,61 @@ export function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed, onViewP
                     <h3 className="text-lg font-bold mb-1" style={{ color: "rgba(15,23,42,0.8)" }}>{reqs?.appName} is ready</h3>
                     <p className="text-sm" style={{ color: "rgba(15,23,42,0.5)" }}>{Object.keys(allFiles).length} files built · tested · debugged</p>
                   </div>
+
+                  {/* Live Preview */}
+                  {(() => {
+                    const hasHtml = Object.keys(allFiles).some(k => k.endsWith(".html"));
+                    return (
+                      <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(15,23,42,0.1)" }}>
+                        <div className="flex items-center justify-between px-4 py-3" style={{ background: "hsl(220,15%,16%)" }}>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm">👁️</span>
+                            <span className="text-xs font-semibold" style={{ color: "rgba(255,255,255,0.8)" }}>Live Preview</span>
+                            {previewOpen && previewUrl && (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: "hsla(193,100%,40%,0.3)", color: "hsl(193,100%,70%)" }}>● Live</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {previewOpen && previewUrl && (
+                              <button onClick={() => window.open(previewUrl, "_blank", "noopener")}
+                                className="flex items-center gap-1 px-2 py-1 rounded text-[11px]"
+                                style={{ background: "hsla(255,255,255,0.08)", color: "rgba(255,255,255,0.6)" }}>
+                                <ExternalLink className="w-3 h-3" /> Open in tab
+                              </button>
+                            )}
+                            {hasHtml ? (
+                              <button
+                                onClick={() => { if (!previewOpen) { handlePreview(); } else { setPreviewOpen(false); } }}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                                style={{ background: previewOpen ? "hsla(0,80%,50%,0.15)" : "hsl(193,100%,40%)", color: previewOpen ? "hsl(0,80%,65%)" : "white" }}>
+                                {previewOpen ? <><EyeOff className="w-3 h-3" /> Hide</> : <><Eye className="w-3 h-3" /> Preview App</>}
+                              </button>
+                            ) : (
+                              <span className="text-[11px] px-2 py-1 rounded" style={{ background: "hsla(255,255,255,0.06)", color: "rgba(255,255,255,0.35)" }}>
+                                Needs build step
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {previewOpen && previewUrl && (
+                          <div style={{ background: "#fff" }}>
+                            <iframe
+                              src={previewUrl}
+                              title="App Preview"
+                              className="w-full"
+                              style={{ height: 480, border: "none", display: "block" }}
+                              sandbox="allow-scripts allow-forms allow-modals allow-popups"
+                            />
+                          </div>
+                        )}
+                        {!hasHtml && (
+                          <div className="px-4 py-3 text-[11px]" style={{ background: "hsl(220,15%,11%)", color: "rgba(255,255,255,0.35)" }}>
+                            This app uses React/Node.js and needs a build environment to run. Download the source code to run locally, or deploy to Vercel/Railway for a live URL.
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   {/* Step 9: Deploy Pipeline */}
                   <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(15,23,42,0.1)" }}>
