@@ -109,9 +109,15 @@ export function ChatPage() {
     });
   };
 
+  const ttsGenRef = useRef(0);
+
   const playTTS = (text: string) => {
     if (!window.speechSynthesis) return;
     window.speechSynthesis.cancel();
+
+    // Bump the generation counter so any in-flight chunks from a previous
+    // message will bail out when they check their captured gen value.
+    const gen = ++ttsGenRef.current;
 
     const clean = text
       .replace(/\*\*/g, "")
@@ -140,6 +146,8 @@ export function ChatPage() {
       || voices.find(v => v.lang.startsWith("en"));
 
     const speakChunk = (index: number) => {
+      // If a newer playTTS call has started, abandon this sequence entirely.
+      if (ttsGenRef.current !== gen) return;
       if (index >= chunks.length) return;
       const utt = new SpeechSynthesisUtterance(chunks[index]);
       utt.lang = "en-GB";

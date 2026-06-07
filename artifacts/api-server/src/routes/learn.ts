@@ -93,7 +93,9 @@ Write as Sirius — a knowledgeable partner who teaches through clarity and genu
           duration: duration || "4 weeks",
           plan: fullPlan,
         });
-      } catch {}
+      } catch (e: any) {
+        console.error("[Learn] Failed to save study plan to DB:", e?.message);
+      }
     }
 
     send({ done: true });

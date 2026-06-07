@@ -97,6 +97,8 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [upgradingFromLimit, setUpgradingFromLimit] = useState(false);
   const [showModeGuide, setShowModeGuide] = useState(false);
+  const [modeBarCanScrollRight, setModeBarCanScrollRight] = useState(false);
+  const modeBarRef = useRef<HTMLDivElement>(null);
   const { status } = useSubscription();
   const userId = getUserId();
 
@@ -119,6 +121,17 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
       }, 350);
     }, 5000);
     return () => clearInterval(iv);
+  }, []);
+
+  // Mode bar scroll indicator — show fade when more modes are hidden to the right
+  useEffect(() => {
+    const el = modeBarRef.current;
+    if (!el) return;
+    const check = () => setModeBarCanScrollRight(el.scrollWidth > el.clientWidth + el.scrollLeft + 4);
+    check();
+    el.addEventListener("scroll", check);
+    window.addEventListener("resize", check);
+    return () => { el.removeEventListener("scroll", check); window.removeEventListener("resize", check); };
   }, []);
 
   const adjustHeight = () => {
@@ -291,7 +304,8 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
 
       {/* Mode selector */}
       <div className="flex items-center gap-1.5 mb-1.5">
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 flex-1" style={{ scrollbarWidth: "none" }}>
+        <div className="relative flex-1 min-w-0">
+        <div ref={modeBarRef} className="flex items-center gap-1.5 overflow-x-auto pb-0.5" style={{ scrollbarWidth: "none" }}>
           {MODES.map((m) => {
             const active = mode === m.id;
             return (
@@ -312,6 +326,14 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
               </button>
             );
           })}
+        </div>
+        {/* Right-fade hint — shows when modes are hidden off-screen */}
+        {modeBarCanScrollRight && (
+          <div
+            className="absolute right-0 top-0 bottom-0 w-8 pointer-events-none"
+            style={{ background: "linear-gradient(to right, transparent, hsl(210 30% 97%))" }}
+          />
+        )}
         </div>
         <button
           onClick={() => setShowModeGuide(g => !g)}

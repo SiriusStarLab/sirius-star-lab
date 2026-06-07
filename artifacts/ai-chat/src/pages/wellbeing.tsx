@@ -362,10 +362,19 @@ Be genuinely illuminating. Draw on real science, ancient wisdom, and cutting-edg
             className="flex-1 bg-transparent outline-none resize-none text-sm py-1"
             style={{ color: "#1e293b", lineHeight: 1.5, maxHeight: 120 }}
           />
-          <button onClick={voiceActive ? () => { try { voiceRecRef.current?.stop(); } catch {} setVoiceActive(false); } : startVoice}
-            className="p-1.5 rounded-lg transition-all flex-shrink-0"
-            style={{ color: voiceActive ? topic.color : "rgba(15,23,42,0.35)" }}>
-            {voiceActive ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+          <button
+            onClick={voiceActive ? () => { try { voiceRecRef.current?.stop(); } catch {} setVoiceActive(false); } : startVoice}
+            className="relative p-1.5 rounded-lg transition-all flex-shrink-0"
+            style={{ color: voiceActive ? topic.color : "rgba(15,23,42,0.35)" }}
+            title={voiceActive ? "Stop listening" : "Speak your message"}
+          >
+            {voiceActive && (
+              <span
+                className="absolute inset-0 rounded-lg animate-ping"
+                style={{ background: topic.color, opacity: 0.18 }}
+              />
+            )}
+            {voiceActive ? <MicOff className="w-4 h-4 relative" /> : <Mic className="w-4 h-4 relative" />}
           </button>
           <button onClick={() => send()} disabled={!input.trim() || streaming}
             className="p-1.5 rounded-lg transition-all flex-shrink-0"

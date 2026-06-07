@@ -131,7 +131,7 @@ router.post("/agency/checkout", async (req: Request, res: Response) => {
     return res.json({ url: session.url });
   } catch (err: any) {
     console.error("[Agency checkout]", err.message);
-    return res.status(500).json({ error: err.message || "Checkout failed" });
+    return res.status(500).json({ error: "Checkout failed — please try again or contact support" });
   }
 });
 
