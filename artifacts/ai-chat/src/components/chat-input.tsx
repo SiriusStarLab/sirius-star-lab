@@ -526,14 +526,14 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
               color: documentBase64 ? "hsl(193 100% 35%)" : "hsl(220 14% 45%)",
               border: documentBase64 ? "1px solid hsl(193 100% 52% / 0.4)" : "1px solid hsl(210 25% 87%)",
             }}
-            title="Attach a document (PDF, Word, CSV, TXT)"
+            title="Attach a document, code file, or data file"
           >
             <FileText size={12} />
             Document
           </button>
         </div>
         <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageSelect} />
-        <input ref={docInputRef} type="file" accept=".pdf,.docx,.doc,.txt,.csv,.md,.json,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,text/plain,text/csv,text/markdown,application/json" className="hidden" onChange={handleDocSelect} />
+        <input ref={docInputRef} type="file" accept=".pdf,.docx,.doc,.txt,.csv,.md,.json,.py,.js,.ts,.tsx,.jsx,.java,.cpp,.c,.h,.cs,.go,.rs,.php,.rb,.swift,.kt,.vue,.html,.css,.scss,.sql,.sh,.bash,.yml,.yaml,.toml,.xml,.env,.gitignore,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,text/plain,text/csv,text/markdown,application/json" className="hidden" onChange={handleDocSelect} />
 
         <Textarea
           ref={textareaRef}

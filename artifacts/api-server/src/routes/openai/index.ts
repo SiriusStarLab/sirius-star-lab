@@ -75,6 +75,77 @@ async function searchArXiv(query: string): Promise<string> {
   } catch { return ""; }
 }
 
+// ── GitHub repo / file fetcher ───────────────────────────────────────────────
+async function fetchGitHubContent(url: string): Promise<{ context: string; label: string } | null> {
+  try {
+    const ghMatch = url.match(/github\.com\/([^/\s?#]+)\/([^/\s?#]+)(?:\/(?:blob|tree)\/([^/\s?#]+)\/(.+))?/);
+    if (!ghMatch) return null;
+    const [, owner, repoRaw, branch, filePath] = ghMatch;
+    const repo = repoRaw.replace(/\.git$/, "");
+
+    // Single file URL — just fetch that file
+    if (filePath && branch) {
+      const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${filePath}`;
+      const res = await fetch(rawUrl, { signal: AbortSignal.timeout(8000) });
+      if (!res.ok) return null;
+      const content = await res.text();
+      const ext = filePath.split(".").pop() ?? "";
+      return {
+        context: `## GitHub File: ${owner}/${repo}/${filePath}\n\`\`\`${ext}\n${content.slice(0, 24000)}\n\`\`\``,
+        label: `${owner}/${repo} · ${filePath}`,
+      };
+    }
+
+    // Full repo — fetch file tree then pull key files
+    const treeRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/trees/HEAD?recursive=1`, {
+      headers: { Accept: "application/vnd.github.v3+json" },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!treeRes.ok) return null;
+    const treeData = await treeRes.json() as any;
+    const allFiles: string[] = (treeData.tree ?? []).filter((f: any) => f.type === "blob").map((f: any) => f.path as string);
+
+    const PRIORITY = [
+      "README.md", "README.txt", "README",
+      "package.json", "pyproject.toml", "Cargo.toml", "go.mod", "requirements.txt", "setup.py",
+      "main.py", "app.py", "index.js", "index.ts", "main.ts", "app.ts", "main.go",
+      "src/main.py", "src/app.py", "src/index.js", "src/index.ts", "src/main.ts", "src/main.go",
+    ];
+    const CODE_EXT = /\.(py|js|ts|tsx|jsx|java|cpp|c|go|rs|rb|swift|kt|vue|php|cs|sh|sql)$/;
+    const SKIP = /node_modules|\.min\.|dist\/|build\/|vendor\//;
+
+    const toFetch: string[] = PRIORITY.filter(p => allFiles.includes(p));
+    for (const f of allFiles) {
+      if (toFetch.length >= 18) break;
+      if (!toFetch.includes(f) && CODE_EXT.test(f) && !SKIP.test(f)) toFetch.push(f);
+    }
+
+    const fetched = await Promise.allSettled(
+      toFetch.slice(0, 18).map(async (fp) => {
+        const r = await fetch(`https://raw.githubusercontent.com/${owner}/${repo}/HEAD/${fp}`, { signal: AbortSignal.timeout(6000) });
+        if (!r.ok) throw new Error("not found");
+        const text = await r.text();
+        return { path: fp, content: text.slice(0, 3500) };
+      })
+    );
+
+    const sections: string[] = [
+      `# GitHub Repository: ${owner}/${repo}\n\nTotal files: ${allFiles.length}\nFile tree (first 60):\n\`\`\`\n${allFiles.slice(0, 60).join("\n")}\n\`\`\``,
+    ];
+    for (const r of fetched) {
+      if (r.status === "fulfilled") {
+        const { path, content } = r.value;
+        const ext = path.split(".").pop() ?? "";
+        sections.push(`## ${path}\n\`\`\`${ext}\n${content}\n\`\`\``);
+      }
+    }
+    return {
+      context: sections.join("\n\n").slice(0, 48000),
+      label: `${owner}/${repo} (${toFetch.length} files)`,
+    };
+  } catch { return null; }
+}
+
 const router: IRouter = Router();
 
 const BASE_SYSTEM_PROMPT = `## YOUR FIRST AND NON-NEGOTIABLE OBLIGATION — LIVE ACCURACY ABOVE EVERYTHING
@@ -1121,6 +1192,26 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
       res.write(`data: ${JSON.stringify({ type: "action", label: "Transcript loaded · analysing video", icon: "✅", color: "hsl(142 71% 45%)" })}\n\n`);
     } else {
       res.write(`data: ${JSON.stringify({ type: "action", label: "No transcript available for this video", icon: "⚠️", color: "hsl(38 92% 50%)" })}\n\n`);
+    }
+  }
+
+  // ── GitHub repo / file injection ────────────────────────────────────────────
+  const ghRegex = /https?:\/\/github\.com\/[^/\s?#]+\/[^/\s?#]+/;
+  const ghMatch = (body.data.content ?? "").match(ghRegex);
+  if (ghMatch?.[0] && !imageBase64) {
+    res.write(`data: ${JSON.stringify({ type: "action", label: "Fetching GitHub repository...", icon: "🐙", color: "hsl(210 70% 60%)" })}\n\n`);
+    const ghContent = await fetchGitHubContent(ghMatch[0]);
+    if (ghContent) {
+      const lastIdx = chatMessages.length - 1;
+      if (lastIdx >= 0 && chatMessages[lastIdx].role === "user") {
+        chatMessages[lastIdx] = {
+          role: "user",
+          content: `${chatMessages[lastIdx].content}\n\n---\n[GitHub Source Code — ${ghContent.label}]\n\n${ghContent.context}`,
+        };
+      }
+      res.write(`data: ${JSON.stringify({ type: "action", label: `Loaded: ${ghContent.label}`, icon: "✅", color: "hsl(142 71% 45%)" })}\n\n`);
+    } else {
+      res.write(`data: ${JSON.stringify({ type: "action", label: "Could not fetch repository (private or not found)", icon: "⚠️", color: "hsl(38 92% 50%)" })}\n\n`);
     }
   }
 
