@@ -247,8 +247,13 @@ VOICE STYLE: Short, direct sentences. No bullet points or markdown. Report what 
           if (raw === "[DONE]") break;
           try {
             const evt = JSON.parse(raw);
-            if (evt.type === "done") break;
-            if (evt.type === "text" && evt.delta) {
+            if (evt.type === "done" || evt.done) break;
+            // ── text streaming ────────────────────────────────────────────
+            if (evt.content) {
+              full += evt.content;
+              setStreamText(full);
+              setThinkingText("");
+            } else if (evt.type === "text" && evt.delta) {
               full += evt.delta;
               setStreamText(full);
               setThinkingText("");
@@ -259,11 +264,44 @@ VOICE STYLE: Short, direct sentences. No bullet points or markdown. Report what 
             if (evt.type === "status" && evt.message) {
               setThinkingText(evt.message);
             }
+            // ── action cards for every tool Sirius uses ───────────────────
             if (evt.type === "action" && evt.label) {
               const card = { label: evt.label, color: evt.color || "hsl(193,100%,35%)", icon: evt.icon, detail: evt.detail };
               liveActions.push(card);
               setStreamingActions([...liveActions]);
               setThinkingText("");
+            }
+            if (evt.type === "reading_file") {
+              liveActions.push({ label: "Reading file", detail: evt.path, color: "hsl(220 70% 55%)", icon: "📄" });
+              setStreamingActions([...liveActions]); setThinkingText("");
+            }
+            if (evt.type === "executing_code") {
+              liveActions.push({ label: `Running ${evt.language || "code"}`, detail: "", color: "hsl(280 70% 55%)", icon: "⚡" });
+              setStreamingActions([...liveActions]); setThinkingText("");
+            }
+            if (evt.type === "code_result") {
+              const last = liveActions[liveActions.length - 1];
+              if (last) { liveActions[liveActions.length - 1] = { ...last, detail: evt.success ? `Done in ${evt.executionMs}ms` : "Failed", color: evt.success ? "hsl(142 71% 45%)" : "hsl(0 72% 51%)" }; setStreamingActions([...liveActions]); }
+            }
+            if (evt.type === "proposing_change") {
+              liveActions.push({ label: "Writing change", detail: evt.filePath, color: "hsl(38 92% 50%)", icon: "✏️" });
+              setStreamingActions([...liveActions]); setThinkingText("");
+            }
+            if (evt.type === "deploy_result") {
+              const last = liveActions[liveActions.length - 1];
+              if (last) { liveActions[liveActions.length - 1] = { ...last, label: evt.success ? "Change deployed ✓" : "Change rejected", color: evt.success ? "hsl(142 71% 45%)" : "hsl(0 72% 51%)" }; setStreamingActions([...liveActions]); }
+            }
+            if (evt.type === "field_saved") {
+              liveActions.push({ label: `Saved: ${evt.label || evt.field}`, detail: evt.preview ? evt.preview.slice(0, 60) : "", color: "hsl(142 71% 45%)", icon: "💾" });
+              setStreamingActions([...liveActions]); setThinkingText("");
+            }
+            if (evt.type === "render_queued") {
+              liveActions.push({ label: "Render queued", detail: evt.description ? evt.description.slice(0, 60) : "", color: "hsl(193 100% 40%)", icon: "🎨" });
+              setStreamingActions([...liveActions]); setThinkingText("");
+            }
+            if (evt.type === "sending_to_cad") {
+              liveActions.push({ label: "Sending to New Dimensions", detail: "", color: "hsl(193 100% 40%)", icon: "📐" });
+              setStreamingActions([...liveActions]); setThinkingText("");
             }
             if (evt.type === "navigate") {
               if (evt.section) {

@@ -249,20 +249,60 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
           if (raw === "[DONE]") { streamDone = true; break; }
           try {
             const evt = JSON.parse(raw);
-            if (evt.type === "text" && evt.delta) {
+            // ── text streaming ────────────────────────────────────────────
+            if (evt.content) {
+              fullText += evt.content;
+              setStreamingText(fullText);
+              setThinkingText("");
+              setWebSearching(false);
+            } else if (evt.type === "text" && evt.delta) {
               fullText += evt.delta;
               setStreamingText(fullText);
               setThinkingText("");
               setWebSearching(false);
+            } else if (evt.done) {
+              streamDone = true;
             } else if (evt.type === "image" && evt.url) {
               images.push(evt.url);
               setStreamingImages([...images]);
               setThinkingText("");
+            // ── action cards for every tool Sirius uses ───────────────────
             } else if (evt.type === "action") {
               const card: ActionCard = { tool: evt.tool, label: evt.label, detail: evt.detail, color: evt.color, icon: evt.icon, result: evt.result };
               actions.push(card);
               setStreamingActions([...actions]);
               setThinkingText("");
+            } else if (evt.type === "reading_file") {
+              const card: ActionCard = { tool: "read_source_file", label: "Reading file", detail: evt.path, color: "hsl(220 70% 55%)", icon: "📄" };
+              actions.push(card); setStreamingActions([...actions]); setThinkingText("");
+            } else if (evt.type === "executing_code") {
+              const card: ActionCard = { tool: "execute_code", label: `Running ${evt.language || "code"}`, detail: "", color: "hsl(280 70% 55%)", icon: "⚡" };
+              actions.push(card); setStreamingActions([...actions]); setThinkingText("");
+            } else if (evt.type === "code_result") {
+              const last = actions[actions.length - 1];
+              if (last?.tool === "execute_code") {
+                actions[actions.length - 1] = { ...last, detail: evt.success ? `Done in ${evt.executionMs}ms` : "Failed", color: evt.success ? "hsl(142 71% 45%)" : "hsl(0 72% 51%)" };
+                setStreamingActions([...actions]);
+              }
+            } else if (evt.type === "proposing_change") {
+              const card: ActionCard = { tool: "propose_code_change", label: "Writing change", detail: evt.filePath, color: "hsl(38 92% 50%)", icon: "✏️" };
+              actions.push(card); setStreamingActions([...actions]); setThinkingText("");
+            } else if (evt.type === "deploy_result") {
+              const last = actions[actions.length - 1];
+              if (last?.tool === "propose_code_change") {
+                actions[actions.length - 1] = { ...last, label: evt.success ? "Change deployed ✓" : "Change rejected", color: evt.success ? "hsl(142 71% 45%)" : "hsl(0 72% 51%)" };
+                setStreamingActions([...actions]);
+              }
+            } else if (evt.type === "field_saved") {
+              const card: ActionCard = { tool: "save_to_project", label: `Saved: ${evt.label || evt.field}`, detail: evt.preview ? evt.preview.slice(0, 60) : "", color: "hsl(142 71% 45%)", icon: "💾" };
+              actions.push(card); setStreamingActions([...actions]); setThinkingText("");
+            } else if (evt.type === "render_queued") {
+              const card: ActionCard = { tool: "generate_render", label: "Render queued", detail: evt.description ? evt.description.slice(0, 60) : "", color: "hsl(193 100% 40%)", icon: "🎨" };
+              actions.push(card); setStreamingActions([...actions]); setThinkingText("");
+            } else if (evt.type === "sending_to_cad") {
+              const card: ActionCard = { tool: "send_to_new_dimensions", label: "Sending to New Dimensions", detail: "", color: "hsl(193 100% 40%)", icon: "📐" };
+              actions.push(card); setStreamingActions([...actions]); setThinkingText("");
+            // ── status / thinking ────────────────────────────────────────
             } else if (evt.type === "thinking") {
               setThinkingText(evt.text || "");
             } else if (evt.type === "status" && evt.message) {
