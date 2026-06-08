@@ -1519,14 +1519,13 @@ LOOP PREVENTION: If you have already called a tool and received its result, do N
     try {
       res.write(`data: ${JSON.stringify({ type: "action", label: "Extended reasoning engaged...", icon: "🧠", color: "hsl(270 70% 60%)" })}\n\n`);
       const thinkStream = await openai.chat.completions.create({
-        model: "anthropic/claude-3-7-sonnet",
+        model: "anthropic/claude-sonnet-4.5",
         messages: [
           { role: "system", content: systemPrompt },
           ...chatMessages,
         ],
         stream: true,
         max_tokens: 16000,
-        thinking: { type: "enabled", budget_tokens: 8000 },
       } as any) as unknown as AsyncIterable<any>;
 
       for await (const chunk of thinkStream) {

@@ -91,7 +91,11 @@ export const SendOpenaiMessageParams = zod.object({
 export const SendOpenaiMessageBody = zod.object({
   content: zod.string(),
   userId: zod.string().optional(),
-});
+  mode: zod.string().optional(),
+  imageBase64: zod.string().optional(),
+  documentBase64: zod.string().optional(),
+  documentName: zod.string().optional(),
+}).passthrough();
 
 /**
  * @summary Get a user profile
