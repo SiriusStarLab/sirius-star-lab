@@ -36,6 +36,30 @@ uri = "file://artifacts/sirius-mobile/assets/images/icon.png"
 type = "image"
 title = "sirius-star-lab-icon"
 
+[[generated]]
+id = "feJVm9SoqB4gsqWKuIFLS"
+uri = "file://attached_assets/sirius-ad-tiktok.png"
+type = "image"
+title = "sirius tiktok ad vertical"
+
+[[generated]]
+id = "eEBar9Sb8OKtptnRXDG6E"
+uri = "file://attached_assets/sirius-ad-linkedin.png"
+type = "image"
+title = "sirius linkedin ad horizontal"
+
+[[generated]]
+id = "VWs5I-XBxkgBxb9VNq6Vu"
+uri = "file://attached_assets/sirius-ad-square.png"
+type = "image"
+title = "sirius square instagram ad"
+
+[[generated]]
+id = "Ljthx9Ql0t8RAMILOJRmc"
+uri = "file://attached_assets/sirius-ad-story.png"
+type = "image"
+title = "sirius story ad vertical alt"
+
 [[outputs]]
 id = "cNdbKNPxY3uJsRbWTNxPd"
 uri = "file://attached_assets/sirius-logo-v1.png"
@@ -191,3 +215,27 @@ id = "Svz3K9ynge_TOBCmHnVAt"
 uri = "file://sirius-source.zip"
 type = "unspecified"
 title = "Sirius — Full Source Code (.zip)"
+
+[[outputs]]
+id = "A9aGb8XVZgKovhVKiDjfO"
+uri = "file://attached_assets/sirius-ad-tiktok.png"
+type = "image"
+title = "TikTok / Reels / Story (9:16 vertical)"
+
+[[outputs]]
+id = "3ffGNafkFf421QyMshWhN"
+uri = "file://attached_assets/sirius-ad-linkedin.png"
+type = "image"
+title = "LinkedIn / Twitter / Facebook (16:9 horizontal)"
+
+[[outputs]]
+id = "1mgbbVeIvmrfraQoetozD"
+uri = "file://attached_assets/sirius-ad-square.png"
+type = "image"
+title = "Instagram / Facebook Square (1:1)"
+
+[[outputs]]
+id = "U_pN6DUC_j5jg8YplVktN"
+uri = "file://attached_assets/sirius-ad-story.png"
+type = "image"
+title = "Neural Brain — Story / TikTok alt (9:16 vertical)"
