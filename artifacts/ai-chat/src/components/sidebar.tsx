@@ -52,6 +52,10 @@ interface SidebarProps {
 }
 
 function isIOS() { return /iphone|ipad|ipod/i.test(navigator.userAgent); }
+function isIOSSafari() {
+  const ua = navigator.userAgent;
+  return isIOS() && /safari/i.test(ua) && !/crios|fxios|edgios|opios/i.test(ua);
+}
 function isInStandaloneMode() {
   return window.matchMedia("(display-mode: standalone)").matches || (window.navigator as any).standalone === true;
 }
@@ -606,11 +610,18 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession }: Sid
                 </div>
 
                 {/* Steps */}
-                {isIOS() ? (
+                {isIOS() && !isIOSSafari() ? (
+                  /* iOS Chrome / non-Safari — must switch to Safari */
+                  <div style={{ background: "rgba(255,180,0,0.07)", border: "1px solid rgba(255,180,0,0.35)", borderRadius: 14, padding: "16px 18px" }}>
+                    <div style={{ color: "#ffb400", fontWeight: 700, fontSize: 15, marginBottom: 8 }}>⚠️ You need to switch to Safari</div>
+                    <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 14, lineHeight: 1.6 }}>
+                      Chrome on iPhone can only add bookmarks — not install apps.<br /><br />
+                      Open <strong style={{ color: "#fff" }}>Safari</strong> and go to <strong style={{ color: "#fff" }}>sirius-ai.live</strong>, then tap <strong style={{ color: "#fff" }}>Add to Home Screen</strong> from the Share menu.
+                    </div>
+                  </div>
+                ) : isIOS() ? (
+                  /* iOS Safari — proper steps */
                   <div style={{ background: "rgba(0,212,255,0.06)", border: "1px solid rgba(0,212,255,0.18)", borderRadius: 14, padding: "16px 18px" }}>
-                    <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 12, marginBottom: 16 }}>
-                      Open this page in <strong style={{ color: "#fff" }}>Safari</strong> if you're not already — then:
-                    </p>
                     <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14 }}>
                       <div style={{ width: 36, height: 36, borderRadius: 10, background: "rgba(0,212,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                         <span style={{ color: "#00d4ff", fontWeight: 700, fontSize: 14 }}>1</span>

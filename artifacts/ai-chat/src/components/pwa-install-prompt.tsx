@@ -11,6 +11,11 @@ function isIOS() {
   return /iphone|ipad|ipod/i.test(navigator.userAgent);
 }
 
+function isIOSSafari() {
+  const ua = navigator.userAgent;
+  return isIOS() && /safari/i.test(ua) && !/crios|fxios|edgios|opios/i.test(ua);
+}
+
 function isInStandaloneMode() {
   return (
     window.matchMedia("(display-mode: standalone)").matches ||
@@ -112,37 +117,57 @@ export function PWAInstallPrompt() {
                 <X size={18} />
               </button>
             </div>
-            <div style={{
-              background: "rgba(0,212,255,0.06)",
-              border: "1px solid rgba(0,212,255,0.15)",
-              borderRadius: 12,
-              padding: "14px 16px",
-            }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
-                <div style={{
-                  width: 32, height: 32, borderRadius: 8,
-                  background: "rgba(0,212,255,0.12)",
-                  display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-                }}>
-                  <span style={{ color: "#00d4ff", fontFamily: "Outfit, sans-serif", fontWeight: 700, fontSize: 13 }}>1</span>
+
+            {!isIOSSafari() ? (
+              /* Not in Safari — show switch warning */
+              <div style={{
+                background: "rgba(255,180,0,0.08)",
+                border: "1px solid rgba(255,180,0,0.35)",
+                borderRadius: 12,
+                padding: "14px 16px",
+              }}>
+                <div style={{ color: "#ffb400", fontFamily: "Outfit, sans-serif", fontWeight: 700, fontSize: 14, marginBottom: 6 }}>
+                  ⚠️ Switch to Safari first
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, color: "rgba(255,255,255,0.8)", fontFamily: "Outfit, sans-serif", fontSize: 14 }}>
-                  Tap the <Share size={16} color="#00d4ff" style={{ display: "inline", flexShrink: 0 }} /> Share button below
-                </div>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <div style={{
-                  width: 32, height: 32, borderRadius: 8,
-                  background: "rgba(0,212,255,0.12)",
-                  display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-                }}>
-                  <span style={{ color: "#00d4ff", fontFamily: "Outfit, sans-serif", fontWeight: 700, fontSize: 13 }}>2</span>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, color: "rgba(255,255,255,0.8)", fontFamily: "Outfit, sans-serif", fontSize: 14 }}>
-                  Tap <Plus size={16} color="#00d4ff" style={{ display: "inline", flexShrink: 0 }} /> <strong style={{ color: "#fff" }}>Add to Home Screen</strong>
+                <div style={{ color: "rgba(255,255,255,0.7)", fontFamily: "Outfit, sans-serif", fontSize: 13, lineHeight: 1.5 }}>
+                  Chrome and other browsers on iPhone can only save bookmarks — not install apps.<br /><br />
+                  Open <strong style={{ color: "#fff" }}>Safari</strong> and visit <strong style={{ color: "#fff" }}>sirius-ai.live</strong>, then tap this button again.
                 </div>
               </div>
-            </div>
+            ) : (
+              /* In Safari — show proper steps */
+              <div style={{
+                background: "rgba(0,212,255,0.06)",
+                border: "1px solid rgba(0,212,255,0.15)",
+                borderRadius: 12,
+                padding: "14px 16px",
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
+                  <div style={{
+                    width: 32, height: 32, borderRadius: 8,
+                    background: "rgba(0,212,255,0.12)",
+                    display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                  }}>
+                    <span style={{ color: "#00d4ff", fontFamily: "Outfit, sans-serif", fontWeight: 700, fontSize: 13 }}>1</span>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, color: "rgba(255,255,255,0.8)", fontFamily: "Outfit, sans-serif", fontSize: 14 }}>
+                    Tap the <Share size={16} color="#00d4ff" style={{ display: "inline", flexShrink: 0 }} /> Share button at the bottom of Safari
+                  </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{
+                    width: 32, height: 32, borderRadius: 8,
+                    background: "rgba(0,212,255,0.12)",
+                    display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                  }}>
+                    <span style={{ color: "#00d4ff", fontFamily: "Outfit, sans-serif", fontWeight: 700, fontSize: 13 }}>2</span>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, color: "rgba(255,255,255,0.8)", fontFamily: "Outfit, sans-serif", fontSize: 14 }}>
+                    Scroll down and tap <Plus size={16} color="#00d4ff" style={{ display: "inline", flexShrink: 0 }} /> <strong style={{ color: "#fff" }}>Add to Home Screen</strong>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div style={{ maxWidth: 420, margin: "0 auto", display: "flex", alignItems: "center", gap: 14 }}>
