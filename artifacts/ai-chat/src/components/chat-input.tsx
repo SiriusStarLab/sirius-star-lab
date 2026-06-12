@@ -418,9 +418,9 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
         </div>
       )}
 
-      {/* Active mode description */}
+      {/* Active mode description — desktop only */}
       {!showModeGuide && (
-        <div className="mb-2.5 h-4 flex items-center">
+        <div className="hidden sm:flex mb-2.5 h-4 items-center">
           {MODES.find(m => m.id === mode) && (
             <p className="text-[10px] font-mono tracking-[0.18em] transition-all duration-200"
               style={{ color: mode !== "guru" ? "hsl(193 100% 40% / 0.75)" : "hsl(220 14% 60% / 0.5)" }}>
@@ -516,7 +516,7 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
             title="Attach an image"
           >
             <ImageIcon size={12} />
-            Image
+            <span className="hidden sm:inline">Image</span>
           </button>
           <button
             onClick={() => docInputRef.current?.click()}
@@ -529,7 +529,7 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
             title="Attach a document, code file, or data file"
           >
             <FileText size={12} />
-            Document
+            <span className="hidden sm:inline">Document</span>
           </button>
         </div>
         <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageSelect} />
@@ -566,10 +566,10 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
             </button>
           )}
 
-          {/* Keyboard / type button */}
+          {/* Keyboard / type button — desktop only (redundant on mobile) */}
           <button
             onClick={() => { setTimeout(() => textareaRef.current?.focus(), 0); }}
-            className="h-8 w-8 rounded-lg flex items-center justify-center transition-all duration-200"
+            className="hidden sm:flex h-8 w-8 rounded-lg items-center justify-center transition-all duration-200"
             style={{
               background: "hsl(210 30% 95%)",
               border: "1px solid hsl(210 25% 87%)",

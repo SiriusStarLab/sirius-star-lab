@@ -248,7 +248,7 @@ export function ChatPage() {
         </AnimatePresence>
 
         {/* Chat area */}
-        <div className="flex-1 overflow-y-auto scroll-smooth pb-36">
+        <div className="flex-1 overflow-y-auto scroll-smooth pb-44 sm:pb-36">
           {isInitialLoading ? (
             <div className="h-full flex items-center justify-center">
               <div className="flex flex-col items-center gap-4 text-muted-foreground">
