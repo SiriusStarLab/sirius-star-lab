@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useRoute, useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, Home, CheckCircle2 } from "lucide-react";
+import { Menu, Home, CheckCircle2, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sidebar } from "@/components/sidebar";
 import { ChatMessage } from "@/components/chat-message";
@@ -9,9 +9,16 @@ import { ChatInput } from "@/components/chat-input";
 import { DailyWisdom } from "@/components/daily-wisdom";
 import { TopicHub } from "@/components/topic-hub";
 import { MoodCheckin } from "@/components/mood-checkin";
+import { IOSInstallGuide } from "@/components/pwa-install-prompt";
 import { useChat } from "@/hooks/use-chat";
 import { useProfile } from "@/hooks/use-profile";
 import { useGetOpenaiConversation } from "@workspace/api-client-react";
+
+function isIOS() { return /iphone|ipad|ipod/i.test(navigator.userAgent); }
+function isInStandaloneMode() {
+  return window.matchMedia("(display-mode: standalone)").matches || (window.navigator as any).standalone === true;
+}
+function isMobileDevice() { return /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent); }
 
 const SURPRISE_PROMPTS = [
   "Tell me the most mind-blowing fact about the universe that most people have never heard.",
@@ -40,6 +47,8 @@ export function ChatPage() {
   const [upgradeParam, setUpgradeParam] = useState<"plus" | "pro" | null>(null);
   const [expandedSection, setExpandedSection] = useState<ExpandedSection>(null);
   const [savedFlash, setSavedFlash] = useState(false);
+  const [showPWAGuide, setShowPWAGuide] = useState(false);
+  const showInstallButton = isMobileDevice() && !isInStandaloneMode();
   const [voiceMode, setVoiceMode] = useState(() => localStorage.getItem("sirius_voice_mode") === "true");
   const prevConvId = useRef<number | undefined>(undefined);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -395,6 +404,36 @@ export function ChatPage() {
                 </button>
               </motion.div>
 
+              {/* Add to Home Screen — only on mobile, only when not already installed */}
+              {showInstallButton && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.4, duration: 0.35 }}
+                  className="relative z-10 flex justify-center mt-1 mb-3"
+                >
+                  <button
+                    onClick={async () => {
+                      const evt = (window as any).__siriusPWAInstallEvent;
+                      if (evt && !isIOS()) {
+                        await evt.prompt();
+                      } else {
+                        setShowPWAGuide(true);
+                      }
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-medium transition-all duration-200 active:scale-95"
+                    style={{
+                      background: "hsl(193 100% 52% / 0.07)",
+                      border: "1px solid hsl(193 100% 52% / 0.28)",
+                      color: "hsl(193 100% 35%)",
+                    }}
+                  >
+                    <Smartphone size={13} />
+                    Add to Home Screen
+                  </button>
+                </motion.div>
+              )}
+
               {/* Expandable content sections */}
               <AnimatePresence mode="wait">
                 {expandedSection === "topics" && (
@@ -515,6 +554,10 @@ export function ChatPage() {
           <ChatInput onSend={handleSend} isTyping={isTyping} onStop={stopStream} voiceMode={voiceMode} onToggleVoice={toggleVoiceMode} />
         </div>
       </div>
+
+      <AnimatePresence>
+        {showPWAGuide && <IOSInstallGuide onClose={() => setShowPWAGuide(false)} />}
+      </AnimatePresence>
     </div>
   );
 }
