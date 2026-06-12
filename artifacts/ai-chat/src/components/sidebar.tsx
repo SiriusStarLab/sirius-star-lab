@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { PlusCircle, MessageSquare, Trash2, X, Settings, Zap, Loader2, Sparkles, FlaskConical, BookOpen, GraduationCap, Globe2, Heart } from "lucide-react";
+import { PlusCircle, MessageSquare, Trash2, X, Settings, Zap, Loader2, Sparkles, FlaskConical, BookOpen, GraduationCap, Globe2, Heart, Share, Plus, Smartphone } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -51,6 +51,12 @@ interface SidebarProps {
   onNewSession?: () => void;
 }
 
+function isIOS() { return /iphone|ipad|ipod/i.test(navigator.userAgent); }
+function isInStandaloneMode() {
+  return window.matchMedia("(display-mode: standalone)").matches || (window.navigator as any).standalone === true;
+}
+function isMobileDevice() { return /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent); }
+
 export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession }: SidebarProps) {
   const [location, setLocation] = useLocation();
   const labPendingCount = useLabPendingCount();
@@ -59,10 +65,12 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession }: Sid
   const [isPortraitOpen, setIsPortraitOpen] = useState(false);
   const [isPricingOpen, setIsPricingOpen] = useState(false);
   const [isTutorialsOpen, setIsTutorialsOpen] = useState(false);
+  const [showInstallGuide, setShowInstallGuide] = useState(false);
   const [checkingOut, setCheckingOut] = useState(false);
   const { profile } = useProfile();
   const { status, usagePercent, isPremium } = useSubscription();
   const userId = getUserId();
+  const showInstallButton = isMobileDevice() && !isInStandaloneMode();
 
   useEffect(() => {
     if (forceOpenPricing) setIsPricingOpen(true);
@@ -499,6 +507,25 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession }: Sid
 
 
 
+        {/* Add to Home Screen — mobile only, hidden once installed */}
+        {showInstallButton && (
+          <button
+            onClick={() => { setShowInstallGuide(true); localStorage.removeItem("sirius_pwa_dismissed"); }}
+            className="mx-3 mb-2 flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl transition-all duration-200"
+            style={{
+              background: "hsl(193 100% 52% / 0.06)",
+              border: "1px solid hsl(193 100% 52% / 0.2)",
+              color: "hsl(193 100% 40%)",
+            }}
+          >
+            <Smartphone size={14} style={{ flexShrink: 0 }} />
+            <div style={{ textAlign: "left" }}>
+              <div style={{ fontSize: 12, fontWeight: 600 }}>Add to Home Screen</div>
+              <div style={{ fontSize: 10, opacity: 0.6, marginTop: 1 }}>Install Sirius as an app</div>
+            </div>
+          </button>
+        )}
+
         {/* Legal links */}
         <div className="flex items-center gap-3 px-3 pt-2 pb-1">
           <Link href="/terms" className="text-[10px] font-mono text-muted-foreground/30 hover:text-primary/60 transition-colors">Terms</Link>
@@ -537,6 +564,99 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession }: Sid
       <MemoryPortrait isOpen={isPortraitOpen} onClose={() => setIsPortraitOpen(false)} aiName={aiName} />
       <PricingModal isOpen={isPricingOpen} onClose={() => setIsPricingOpen(false)} currentTier={status.tier} />
       <TutorialsModal open={isTutorialsOpen} onClose={() => setIsTutorialsOpen(false)} />
+
+      {/* Install guide overlay */}
+      <AnimatePresence>
+        {showInstallGuide && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowInstallGuide(false)}
+              style={{ position: "fixed", inset: 0, background: "rgba(8,12,26,0.7)", backdropFilter: "blur(6px)", zIndex: 200 }}
+            />
+            <motion.div
+              initial={{ y: 80, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 80, opacity: 0 }}
+              transition={{ type: "spring", damping: 22, stiffness: 220 }}
+              style={{
+                position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 201,
+                background: "rgba(8,12,26,0.98)",
+                borderTop: "1px solid rgba(0,212,255,0.2)",
+                borderRadius: "20px 20px 0 0",
+                padding: "24px 20px",
+                paddingBottom: "calc(24px + env(safe-area-inset-bottom))",
+              }}
+            >
+              <div style={{ maxWidth: 400, margin: "0 auto" }}>
+                {/* Header */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <img src="/pwa-192.png" alt="Sirius" style={{ width: 44, height: 44, borderRadius: 10 }} />
+                    <div>
+                      <div style={{ color: "#fff", fontWeight: 700, fontSize: 16 }}>Install Sirius Star Lab</div>
+                      <div style={{ color: "rgba(255,255,255,0.45)", fontSize: 12, marginTop: 2 }}>Add to your home screen</div>
+                    </div>
+                  </div>
+                  <button onClick={() => setShowInstallGuide(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.4)", padding: 4 }}>
+                    <X size={20} />
+                  </button>
+                </div>
+
+                {/* Steps */}
+                {isIOS() ? (
+                  <div style={{ background: "rgba(0,212,255,0.06)", border: "1px solid rgba(0,212,255,0.18)", borderRadius: 14, padding: "16px 18px" }}>
+                    <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 12, marginBottom: 16 }}>
+                      Open this page in <strong style={{ color: "#fff" }}>Safari</strong> if you're not already — then:
+                    </p>
+                    <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14 }}>
+                      <div style={{ width: 36, height: 36, borderRadius: 10, background: "rgba(0,212,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        <span style={{ color: "#00d4ff", fontWeight: 700, fontSize: 14 }}>1</span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, color: "rgba(255,255,255,0.85)", fontSize: 15 }}>
+                        Tap the <Share size={17} color="#00d4ff" /> <strong style={{ color: "#fff" }}>Share</strong> button at the bottom of Safari
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                      <div style={{ width: 36, height: 36, borderRadius: 10, background: "rgba(0,212,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        <span style={{ color: "#00d4ff", fontWeight: 700, fontSize: 14 }}>2</span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, color: "rgba(255,255,255,0.85)", fontSize: 15 }}>
+                        Scroll down and tap <Plus size={17} color="#00d4ff" /> <strong style={{ color: "#fff" }}>Add to Home Screen</strong>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ background: "rgba(0,212,255,0.06)", border: "1px solid rgba(0,212,255,0.18)", borderRadius: 14, padding: "16px 18px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14 }}>
+                      <div style={{ width: 36, height: 36, borderRadius: 10, background: "rgba(0,212,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        <span style={{ color: "#00d4ff", fontWeight: 700, fontSize: 14 }}>1</span>
+                      </div>
+                      <div style={{ color: "rgba(255,255,255,0.85)", fontSize: 15 }}>
+                        Tap the <strong style={{ color: "#fff" }}>⋮ menu</strong> in your browser (top right)
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                      <div style={{ width: 36, height: 36, borderRadius: 10, background: "rgba(0,212,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        <span style={{ color: "#00d4ff", fontWeight: 700, fontSize: 14 }}>2</span>
+                      </div>
+                      <div style={{ color: "rgba(255,255,255,0.85)", fontSize: 15 }}>
+                        Tap <strong style={{ color: "#fff" }}>Add to Home Screen</strong> or <strong style={{ color: "#fff" }}>Install app</strong>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <p style={{ color: "rgba(255,255,255,0.25)", fontSize: 11, textAlign: "center", marginTop: 16 }}>
+                  Once added, Sirius launches fullscreen like a native app
+                </p>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </>
   );
 }

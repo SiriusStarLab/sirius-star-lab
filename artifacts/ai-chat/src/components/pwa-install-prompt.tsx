@@ -22,7 +22,7 @@ function isMobile() {
   return /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent);
 }
 
-const DISMISSED_KEY = "sirius_pwa_dismissed";
+const SESSION_DISMISSED_KEY = "sirius_pwa_dismissed_session";
 
 export function PWAInstallPrompt() {
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
@@ -33,11 +33,8 @@ export function PWAInstallPrompt() {
     if (isInStandaloneMode()) return;
     if (!isMobile()) return;
 
-    const dismissed = localStorage.getItem(DISMISSED_KEY);
-    if (dismissed) {
-      const dismissedAt = parseInt(dismissed, 10);
-      if (Date.now() - dismissedAt < 1000 * 60 * 60 * 24 * 7) return;
-    }
+    // Only skip if dismissed THIS session — clears on every new visit
+    if (sessionStorage.getItem(SESSION_DISMISSED_KEY)) return;
 
     if (isIOS()) {
       const timer = setTimeout(() => {
@@ -68,7 +65,8 @@ export function PWAInstallPrompt() {
 
   const handleDismiss = () => {
     setVisible(false);
-    localStorage.setItem(DISMISSED_KEY, Date.now().toString());
+    // Only remember for this session — prompt returns on next visit
+    sessionStorage.setItem(SESSION_DISMISSED_KEY, "1");
   };
 
   if (!visible) return null;
