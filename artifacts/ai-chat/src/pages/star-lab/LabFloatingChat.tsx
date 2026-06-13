@@ -327,23 +327,25 @@ VOICE STYLE: Short, direct sentences. No bullet points or markdown. Report what 
             if (evt.type === "conversation_id" && evt.conversationId) {
               conversationIdRef.current = evt.conversationId;
             }
+            if (evt.type === "error") {
+              full = evt.message || "Something went wrong — please try again.";
+            }
           } catch {}
         }
       }
 
       clearInterval(activityTimeout);
 
-      if (full) {
-        const cleanText = full.replace(/<<[^>]+>>/g, "").replace(/[*#>`_~]/g, "").trim();
-        setMessages(prev => [...prev, { role: "assistant", content: cleanText, actions: liveActions.length ? liveActions : undefined }]);
+      const cleanText = (full || "No response — please try again.").replace(/<<[^>]+>>/g, "").replace(/[*#>`_~]/g, "").trim();
 
-        const spokenText = cleanText.length > 350 ? cleanText.slice(0, 350) + "." : cleanText;
-        setVoicePhase("speaking");
-        speakText(spokenText, () => {
-          setVoicePhase("idle");
-          if (!stoppedRef.current) setTimeout(() => startVoiceListening(t => sendVoice(t)), 400);
-        });
-      }
+      setMessages(prev => [...prev, { role: "assistant", content: cleanText, actions: liveActions.length ? liveActions : undefined }]);
+
+      const spokenText = cleanText.length > 350 ? cleanText.slice(0, 350) + "." : cleanText;
+      setVoicePhase("speaking");
+      speakText(spokenText, () => {
+        setVoicePhase("idle");
+        if (!stoppedRef.current) setTimeout(() => startVoiceListening(t => sendVoice(t)), 400);
+      });
     } catch {
       const errMsg = "Something went wrong — please try again.";
       setMessages(prev => [...prev, { role: "assistant", content: errMsg }]);
