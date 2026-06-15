@@ -4,13 +4,29 @@ import remarkGfm from "remark-gfm";
 import { Check, Copy, Download } from "lucide-react";
 
 const IMAGE_EXT_RE = /\.(png|jpg|jpeg|gif|webp|bmp|svg)(\?.*)?$/i;
-const IMAGE_URL_LINE_RE = /^URL:\s*(https?:\/\/\S+)$/m;
 
 function preprocessContent(content: string): string {
-  return content.replace(
+  let result = content;
+
+  // 1. "URL: https://...image.png" → markdown image
+  result = result.replace(
     /URL:\s*(https?:\/\/\S+\.(png|jpg|jpeg|gif|webp|bmp|svg)(\?\S*)?)/gi,
     (_, url) => `\n\n![Generated image](${url})\n\n`
   );
+
+  // 2. "Saved to: /opt/sirius/.../renders/file.png" → URL → markdown image
+  result = result.replace(
+    /Saved to:\s*\/opt\/sirius\/artifacts\/api-server\/public\/renders\/([\w.\-]+)/gi,
+    (_, filename) => `\n\n![Generated image](https://sirius-ai.live/api/lab/renders/${filename})\n\n`
+  );
+
+  // 3. Bare https://sirius-ai.live/api/lab/renders/file.png not already in markdown
+  result = result.replace(
+    /(?<!\()( |^)(https?:\/\/[^\s)]+\/api\/lab\/renders\/[\w.\-]+)/gm,
+    (_, space, url) => `${space}\n\n![Generated image](${url})\n\n`
+  );
+
+  return result;
 }
 
 export function LabMarkdown({ content, streaming }: { content: string; streaming: boolean }) {
