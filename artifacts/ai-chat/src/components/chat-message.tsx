@@ -345,6 +345,26 @@ export function ChatMessage({ message }: ChatMessageProps) {
                   <ReactMarkdown
                     remarkPlugins={[remarkGfm]}
                     components={{
+                      img: ({ src, alt }) => {
+                        if (!src) return null;
+                        return (
+                          <span className="block my-2">
+                            <img
+                              src={src}
+                              alt={alt || "Image"}
+                              className="rounded-xl max-w-full"
+                              style={{ maxHeight: "400px", objectFit: "contain" }}
+                              onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
+                            />
+                            <span className="flex items-center gap-2 mt-1.5">
+                              <a href={src} download target="_blank" rel="noopener noreferrer"
+                                className="text-xs underline opacity-60 hover:opacity-100">Download</a>
+                              <a href={src} target="_blank" rel="noopener noreferrer"
+                                className="text-xs underline opacity-60 hover:opacity-100">Open full size ↗</a>
+                            </span>
+                          </span>
+                        );
+                      },
                       code({ node, className, children, ...props }: any) {
                         const match = /language-(\w+)/.exec(className || "");
                         const isBlock = !props.inline;

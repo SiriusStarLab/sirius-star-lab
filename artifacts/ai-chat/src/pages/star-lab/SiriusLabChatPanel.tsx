@@ -562,7 +562,7 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
                   {msg.attachedImageUrl && (
                     <img src={msg.attachedImageUrl} alt="Attached" className="rounded-xl mb-2 max-w-full" style={{ maxHeight: "220px", objectFit: "contain" }} />
                   )}
-                  {msg.content && <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>}
+                  {msg.content && <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ img: ({ src, alt }) => src ? <span className="block my-2"><img src={src} alt={alt || "Image"} className="rounded-xl max-w-full" style={{ maxHeight: "400px", objectFit: "contain" }} onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} /><span className="flex gap-2 mt-1.5"><a href={src} download target="_blank" rel="noopener noreferrer" className="text-xs underline opacity-60 hover:opacity-100">Download</a><a href={src} target="_blank" rel="noopener noreferrer" className="text-xs underline opacity-60 hover:opacity-100">Open ↗</a></span></span> : null }}>{msg.content}</ReactMarkdown>}
                 </div>
               )}
             </div>
@@ -613,7 +613,7 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
               {streamingText ? (
                 <div className="px-4 py-3 rounded-2xl text-sm leading-relaxed"
                   style={{ background: "#FFFFFF", color: "rgba(15,23,42,0.82)", border: "1px solid rgba(15,23,42,0.09)", borderRadius: "18px 18px 18px 4px" }}>
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamingText}</ReactMarkdown>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ img: ({ src, alt }) => src ? <span className="block my-2"><img src={src} alt={alt || "Image"} className="rounded-xl max-w-full" style={{ maxHeight: "400px", objectFit: "contain" }} onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} /></span> : null }}>{streamingText}</ReactMarkdown>
                 </div>
               ) : !thinkingText && streamingActions.length === 0 && (
                 <div className="px-4 py-3 rounded-2xl"
