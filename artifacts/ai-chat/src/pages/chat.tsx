@@ -48,7 +48,7 @@ export function ChatPage() {
   const [expandedSection, setExpandedSection] = useState<ExpandedSection>(null);
   const [savedFlash, setSavedFlash] = useState(false);
   const [showPWAGuide, setShowPWAGuide] = useState(false);
-  const showInstallButton = isMobileDevice() && !isInStandaloneMode();
+  const showInstallButton = isMobileDevice() && !isIOS() && !isInStandaloneMode();
   const [voiceMode, setVoiceMode] = useState(() => localStorage.getItem("sirius_voice_mode") === "true");
   const prevConvId = useRef<number | undefined>(undefined);
   const messagesEndRef = useRef<HTMLDivElement>(null);

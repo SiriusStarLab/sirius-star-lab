@@ -75,7 +75,7 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession }: Sid
   const { profile } = useProfile();
   const { status, usagePercent, isPremium } = useSubscription();
   const userId = getUserId();
-  const showInstallButton = isMobileDevice() && !isInStandaloneMode();
+  const showInstallButton = isMobileDevice() && !isIOS() && !isInStandaloneMode();
 
   useEffect(() => {
     if (forceOpenPricing) setIsPricingOpen(true);
