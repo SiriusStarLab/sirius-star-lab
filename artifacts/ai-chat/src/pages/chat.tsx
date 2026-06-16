@@ -118,61 +118,47 @@ export function ChatPage() {
     });
   };
 
-  const ttsGenRef = useRef(0);
+  const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
+  const ttsBlobRef = useRef<string | null>(null);
 
-  const playTTS = (text: string) => {
-    if (!window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
+  const stopTTS = () => {
+    if (ttsAudioRef.current) {
+      ttsAudioRef.current.pause();
+      ttsAudioRef.current.src = "";
+    }
+    if (ttsBlobRef.current) {
+      URL.revokeObjectURL(ttsBlobRef.current);
+      ttsBlobRef.current = null;
+    }
+  };
 
-    // Bump the generation counter so any in-flight chunks from a previous
-    // message will bail out when they check their captured gen value.
-    const gen = ++ttsGenRef.current;
-
+  const playTTS = async (text: string) => {
+    stopTTS();
     const clean = text
       .replace(/\*\*/g, "")
       .replace(/#{1,6}\s/g, "")
       .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-      .slice(0, 6000);
-
-    // Split into sentence-sized chunks to work around Chrome's ~15s speech cutoff bug.
-    // Chrome silently stops speaking long utterances; chaining short ones avoids this.
-    const sentences = clean.match(/[^.!?]+[.!?]+[\s]*/g) || [clean];
-    const chunks: string[] = [];
-    let current = "";
-    for (const s of sentences) {
-      if ((current + s).length > 220) {
-        if (current) chunks.push(current.trim());
-        current = s;
-      } else {
-        current += s;
-      }
+      .slice(0, 4000);
+    try {
+      const res = await fetch("/api/openai/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: clean, voice: "nova" }),
+      });
+      if (!res.ok) throw new Error("TTS failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      ttsBlobRef.current = url;
+      const audio = new Audio(url);
+      ttsAudioRef.current = audio;
+      audio.onended = () => {
+        URL.revokeObjectURL(url);
+        ttsBlobRef.current = null;
+      };
+      await audio.play();
+    } catch {
+      // silent fail — no voice is better than a crash
     }
-    if (current.trim()) chunks.push(current.trim());
-
-    const voices = window.speechSynthesis.getVoices();
-    const preferred = voices.find(v => v.lang === "en-GB" && v.name.toLowerCase().includes("female"))
-      || voices.find(v => v.lang === "en-GB")
-      || voices.find(v => v.lang.startsWith("en"));
-
-    const speakChunk = (index: number) => {
-      // If a newer playTTS call has started, abandon this sequence entirely.
-      if (ttsGenRef.current !== gen) return;
-      if (index >= chunks.length) return;
-      const utt = new SpeechSynthesisUtterance(chunks[index]);
-      utt.lang = "en-GB";
-      utt.rate = 0.95;
-      utt.pitch = 1.0;
-      if (preferred) utt.voice = preferred;
-      utt.onend = () => speakChunk(index + 1);
-      utt.onerror = () => speakChunk(index + 1); // skip broken chunk, keep going
-      window.speechSynthesis.speak(utt);
-    };
-
-    speakChunk(0);
-  };
-
-  const stopTTS = () => {
-    if (window.speechSynthesis) window.speechSynthesis.cancel();
   };
 
   // When a topic/mood/wisdom chip triggers a chat, collapse the section
