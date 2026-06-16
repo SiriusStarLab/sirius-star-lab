@@ -18,6 +18,7 @@ import { ComparePage } from "@/pages/compare";
 import NotFound from "@/pages/not-found";
 import { PWAInstallPrompt } from "@/components/pwa-install-prompt";
 import { LabAuthGate } from "@/components/lab-auth-gate";
+import { SWUpdateBanner } from "@/components/sw-update-banner";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -67,6 +68,7 @@ function App() {
         </WouterRouter>
         <Toaster />
         <PWAInstallPrompt />
+        <SWUpdateBanner />
       </TooltipProvider>
     </QueryClientProvider>
   );

@@ -48,6 +48,6 @@ app.listen(port, () => {
     console.log("[Payment Expiry] Watching for unconfirmed payments — auto-expire after 48 hours");
     startHealthMonitor(30);
     // Autonomous self-repair — watches PM2 logs, probes endpoints, restarts if needed, notifies Garry
-    startSelfRepairEngine(5);
+    startSelfRepairEngine(20);
   }, 8_000);
 });

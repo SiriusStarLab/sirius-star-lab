@@ -298,7 +298,7 @@ async function tick(): Promise<void> {
       .limit(1);
 
     if (!next) {
-      console.log("[Pipeline] Queue empty — nothing to build");
+      // queue empty — silent
       return;
     }
 
