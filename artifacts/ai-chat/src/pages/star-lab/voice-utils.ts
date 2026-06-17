@@ -1,4 +1,53 @@
-export function speakText(text: string, onDone?: () => void, rate = 0.87) {
+let _currentAudio: HTMLAudioElement | null = null;
+
+export function stopSpeaking() {
+  if (_currentAudio) {
+    _currentAudio.pause();
+    _currentAudio = null;
+  }
+  if (typeof window !== "undefined" && window.speechSynthesis) {
+    window.speechSynthesis.cancel();
+  }
+}
+
+export async function speakText(
+  text: string,
+  onDone?: () => void,
+  _rate = 0.87,
+  pin?: string,
+) {
+  stopSpeaking();
+  if (!text?.trim()) { onDone?.(); return; }
+
+  const clean = text.replace(/[*#>`_~]/g, "").replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").trim();
+
+  if (pin) {
+    try {
+      const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
+      const resp = await fetch(`${base}/api/lab/tts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+        body: JSON.stringify({ text: clean.slice(0, 2000) }),
+        signal: AbortSignal.timeout(35_000),
+      });
+      if (!resp.ok) throw new Error(`TTS ${resp.status}`);
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      _currentAudio = audio;
+      audio.onended = () => { URL.revokeObjectURL(url); _currentAudio = null; onDone?.(); };
+      audio.onerror = () => { URL.revokeObjectURL(url); _currentAudio = null; onDone?.(); };
+      await audio.play();
+      return;
+    } catch (e) {
+      console.warn("[TTS] Piper failed, falling back to browser speech:", e);
+    }
+  }
+
+  _speakBrowser(clean, onDone, _rate);
+}
+
+function _speakBrowser(text: string, onDone?: () => void, rate = 0.87) {
   if (typeof window === "undefined" || !window.speechSynthesis) { onDone?.(); return; }
   window.speechSynthesis.cancel();
 
@@ -20,36 +69,18 @@ export function speakText(text: string, onDone?: () => void, rate = 0.87) {
     "Alex","Fred","Ralph","Bruce","Junior","Microsoft Ryan","Microsoft Guy",
   ];
 
-  // Priority order — UK neural voices first for a natural British female sound
   const FEMALE_ORDER = [
-    // Microsoft UK neural (best quality on Windows/Edge/Chrome)
-    "Microsoft Sonia",          // UK neural — warm, natural British female
-    "Microsoft Libby",          // UK neural — clear, friendly British female
-    "Microsoft Maisie",         // UK neural — younger British female
-    "Microsoft Hazel",          // UK female
-    // Google UK voices (good on Chrome/Android)
-    "Google UK English Female", // natural British female
-    // Apple UK/close accents
-    "Serena",                   // Apple UK — natural
-    "Moira",                    // Apple Irish — close to British cadence
-    // Fallback neural female voices (non-UK but still natural-sounding)
-    "Microsoft Aria",           // Neural American female — much better than older voices
-    "Microsoft Jenny",          // Neural American female
-    "Karen",                    // Apple Australian — natural
-    "Samantha",                 // Apple American — warm
-    // Older Microsoft female voices
+    "Microsoft Sonia","Microsoft Libby","Microsoft Maisie","Microsoft Hazel",
+    "Google UK English Female","Serena","Moira",
+    "Microsoft Aria","Microsoft Jenny","Karen","Samantha",
     "Microsoft Nora","Microsoft Clara","Microsoft Mia","Microsoft Leah",
-    "Microsoft Susan","Microsoft Zira",
-    // Other Apple/Google
-    "Victoria","Fiona","Tessa","Google US English",
+    "Microsoft Susan","Microsoft Zira","Victoria","Fiona","Tessa","Google US English",
   ];
 
   const pickVoice = () => {
     const v = window.speechSynthesis.getVoices();
-    // Try exact name match in priority order first
     const byName = v.find(x => FEMALE_ORDER.includes(x.name));
     if (byName) return byName;
-    // Prefer any en-GB female voice over en-US
     return (
       v.find(x => x.lang.startsWith("en-GB") && !KNOWN_MALE.includes(x.name) && !x.name.toLowerCase().includes("male")) ||
       v.find(x => x.lang.startsWith("en-US") && !KNOWN_MALE.includes(x.name) && !x.name.toLowerCase().includes("male")) ||

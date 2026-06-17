@@ -9660,6 +9660,44 @@ router.delete("/lab/tasks/:id", async (req, res): Promise<void> => {
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
+// Piper TTS — British female voice
+router.post("/lab/tts", async (req, res): Promise<void> => {
+  const pinHeader = req.headers["x-lab-pin"] as string;
+  if (!getPinRole(pinHeader)) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const { text } = req.body ?? {};
+  if (!text?.trim()) { res.status(400).json({ error: "text required" }); return; }
+  const { spawn } = require("child_process");
+  const { readFile, unlink } = require("fs/promises");
+  const { tmpdir } = require("os");
+  const { join } = require("path");
+  const tmpFile = join(tmpdir(), `piper-${Date.now()}-${Math.random().toString(36).slice(2)}.wav`);
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const piper = spawn("/opt/piper/piper", [
+        "--model", "/opt/piper/voices/en_GB-jenny_dioco-medium.onnx",
+        "--output_file", tmpFile,
+        "--quiet",
+      ]);
+      const safe = String(text).slice(0, 2000);
+      piper.stdin.write(safe);
+      piper.stdin.end();
+      const timer = setTimeout(() => { piper.kill(); reject(new Error("piper timeout")); }, 30_000);
+      piper.on("close", (code: number) => { clearTimeout(timer); code === 0 ? resolve() : reject(new Error(`piper exited ${code}`)); });
+      piper.on("error", (e: Error) => { clearTimeout(timer); reject(e); });
+    });
+    const wav = await readFile(tmpFile);
+    res.setHeader("Content-Type", "audio/wav");
+    res.setHeader("Content-Length", String(wav.length));
+    res.setHeader("Cache-Control", "no-store");
+    res.send(wav);
+  } catch (err: any) {
+    console.error("[TTS]", err.message);
+    res.status(500).json({ error: err.message });
+  } finally {
+    unlink(tmpFile).catch(() => {});
+  }
+});
+
 // Serve AI-generated images saved by the generate_image tool
 router.get("/lab/renders/:filename", (req: Request, res: Response) => {
   const { filename } = req.params;

@@ -3,7 +3,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Mic, MicOff, Send, Clock, Check, Loader2, Globe, Paperclip, X } from "lucide-react";
 import { getApiBase } from "@/lib/api-base";
-import { speakText } from "./voice-utils";
+import { speakText, stopSpeaking } from "./voice-utils";
 import type { Project, NavMode, AccessRole } from "./types";
 
 type ActionCard = { tool: string; label: string; detail: string; color: string; icon: string; result?: string };
@@ -167,9 +167,9 @@ export function SiriusLabChatPanel({ pin, accessLevel, navMode, activeProject, o
       speakText(greeting, () => {
         setVoicePhase("idle");
         if (!stoppedRef.current) startListeningLoop();
-      });
+      }, 0.87, pin);
     }, 500);
-    return () => { stoppedRef.current = true; stopListeningNow(); window.speechSynthesis?.cancel(); };
+    return () => { stoppedRef.current = true; stopListeningNow(); stopSpeaking(); };
   }, []);
 
   useEffect(() => {
@@ -375,6 +375,7 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
       const voiceText = finalText.replace(/[*#>`_~]/g, "").replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").slice(0, 500);
       speakText(voiceText, () => {
         setVoicePhase("idle");
+
         const pendingBuild = pendingBuildRef.current;
         const pendingNav = pendingNavRef.current;
         pendingBuildRef.current = null;
@@ -391,12 +392,12 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
         } else if (!stoppedRef.current) {
           setTimeout(() => startListeningLoop(), 400);
         }
-      });
+      }, 0.87, pin);
 
     } catch (err: any) {
       const msg = err?.name === "AbortError" ? "Request timed out — Sirius took too long. Try again." : "Something went wrong — try again.";
       setMessages(prev => [...prev, { role: "assistant", content: msg }]);
-      speakText(msg, () => { if (!stoppedRef.current) setTimeout(() => startListeningLoop(), 400); });
+      speakText(msg, () => { if (!stoppedRef.current) setTimeout(() => startListeningLoop(), 400); }, 0.87, pin);
     } finally {
       setStreaming(false);
       setStreamingText("");
