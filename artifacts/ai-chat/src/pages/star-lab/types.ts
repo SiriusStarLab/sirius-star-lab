@@ -42,4 +42,4 @@ export type RankResult = {
   buildEffort: string;
 };
 
-export type NavMode = "dashboard" | "projects" | "botlab" | "scout" | "feed" | "grants" | "commerce" | "outreach" | "autolab" | "revenue" | "agency" | "mission" | "growth" | "brain" | "research" | "docs" | "labchat" | "appbuilder" | "ai-arch" | "orchestrate" | "sysaudit" | "upgrades";
+export type NavMode = "dashboard" | "projects" | "botlab" | "scout" | "feed" | "grants" | "commerce" | "outreach" | "autolab" | "revenue" | "agency" | "mission" | "growth" | "brain" | "research" | "docs" | "labchat" | "appbuilder" | "ai-arch" | "orchestrate" | "sysaudit" | "upgrades" | "tasks";

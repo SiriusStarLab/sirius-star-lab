@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { eq, desc, gte, lte, and, or, like, sql, isNull, ne } from "drizzle-orm";
-import { db, labProjects, labMessages, scoutReports, cadFiles, techDocs, labScanHistory, userProfilesTable, mediaOutlets, appBuilderSessions, voiceJournalTable, siriusConfig, siriusAutomations, siriusCustomTools, siriusErrors, cadJobs, siriusUpgrades, siriusNotifications, messages as messagesTable, conversations as conversationsTable } from "@workspace/db";
+import { db, labProjects, labMessages, scoutReports, cadFiles, techDocs, labScanHistory, userProfilesTable, mediaOutlets, appBuilderSessions, voiceJournalTable, siriusConfig, siriusAutomations, siriusCustomTools, siriusErrors, cadJobs, siriusUpgrades, siriusNotifications, messages as messagesTable, conversations as conversationsTable, siriusTasks } from "@workspace/db";
 import { getSiriusConfigValue, setSiriusConfigValue, executeCustomTool, runAutomation, logSiriusError } from "../lib/sirius-automation.js";
 import { extractAndSaveMemories } from "../lib/memory.js";
 import { openai } from "@workspace/ai-client";
@@ -9611,6 +9611,53 @@ router.post("/lab/admin/restore-archived", authMiddleware, async (_req: Request,
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// ── Background Tasks ─────────────────────────────────────────────────────────
+router.get("/lab/tasks", async (req, res): Promise<void> => {
+  const pinHeader = req.headers["x-lab-pin"] as string;
+  if (!getPinRole(pinHeader)) { res.status(401).json({ error: "Unauthorized" }); return; }
+  try {
+    const tasks = await db.select().from(siriusTasks).orderBy(desc(siriusTasks.createdAt)).limit(200);
+    res.json(tasks);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+router.post("/lab/tasks", async (req, res): Promise<void> => {
+  const pinHeader = req.headers["x-lab-pin"] as string;
+  if (!getPinRole(pinHeader)) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const { title, description } = req.body ?? {};
+  if (!title?.trim() || !description?.trim()) { res.status(400).json({ error: "title and description required" }); return; }
+  try {
+    const [task] = await db.insert(siriusTasks).values({ title: String(title).trim(), description: String(description).trim() }).returning();
+    res.json(task);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+router.put("/lab/tasks/:id/cancel", async (req, res): Promise<void> => {
+  const pinHeader = req.headers["x-lab-pin"] as string;
+  if (!getPinRole(pinHeader)) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "invalid id" }); return; }
+  try {
+    const [task] = await db.update(siriusTasks)
+      .set({ status: "cancelled" })
+      .where(and(eq(siriusTasks.id, id), or(eq(siriusTasks.status, "pending"), eq(siriusTasks.status, "running"))))
+      .returning();
+    if (!task) { res.status(404).json({ error: "Task not found or already complete" }); return; }
+    res.json(task);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+router.delete("/lab/tasks/:id", async (req, res): Promise<void> => {
+  const pinHeader = req.headers["x-lab-pin"] as string;
+  if (!getPinRole(pinHeader)) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "invalid id" }); return; }
+  try {
+    await db.delete(siriusTasks).where(eq(siriusTasks.id, id));
+    res.json({ ok: true });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
 // Serve AI-generated images saved by the generate_image tool

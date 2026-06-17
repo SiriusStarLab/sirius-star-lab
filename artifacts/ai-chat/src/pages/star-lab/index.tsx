@@ -28,6 +28,7 @@ import { AutoLabPanel } from './AutoLabPanel';
 import { SystemAuditPanel } from './SystemAuditPanel';
 import { NotificationBell } from './NotificationBell';
 import { UpgradesPanel } from './UpgradesPanel';
+import { TasksPanel } from './TasksPanel';
 import { OrchestratorPanel } from './OrchestratorPanel';
 import { LabMarkdown } from "./LabMarkdown";
 
@@ -37,6 +38,7 @@ const NAV_LABELS: Record<NavMode, string> = {
   labchat:     "Chat with Sirius",
   sysaudit:    "System Audit",
   upgrades:    "Sirius Upgrades",
+  tasks:       "Background Tasks",
   mission:     "Mission",
   appbuilder:  "App Builder",
   projects:    "Projects",
@@ -8081,6 +8083,7 @@ export function StarLabPage() {
     { id: "labchat"   as NavMode,  label: "Chat with Sirius", icon: MessageSquare,   color: "hsl(193,100%,50%)", category: "command",      guestAllowed: true  },
     { id: "sysaudit"  as NavMode,  label: "System Audit",     icon: ShieldAlert,     color: "hsl(210,80%,55%)",  category: "command",      guestAllowed: false },
     { id: "upgrades"  as NavMode,  label: "Sirius Upgrades",  icon: Package,         color: "hsl(280,80%,58%)",  category: "command",      guestAllowed: false },
+    { id: "tasks"     as NavMode,  label: "Background Tasks", icon: Clock,            color: "hsl(193,100%,45%)", category: "command",      guestAllowed: false },
     { id: "mission"   as NavMode,  label: "Mission",          icon: Star,            color: "hsl(193,100%,50%)", category: "command",      guestAllowed: true  },
     // BUILD
     { id: "appbuilder" as NavMode, label: "App Builder",      icon: Rocket,          color: "hsl(155,70%,42%)",  category: "build",        guestAllowed: false },
@@ -8575,6 +8578,7 @@ export function StarLabPage() {
           </div>
         )}
         {navMode === "upgrades" && <UpgradesPanel pin={pin} />}
+        {navMode === "tasks" && <TasksPanel pin={pin} />}
         <div style={{ display: navMode === "appbuilder" ? "flex" : "none", flex: 1, flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
           <AppBuilderPanel
             pin={pin}

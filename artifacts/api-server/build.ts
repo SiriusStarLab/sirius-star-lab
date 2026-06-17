@@ -80,20 +80,29 @@ async function buildAll() {
   // Build to CJS with `conditions: ["require"]` so esbuild picks the CJS
   // entry point for dual-format packages (e.g. openai, stripe) instead of
   // bundling their ESM code — which caused the fileURLToPath crash in prod.
-  await esbuild({
-    entryPoints: [path.resolve(__dirname, "src/index.ts")],
-    platform: "node",
+  const sharedConfig = {
+    platform: "node" as const,
     bundle: true,
-    format: "cjs",
-    outfile: path.resolve(distDir, "index.cjs"),
-    define: {
-      "process.env.NODE_ENV": '"production"',
-    },
+    format: "cjs" as const,
+    define: { "process.env.NODE_ENV": '"production"' },
     conditions: ["require", "node", "default"],
     minify: true,
     external: externals,
     alias: workspaceAliases,
-    logLevel: "info",
+    logLevel: "info" as const,
+  };
+
+  await esbuild({
+    entryPoints: [path.resolve(__dirname, "src/index.ts")],
+    outfile: path.resolve(distDir, "index.cjs"),
+    ...sharedConfig,
+  });
+
+  console.log("building worker...");
+  await esbuild({
+    entryPoints: [path.resolve(__dirname, "src/worker.ts")],
+    outfile: path.resolve(distDir, "worker.cjs"),
+    ...sharedConfig,
   });
 }
 
