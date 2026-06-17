@@ -57,7 +57,7 @@ const NAV_LABELS: Record<NavMode, string> = {
   growth:      "Growth Engine",
   outreach:    "Outreach Hub",
 };
-import { speakText, parseSpokenPin } from "./voice-utils";
+import { speakText, parseSpokenPin, unlockAudio } from "./voice-utils";
 import { LabFloatingChat } from "./LabFloatingChat";
 import { SiriusLabChatPanel } from "./SiriusLabChatPanel";
 
@@ -343,6 +343,7 @@ function PinGate({ onUnlock, userName }: { onUnlock: (pin: string, role: AccessR
 
   const press = (d: string) => {
     if (digits.length >= MAX_PIN_DIGITS || status === "loading" || status === "locked") return;
+    unlockAudio(); // prime browser audio during real user gesture so audio.play() works later
     setDigits(prev => [...prev, d]);
     setStatus("idle");
   };

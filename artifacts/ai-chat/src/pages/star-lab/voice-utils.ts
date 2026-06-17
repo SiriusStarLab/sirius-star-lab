@@ -1,4 +1,18 @@
 let _currentAudio: HTMLAudioElement | null = null;
+let _audioUnlocked = false;
+
+// Call this inside a real user-gesture handler (e.g. button tap) so iOS/Chrome
+// allow subsequent audio.play() calls that happen after async gaps.
+export function unlockAudio() {
+  if (_audioUnlocked) return;
+  _audioUnlocked = true;
+  // Minimal 1-sample silent WAV played at volume 0 — unlocks the browser audio policy
+  const a = new Audio(
+    "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA=="
+  );
+  a.volume = 0;
+  a.play().catch(() => {});
+}
 
 export function stopSpeaking() {
   if (_currentAudio) {
