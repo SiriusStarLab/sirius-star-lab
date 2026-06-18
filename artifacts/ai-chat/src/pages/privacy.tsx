@@ -99,7 +99,9 @@ export function PrivacyPage() {
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {[
                 { name: "OpenAI", purpose: "AI response generation, image analysis, voice transcription, and text-to-speech", url: "https://openai.com/privacy" },
-                { name: "Stripe", purpose: "Subscription payment processing", url: "https://stripe.com/gb/privacy" },
+                { name: "Apple (In-App Purchase)", purpose: "iOS subscription and in-app purchase payment processing. On iOS, all subscription billing is handled entirely by Apple — we do not receive or store your payment details", url: "https://www.apple.com/legal/privacy/" },
+                { name: "RevenueCat", purpose: "iOS subscription status management and entitlement verification", url: "https://www.revenuecat.com/privacy" },
+                { name: "Stripe", purpose: "Web and Android subscription payment processing", url: "https://stripe.com/gb/privacy" },
                 { name: "Kamatera", purpose: "Infrastructure and hosting", url: "https://www.kamatera.com/privacy-policy/" },
               ].map((s, i) => (
                 <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
