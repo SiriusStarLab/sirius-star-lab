@@ -32,8 +32,8 @@ export function PricingModal({ isOpen, onClose, currentTier = "free", defaultTie
   const isPremium = currentTier !== "free";
 
   const PRICES = {
-    plus: { amount: "£5.00", label: "Sirius Plus", monthly: "£5/month" },
-    pro: { amount: "£12.00", label: "Sirius Pro", monthly: "£12/month" },
+    plus: { amount: "£6.99", label: "Sirius Plus", monthly: "£6.99/month" },
+    pro: { amount: "£14.99", label: "Sirius Pro", monthly: "£14.99/month" },
   };
 
   function copy(val: string, key: string) {
@@ -209,7 +209,7 @@ export function PricingModal({ isOpen, onClose, currentTier = "free", defaultTie
                           cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                         }}
                       >
-                        <Zap size={15} fill="currentColor" /> Pay £5/month by bank transfer
+                        <Zap size={15} fill="currentColor" /> Pay £6.99/month by bank transfer
                       </button>
                     </div>
 
@@ -229,7 +229,7 @@ export function PricingModal({ isOpen, onClose, currentTier = "free", defaultTie
                         <Crown size={18} style={{ color: "#f59e0b" }} />
                       </div>
                       <div style={{ flex: 1, textAlign: "left" }}>
-                        <p style={{ fontSize: 14, fontWeight: 700, color: "#f59e0b" }}>Go Pro — £12/month</p>
+                        <p style={{ fontSize: 14, fontWeight: 700, color: "#f59e0b" }}>Go Pro — £14.99/month</p>
                         <p style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", marginTop: 2 }}>Unlimited everything · Deep memory · Priority speed</p>
                       </div>
                       <span style={{ fontSize: 18, color: "rgba(245,158,11,0.5)" }}>→</span>
@@ -262,7 +262,7 @@ export function PricingModal({ isOpen, onClose, currentTier = "free", defaultTie
                           Sirius {currentTier === "pro" ? "Pro" : "Plus"} — Active
                         </p>
                         <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>
-                          {currentTier === "pro" ? "Unlimited everything" : "200 messages/day"} · {currentTier === "pro" ? "£12" : "£5"}/month
+                          {currentTier === "pro" ? "Unlimited everything" : "200 messages/day"} · {currentTier === "pro" ? "£14.99" : "£6.99"}/month
                         </p>
                       </div>
                       <Check size={18} style={{ color: currentTier === "pro" ? "#f59e0b" : "#00d4ff" }} />

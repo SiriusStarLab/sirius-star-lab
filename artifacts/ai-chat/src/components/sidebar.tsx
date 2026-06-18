@@ -443,7 +443,7 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession }: Sid
               : <Zap size={14} style={{ color: "hsl(193,100%,30%)" }} fill="currentColor" />}
             <div className="flex-1 text-left">
               <p className="text-[12px] font-semibold" style={{ color: "hsl(193,100%,24%)" }}>
-                {checkingOut ? "Preparing checkout…" : "Get Plus — £5/month"}
+                {checkingOut ? "Preparing checkout…" : "Get Plus — £6.99/month"}
               </p>
               {!checkingOut && (
                 <p className="text-[10px]" style={{ color: "hsl(193,60%,38%)" }}>

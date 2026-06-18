@@ -310,7 +310,7 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
               transition: "all 0.2s",
             }}
           >
-            <Zap size={15} fill="currentColor" /> Get Plus for £5/month
+            <Zap size={15} fill="currentColor" /> Get Plus for £6.99/month
           </button>
           <p style={{ fontSize: 11, color: "rgba(255,255,255,0.2)", marginTop: 12 }}>
             Pay by bank transfer · Cancel any time
