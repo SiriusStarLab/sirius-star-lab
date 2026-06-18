@@ -165,6 +165,59 @@ export default function SettingsScreen() {
     }
   };
 
+  const [deletingAccount, setDeletingAccount] = useState(false);
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      "Delete Account",
+      "This will permanently delete your account, all conversations, mood history, and personal data. This action cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete Forever",
+          style: "destructive",
+          onPress: async () => {
+            if (!userId) return;
+            setDeletingAccount(true);
+            try {
+              const base = getApiBase();
+              const res = await fetch(`${base}users/${userId}`, { method: "DELETE" });
+              if (!res.ok) throw new Error("Delete failed");
+              Alert.alert(
+                "Account Deleted",
+                "Your account and all data have been permanently deleted. Please reinstall or contact support@sirius-ai.live if you need further help."
+              );
+            } catch {
+              Alert.alert(
+                "Error",
+                "Failed to delete account. Please try again or contact support@sirius-ai.live."
+              );
+            } finally {
+              setDeletingAccount(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleReportContent = () => {
+    Alert.alert(
+      "Report Content",
+      "If Sirius produced a response that was harmful, inaccurate, or inappropriate, please let us know.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Send Report",
+          onPress: () =>
+            Linking.openURL(
+              "mailto:safety@sirius-ai.live?subject=Content%20Report&body=Please%20describe%20the%20content%20issue%3A"
+            ),
+        },
+      ]
+    );
+  };
+
   const iapAvailable = !!(subscription.plusPackage || subscription.proPackage);
   const iapSubscribed = subscription.isPlus || subscription.isPro;
 
@@ -507,6 +560,28 @@ export default function SettingsScreen() {
           label="Terms of Service"
           onPress={() => Linking.openURL(`${WEB_URL}/terms`)}
         />
+        <SettingRow
+          icon="mail"
+          label="Contact Support"
+          onPress={() => Linking.openURL("mailto:support@sirius-ai.live?subject=Sirius%20Support")}
+        />
+        <SettingRow
+          icon="flag"
+          label="Report a Content Issue"
+          onPress={handleReportContent}
+        />
+        <SettingRow
+          icon="trash-2"
+          label={deletingAccount ? "Deleting…" : "Delete Account"}
+          onPress={deletingAccount ? undefined : handleDeleteAccount}
+          danger
+        />
+      </View>
+
+      <View style={[styles.card, { backgroundColor: "rgba(0,212,255,0.06)", borderColor: "rgba(0,212,255,0.15)", borderWidth: 1 }]}>
+        <Text style={{ fontSize: 11, color: Colors.textMuted, lineHeight: 17, paddingHorizontal: 4 }}>
+          {"AI Disclosure: Sirius is powered by large language model AI. Conversations may be processed by third-party AI providers (including OpenAI) to generate responses. Do not share sensitive personal, financial, or medical information. AI responses are not professional advice. Sirius Star Lab · support@sirius-ai.live"}
+        </Text>
       </View>
 
       <Text style={styles.versionText}>Sirius Star Lab · v1.0</Text>
