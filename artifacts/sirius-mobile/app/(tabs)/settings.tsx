@@ -1,4 +1,6 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
+import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -17,7 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
-import { generatePortrait, getApiBase } from "@/lib/api";
+import { generatePortrait, getApiBase, USER_ID_KEY, PROFILE_KEY } from "@/lib/api";
 import { useSubscription } from "@/lib/revenuecat";
 
 const TIER_LABELS: Record<string, string> = {
@@ -183,17 +185,18 @@ export default function SettingsScreen() {
               const base = getApiBase();
               const res = await fetch(`${base}users/${userId}`, { method: "DELETE" });
               if (!res.ok) throw new Error("Delete failed");
-              Alert.alert(
-                "Account Deleted",
-                "Your account and all data have been permanently deleted. Please reinstall or contact support@sirius-ai.live if you need further help."
-              );
+              await AsyncStorage.multiRemove([
+                USER_ID_KEY,
+                PROFILE_KEY,
+                "onboarding_complete",
+              ]);
+              router.replace("/onboarding");
             } catch {
+              setDeletingAccount(false);
               Alert.alert(
                 "Error",
                 "Failed to delete account. Please try again or contact support@sirius-ai.live."
               );
-            } finally {
-              setDeletingAccount(false);
             }
           },
         },
@@ -450,6 +453,23 @@ export default function SettingsScreen() {
             icon="info"
             label="To cancel, stop your bank transfer"
             value=""
+          />
+        </View>
+      )}
+
+      {/* iOS IAP — Restore Purchases always visible (Apple §3.1.1 requirement) */}
+      {isIOS && !iapAvailable && !iapSubscribed && (
+        <View style={styles.card}>
+          <SectionHeader title="SUBSCRIPTION" />
+          <SettingRow
+            icon="refresh-cw"
+            label={subscription.isRestoring ? "Restoring…" : "Restore Purchases"}
+            onPress={subscription.isRestoring ? undefined : handleRestorePurchases}
+          />
+          <SettingRow
+            icon="info"
+            label="Manage in Apple Settings"
+            onPress={() => Linking.openURL("https://apps.apple.com/account/subscriptions")}
           />
         </View>
       )}

@@ -7,6 +7,7 @@ import {
   Dimensions,
   FlatList,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   StyleSheet,
@@ -224,6 +225,23 @@ export default function OnboardingScreen() {
               {name.trim() ? "Start" : "Skip for now"}
             </Text>
           </Pressable>
+          <Text style={styles.termsNote}>
+            {"By continuing you agree to our "}
+            <Text
+              style={styles.termsLink}
+              onPress={() => Linking.openURL("https://sirius-ai.live/terms")}
+            >
+              Terms of Service
+            </Text>
+            {" and "}
+            <Text
+              style={styles.termsLink}
+              onPress={() => Linking.openURL("https://sirius-ai.live/privacy")}
+            >
+              Privacy Policy
+            </Text>
+            {"."}
+          </Text>
         </Animated.View>
       )}
     </View>
@@ -337,5 +355,17 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_600SemiBold",
     fontSize: 17,
     color: Colors.background,
+  },
+  termsNote: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 12,
+    color: Colors.textMuted,
+    textAlign: "center",
+    lineHeight: 18,
+    paddingHorizontal: 8,
+  },
+  termsLink: {
+    color: Colors.primary,
+    textDecorationLine: "underline",
   },
 });
