@@ -93,7 +93,7 @@ export function ChatInput({ onSend, disabled = false, placeholder = "Message Sir
       await recording.stopAndUnloadAsync();
       const uri = recording.getURI();
       recordingRef.current = null;
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
       if (!uri) { setVoiceState("idle"); return; }
 
       const base64 = await FileSystem.readAsStringAsync(uri, {

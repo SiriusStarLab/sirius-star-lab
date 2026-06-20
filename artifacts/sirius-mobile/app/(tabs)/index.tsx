@@ -93,6 +93,55 @@ export default function ChatScreen() {
 
   const promptHandledRef = useRef<string | undefined>(undefined);
   const convoHandledRef = useRef<string | undefined>(undefined);
+  const kateVoiceRef = useRef<string>("com.apple.ttsbundle.Kate-compact");
+  const speechCancelledRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    Speech.getAvailableVoicesAsync()
+      .then(voices => {
+        const kate = voices.find(
+          v => v.name.toLowerCase().includes("kate") && v.language.startsWith("en-GB")
+        );
+        if (kate) kateVoiceRef.current = kate.identifier;
+      })
+      .catch(() => {});
+  }, []);
+
+  const stopSpeech = useCallback(() => {
+    speechCancelledRef.current = true;
+    Speech.stop();
+  }, []);
+
+  const speakWithChunks = useCallback((text: string) => {
+    speechCancelledRef.current = false;
+    const rawChunks = text
+      .split(/\n\n+/)
+      .flatMap(p => {
+        if (p.length > 500) {
+          return p.match(/[^.!?]*[.!?]+["']?\s*/g)?.map(s => s.trim()).filter(Boolean) ?? [p];
+        }
+        return [p];
+      })
+      .map(p => p.trim())
+      .filter(p => p.length > 0);
+
+    if (rawChunks.length === 0) return;
+
+    let idx = 0;
+    const speakNext = () => {
+      if (speechCancelledRef.current || idx >= rawChunks.length) return;
+      const chunk = rawChunks[idx++];
+      Speech.speak(chunk, {
+        language: "en-GB",
+        voice: kateVoiceRef.current,
+        rate: 0.95,
+        pitch: 1.0,
+        onDone: () => setTimeout(speakNext, 600),
+        onStopped: () => { speechCancelledRef.current = true; },
+      });
+    };
+    speakNext();
+  }, []);
 
   const tabBarHeight = useBottomTabBarHeight();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
@@ -227,13 +276,11 @@ export default function ChatScreen() {
         }
       }
       if (voiceMode && fullContent) {
-        Speech.stop();
         const clean = fullContent
           .replace(/\*\*/g, "")
           .replace(/#{1,6}\s/g, "")
-          .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-          .slice(0, 4000);
-        Speech.speak(clean, { language: "en-GB", rate: 0.95, pitch: 1.0 });
+          .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
+        speakWithChunks(clean);
       }
     } catch {
       setShowTyping(false);
@@ -308,7 +355,7 @@ export default function ChatScreen() {
   };
 
   const handleNewChat = useCallback(() => {
-    Speech.stop();
+    stopSpeech();
     setMessages([]);
     setConversationId(null);
     setIsStreaming(false);
@@ -525,7 +572,7 @@ export default function ChatScreen() {
           placeholder={`Message ${aiName}...`}
           voiceMode={voiceMode}
           onToggleVoice={() => {
-            if (voiceMode) Speech.stop();
+            if (voiceMode) stopSpeech();
             setVoiceMode(v => !v);
           }}
         />
