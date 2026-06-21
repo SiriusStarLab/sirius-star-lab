@@ -93,7 +93,7 @@ export default function ChatScreen() {
 
   const promptHandledRef = useRef<string | undefined>(undefined);
   const convoHandledRef = useRef<string | undefined>(undefined);
-  const kateVoiceRef = useRef<string>("com.apple.ttsbundle.Kate-compact");
+  const kateVoiceRef = useRef<string | undefined>(undefined);
   const speechCancelledRef = useRef<boolean>(false);
 
   useEffect(() => {
@@ -101,7 +101,7 @@ export default function ChatScreen() {
       .then(voices => {
         const kate = voices.find(
           v => v.name.toLowerCase().includes("kate") && v.language.startsWith("en-GB")
-        );
+        ) ?? voices.find(v => v.language.startsWith("en-GB"));
         if (kate) kateVoiceRef.current = kate.identifier;
       })
       .catch(() => {});
@@ -133,7 +133,7 @@ export default function ChatScreen() {
       const chunk = rawChunks[idx++];
       Speech.speak(chunk, {
         language: "en-GB",
-        voice: kateVoiceRef.current,
+        ...(kateVoiceRef.current ? { voice: kateVoiceRef.current } : {}),
         rate: 0.95,
         pitch: 1.0,
         onDone: () => setTimeout(speakNext, 600),
