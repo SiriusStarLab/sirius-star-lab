@@ -6,9 +6,13 @@ export async function generateImageBuffer(
 ): Promise<Buffer> {
   const normalised = size === "512x512" || size === "256x256" ? "1024x1024" : size;
 
-  if (process.env.OPENAI_API_KEY) {
+  // Only use direct OpenAI key — Replit AI proxy and OpenRouter don't support image generation
+  const directKey = process.env.OPENAI_API_KEY;
+  const validDirectKey = directKey && !directKey.startsWith("sk-or-") ? directKey : null;
+
+  if (validDirectKey) {
     const { default: OpenAI } = await import("openai");
-    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const client = new OpenAI({ apiKey: validDirectKey });
     const response = await client.images.generate({
       model: "dall-e-3",
       prompt,
@@ -16,36 +20,16 @@ export async function generateImageBuffer(
       response_format: "b64_json",
     });
     const base64 = response.data[0]?.b64_json ?? "";
+    if (!base64) throw new Error("No image data returned from OpenAI.");
     return Buffer.from(base64, "base64");
   }
 
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) {
-    throw new Error("Image generation requires OPENAI_API_KEY or OPENROUTER_API_KEY — neither is set.");
+  // Free fallback — Pollinations.AI (no API key required, works everywhere)
+  const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true&model=flux&enhance=false&seed=${Date.now()}`;
+  const imgRes = await fetch(pollinationsUrl, { signal: AbortSignal.timeout(45_000) });
+  if (!imgRes.ok) {
+    throw new Error(`Image generation failed: ${imgRes.status} ${imgRes.statusText}`);
   }
-
-  const res = await fetch("https://openrouter.ai/api/v1/images/generations", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "openai/dall-e-3",
-      prompt,
-      n: 1,
-      size: normalised,
-      response_format: "b64_json",
-    }),
-  });
-
-  if (!res.ok) {
-    const errText = await res.text().catch(() => res.statusText);
-    throw new Error(`Image generation failed (OpenRouter): ${errText}`);
-  }
-
-  const data = await res.json() as { data?: { b64_json?: string }[] };
-  const base64 = data.data?.[0]?.b64_json ?? "";
-  if (!base64) throw new Error("No image returned from OpenRouter.");
-  return Buffer.from(base64, "base64");
+  const arrayBuffer = await imgRes.arrayBuffer();
+  return Buffer.from(arrayBuffer);
 }

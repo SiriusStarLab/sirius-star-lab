@@ -239,6 +239,21 @@ export default function ChatScreen() {
               continue;
             }
 
+            if (parsed.type === "image_error") {
+              setMessages(prev => {
+                const updated = [...prev];
+                const last = updated[updated.length - 1];
+                if (last && last.id === assistantId) {
+                  updated[updated.length - 1] = {
+                    ...last,
+                    content: (last.content || "") + "\n\n_(Image generation failed — please try again.)_",
+                  };
+                }
+                return updated;
+              });
+              continue;
+            }
+
             if (parsed.type === "action" && parsed.tool) {
               setActionSteps(prev => [...prev, {
                 tool: parsed.tool,

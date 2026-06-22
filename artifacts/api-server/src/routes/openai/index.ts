@@ -1686,6 +1686,7 @@ LOOP PREVENTION: If you have already called a tool and received its result, do N
       res.write(`data: ${JSON.stringify({ type: "image", b64, prompt: body.data.content })}\n\n`);
     } catch (imgErr: any) {
       console.error("Image generation failed:", imgErr?.message);
+      res.write(`data: ${JSON.stringify({ type: "image_error", message: "I wasn't able to generate that image. Please try again." })}\n\n`);
     }
   }
 
