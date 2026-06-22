@@ -25,9 +25,7 @@ export function LabFloatingChat({ pin, navMode, activeProject, onNavigate, onOpe
 }) {
   const CHAT_STORAGE_KEY = `lab_chat_${accessLevel}`;
 
-  const [open, setOpen] = React.useState(() => {
-    try { const s = localStorage.getItem(CHAT_STORAGE_KEY); return s ? JSON.parse(s).length > 0 : false; } catch { return false; }
-  });
+  const [open, setOpen] = React.useState(false);
   const [messages, setMessages] = React.useState<{ role: "user" | "assistant"; content: string; actions?: { label: string; color: string; icon?: string }[] }[]>(() => {
     try { const s = localStorage.getItem(CHAT_STORAGE_KEY); return s ? JSON.parse(s) : []; } catch { return []; }
   });
@@ -62,17 +60,8 @@ export function LabFloatingChat({ pin, navMode, activeProject, onNavigate, onOpe
   }, [messages, CHAT_STORAGE_KEY]);
 
   React.useEffect(() => {
-    if (prevNavModeRef.current === "labchat" && navMode !== "labchat") {
-      try {
-        const saved = localStorage.getItem(CHAT_STORAGE_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (parsed.length > 0) { setMessages(parsed); setOpen(true); }
-        }
-      } catch {}
-    }
     prevNavModeRef.current = navMode;
-  }, [navMode, CHAT_STORAGE_KEY]);
+  }, [navMode]);
 
   React.useEffect(() => {
     const id = setInterval(() => setWaveTick(t => t + 1), 90);
