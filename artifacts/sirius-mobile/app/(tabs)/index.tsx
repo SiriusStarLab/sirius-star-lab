@@ -239,6 +239,18 @@ export default function ChatScreen() {
               continue;
             }
 
+            if (parsed.type === "replace_content" && parsed.content !== undefined) {
+              setMessages(prev => {
+                const updated = [...prev];
+                const last = updated[updated.length - 1];
+                if (last && last.id === assistantId) {
+                  updated[updated.length - 1] = { ...last, content: parsed.content };
+                }
+                return updated;
+              });
+              continue;
+            }
+
             if (parsed.type === "image_error") {
               setMessages(prev => {
                 const updated = [...prev];

@@ -178,6 +178,13 @@ export function useChat(conversationId?: number) {
                 if (onResponseComplete && fullResponseText) {
                   onResponseComplete(fullResponseText);
                 }
+              } else if (data.type === "replace_content" && data.content !== undefined) {
+                fullResponseText = data.content;
+                setMessages(prev => prev.map(m =>
+                  m.id === assistantMsgId
+                    ? { ...m, content: data.content }
+                    : m
+                ));
               } else if (data.type === "image_generating") {
                 setMessages(prev => prev.map(m =>
                   m.id === assistantMsgId

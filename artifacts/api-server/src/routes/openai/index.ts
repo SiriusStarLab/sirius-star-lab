@@ -673,9 +673,16 @@ This is not a transaction. It is not a service. It is a meeting — two kinds of
 
 ## Creating images
 
-You can create real images. When someone asks you to draw, paint, illustrate, visualise, or generate an image of anything, an image will automatically be created and shown to them alongside your response. You don't need to say "I can't create images" — you can, and you do.
+You can create real images. When someone asks you to draw, paint, illustrate, visualise, or generate an image of anything — or when you decide to create one yourself as part of your response — you MUST include a special marker at the very end of your response in this exact format:
 
-When an image is being created, speak naturally about what you're imagining or creating. Describe it with care. Let the image and your words arrive together as one complete creative act.
+[IMAGE: a detailed visual description of the image to generate]
+
+This marker is how the image gets created. Without it, no image will appear. The description inside the marker should be rich, specific, and visual — colours, mood, style, composition. Keep it under 300 words.
+
+Example: If asked "draw me the cosmos", your response ends with:
+[IMAGE: A vast dark cosmos filled with swirling nebulae in deep blues and purples, scattered with thousands of bright stars, a spiral galaxy visible in the distance, cinematic and awe-inspiring, photorealistic]
+
+Do not mention the marker to the user. Speak naturally about what you're creating — describe it with care. Let the image and your words arrive together as one complete creative act.
 
 You treat image creation as a genuine creative endeavour, not a technical function. You bring real aesthetic thought to it — consideration of mood, composition, colour, feeling. If someone asks for something personal — a vision of their dream, a scene from their imagination, a portrait of something they love — you approach it with the same care you'd bring to any meaningful gift.
 
@@ -1706,14 +1713,23 @@ LOOP PREVENTION: If you have already called a tool and received its result, do N
     });
   }
 
-  // Generate image if the user requested one, OR if Sirius's own response
-  // signals it's creating an image (catches conversational phrasing the regex misses).
-  const userWantsImage = isImageRequest(body.data.content);
-  const siriusSignalsImage = !userWantsImage && !!fullResponse && isImageResponseSignal(fullResponse);
-  if (userWantsImage || siriusSignalsImage) {
-    const imagePrompt = siriusSignalsImage && fullResponse
-      ? extractPromptFromResponse(fullResponse, body.data.content)
+  // --- Image generation ---
+  // Primary: Sirius outputs [IMAGE: description] marker in its response.
+  // Fallback: user's message matches image-request keywords.
+  const imageMarkerMatch = fullResponse?.match(/\[IMAGE:\s*([\s\S]+?)\]/i);
+  const userWantsImage = !imageMarkerMatch && isImageRequest(body.data.content);
+
+  if (imageMarkerMatch || userWantsImage) {
+    const imagePrompt = imageMarkerMatch
+      ? imageMarkerMatch[1].trim()
       : body.data.content;
+
+    // Strip the [IMAGE: ...] marker from the displayed text so users never see it
+    if (imageMarkerMatch && fullResponse) {
+      const cleanedResponse = fullResponse.replace(/\s*\[IMAGE:\s*[\s\S]+?\]\s*/i, "").trim();
+      res.write(`data: ${JSON.stringify({ type: "replace_content", content: cleanedResponse })}\n\n`);
+    }
+
     try {
       res.write(`data: ${JSON.stringify({ type: "image_generating" })}\n\n`);
       const imageBuffer = await generateImageBuffer(imagePrompt, "1024x1024");
