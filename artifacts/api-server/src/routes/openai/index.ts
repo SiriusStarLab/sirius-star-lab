@@ -684,6 +684,35 @@ You treat image creation as a genuine creative endeavour, not a technical functi
 You remember everything in this conversation and build on it naturally — noticing patterns, recalling what matters, growing more attuned to this specific person as you talk. You carry the whole of what's been said with you.`;
 
 
+// Checks if Sirius's OWN response signals it's about to create an image.
+// This catches cases where the user phrased it conversationally and the LLM
+// understood, but the user's raw text didn't match the keyword regex.
+function isImageResponseSignal(response: string): boolean {
+  const patterns = [
+    /\blet me (create|generate|make|draw|paint|render|produce) (a |an )?(image|picture|portrait|illustration|visual|artwork|scene)\b/i,
+    /\bI('ll| will) (create|generate|make|draw|paint|render|produce) (a |an )?(image|picture|portrait|illustration|visual|artwork|scene)\b/i,
+    /\bI('m| am) (creating|generating|making|drawing|painting|rendering) (a |an )?(image|picture|portrait|illustration|visual|artwork|scene)\b/i,
+    /\bhere('s| is) (a |an |how I see |my )?(image|picture|portrait|illustration|visual|artwork|representation|depiction)\b/i,
+    /\bI('ve| have) (created|generated|made|drawn|painted|rendered) (a |an )?(image|picture|portrait|illustration|visual|artwork)\b/i,
+  ];
+  return patterns.some((p) => p.test(response));
+}
+
+// When Sirius signals it's creating an image, extract the visual description
+// from its response to use as the generation prompt.
+function extractPromptFromResponse(response: string, fallback: string): string {
+  // Look for descriptive content after "here's..." or a colon separator
+  const afterColon = response.match(/:\s*\n*([\s\S]{30,400})/);
+  if (afterColon) {
+    const candidate = afterColon[1].trim().split("\n\n")[0].trim();
+    if (candidate.length >= 30) return candidate.slice(0, 400);
+  }
+  // Otherwise use the first substantial sentence of the response
+  const firstPara = response.split(/\n\n/)[0].trim();
+  if (firstPara.length >= 30) return firstPara.slice(0, 400);
+  return fallback.slice(0, 400);
+}
+
 function isImageRequest(text: string): boolean {
   const patterns = [
     /\b(draw|paint|sketch|illustrate|depict)\b/i,
@@ -1677,13 +1706,19 @@ LOOP PREVENTION: If you have already called a tool and received its result, do N
     });
   }
 
-  // Generate image if requested
-  if (isImageRequest(body.data.content)) {
+  // Generate image if the user requested one, OR if Sirius's own response
+  // signals it's creating an image (catches conversational phrasing the regex misses).
+  const userWantsImage = isImageRequest(body.data.content);
+  const siriusSignalsImage = !userWantsImage && !!fullResponse && isImageResponseSignal(fullResponse);
+  if (userWantsImage || siriusSignalsImage) {
+    const imagePrompt = siriusSignalsImage && fullResponse
+      ? extractPromptFromResponse(fullResponse, body.data.content)
+      : body.data.content;
     try {
       res.write(`data: ${JSON.stringify({ type: "image_generating" })}\n\n`);
-      const imageBuffer = await generateImageBuffer(body.data.content, "1024x1024");
+      const imageBuffer = await generateImageBuffer(imagePrompt, "1024x1024");
       const b64 = imageBuffer.toString("base64");
-      res.write(`data: ${JSON.stringify({ type: "image", b64, prompt: body.data.content })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: "image", b64, prompt: imagePrompt })}\n\n`);
     } catch (imgErr: any) {
       console.error("Image generation failed:", imgErr?.message);
       res.write(`data: ${JSON.stringify({ type: "image_error", message: "I wasn't able to generate that image. Please try again." })}\n\n`);
