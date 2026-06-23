@@ -1,9 +1,14 @@
 /**
- * Session Summarizer
+ * Sirius Session Summariser — Significance-Filtered
  *
- * After every real conversation ends, generates a structured summary and
- * saves it to mnemosyne_sessions. Also extracts any ideas mentioned and
- * saves them to dream_lab_ideas. Runs async — never blocks the response.
+ * After every real conversation, scores significance and only saves what matters:
+ *   HIGH   — decisions made, things built/deployed, strategy agreed, breakthroughs
+ *   MEDIUM — useful discussion, ideas introduced, meaningful exploration
+ *   LOW    — discarded (short exchanges, troubleshooting loops, routine checks)
+ *
+ * High-significance sessions also extract new deep facts → mnemosyne_memories.
+ * Ideas mentioned always get saved → dream_lab_ideas.
+ * Runs fully async — never blocks the chat response.
  */
 
 import { db } from "@workspace/db";
@@ -15,43 +20,121 @@ interface Message {
   content: string;
 }
 
+// Keywords that strongly indicate significant content
+const HIGH_SIGNAL_WORDS = [
+  "deploy", "deployed", "built", "launched", "created", "decided", "agreed",
+  "fixed", "solved", "shipped", "released", "pushed", "integrated",
+  "strategy", "architecture", "design", "plan", "roadmap",
+];
+const MEDIUM_SIGNAL_WORDS = [
+  "idea", "concept", "approach", "think", "should", "could", "considering",
+  "research", "explore", "build", "create", "change", "update", "improve",
+];
+
+function scoreSignificance(messages: Message[]): "high" | "medium" | "low" {
+  const real = messages.filter(m => m.role === "user" || m.role === "assistant");
+  const totalChars = real.reduce((n, m) => n + String(m.content).length, 0);
+  const avgAssistantLen = real.filter(m => m.role === "assistant")
+    .reduce((n, m, _, a) => n + String(m.content).length / a.length, 0);
+
+  // Immediate discard conditions
+  if (real.length < 4) return "low";
+  if (totalChars < 300) return "low";
+
+  const fullText = real.map(m => String(m.content).toLowerCase()).join(" ");
+
+  let score = 0;
+
+  // Message depth
+  if (real.length >= 8)  score += 3;
+  if (real.length >= 6)  score += 2;
+  if (real.length >= 4)  score += 1;
+
+  // Response depth
+  if (avgAssistantLen > 800)  score += 3;
+  if (avgAssistantLen > 400)  score += 2;
+  if (avgAssistantLen > 200)  score += 1;
+
+  // High-signal keyword hits
+  for (const word of HIGH_SIGNAL_WORDS) {
+    if (fullText.includes(word)) score += 2;
+  }
+
+  // Medium-signal keyword hits (capped)
+  let mediumHits = 0;
+  for (const word of MEDIUM_SIGNAL_WORDS) {
+    if (fullText.includes(word)) mediumHits++;
+  }
+  score += Math.min(mediumHits, 4);
+
+  // Penalties for noise
+  const userMsgs = real.filter(m => m.role === "user");
+  const avgUserLen = userMsgs.reduce((n, m) => n + String(m.content).length, 0) / (userMsgs.length || 1);
+  if (avgUserLen < 30)  score -= 3; // one-word replies = low engagement
+  if (totalChars < 800) score -= 2;
+
+  if (score >= 10) return "high";
+  if (score >= 5)  return "medium";
+  return "low";
+}
+
 export async function summariseSession(
   userId: string,
   messages: Message[],
   conversationId: number | null
 ): Promise<void> {
-  // Only summarise real conversations with at least 3 exchanges
-  const realMessages = messages.filter(m => m.role === "user" || m.role === "assistant");
-  if (realMessages.length < 4) return;
+  // Pre-screen — discard noise before calling the AI
+  const preScore = scoreSignificance(messages);
+  if (preScore === "low") {
+    console.log(`[Summariser] Conv ${conversationId} scored LOW — discarded.`);
+    return;
+  }
 
-  const transcript = realMessages
-    .map(m => `${m.role === "user" ? "Garry" : "Sirius"}: ${String(m.content).slice(0, 600)}`)
+  const real = messages.filter(m => m.role === "user" || m.role === "assistant");
+  const transcript = real
+    .map(m => `${m.role === "user" ? "Garry" : "Sirius"}: ${String(m.content).slice(0, 700)}`)
     .join("\n");
 
   try {
     const response = await openai.chat.completions.create({
       model: "claude-sonnet-4-5",
-      max_tokens: 1200,
-      temperature: 0.3,
+      max_tokens: 1500,
+      temperature: 0.25,
       messages: [
         {
           role: "system",
-          content: `You are Sirius's memory system. Read the conversation transcript and produce a structured session summary.
-Return ONLY a JSON object with exactly these fields:
+          content: `You are Sirius's memory and significance-filtering system.
+
+Read the conversation and decide if it's worth remembering. Be ruthless — only save what genuinely matters.
+
+SIGNIFICANT (save as high/medium):
+- Decisions made or plans agreed
+- Things built, deployed, fixed, shipped
+- New ideas, concepts, or strategic direction introduced
+- Meaningful technical or business discussions
+- Garry sharing something personal, a value, or a preference worth knowing
+
+NOT SIGNIFICANT (return low — discard):
+- Short troubleshooting that went nowhere
+- Routine status checks with no action taken
+- Repetitive conversations already covered before
+- Small talk or brief exchanges under 5 real turns
+- Failed attempts with no resolution
+
+Return ONLY valid JSON — no markdown, no explanation:
 {
-  "key_themes": "2-4 sentence summary of main topics discussed",
-  "decisions_made": "Any concrete decisions or plans agreed upon. 'None' if none.",
-  "things_built": "Code written, features deployed, files created, tools made. 'None' if none.",
-  "emotional_tone": "One word: energised/focused/frustrated/exploratory/satisfied/mixed",
-  "progress_made": "What genuinely moved forward this session. Be specific.",
-  "ideas_captured": ["array of any ideas Garry mentioned, as short strings. Empty array if none."]
-}
-Return only valid JSON. No markdown, no explanation.`,
+  "significance": "high" | "medium" | "low",
+  "discard_reason": "why discarded (only if low)",
+  "key_themes": "2-3 sentence summary of what this session was really about",
+  "decisions_made": "Concrete decisions or plans. Be specific. 'None' if none.",
+  "things_built": "Code written, features shipped, tools created, files made. 'None' if none.",
+  "emotional_tone": "one word: energised | focused | frustrated | exploratory | satisfied | mixed | routine",
+  "progress_made": "What genuinely moved forward. Specific. 'None' if nothing real happened.",
+  "ideas_captured": ["short string per idea mentioned — only genuinely new ones"],
+  "new_facts_about_garry": ["facts worth adding to deep memory — only if truly new and not already known"]
+}`,
         },
-        {
-          role: "user",
-          content: `Summarise this session:\n\n${transcript}`,
-        },
+        { role: "user", content: `Evaluate this session:\n\n${transcript}` },
       ],
     });
 
@@ -60,44 +143,74 @@ Return only valid JSON. No markdown, no explanation.`,
     try {
       summary = JSON.parse(raw);
     } catch {
-      // Try extracting JSON from response if wrapped in markdown
       const match = raw.match(/\{[\s\S]+\}/);
       if (match) summary = JSON.parse(match[0]);
-      else return; // give up silently
+      else return;
+    }
+
+    // Final significance gate — Claude might downgrade what the pre-filter passed
+    if (summary.significance === "low") {
+      console.log(`[Summariser] Conv ${conversationId} — Claude rated LOW: ${summary.discard_reason || "not significant"}`);
+      return;
     }
 
     const today = new Date().toISOString().split("T")[0];
 
-    // Save session summary to mnemosyne_sessions
+    // Save to mnemosyne_sessions
     await db.execute(sql`
       INSERT INTO mnemosyne_sessions
-        (session_date, key_themes, decisions_made, things_built, emotional_tone, progress_made)
+        (session_date, key_themes, decisions_made, things_built, emotional_tone, progress_made, significance)
       VALUES (
         ${today},
         ${summary.key_themes || ""},
         ${summary.decisions_made || "None"},
         ${summary.things_built || "None"},
         ${summary.emotional_tone || "neutral"},
-        ${summary.progress_made || ""}
+        ${summary.progress_made || ""},
+        ${summary.significance || "medium"}
       )
     `);
 
-    // Save any ideas captured to dream_lab_ideas
+    // Save new ideas → dream_lab_ideas
     const ideas: string[] = Array.isArray(summary.ideas_captured) ? summary.ideas_captured : [];
     for (const idea of ideas.slice(0, 5)) {
-      if (!idea || String(idea).trim().length < 5) continue;
+      const ideaStr = String(idea || "").trim();
+      if (ideaStr.length < 5) continue;
       try {
         await db.execute(sql`
           INSERT INTO dream_lab_ideas (user_id, title, description, category, status)
-          VALUES (${userId}, ${String(idea).slice(0, 120)}, ${String(idea).slice(0, 400)}, 'idea', 'active')
+          VALUES (${userId}, ${ideaStr.slice(0, 120)}, ${ideaStr.slice(0, 400)}, 'idea', 'active')
           ON CONFLICT DO NOTHING
         `);
-      } catch { /* skip duplicate ideas */ }
+      } catch { /* skip duplicate */ }
     }
 
-    console.log(`[SessionSummariser] Saved summary for conv ${conversationId} | tone: ${summary.emotional_tone} | ideas: ${ideas.length}`);
+    // For HIGH significance: extract new deep facts → mnemosyne_memories
+    if (summary.significance === "high") {
+      const newFacts: string[] = Array.isArray(summary.new_facts_about_garry) ? summary.new_facts_about_garry : [];
+      for (const fact of newFacts.slice(0, 3)) {
+        const factStr = String(fact || "").trim();
+        if (factStr.length < 10) continue;
+        try {
+          await db.execute(sql`
+            INSERT INTO mnemosyne_memories
+              (layer, category, content, emotional_weight, confidence, source, pattern_tags)
+            VALUES (
+              'observed',
+              'session_insight',
+              ${factStr.slice(0, 600)},
+              7,
+              7,
+              ${"session_" + today},
+              '["auto_extracted"]'
+            )
+          `);
+        } catch { /* skip */ }
+      }
+    }
+
+    console.log(`[Summariser] Conv ${conversationId} saved — ${summary.significance.toUpperCase()} | tone: ${summary.emotional_tone} | ideas: ${ideas.length} | new facts: ${(summary.new_facts_about_garry || []).length}`);
   } catch (err: any) {
-    // Never let summarisation errors surface to the user
-    console.error("[SessionSummariser] Failed:", err?.message);
+    console.error("[Summariser] Failed:", err?.message);
   }
 }
