@@ -1,4 +1,4 @@
-const REVIEWER_MODEL = "openai/gpt-4o-mini";
+const REVIEWER_MODEL = "gpt-4o-mini";
 
 const PROTECTED_PATHS = new Set([
   "src/app.ts",

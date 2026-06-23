@@ -151,7 +151,7 @@ Produce a detailed professional report with the following structure (use full ma
 Write with authority and precision. Include specific numbers, market sizes in £/$ where known, and avoid vague generalities. This report is worth £49 — make it exceptional.`;
 
     const stream = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.5",
+      model: "claude-sonnet-4-5",
       messages: [{ role: "user", content: prompt }],
       stream: true,
       max_tokens: 4000,
@@ -204,7 +204,7 @@ router.post("/lab/revenue/commission/estimate", async (req: Request, res: Respon
     }
 
     const completion = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.5",
+      model: "claude-sonnet-4-5",
       messages: [{
         role: "system",
         content: `You are a senior technical consultant at Sirius Star Lab — an AI intelligence platform and software company. 

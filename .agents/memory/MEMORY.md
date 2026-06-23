@@ -12,3 +12,4 @@
 - [Sirius Zod schema — message body](sirius-zod-schema.md) — SendOpenaiMessageBody must include mode/imageBase64/documentBase64/documentName or they're silently stripped; always run health check after deploys.
 - [Sirius stability fixes](sirius-stability-fixes.md) — self-repair call-site, health checks, Telegram auto-chat-id, mobile pnpm conflict, SSH heredoc safety.
 - [Sirius model names](sirius-model-names.md) — `anthropic/claude-sonnet-4-5` 404s on OpenRouter; use `anthropic/claude-3.7-sonnet`. Direct Anthropic uses bare `claude-3-7-sonnet-20250219`. Server has 18+ files to patch.
+- [Sirius custom tools data loss](sirius-custom-tools-loss.md) — tools were never in Kamatera DB (migration gap); backup/restore now in self-repair.ts.

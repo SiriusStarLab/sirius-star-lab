@@ -1,5 +1,6 @@
 import { db, userProfilesTable } from "@workspace/db";
-import { openai } from "@workspace/ai-client";
+import OpenAI from "openai";
+const openaiDirect = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 /**
  * THE SINGLE CANONICAL MEMORY ENGINE.
@@ -59,9 +60,9 @@ export async function extractAndSaveMemories(
 
     let response;
     try {
-      response = await openai.chat.completions.create(
+      response = await openaiDirect.chat.completions.create(
         {
-          model: "openai/gpt-4o-mini",
+          model: "gpt-4o-mini",
           messages: [
             {
               role: "system",

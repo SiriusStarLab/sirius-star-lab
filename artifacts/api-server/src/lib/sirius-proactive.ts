@@ -11,7 +11,7 @@ const ENGINEERING_SECTORS = [
 async function gen(sys: string, user: string, tokens = 500): Promise<string> {
   try {
     const r = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.5",
+      model: "claude-sonnet-4-5",
       messages: [{ role: "system", content: sys }, { role: "user", content: user }],
       max_tokens: tokens,
       temperature: 0.4,
