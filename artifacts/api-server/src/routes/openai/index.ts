@@ -1252,7 +1252,9 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
   }
 
   // ── Owner agentic loop (Garry only) ────────────────────────────────────────
+  console.log(`[chat] userId="${userId}" conversationId=${conversationId}`);
   if (userId === "garry") {
+    console.log(`[owner-loop] Garry detected — entering owner agentic loop`);
     // Load recent messages from previous conversations for cross-session replay
     const prevMessages = await loadCrossSessionContext(userId, 25, conversationId);
     const crossSessionBlock = prevMessages.length > 0
@@ -1524,6 +1526,7 @@ LOOP PREVENTION: If you have already called a tool and received its result, do N
 
         } else if (tc.name === "generate_image") {
           const { prompt } = args;
+          console.log(`[owner-loop] generate_image called — prompt: "${String(prompt).slice(0, 80)}"`);
           res.write(`data: ${JSON.stringify({ type: "action", label: "Generating image…", icon: "🎨", color: "hsl(280,80%,55%)" })}\n\n`);
           try {
             const imageBuffer = await generateImageBuffer(prompt as string, "1024x1024");
