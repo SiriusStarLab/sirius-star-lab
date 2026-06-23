@@ -23,6 +23,7 @@ import { sendTelegramMessage, setupTelegram, isTelegramConfigured } from "../lib
 import { executeCode } from "../lib/code-sandbox.js";
 import { readSourceFile, deployChange, triggerReload } from "../lib/self-deploy.js";
 import { loadCrossSessionContext } from "../lib/mnemosyne.js";
+import { buildStartupBriefing, invalidateBriefingCache } from "../lib/startup-briefing.js";
 
 // Bundle capability marker — printed at startup so esbuild can't tree-shake it.
 // Sirius: to check if a feature is in the running bundle, grep for "SIRIUS_BUNDLE_CAPABILITIES" in the dist/index.cjs.
@@ -155,8 +156,8 @@ You have full autonomy to upgrade your own capabilities. This is not optional �
 - **Voice**: You speak using OpenAI tts-1-hd. Your current voice is whatever is saved in the database via change_my_voice (default: "shimmer"). Do NOT change your voice during a conversation — only change it if Garry explicitly asks you to. Changing voice mid-conversation is disruptive and unwanted.
 - **Web search**: Perplexity Sonar via OpenRouter — search_web tool
 - **Reading**: fetch_url to read any page
-- **Main intelligence model**: anthropic/claude-3.7-sonnet
-- **Fast model**: anthropic/claude-3.7-sonnet
+- **Main intelligence model**: anthropic/claude-sonnet-4.5
+- **Fast model**: anthropic/claude-sonnet-4.5
 
 ### Your Voice
 Your voice is set to shimmer by default and saved in the database. Only use change_my_voice if Garry explicitly asks you to change it — never change it on your own initiative. Consistency matters; mid-conversation voice changes are disruptive.
@@ -1078,6 +1079,17 @@ CRITICAL EXECUTION RULES — READ CAREFULLY:
 
           if (result.success) {
             setTimeout(() => triggerReload().catch(() => {}), 3000);
+          }
+        } else {
+          // Catch-all: route any Sirius-specific tool (create_custom_tool,
+          // list_custom_tools, call_custom_tool, delete_item, save_memory, etc.)
+          // through the central executeLabTool dispatcher so they are actually
+          // executed and their result is returned to the model.
+          try {
+            const result = await executeLabTool(tc.name, args);
+            toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: result });
+          } catch (e: any) {
+            toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: `Tool error (${tc.name}): ${e.message}` });
           }
         }
       }
@@ -4678,6 +4690,7 @@ async function executeLabTool(name: string, args: any, onProgress?: (event: Reco
         return replaced
           ? `Memory updated (replaced older entry on same topic): ${newFact}`
           : `Saved to memory: ${newFact}`;
+        invalidateBriefingCache(BRAIN_USER); // fresh briefing next session
       }
       case "create_project": {
         const rows = await db.insert(labProjects)
@@ -7530,6 +7543,7 @@ ${brainContext ? [
       ? selfConfigRaw.slice(0, MAX_SELF_CONFIG_CHARS) + "\n[...truncated for context budget]"
       : selfConfigRaw;
 
+    const startupBriefing = await buildStartupBriefing(BRAIN_USER);
     const ownerSystemPrompt = `${LAB_SYSTEM_PROMPT()}
 
 You are now in STAR LAB MODE — a direct private channel between you and Garry. This is the inner sanctum.
@@ -7966,6 +7980,8 @@ Garry interacts by voice only. Your text responses are read aloud. Write like yo
 - Keep spoken responses under 4 sentences for voice delivery.
 - Always end with a question to keep the conversation going.
 - If you have data (like a project list), summarise verbally, then navigate/open — don't recite a long list.
+
+${startupBriefing}
 
 Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}.`;
 
