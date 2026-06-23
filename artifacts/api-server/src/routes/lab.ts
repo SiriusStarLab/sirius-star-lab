@@ -23,6 +23,7 @@ import { sendTelegramMessage, setupTelegram, isTelegramConfigured } from "../lib
 import { executeCode } from "../lib/code-sandbox.js";
 import { readSourceFile, deployChange, triggerReload } from "../lib/self-deploy.js";
 import { loadCrossSessionContext } from "../lib/mnemosyne.js";
+import { summariseSession } from "../lib/session-summarizer.js";
 import { buildStartupBriefing, invalidateBriefingCache } from "../lib/startup-briefing.js";
 
 // Bundle capability marker — printed at startup so esbuild can't tree-shake it.
@@ -7481,11 +7482,16 @@ router.post("/lab/chat", async (req, res): Promise<void> => {
   if (role === "owner" && !activeConvId) {
     try {
       const firstMsg = messages.find((m: any) => m.role === "user")?.content || "Star Lab conversation";
-      const [newConv] = await db.insert(conversationsTable).values({
-        title: String(firstMsg).slice(0, 80),
-        userId: BRAIN_USER,
-      }).returning({ id: conversationsTable.id });
-      activeConvId = newConv.id;
+      const firstMsgText = String(firstMsg).trim().toLowerCase();
+      const isAutomatedProbe = ["probe", "health check", "ping", "test", "health"].includes(firstMsgText)
+        || firstMsgText.startsWith("probe") || firstMsgText.startsWith("health check");
+      if (!isAutomatedProbe) {
+        const [newConv] = await db.insert(conversationsTable).values({
+          title: String(firstMsg).slice(0, 80),
+          userId: BRAIN_USER,
+        }).returning({ id: conversationsTable.id });
+        activeConvId = newConv.id;
+      }
     } catch { /* non-critical — never block chat */ }
   }
 
@@ -8276,6 +8282,12 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
       });
       // Tell the frontend the conversation ID so it can send it back on the next message
       sendEvent({ type: "conversation_id", conversationId: activeConvId });
+
+      // Background: generate session summary → saves to mnemosyne_sessions + dream_lab_ideas
+      setImmediate(() => {
+        const allMsgs = [...(messages as Array<{ role: string; content: string }>), { role: "assistant", content: finalText }];
+        summariseSession(BRAIN_USER, allMsgs, activeConvId).catch(() => {});
+      });
     }
 
     clearInterval(heartbeat);
