@@ -169,7 +169,7 @@ export const MessageBubble = memo(function MessageBubble({ message }: Props) {
         ) : null}
         {message.imageB64 ? (
           <Image
-            source={{ uri: `data:image/png;base64,${message.imageB64}` }}
+            source={{ uri: `data:${message.imageMimeType ?? "image/jpeg"};base64,${message.imageB64}` }}
             style={styles.generatedImage}
             resizeMode="contain"
           />

@@ -237,11 +237,12 @@ export default function ChatScreen() {
 
             if (parsed.type === "image" && parsed.b64) {
               imageB64 = parsed.b64;
+              const imageMimeType: string = parsed.mimeType ?? "image/jpeg";
               setMessages(prev => {
                 const updated = [...prev];
                 const last = updated[updated.length - 1];
                 if (last && last.id === assistantId) {
-                  updated[updated.length - 1] = { ...last, imageB64 };
+                  updated[updated.length - 1] = { ...last, imageB64, imageMimeType };
                 }
                 return updated;
               });

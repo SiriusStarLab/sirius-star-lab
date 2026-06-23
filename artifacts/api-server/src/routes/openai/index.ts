@@ -1527,7 +1527,8 @@ LOOP PREVENTION: If you have already called a tool and received its result, do N
           try {
             const imageBuffer = await generateImageBuffer(prompt as string, "1024x1024");
             const b64 = imageBuffer.toString("base64");
-            res.write(`data: ${JSON.stringify({ type: "image", b64, prompt })}\n\n`);
+            const mimeType = imageBuffer[0] === 0xFF && imageBuffer[1] === 0xD8 ? "image/jpeg" : "image/png";
+            res.write(`data: ${JSON.stringify({ type: "image", b64, mimeType, prompt })}\n\n`);
             toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: `Image generated successfully and displayed to Garry.` });
           } catch (imgErr: any) {
             console.error("[image] generate_image tool failed:", imgErr?.message);
