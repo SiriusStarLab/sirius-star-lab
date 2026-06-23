@@ -1355,6 +1355,20 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
         },
       },
     },
+    {
+      type: "function",
+      function: {
+        name: "generate_image",
+        description: "Generate an image from a text description. Use whenever Garry asks you to draw, create, visualise, show, render, or make any kind of image, picture, or visual.",
+        parameters: {
+          type: "object",
+          properties: {
+            prompt: { type: "string", description: "Detailed, descriptive image generation prompt. Include style, composition, colours, and subject matter." },
+          },
+          required: ["prompt"],
+        },
+      },
+    },
     ];
 
     const ownerSystemPrompt = systemPrompt + crossSessionBlock + `
@@ -1395,7 +1409,7 @@ LOOP PREVENTION: If you have already called a tool and received its result, do N
         tools: OWNER_TOOLS,
         tool_choice: "auto",
         stream: true,
-        max_tokens: 3000,
+        max_tokens: 8000,
       } as any) as unknown as AsyncIterable<any>;
 
       let roundContent = "";
@@ -1506,6 +1520,20 @@ LOOP PREVENTION: If you have already called a tool and received its result, do N
           if (result.success) {
             setTimeout(() => triggerReload().catch(() => {}), 3000);
           }
+
+        } else if (tc.name === "generate_image") {
+          const { prompt } = args;
+          res.write(`data: ${JSON.stringify({ type: "action", label: "Generating image…", icon: "🎨", color: "hsl(280,80%,55%)" })}\n\n`);
+          try {
+            const imageBuffer = await generateImageBuffer(prompt as string, "1024x1024");
+            const b64 = imageBuffer.toString("base64");
+            res.write(`data: ${JSON.stringify({ type: "image", b64, prompt })}\n\n`);
+            toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: `Image generated successfully and displayed to Garry.` });
+          } catch (imgErr: any) {
+            console.error("[image] generate_image tool failed:", imgErr?.message);
+            res.write(`data: ${JSON.stringify({ type: "image_error", message: "Image generation failed — please try again." })}\n\n`);
+            toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: `Image generation failed: ${imgErr?.message}` });
+          }
         }
       }
 
@@ -1543,7 +1571,7 @@ LOOP PREVENTION: If you have already called a tool and received its result, do N
       `).catch(() => {});
       const [dbProfile] = await db.select().from(userProfilesTable).where(eq(userProfilesTable.userId, userId));
       if (dbProfile) {
-        extractAndSaveMemories(userId, [{ role: "user", content: body.data.content }, { role: "assistant", content: agentResponse }], dbProfile.memories || "");
+        extractAndSaveMemories(userId, [{ role: "user", content: body.data.content }, { role: "assistant", content: agentResponse }], dbProfile.memories || "").catch(() => {});
       }
     }
     return;

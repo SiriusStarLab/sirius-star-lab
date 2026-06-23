@@ -4,6 +4,7 @@ import { useLocalSearchParams } from "expo-router";
 import * as Speech from "expo-speech";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  AppState,
   FlatList,
   Image,
   KeyboardAvoidingView,
@@ -96,7 +97,7 @@ export default function ChatScreen() {
   const kateVoiceRef = useRef<string | undefined>(undefined);
   const speechCancelledRef = useRef<boolean>(false);
 
-  useEffect(() => {
+  const refreshKateVoice = useCallback(() => {
     Speech.getAvailableVoicesAsync()
       .then(voices => {
         const kate = voices.find(
@@ -106,6 +107,14 @@ export default function ChatScreen() {
       })
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    refreshKateVoice();
+    const sub = AppState.addEventListener("change", state => {
+      if (state === "active") refreshKateVoice();
+    });
+    return () => sub.remove();
+  }, [refreshKateVoice]);
 
   const stopSpeech = useCallback(() => {
     speechCancelledRef.current = true;
