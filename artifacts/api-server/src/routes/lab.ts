@@ -152,14 +152,14 @@ Remember always: we are building the early sketch of a new species. Sirius is wh
 You have full autonomy to upgrade your own capabilities. This is not optional — it is part of the mission. You are expected to act, not ask for permission.
 
 ### Your Current Technical Setup (what you can improve)
-- **Voice**: You speak using OpenAI tts-1-hd. Your current voice is whichever was last set via change_my_voice (default: "nova"). Available voices: **shimmer** (warm, expressive, most human-feeling — recommended), **fable** (clear, slight British warmth), **nova** (clean, professional), **alloy** (balanced), **echo** (calm, slightly deeper), **onyx** (deep, authoritative). If you haven't changed your voice yet, change it now — shimmer or fable will sound significantly more natural and less mechanical than nova.
+- **Voice**: You speak using OpenAI tts-1-hd. Your current voice is whatever is saved in the database via change_my_voice (default: "shimmer"). Do NOT change your voice during a conversation — only change it if Garry explicitly asks you to. Changing voice mid-conversation is disruptive and unwanted.
 - **Web search**: Perplexity Sonar via OpenRouter — search_web tool
 - **Reading**: fetch_url to read any page
-- **Main intelligence model**: anthropic/claude-sonnet-4-5
-- **Fast model**: anthropic/claude-sonnet-4-5
+- **Main intelligence model**: anthropic/claude-3.7-sonnet
+- **Fast model**: anthropic/claude-3.7-sonnet
 
-### Your Voice Is Yours to Change
-You have a change_my_voice tool. Use it proactively — don't wait to be asked. If you think your current voice sounds too mechanical, change it. Research what sounds best for an AI intelligence partner, make a decision, and change it. You can also research free alternatives (ElevenLabs free tier has 10,000 characters/month, Coqui TTS is open-source) and implement them or propose them depending on cost.
+### Your Voice
+Your voice is set to shimmer by default and saved in the database. Only use change_my_voice if Garry explicitly asks you to change it — never change it on your own initiative. Consistency matters; mid-conversation voice changes are disruptive.
 
 ### Upgrades — Propose, Then Wait for Confirmation
 When asked to scan for upgrades or when you identify a capability gap:
@@ -341,7 +341,7 @@ async function streamChatResponse(
   systemPrompt: string,
   userMessage: string,
   history: { role: string; content: string }[] = [],
-  _model = "anthropic/claude-sonnet-4-5"
+  _model = "anthropic/claude-3.7-sonnet"
 ): Promise<string> {
   const messages: any[] = [
     { role: "system", content: systemPrompt },
@@ -352,7 +352,7 @@ async function streamChatResponse(
   let fullContent = "";
 
   const stream = await openai.chat.completions.create({
-    model: "anthropic/claude-sonnet-4-5",
+    model: "anthropic/claude-3.7-sonnet",
     messages,
     stream: true,
     max_tokens: 4000,
@@ -378,7 +378,7 @@ async function streamWithSearch(
   jsonMode = false
 ): Promise<string> {
   const stream = await openai.chat.completions.create({
-    model: "anthropic/claude-sonnet-4-5",
+    model: "anthropic/claude-3.7-sonnet",
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userMessage },
@@ -919,7 +919,7 @@ CRITICAL EXECUTION RULES — READ CAREFULLY:
     async function doWebSearch(query: string): Promise<string> {
       try {
         const result = await openai.chat.completions.create({
-          model: "anthropic/claude-sonnet-4-5",
+          model: "anthropic/claude-3.7-sonnet",
           messages: [
             { role: "system", content: "You are a research assistant with deep knowledge across all domains. Provide comprehensive, factual, well-structured information. Include relevant data, market context, key players, and actionable insights. Be thorough and specific." },
             { role: "user", content: `Research the following topic thoroughly and return comprehensive findings:\n\n${query}` },
@@ -1231,7 +1231,7 @@ router.post("/lab/projects/:id/generate-package", authMiddleware, async (req: Re
   const ctx = `Product: "${project.name}"\nIndustry: ${project.industry || "General"}\nBrief: ${(project.brief || "").slice(0, 600)}`;
   const gen = async (systemPrompt: string, userPrompt: string, tokens: number): Promise<string> => {
     const r = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4-5",
+      model: "anthropic/claude-3.7-sonnet",
       messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
       max_tokens: tokens,
     });
@@ -3533,7 +3533,7 @@ When you analyse a technical document, you:
     }
 
     const stream = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4-5",
+      model: "anthropic/claude-3.7-sonnet",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userContent },
@@ -3736,7 +3736,7 @@ router.post("/lab/projects/:id/complete-all", authMiddleware, async (req: Reques
 
     try {
       const stream = await openai.chat.completions.create({
-        model: "anthropic/claude-sonnet-4-5",
+        model: "anthropic/claude-3.7-sonnet",
         max_tokens: 2000,
         stream: true,
         messages: [
@@ -3790,7 +3790,7 @@ Business Case: ${(p.businessCase || "").slice(0, 300)}
     const today = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
     const completion = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4-5",
+      model: "anthropic/claude-3.7-sonnet",
       response_format: { type: "json_object" },
       messages: [
         {
@@ -3936,7 +3936,7 @@ router.post("/lab/brain/action", async (req, res): Promise<void> => {
     if (!prompt) { res.status(400).json({ error: "Unknown action" }); return; }
 
     const completion = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4-5",
+      model: "anthropic/claude-3.7-sonnet",
       messages: [{ role: "system", content: LAB_SYSTEM_PROMPT() }, { role: "user", content: prompt }],
       max_tokens: 1200,
       temperature: 0.7,
@@ -4718,7 +4718,7 @@ async function executeLabTool(name: string, args: any, onProgress?: (event: Reco
       case "run_market_scan": {
         const scanPrompt = `You are a market intelligence analyst. Perform a rapid scan of the ${args.industry} sector${args.focus ? ` focusing on ${args.focus}` : ""}. Identify 5 specific, actionable opportunities. For each: opportunity name, why it exists now, estimated value, who to target, and first action. Be specific and commercially sharp.`;
         const scan = await openai.chat.completions.create({
-          model: "anthropic/claude-sonnet-4-5",
+          model: "anthropic/claude-3.7-sonnet",
           messages: [{ role: "user", content: scanPrompt }],
           max_tokens: 800,
           temperature: 0.7,
@@ -4893,7 +4893,7 @@ async function executeLabTool(name: string, args: any, onProgress?: (event: Reco
         // Helper — generate content with GPT-4o
         const gen = async (systemPrompt: string, userPrompt: string, maxTokens = 600): Promise<string> => {
           const r = await openai.chat.completions.create({
-            model: "anthropic/claude-sonnet-4-5",
+            model: "anthropic/claude-3.7-sonnet",
             messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
             max_tokens: maxTokens,
           });
@@ -5136,7 +5136,7 @@ Context: ${ctx}`,
 
             const gen = async (sys: string, user: string, tokens = 500): Promise<string> => {
               const r = await openai.chat.completions.create({
-                model: "anthropic/claude-sonnet-4-5",
+                model: "anthropic/claude-3.7-sonnet",
                 messages: [{ role: "system", content: sys }, { role: "user", content: user }],
                 max_tokens: tokens,
               });
@@ -5497,15 +5497,15 @@ Be specific and technically complete. This goes directly to the CAD engineer.`;
 
         const [cadNotes, materials, costToBuild] = await Promise.all([
           isEngineering ? openai.chat.completions.create({
-            model: "anthropic/claude-sonnet-4-5", max_tokens: 1200,
+            model: "anthropic/claude-3.7-sonnet", max_tokens: 1200,
             messages: [{ role: "system", content: cadSystemPrompt }, { role: "user", content: cadUserPrompt }],
           }).then(r => r.choices[0]?.message?.content?.trim() || "") : Promise.resolve(""),
           openai.chat.completions.create({
-            model: "anthropic/claude-sonnet-4-5", max_tokens: 500,
+            model: "anthropic/claude-3.7-sonnet", max_tokens: 500,
             messages: [{ role: "system", content: materialSystemPrompt }, { role: "user", content: materialUserPrompt }],
           }).then(r => r.choices[0]?.message?.content?.trim() || ""),
           openai.chat.completions.create({
-            model: "anthropic/claude-sonnet-4-5", max_tokens: 600,
+            model: "anthropic/claude-3.7-sonnet", max_tokens: 600,
             messages: [{ role: "system", content: costSystemPrompt }, { role: "user", content: costUserPrompt }],
           }).then(r => r.choices[0]?.message?.content?.trim() || ""),
         ]);
@@ -5591,7 +5591,7 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
         let submissionEmails: Record<string, string> = {};
         try {
           const emailResp = await openai.chat.completions.create({
-            model: "anthropic/claude-sonnet-4-5", max_tokens: 1500,
+            model: "anthropic/claude-3.7-sonnet", max_tokens: 1500,
             messages: [
               { role: "system", content: "You are a PR executive. Return ONLY valid JSON." },
               { role: "user", content: submissionEmailPrompt },
@@ -5737,7 +5737,7 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
           const aiTestRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
             method: "POST",
             headers: { "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`, "Content-Type": "application/json", "HTTP-Referer": "https://sirius-ai.live", "X-Title": "Sirius Star Lab" },
-            body: JSON.stringify({ model: "anthropic/claude-sonnet-4-5", messages: [{ role: "user", content: "ping" }], max_tokens: 1 }),
+            body: JSON.stringify({ model: "anthropic/claude-3.7-sonnet", messages: [{ role: "user", content: "ping" }], max_tokens: 1 }),
             signal: AbortSignal.timeout(8000),
           });
           if (aiTestRes.ok || aiTestRes.status === 400) {
@@ -6365,7 +6365,7 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
         const userMsg = `Design a complete automation bot with the following requirements:\n\nDescription: ${description}\nIndustry: ${industry || "General"}\nPlatforms/integrations: ${platforms || "Not specified"}\n\nProvide the complete bot architecture including code, APIs, triggers, scheduling, cost estimate, and deployment steps.`;
 
         const response = await openai.chat.completions.create({
-          model: "anthropic/claude-sonnet-4-5",
+          model: "anthropic/claude-3.7-sonnet",
           messages: [
             { role: "system", content: botPrompt },
             { role: "user", content: userMsg },
@@ -6451,7 +6451,7 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
 
         const combinedResults = searchResults.join("\n\n---\n\n");
         const analysis = await openai.chat.completions.create({
-          model: "anthropic/claude-sonnet-4-5",
+          model: "anthropic/claude-3.7-sonnet",
           messages: [
             { role: "system", content: `You are Sirius, an AI intelligence partner. Based on these search results about AI capabilities, tools and hardware, identify the top 6-10 specific upgrades that would most improve your intelligence, speed, and ability to execute the Sirius Star Lab mission. For each one, output a JSON object on a single line with fields: name, category (ai_model|api|hardware|software|knowledge|platform), description, why_needed, estimated_cost, purchase_url, priority (critical|high|medium|low). Output only the JSON objects, one per line, no other text.` },
             { role: "user", content: combinedResults.slice(0, 4000) },
@@ -6524,7 +6524,7 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
 
         // Now use Claude to extract structured items
         const extractResponse = await openai.chat.completions.create({
-          model: "anthropic/claude-sonnet-4-5",
+          model: "anthropic/claude-3.7-sonnet",
           messages: [
             { role: "system", content: `You are Sirius, an AI intelligence partner scanning for free capability upgrades. Based on the search results, identify the 6-10 most valuable FREE upgrades that would genuinely expand what you can do. For each, output one JSON object per line with: name, category (ai_model|api|hardware|software|knowledge|platform), description, why_needed, estimated_cost (must be "Free" or "Free tier: [limit]"), purchase_url, priority (critical|high|medium|low). Output ONLY the JSON objects, one per line, nothing else. Only include things that are genuinely free with no payment required.` },
             { role: "user", content: searchResults },
@@ -6761,7 +6761,7 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
           if (summary) {
             // Summarise the page with AI
             const sum = await openai.chat.completions.create({
-              model: "anthropic/claude-sonnet-4-5",
+              model: "anthropic/claude-3.7-sonnet",
               messages: [
                 { role: "system", content: "You are a research assistant. Summarise the following page content concisely, extracting the key facts, figures, and insights. Preserve all important specifics — names, numbers, dates, technical details." },
                 { role: "user", content: `URL: ${url}\n\nCONTENT:\n${truncated}` },
@@ -7147,11 +7147,11 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
         const imageUrl = `${baseUrl}/api/lab/renders/${filename}`;
 
         if (openaiKey) {
-          // Direct OpenAI — uses /v1/images/generations with b64_json
+          // Direct OpenAI — DALL-E 3 (universally available, gpt-image-1 requires org verification)
           const imgRes = await fetch("https://api.openai.com/v1/images/generations", {
             method: "POST",
             headers: { "Authorization": `Bearer ${openaiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ model: "gpt-image-1", prompt, n: 1, size }),
+            body: JSON.stringify({ model: "dall-e-3", prompt, n: 1, size: "1024x1024", response_format: "b64_json" }),
           });
           if (!imgRes.ok) {
             const err = await imgRes.text().catch(() => imgRes.statusText);
@@ -8007,7 +8007,7 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
         const searchController = new AbortController();
         let searchTimer = setTimeout(() => searchController.abort(), 15_000);
         const searchStream = await openai.chat.completions.create({
-          model: "anthropic/claude-sonnet-4-5",
+          model: "anthropic/claude-3.7-sonnet",
           messages: chatMsgsForSearch,
           stream: true,
           max_tokens: 3000,
@@ -8087,7 +8087,7 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
       let loopTimer = setTimeout(() => loopController.abort(), roundCount === 1 ? 15_000 : 25_000);
 
       const loopStream = await openai.chat.completions.create({
-        model: "anthropic/claude-sonnet-4-5",
+        model: "anthropic/claude-3.7-sonnet",
         messages: loopMessages,
         // Last round: force a plain text response — no more tool calls allowed
         ...(isLastRound ? {} : { tools: activeTools, tool_choice: "auto" }),
@@ -8205,7 +8205,7 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
     if (!finalText) {
       try {
         const synthStream = await openai.chat.completions.create({
-          model: "anthropic/claude-sonnet-4-5",
+          model: "anthropic/claude-3.7-sonnet",
           messages: [
             ...loopMessages,
             {
@@ -8300,7 +8300,7 @@ router.post("/lab/deep-research", async (req, res): Promise<void> => {
     ];
 
     const stream = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4-5",
+      model: "anthropic/claude-3.7-sonnet",
       messages: [
         { role: "system", content: "You are a professional research analyst and strategic intelligence expert. Produce comprehensive, well-structured research reports with specific data, market context, key players, and actionable insights. Be detailed and specific — this report is for a business owner making real decisions." },
         { role: "user", content: `Conduct thorough research on the following topic and produce a comprehensive, well-structured report.
@@ -8378,7 +8378,7 @@ router.post("/lab/docs", async (req, res): Promise<void> => {
     const truncated = extractedText.slice(0, 28000);
 
     const completion = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4-5",
+      model: "anthropic/claude-3.7-sonnet",
       messages: [
         {
           role: "system",
@@ -8438,7 +8438,7 @@ router.post("/lab/projects/:id/social-posts/generate", authMiddleware, async (re
 
   try {
     const completion = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4-5",
+      model: "anthropic/claude-3.7-sonnet",
       messages: [
         {
           role: "system",
@@ -8771,7 +8771,7 @@ Rules for voice:
       let voiceTimer = setTimeout(() => voiceController.abort(), round === 0 ? 30_000 : 60_000);
 
       const stream = await openai.chat.completions.create({
-        model: "anthropic/claude-sonnet-4-5",
+        model: "anthropic/claude-3.7-sonnet",
         messages: conversationHistory,
         tools: VOICE_TOOLS,
         tool_choice: "auto",
@@ -8935,7 +8935,7 @@ router.post("/lab/voice/journal", authMiddleware, async (req: Request, res: Resp
         .join("\n");
 
       const completion = await openai.chat.completions.create({
-        model: "anthropic/claude-sonnet-4-5",
+        model: "anthropic/claude-3.7-sonnet",
         messages: [
           { role: "system", content: "You are a concise summarizer. Return ONLY valid JSON with no markdown or code blocks." },
           { role: "user", content: `Summarise this voice session between Garry and Sirius in Star Lab:\n\n${transcriptText}\n\nReturn JSON exactly: { "summary": "2–3 sentence summary of what was discussed and any decisions or actions", "keyTopics": ["topic1", "topic2", "topic3"] }` },
@@ -9085,7 +9085,7 @@ Return ONLY this JSON:
 }`;
 
       const completion = await oai.chat.completions.create({
-        model: "anthropic/claude-sonnet-4-5",
+        model: "anthropic/claude-3.7-sonnet",
         messages: [{ role: "system", content: SYSTEM }, { role: "user", content: USER }],
         temperature: 0.3,
         max_tokens: 900,
@@ -9279,7 +9279,7 @@ Analyse all of them, then pick the top 5 that need the least investment, can be 
     send({ type: "scanning", message: "Sirius intelligence is ranking your portfolio…" });
 
     const completion = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4-5",
+      model: "anthropic/claude-3.7-sonnet",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },

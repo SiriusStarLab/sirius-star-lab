@@ -90,3 +90,7 @@ export async function isTelegramConfigured(): Promise<boolean> {
   const chatId = await getSiriusConfigValue("telegram_chat_id");
   return !!chatId && !!getToken();
 }
+
+export async function sendTelegram(message: string, _severity: 'INFO' | 'WARNING' | 'CRITICAL' = 'INFO'): Promise<void> {
+  await sendTelegramMessage(message);
+}

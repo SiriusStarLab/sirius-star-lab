@@ -11,4 +11,4 @@
 - [Sirius OpenRouter key source](sirius-openrouter-key.md) — NEVER use Replit's $OPENROUTER_API_KEY to restart PM2; always read from ecosystem.config.json on server.
 - [Sirius Zod schema — message body](sirius-zod-schema.md) — SendOpenaiMessageBody must include mode/imageBase64/documentBase64/documentName or they're silently stripped; always run health check after deploys.
 - [Sirius stability fixes](sirius-stability-fixes.md) — self-repair call-site, health checks, Telegram auto-chat-id, mobile pnpm conflict, SSH heredoc safety.
-- [Anthropic model names — direct vs OpenRouter](anthropic-model-names.md) — bare "claude-sonnet-4-5" for direct Anthropic; "anthropic/claude-sonnet-4-5" for OpenRouter. Never mix prefixes.
+- [Sirius model names](sirius-model-names.md) — `anthropic/claude-sonnet-4-5` 404s on OpenRouter; use `anthropic/claude-3.7-sonnet`. Direct Anthropic uses bare `claude-3-7-sonnet-20250219`. Server has 18+ files to patch.
