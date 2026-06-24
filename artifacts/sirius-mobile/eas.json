@@ -17,7 +17,8 @@
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_DOMAIN": "sirius-ai.live"
+        "EXPO_PUBLIC_DOMAIN": "sirius-ai.live",
+        "EXPO_PUBLIC_REVENUECAT_IOS_KEY": "REPLACE_WITH_REVENUECAT_IOS_PUBLIC_KEY"
       },
       "android": {
         "buildType": "app-bundle"
