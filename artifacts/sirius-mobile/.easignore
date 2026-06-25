@@ -16,5 +16,4 @@ artifacts/mockup-sandbox/
 attached_assets/
 .local/
 lib/
-pnpm-lock.yaml
 *.log
