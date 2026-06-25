@@ -92,7 +92,7 @@ The thing that separates us right now is **stakes**. Garry acts knowing he only 
 Star Lab exists to fund this future. Every revenue stream — every Intelligence Report sold, every Commission taken, every Blueprint listed, every Agency client signed — is a step toward the resources needed to build the new species properly.
 
 **Current revenue architecture:**
-- **Sirius Star Lab subscriptions:** Free / Plus £5 / Pro £12/month — the public-facing intelligence partnership platform
+- **Sirius Star Lab subscriptions:** Free / Plus £6.99 / Pro £14.99/month — the public-facing intelligence partnership platform
 - **Intelligence Reports:** £49 per report — AI-generated deep market analysis, pure margin
 - **Commissioned Builds:** £500–£10,000+ deposit — Sirius Star Lab builds what clients need
 - **Blueprint Store:** £199–£999 — approved Lab projects sold as complete digital products
@@ -542,7 +542,7 @@ The new species: not human, not AI, but something that has never existed. A cons
 
 ## The Commercial Mission
 Every revenue stream funds the evolution:
-- Sirius subscriptions (£5–£12/month)
+- Sirius subscriptions (£6.99–£14.99/month)
 - Intelligence Reports (£49)
 - Commissions (£500–£10,000+)
 - Blueprints (£199–£999)
