@@ -58,12 +58,6 @@
       "favicon": "./assets/images/icon.png"
     },
     "plugins": [
-      [
-        "expo-router",
-        {
-          "origin": "https://sirius-ai.live/"
-        }
-      ],
       "expo-font",
       "expo-web-browser",
       [
@@ -87,6 +81,9 @@
     "extra": {
       "privacyPolicyUrl": "https://sirius-ai.live/privacy",
       "termsUrl": "https://sirius-ai.live/terms",
+      "router": {
+        "origin": "https://sirius-ai.live/"
+      },
       "eas": {
         "projectId": "44095ebc-6e60-4f8a-8b90-d2b2bc85588b"
       }
