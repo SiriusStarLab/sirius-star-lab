@@ -411,7 +411,7 @@ export default function SettingsScreen() {
                 <Feather name="zap" size={22} color={Colors.background} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.plusCardTitle}>Start Plus — £5/month</Text>
+                <Text style={styles.plusCardTitle}>Start Plus — £6.99/month</Text>
                 <Text style={styles.plusCardDesc}>200 messages/day · Image analysis · Sirius remembers you</Text>
               </View>
               <Feather name="arrow-right" size={18} color={Colors.background} />
@@ -425,7 +425,7 @@ export default function SettingsScreen() {
           >
             <Feather name="award" size={18} color="#f59e0b" />
             <View style={{ flex: 1 }}>
-              <Text style={styles.proCardTitle}>Go Pro — £12/month</Text>
+              <Text style={styles.proCardTitle}>Go Pro — £14.99/month</Text>
               <Text style={styles.proCardDesc}>Unlimited everything · Deep memory · Priority speed</Text>
             </View>
             <Feather name="chevron-right" size={16} color="rgba(245,158,11,0.5)" />
