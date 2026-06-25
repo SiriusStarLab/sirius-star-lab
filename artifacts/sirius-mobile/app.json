@@ -78,8 +78,7 @@
           "photosPermission": "Sirius Star Lab accesses your photo library so you can attach images to your conversations.",
           "cameraPermission": "Sirius Star Lab uses your camera so you can share images directly in your conversations."
         }
-      ],
-      "react-native-purchases"
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
