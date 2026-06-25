@@ -57,23 +57,6 @@
     "web": {
       "favicon": "./assets/images/icon.png"
     },
-    "plugins": [
-      "expo-font",
-      "expo-web-browser",
-      [
-        "expo-av",
-        {
-          "microphonePermission": "Sirius Star Lab uses your microphone to let you speak your messages using voice input."
-        }
-      ],
-      [
-        "expo-image-picker",
-        {
-          "photosPermission": "Sirius Star Lab accesses your photo library so you can attach images to your conversations.",
-          "cameraPermission": "Sirius Star Lab uses your camera so you can share images directly in your conversations."
-        }
-      ]
-    ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
