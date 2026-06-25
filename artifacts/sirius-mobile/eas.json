@@ -28,12 +28,7 @@
   "submit": {
     "production": {
       "ios": {
-        "appleId": "garryboy@icloud.com",
-        "ascAppId": "6766261769",
-        "appleTeamId": "J2ZV6V2AF6",
-        "language": "en-GB",
-        "sku": "live.siriusai.app",
-        "metadataPath": "./store-metadata/ios"
+        "ascAppId": "6766261769"
       },
       "android": {
         "serviceAccountKeyPath": "./store-metadata/google-play-service-account.json",
