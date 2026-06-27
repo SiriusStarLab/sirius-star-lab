@@ -60,6 +60,12 @@ uri = "file://attached_assets/sirius-ad-story.png"
 type = "image"
 title = "sirius story ad vertical alt"
 
+[[generated]]
+id = "ggjT7i1kzU0zLKrdeMjVg"
+uri = "file://artifacts/ai-chat/public/logo-starlab.png"
+type = "image"
+title = "sirius star lab dual face logo"
+
 [[outputs]]
 id = "cNdbKNPxY3uJsRbWTNxPd"
 uri = "file://attached_assets/sirius-logo-v1.png"
