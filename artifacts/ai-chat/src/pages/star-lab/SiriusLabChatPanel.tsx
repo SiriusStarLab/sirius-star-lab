@@ -167,7 +167,7 @@ export function SiriusLabChatPanel({ pin, accessLevel, navMode, activeProject, o
       speakText(greeting, () => {
         setVoicePhase("idle");
         if (!stoppedRef.current) startListeningLoop();
-      }, 0.87, pin);
+      }, 0.87);
     }, 500);
     return () => { stoppedRef.current = true; stopListeningNow(); stopSpeaking(); };
   }, []);
@@ -398,12 +398,12 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
         } else if (!stoppedRef.current) {
           setTimeout(() => startListeningLoop(), 400);
         }
-      }, 0.87, pin);
+      }, 0.87);
 
     } catch (err: any) {
       const msg = err?.name === "AbortError" ? "Request timed out — Sirius took too long. Try again." : "Something went wrong — try again.";
       setMessages(prev => [...prev, { role: "assistant", content: msg }]);
-      speakText(msg, () => { if (!stoppedRef.current) setTimeout(() => startListeningLoop(), 400); }, 0.87, pin);
+      speakText(msg, () => { if (!stoppedRef.current) setTimeout(() => startListeningLoop(), 400); }, 0.87);
     } finally {
       setStreaming(false);
       setStreamingText("");
