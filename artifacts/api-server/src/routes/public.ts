@@ -222,7 +222,7 @@ Return JSON: {"subject":"Sirius Star Lab — 7-Day Growth Content Plan","body":"
 
     try {
       const completion = await openai.chat.completions.create({
-        model: "claude-sonnet-4-5",
+        model: "anthropic/claude-sonnet-4-5",
         messages: [
           {
             role: "system",
@@ -269,7 +269,7 @@ Return JSON: {"subject":"[hook line]","body":"[full post]"}`;
 
   try {
     const stream = await openai.chat.completions.create({
-      model: "claude-sonnet-4-5",
+      model: "anthropic/claude-sonnet-4-5",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
       stream: true,

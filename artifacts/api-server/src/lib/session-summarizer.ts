@@ -97,7 +97,7 @@ export async function summariseSession(
 
   try {
     const response = await openai.chat.completions.create({
-      model: "claude-sonnet-4-5",
+      model: "anthropic/claude-sonnet-4-5",
       max_tokens: 1500,
       temperature: 0.25,
       messages: [

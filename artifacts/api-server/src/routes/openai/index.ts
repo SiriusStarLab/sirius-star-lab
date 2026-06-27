@@ -1407,7 +1407,7 @@ LOOP PREVENTION: If you have already called a tool and received its result, do N
 
     for (let round = 0; round < MAX_ROUNDS; round++) {
       const completion = await openai.chat.completions.create({
-        model: "claude-sonnet-4-5",
+        model: "anthropic/claude-sonnet-4-5",
         messages: agentMessages,
         tools: OWNER_TOOLS,
         tool_choice: "auto",
@@ -1588,7 +1588,7 @@ LOOP PREVENTION: If you have already called a tool and received its result, do N
     try {
       res.write(`data: ${JSON.stringify({ type: "action", label: "Extended reasoning engaged...", icon: "🧠", color: "hsl(270 70% 60%)" })}\n\n`);
       const thinkStream = await openai.chat.completions.create({
-        model: "claude-sonnet-4-5",
+        model: "anthropic/claude-sonnet-4-5",
         messages: [
           { role: "system", content: systemPrompt },
           ...chatMessages,
@@ -1704,7 +1704,7 @@ LOOP PREVENTION: If you have already called a tool and received its result, do N
       // Fallback to Claude Sonnet via OpenRouter
       try {
         const claudeStream = await openai.chat.completions.create({
-          model: "claude-sonnet-4-5",
+          model: "anthropic/claude-sonnet-4-5",
           messages: [
             { role: "system", content: systemPrompt },
             ...chatMessages,
@@ -2008,7 +2008,7 @@ router.post("/openai/universe-stream", async (req, res) => {
     } catch (responsesErr: any) {
       if (!responsesApiWorked) {
         const stream = await openai.chat.completions.create({
-          model: "claude-sonnet-4-5",
+          model: "anthropic/claude-sonnet-4-5",
           messages: chatMessages,
           stream: true,
           max_tokens: 1200,
