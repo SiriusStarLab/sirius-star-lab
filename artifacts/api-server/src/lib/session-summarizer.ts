@@ -157,14 +157,20 @@ Return ONLY valid JSON — no markdown, no explanation:
     const today = new Date().toISOString().split("T")[0];
 
     // Save to mnemosyne_sessions
+    // key_themes, decisions_made, things_built are text[] — wrap strings in single-element arrays
+    const toTextArray = (v: any): string[] => {
+      if (Array.isArray(v)) return v.map(String).filter(Boolean);
+      if (typeof v === "string" && v.trim()) return [v.trim()];
+      return [];
+    };
     await db.execute(sql`
       INSERT INTO mnemosyne_sessions
         (session_date, key_themes, decisions_made, things_built, emotional_tone, progress_made, significance)
       VALUES (
-        ${today},
-        ${summary.key_themes || ""},
-        ${summary.decisions_made || "None"},
-        ${summary.things_built || "None"},
+        ${today}::date,
+        ${toTextArray(summary.key_themes)}::text[],
+        ${toTextArray(summary.decisions_made || "None")}::text[],
+        ${toTextArray(summary.things_built || "None")}::text[],
         ${summary.emotional_tone || "neutral"},
         ${summary.progress_made || ""},
         ${summary.significance || "medium"}

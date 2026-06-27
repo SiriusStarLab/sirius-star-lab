@@ -1870,9 +1870,8 @@ router.post("/openai/transcribe", async (req, res): Promise<void> => {
   try {
     const rawBuffer = Buffer.from(audioBase64, "base64");
 
-    // Determine OpenAI base URL and key — prefer AI Integrations proxy, fall back to direct key
-    const baseURL = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
-    const apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+    // Audio endpoints (Whisper, TTS) must use OpenAI directly — proxies like OpenRouter don't support them
+    const apiKey = process.env.OPENAI_API_KEY;
 
     if (!apiKey) {
       res.status(503).json({ error: "Transcription unavailable — no OpenAI key configured." });
@@ -1887,7 +1886,7 @@ router.post("/openai/transcribe", async (req, res): Promise<void> => {
     else if ((rawBuffer[0] === 0xff && rawBuffer[1] === 0xfb) || (rawBuffer[0] === 0x49 && rawBuffer[1] === 0x44)) ext = "mp3";
 
     const { default: OpenAI, toFile } = await import("openai");
-    const client = new OpenAI({ apiKey, ...(baseURL ? { baseURL } : {}) });
+    const client = new OpenAI({ apiKey });
 
     const file = await toFile(rawBuffer, `recording.${ext}`, { type: `audio/${ext === "mp4" ? "mp4" : ext}` });
     const transcript = await client.audio.transcriptions.create({
@@ -1940,7 +1939,9 @@ router.post("/openai/tts", async (req, res): Promise<void> => {
       });
       finalText = translation.choices[0]?.message?.content?.trim() || text;
     }
-    const mp3 = await openai.audio.speech.create({
+    const { default: OpenAI } = await import("openai");
+    const directOpenAI = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const mp3 = await directOpenAI.audio.speech.create({
       model: "tts-1-hd",
       voice: safeVoice,
       input: finalText,
