@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { speakText, stopSpeaking } from "@/pages/star-lab/voice-utils";
 import { useRoute, useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, Home, CheckCircle2, Smartphone } from "lucide-react";
@@ -118,47 +119,15 @@ export function ChatPage() {
     });
   };
 
-  const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
-  const ttsBlobRef = useRef<string | null>(null);
-
-  const stopTTS = () => {
-    if (ttsAudioRef.current) {
-      ttsAudioRef.current.pause();
-      ttsAudioRef.current.src = "";
-    }
-    if (ttsBlobRef.current) {
-      URL.revokeObjectURL(ttsBlobRef.current);
-      ttsBlobRef.current = null;
-    }
-  };
+  const stopTTS = () => { stopSpeaking(); };
 
   const playTTS = async (text: string) => {
-    stopTTS();
+    stopSpeaking();
     const clean = text
       .replace(/\*\*/g, "")
       .replace(/#{1,6}\s/g, "")
-      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-      .slice(0, 4000);
-    try {
-      const res = await fetch("/api/openai/tts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: clean, voice: "nova" }),
-      });
-      if (!res.ok) throw new Error("TTS failed");
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      ttsBlobRef.current = url;
-      const audio = new Audio(url);
-      ttsAudioRef.current = audio;
-      audio.onended = () => {
-        URL.revokeObjectURL(url);
-        ttsBlobRef.current = null;
-      };
-      await audio.play();
-    } catch {
-      // silent fail — no voice is better than a crash
-    }
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
+    speakText(clean, undefined, 0.87);
   };
 
   // When a topic/mood/wisdom chip triggers a chat, collapse the section
