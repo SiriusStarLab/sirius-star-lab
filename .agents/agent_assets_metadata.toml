@@ -245,3 +245,9 @@ id = "U_pN6DUC_j5jg8YplVktN"
 uri = "file://attached_assets/sirius-ad-story.png"
 type = "image"
 title = "Neural Brain — Story / TikTok alt (9:16 vertical)"
+
+[[outputs]]
+id = "WqALTV4-n6VL52spFU60B"
+uri = "file://artifacts/ai-chat/public/logo-starlab.png"
+type = "image"
+title = "Sirius Star Lab Logo"
