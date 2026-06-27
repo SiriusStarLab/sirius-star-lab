@@ -372,7 +372,13 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
       }
 
       setVoicePhase("speaking");
-      const voiceText = finalText.replace(/[*#>`_~]/g, "").replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").slice(0, 500);
+      const _voiceRaw = finalText.replace(/[*#>`_~]/g, "").replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
+      const _voiceMax = 1200;
+      const voiceText = _voiceRaw.length <= _voiceMax ? _voiceRaw : (() => {
+        const cut = _voiceRaw.slice(0, _voiceMax);
+        const lastStop = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("! "), cut.lastIndexOf("? "), cut.lastIndexOf(".\n"), cut.lastIndexOf("!\n"), cut.lastIndexOf("?\n"));
+        return lastStop > 600 ? cut.slice(0, lastStop + 1) : cut;
+      })();
       speakText(voiceText, () => {
         setVoicePhase("idle");
 
