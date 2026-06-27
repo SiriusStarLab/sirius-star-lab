@@ -85,6 +85,29 @@
     }
     </script>
 
+    <!-- Force SW cache bust on new deploys -->
+    <script>
+      (function() {
+        var V = 'sirius_bundle_v1';
+        var stored = localStorage.getItem(V);
+        if (stored !== '1') {
+          localStorage.setItem(V, '1');
+          if ('caches' in window) {
+            caches.keys().then(function(keys) {
+              Promise.all(keys.map(function(k) { return caches.delete(k); }));
+            });
+          }
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function(regs) {
+              Promise.all(regs.map(function(r) { return r.unregister(); })).then(function() {
+                window.location.reload(true);
+              });
+            });
+          }
+        }
+      })();
+    </script>
+
     <!-- System fonts used natively — no download needed -->
     <!-- Space Mono used for code/mono blocks only -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
