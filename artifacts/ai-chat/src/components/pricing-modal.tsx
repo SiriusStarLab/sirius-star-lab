@@ -185,7 +185,7 @@ export function PricingModal({ isOpen, onClose, currentTier = "free", defaultTie
                         </div>
                         <div>
                           <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-                            <span style={{ fontSize: 28, fontWeight: 800, color: "#fff" }}>£5</span>
+                            <span style={{ fontSize: 28, fontWeight: 800, color: "#fff" }}>£6.99</span>
                             <span style={{ fontSize: 13, color: "rgba(255,255,255,0.4)" }}>/month</span>
                           </div>
                           <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginTop: 1 }}>Sirius Plus · billed monthly</p>
