@@ -6933,7 +6933,7 @@ function StarLabVoiceWidget({
         setPhase("idle");
         setSiriusText("");
         if (active && inputModeRef.current === "voice") setTimeout(() => startListening(), 400);
-      });
+      }, 0.87, pin);
 
     } catch (err) {
       console.error("[Voice]", err);
@@ -6970,7 +6970,7 @@ function StarLabVoiceWidget({
           setSiriusText("");
           busyRef.current = false;
           if (inputModeRef.current === "voice") startListening();
-        });
+        }, 0.87, pin);
       }, 200);
     }
   };
@@ -7356,11 +7356,12 @@ function buildContextGreeting(name: string, timeGreet: string, projects: Project
   return parts.join(" ");
 }
 
-function LabAvatarGreeting({ userName, onNavigate, onDismiss, projects }: {
+function LabAvatarGreeting({ userName, onNavigate, onDismiss, projects, pin }: {
   userName?: string;
   onNavigate: (mode: NavMode) => void;
   onDismiss: () => void;
   projects: Project[];
+  pin?: string;
 }) {
   const [visible, setVisible]           = useState(false);
   const [leaving, setLeaving]           = useState(false);
@@ -7388,7 +7389,7 @@ function LabAvatarGreeting({ userName, onNavigate, onDismiss, projects }: {
     speakText(confirmMsg, () => {
       setLeaving(true);
       setTimeout(() => { onNavigate(dest.mode); onDismiss(); }, 300);
-    });
+    }, 0.87, pin);
   };
 
   const startListening = () => {
@@ -7409,7 +7410,7 @@ function LabAvatarGreeting({ userName, onNavigate, onDismiss, projects }: {
           goTo(dest);
         } else {
           setSiriusText(`I didn't quite catch that. You said: "${text}". Please try again or tap a card below.`);
-          speakText(`I didn't catch that — please say a section name or tap a card.`);
+          speakText(`I didn't catch that — please say a section name or tap a card.`, undefined, 0.87, pin);
           setListening(false);
           setTimeout(() => startListening(), 2000);
         }
@@ -7444,7 +7445,7 @@ function LabAvatarGreeting({ userName, onNavigate, onDismiss, projects }: {
         setPhase("listening");
         setShowCards(true);
         startListening();
-      });
+      }, 0.87, pin);
       setShowCards(true);
     }, 600);
 
@@ -8027,7 +8028,7 @@ export function StarLabPage() {
       sysaudit:    "System Audit. Running live health checks across every Sirius subsystem now.",
     };
     const text = narrate[navMode as NavMode];
-    if (text) speakText(text);
+    if (text) speakText(text, undefined, 0.87, pin);
   }, [navMode, unlocked]);
 
   const onUnlock = (p: string, role: AccessRole) => {
@@ -8118,6 +8119,7 @@ export function StarLabPage() {
           onNavigate={(mode) => setNavMode(mode)}
           onDismiss={() => setShowGreeting(false)}
           projects={projects}
+          pin={pin}
         />
       )}
 

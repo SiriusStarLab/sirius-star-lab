@@ -103,7 +103,7 @@ export function LabFloatingChat({ pin, navMode, activeProject, onNavigate, onOpe
         speakText(greeting, () => {
           setVoicePhase("idle");
           if (!stoppedRef.current) startVoiceListening(text => sendVoice(text));
-        });
+        }, 0.87, pin);
       } else {
         if (!streaming && voicePhase === "idle") {
           setTimeout(() => {
@@ -163,7 +163,7 @@ export function LabFloatingChat({ pin, navMode, activeProject, onNavigate, onOpe
             speakText(reply, () => {
               setVoicePhase("idle");
               setPendingOpen({ id: found.id, name: found.name });
-            });
+            }, 0.87, pin);
             return;
           }
         }
@@ -334,12 +334,12 @@ VOICE STYLE: Short, direct sentences. No bullet points or markdown. Report what 
       speakText(spokenText, () => {
         setVoicePhase("idle");
         if (!stoppedRef.current) setTimeout(() => startVoiceListening(t => sendVoice(t)), 400);
-      });
+      }, 0.87, pin);
     } catch {
       const errMsg = "Something went wrong — please try again.";
       setMessages(prev => [...prev, { role: "assistant", content: errMsg }]);
       setVoicePhase("speaking");
-      speakText(errMsg, () => { setVoicePhase("idle"); if (!stoppedRef.current) setTimeout(() => startVoiceListening(t => sendVoice(t)), 400); });
+      speakText(errMsg, () => { setVoicePhase("idle"); if (!stoppedRef.current) setTimeout(() => startVoiceListening(t => sendVoice(t)), 400); }, 0.87, pin);
     } finally {
       setStreaming(false);
       setStreamText("");
