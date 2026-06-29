@@ -7,7 +7,7 @@ import { getUserId } from "@/lib/user-id";
 import { startCheckout } from "@/components/pricing-modal";
 
 const PLACEHOLDERS = [
-  "Initialise session — I'm ready...",
+  "Ask me anything...",
   "What's alive in you right now?",
   "Begin anywhere. I'll follow.",
   "I'm listening. Take your time.",
