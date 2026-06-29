@@ -178,25 +178,25 @@ title = "5 — Star Lab"
 id = "6b7iJpUujBbT_ik2c5ieo"
 uri = "file://artifacts/sirius-mobile/store-metadata/ios/screenshots/iphone_6_9/01.png"
 type = "image"
-title = "Screenshot 1 — Chat"
+title = "Screenshot 1 — Think with Sirius"
 
 [[outputs]]
 id = "GQeeXAw4gR-rKRk8ggLMM"
 uri = "file://artifacts/sirius-mobile/store-metadata/ios/screenshots/iphone_6_9/02.png"
 type = "image"
-title = "Screenshot 2 — Voice"
+title = "Screenshot 2 — Speak. Sirius Listens."
 
 [[outputs]]
 id = "D1ZNDho0Kiw_7_Nj7hUUe"
 uri = "file://artifacts/sirius-mobile/store-metadata/ios/screenshots/iphone_6_9/03.png"
 type = "image"
-title = "Screenshot 3 — Explore"
+title = "Screenshot 3 — Explore Anything"
 
 [[outputs]]
 id = "GyqVPGZcFSjmBV5UIdLhA"
 uri = "file://artifacts/sirius-mobile/store-metadata/ios/screenshots/iphone_6_9/04.png"
 type = "image"
-title = "Screenshot 4 — Mood"
+title = "Screenshot 4 — Your Daily Check-In"
 
 [[outputs]]
 id = "HaviJdgRx5d0754UMfGdv"
