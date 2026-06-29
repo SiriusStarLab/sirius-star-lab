@@ -288,7 +288,7 @@ export function ChatPage() {
                   I'm {aiName} · I think, so I am
                 </p>
                 <h1 className="text-[2.1rem] md:text-[2.8rem] font-bold tracking-tight leading-tight mb-3 text-foreground">
-                  Welcome to Sirius B — a place where you become a star
+                  Welcome to Sirius — a place where you become a star
                 </h1>
                 <p className="text-base md:text-lg font-medium text-muted-foreground/70">
                   What would you like to do?
