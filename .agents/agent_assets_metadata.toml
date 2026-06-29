@@ -257,3 +257,9 @@ id = "WqALTV4-n6VL52spFU60B"
 uri = "file://artifacts/ai-chat/public/logo-starlab.png"
 type = "image"
 title = "Sirius Star Lab Logo"
+
+[[outputs]]
+id = "N03zdDuqh_Ca1bvQCtIhk"
+uri = "file://sirius-screenshots.zip"
+type = "unspecified"
+title = "Sirius App Store Screenshots (all 4)"
