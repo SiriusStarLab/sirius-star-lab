@@ -8,7 +8,7 @@ import React, {
 import { Platform } from "react-native";
 
 export const PRODUCT_PLUS = "live.siriusai.app.plus_monthly";
-export const PRODUCT_PRO = "live.siriusai.app.pro_monthly";
+export const PRODUCT_PRO = "sirius_pro_monthly";
 
 const RC_IOS_KEY = process.env.EXPO_PUBLIC_REVENUECAT_IOS_KEY ?? "";
 const IS_IOS_NATIVE = Platform.OS === "ios";
