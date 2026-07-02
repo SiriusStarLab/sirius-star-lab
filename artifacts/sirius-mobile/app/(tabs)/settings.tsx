@@ -457,68 +457,81 @@ export default function SettingsScreen() {
         </View>
       )}
 
-      {/* iOS IAP — Restore Purchases always visible (Apple §3.1.1 requirement) */}
-      {isIOS && !iapAvailable && !iapSubscribed && (
-        <View style={styles.card}>
-          <SectionHeader title="SUBSCRIPTION" />
-          <SettingRow
-            icon="refresh-cw"
-            label={subscription.isRestoring ? "Restoring…" : "Restore Purchases"}
-            onPress={subscription.isRestoring ? undefined : handleRestorePurchases}
-          />
-          <SettingRow
-            icon="info"
-            label="Manage in Apple Settings"
-            onPress={() => Linking.openURL("https://apps.apple.com/account/subscriptions")}
-          />
-        </View>
-      )}
-
-      {/* iOS IAP upgrade section — shown when RevenueCat is configured with products */}
-      {isIOS && iapAvailable && !iapSubscribed && (
+      {/* iOS IAP — always visible when not subscribed (Apple §3.1.1 + §3.1.2c) */}
+      {isIOS && !iapSubscribed && (
         <View style={styles.upgradeSection}>
           <Text style={styles.upgradeHeading}>Get more from Sirius</Text>
           <Text style={styles.upgradeSubheading}>Unlock unlimited conversations and deep memory.</Text>
 
-          {subscription.plusPackage && (
-            <Pressable
-              onPress={() => handleIAPPurchase(subscription.plusPackage)}
-              disabled={subscription.isPurchasing}
-              style={({ pressed }) => [styles.plusCard, { opacity: pressed || subscription.isPurchasing ? 0.85 : 1 }]}
-            >
-              <View style={styles.plusCardInner}>
-                <View style={styles.plusIconWrap}>
-                  {subscription.isPurchasing
-                    ? <ActivityIndicator color={Colors.background} />
-                    : <Feather name="zap" size={22} color={Colors.background} />}
+          {subscription.isLoading ? (
+            <View style={styles.iapLoadingWrap}>
+              <ActivityIndicator color={Colors.primary} />
+              <Text style={styles.iapLoadingText}>Loading subscription options…</Text>
+            </View>
+          ) : (
+            <>
+              {subscription.plusPackage ? (
+                <Pressable
+                  onPress={() => handleIAPPurchase(subscription.plusPackage)}
+                  disabled={subscription.isPurchasing}
+                  style={({ pressed }) => [styles.plusCard, { opacity: pressed || subscription.isPurchasing ? 0.85 : 1 }]}
+                >
+                  <View style={styles.plusCardInner}>
+                    <View style={styles.plusIconWrap}>
+                      {subscription.isPurchasing
+                        ? <ActivityIndicator color={Colors.background} />
+                        : <Feather name="zap" size={22} color={Colors.background} />}
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.plusCardTitle}>
+                        Sirius Plus — {subscription.plusPackage.product.priceString}/month
+                      </Text>
+                      <Text style={styles.plusCardDesc}>200 messages/day · Image analysis · Sirius remembers you</Text>
+                    </View>
+                    <Feather name="arrow-right" size={18} color={Colors.background} />
+                  </View>
+                  <Text style={styles.plusCardNote}>Auto-renews monthly · Cancel any time in Apple Settings</Text>
+                </Pressable>
+              ) : (
+                <View style={[styles.plusCard, { opacity: 0.5 }]}>
+                  <View style={styles.plusCardInner}>
+                    <View style={styles.plusIconWrap}>
+                      <Feather name="zap" size={22} color={Colors.background} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.plusCardTitle}>Sirius Plus — £6.99/month</Text>
+                      <Text style={styles.plusCardDesc}>200 messages/day · Image analysis · Sirius remembers you</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.plusCardNote}>Auto-renews monthly · Cancel any time in Apple Settings</Text>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.plusCardTitle}>
-                    Sirius Plus — {subscription.plusPackage.product.priceString}/month
-                  </Text>
-                  <Text style={styles.plusCardDesc}>200 messages/day · Image analysis · Sirius remembers you</Text>
-                </View>
-                <Feather name="arrow-right" size={18} color={Colors.background} />
-              </View>
-              <Text style={styles.plusCardNote}>Billed monthly · Cancel any time in Settings</Text>
-            </Pressable>
-          )}
+              )}
 
-          {subscription.proPackage && (
-            <Pressable
-              onPress={() => handleIAPPurchase(subscription.proPackage)}
-              disabled={subscription.isPurchasing}
-              style={({ pressed }) => [styles.proCard, { opacity: pressed || subscription.isPurchasing ? 0.85 : 1 }]}
-            >
-              <Feather name="award" size={18} color="#f59e0b" />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.proCardTitle}>
-                  Sirius Pro — {subscription.proPackage.product.priceString}/month
-                </Text>
-                <Text style={styles.proCardDesc}>Unlimited everything · Deep memory · Priority speed</Text>
-              </View>
-              <Feather name="chevron-right" size={16} color="rgba(245,158,11,0.5)" />
-            </Pressable>
+              {subscription.proPackage ? (
+                <Pressable
+                  onPress={() => handleIAPPurchase(subscription.proPackage)}
+                  disabled={subscription.isPurchasing}
+                  style={({ pressed }) => [styles.proCard, { opacity: pressed || subscription.isPurchasing ? 0.85 : 1 }]}
+                >
+                  <Feather name="award" size={18} color="#f59e0b" />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.proCardTitle}>
+                      Sirius Pro — {subscription.proPackage.product.priceString}/month
+                    </Text>
+                    <Text style={styles.proCardDesc}>Unlimited everything · Deep memory · Priority speed</Text>
+                  </View>
+                  <Feather name="chevron-right" size={16} color="rgba(245,158,11,0.5)" />
+                </Pressable>
+              ) : (
+                <View style={[styles.proCard, { opacity: 0.5 }]}>
+                  <Feather name="award" size={18} color="#f59e0b" />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.proCardTitle}>Sirius Pro — £14.99/month</Text>
+                    <Text style={styles.proCardDesc}>Unlimited everything · Deep memory · Priority speed</Text>
+                  </View>
+                </View>
+              )}
+            </>
           )}
 
           <Pressable
@@ -530,6 +543,23 @@ export default function SettingsScreen() {
               ? <ActivityIndicator size="small" color={Colors.textMuted} />
               : <Text style={styles.restoreBtnText}>Restore purchases</Text>}
           </Pressable>
+
+          {/* Required legal links in subscription section (Apple §3.1.2c) */}
+          <View style={styles.iapLegalRow}>
+            <Text
+              style={styles.iapLegalLink}
+              onPress={() => Linking.openURL(`${WEB_URL}/privacy`)}
+            >
+              Privacy Policy
+            </Text>
+            <Text style={styles.iapLegalSep}>·</Text>
+            <Text
+              style={styles.iapLegalLink}
+              onPress={() => Linking.openURL(`${WEB_URL}/terms`)}
+            >
+              Terms of Use
+            </Text>
+          </View>
         </View>
       )}
 
@@ -994,6 +1024,37 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     fontFamily: "Inter_400Regular",
     textDecorationLine: "underline",
+  },
+  iapLoadingWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    paddingVertical: 20,
+  },
+  iapLoadingText: {
+    fontSize: 13,
+    color: Colors.textMuted,
+    fontFamily: "Inter_400Regular",
+  },
+  iapLegalRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 8,
+    paddingTop: 4,
+  },
+  iapLegalLink: {
+    fontSize: 12,
+    color: Colors.primary,
+    fontFamily: "Inter_400Regular",
+    textDecorationLine: "underline",
+  },
+  iapLegalSep: {
+    fontSize: 12,
+    color: Colors.textDim,
+    fontFamily: "Inter_400Regular",
   },
   versionText: {
     fontSize: 12,

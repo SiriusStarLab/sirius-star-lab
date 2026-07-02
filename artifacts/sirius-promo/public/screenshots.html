@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1290, height=2796">
+<title>Sirius App Store Screenshots</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: 1290px;
+    height: 2796px;
+    background: #080c1a;
+    font-family: -apple-system, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif;
+    overflow: hidden;
+    color: #ffffff;
+  }
+
+  /* iOS Status Bar */
+  .status-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 28px 56px 0;
+    height: 100px;
+  }
+  .status-time {
+    font-size: 52px;
+    font-weight: 600;
+    letter-spacing: -0.5px;
+    color: #fff;
+  }
+  .status-icons {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .signal-bars { display: flex; gap: 4px; align-items: flex-end; }
+  .signal-bars span {
+    background: #fff;
+    border-radius: 2px;
+    width: 10px;
+  }
+  .signal-bars span:nth-child(1) { height: 14px; }
+  .signal-bars span:nth-child(2) { height: 20px; }
+  .signal-bars span:nth-child(3) { height: 28px; }
+  .signal-bars span:nth-child(4) { height: 36px; }
+  .wifi-icon {
+    width: 42px; height: 32px;
+    position: relative;
+    display: flex; align-items: flex-end; justify-content: center;
+  }
+  .wifi-icon::before {
+    content: '';
+    position: absolute;
+    bottom: 4px; left: 50%; transform: translateX(-50%);
+    width: 10px; height: 10px;
+    background: #fff;
+    border-radius: 50%;
+  }
+  .wifi-icon::after {
+    content: '';
+    position: absolute;
+    bottom: 14px; left: 50%; transform: translateX(-50%);
+    width: 26px; height: 16px;
+    border: 5px solid #fff;
+    border-bottom: none;
+    border-radius: 20px 20px 0 0;
+  }
+  .battery {
+    width: 58px; height: 30px;
+    border: 3px solid #fff;
+    border-radius: 6px;
+    position: relative;
+    display: flex; align-items: center;
+    padding: 3px;
+  }
+  .battery::after {
+    content: '';
+    position: absolute;
+    right: -9px; top: 50%; transform: translateY(-50%);
+    width: 5px; height: 14px;
+    background: #fff;
+    border-radius: 0 3px 3px 0;
+  }
+  .battery-fill {
+    background: #30d158;
+    height: 100%;
+    width: 85%;
+    border-radius: 3px;
+  }
+
+  /* Tab Bar */
+  .tab-bar {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 170px;
+    background: rgba(8,12,26,0.92);
+    border-top: 2px solid rgba(255,255,255,0.08);
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    padding: 0 20px 40px;
+    backdrop-filter: blur(20px);
+  }
+  .tab-item {
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    opacity: 0.45;
+    flex: 1;
+  }
+  .tab-item.active { opacity: 1; }
+  .tab-icon {
+    width: 56px; height: 56px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .tab-label {
+    font-size: 24px;
+    color: #fff;
+  }
+  .tab-item.active .tab-label { color: #00d4ff; }
+
+  /* Shared */
+  .screen { display: none; width: 1290px; height: 2796px; position: relative; background: #080c1a; }
+  .screen-content { padding: 0 48px; }
+
+  /* Page-specific show */
+  body[data-page="1"] #screen1,
+  body[data-page="2"] #screen2,
+  body[data-page="3"] #screen3,
+  body[data-page="4"] #screen4 { display: block; }
+
+  /* ===== SCREEN 1: CHAT ===== */
+  .chat-header {
+    padding: 24px 48px 20px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .chat-header-title {
+    font-size: 58px; font-weight: 700;
+    background: linear-gradient(135deg, #00d4ff, #7c3aed);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .chat-header-sub { font-size: 30px; color: rgba(255,255,255,0.4); margin-top: 4px; }
+
+  .mood-section { padding: 0 48px; margin-top: 20px; }
+  .mood-label { font-size: 30px; color: rgba(255,255,255,0.5); margin-bottom: 24px; font-weight: 500; }
+  .mood-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .mood-chip {
+    background: rgba(255,255,255,0.06);
+    border: 1.5px solid rgba(255,255,255,0.1);
+    border-radius: 20px;
+    padding: 24px 28px;
+    display: flex; align-items: center; gap: 16px;
+    font-size: 30px;
+  }
+  .mood-chip.active {
+    border-color: #00d4ff;
+    background: rgba(0,212,255,0.1);
+  }
+  .mood-emoji { font-size: 38px; }
+
+  .ai-bubble-wrap { padding: 0 48px; margin-top: 40px; }
+  .ai-label { font-size: 26px; color: #00d4ff; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 12px; }
+  .ai-dot { width: 12px; height: 12px; background: #00d4ff; border-radius: 50%; }
+  .ai-bubble {
+    background: rgba(0,212,255,0.06);
+    border: 1.5px solid rgba(0,212,255,0.15);
+    border-radius: 24px;
+    padding: 36px 40px;
+    font-size: 34px;
+    line-height: 1.6;
+    color: rgba(255,255,255,0.9);
+  }
+  .ai-bubble strong { color: #fff; }
+
+  .topics-section { padding: 0 48px; margin-top: 36px; }
+  .topics-label { font-size: 28px; color: rgba(255,255,255,0.4); margin-bottom: 20px; }
+  .topic-chips { display: flex; gap: 16px; flex-wrap: wrap; }
+  .topic-chip {
+    background: rgba(255,255,255,0.05);
+    border: 1.5px solid rgba(255,255,255,0.1);
+    border-radius: 40px;
+    padding: 16px 28px;
+    font-size: 26px;
+    color: rgba(255,255,255,0.7);
+  }
+
+  .chat-input-area {
+    position: absolute;
+    bottom: 180px; left: 48px; right: 48px;
+    background: rgba(255,255,255,0.06);
+    border: 1.5px solid rgba(255,255,255,0.12);
+    border-radius: 24px;
+    padding: 28px 36px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .chat-input-placeholder { font-size: 30px; color: rgba(255,255,255,0.3); }
+  .send-btn {
+    width: 72px; height: 72px;
+    background: #00d4ff;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* ===== SCREEN 2: SUBSCRIPTION ===== */
+  .sub-header {
+    padding: 24px 48px;
+    font-size: 60px; font-weight: 700; color: #fff;
+  }
+
+  .plan-card-plus {
+    margin: 0 48px;
+    background: linear-gradient(135deg, #0891b2, #00d4ff);
+    border-radius: 28px;
+    padding: 44px;
+  }
+  .plan-card-pro {
+    margin: 28px 48px 0;
+    background: rgba(255,255,255,0.05);
+    border: 1.5px solid rgba(245,158,11,0.3);
+    border-radius: 28px;
+    padding: 44px;
+  }
+  .plan-header { display: flex; align-items: center; gap: 24px; }
+  .plan-icon {
+    width: 88px; height: 88px;
+    background: rgba(0,0,0,0.25);
+    border-radius: 22px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 44px;
+  }
+  .plan-name { font-size: 44px; font-weight: 700; }
+  .plan-price { font-size: 38px; opacity: 0.85; margin-top: 4px; }
+  .plan-divider { height: 1.5px; background: rgba(255,255,255,0.15); margin: 32px 0; }
+  .plan-feature { font-size: 30px; color: rgba(255,255,255,0.85); padding: 14px 0; border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; gap: 16px; }
+  .plan-feature:last-child { border-bottom: none; }
+  .check { font-size: 28px; color: #30d158; }
+  .plan-note { font-size: 24px; color: rgba(255,255,255,0.5); margin-top: 24px; }
+  .plan-pro-title { font-size: 44px; font-weight: 700; color: #f59e0b; }
+  .plan-pro-price { font-size: 38px; color: rgba(255,255,255,0.7); margin-top: 4px; }
+
+  .sub-legal {
+    display: flex; align-items: center; justify-content: center;
+    gap: 20px; margin: 28px 48px 0;
+    font-size: 26px; color: #00d4ff;
+  }
+  .sub-legal-sep { color: rgba(255,255,255,0.3); }
+
+  .restore-btn {
+    text-align: center; margin-top: 24px;
+    font-size: 28px; color: rgba(255,255,255,0.35);
+  }
+
+  /* ===== SCREEN 3: AI CONSENT ===== */
+  .consent-wrap {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 60px 80px; gap: 40px;
+  }
+  .consent-icon-wrap {
+    width: 160px; height: 160px;
+    border-radius: 48px;
+    border: 2px solid rgba(167,139,250,0.25);
+    background: rgba(167,139,250,0.08);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 80px;
+  }
+  .consent-title { font-size: 64px; font-weight: 700; color: #fff; text-align: center; }
+  .consent-box-wrap {
+    background: rgba(255,255,255,0.05);
+    border: 1.5px solid rgba(167,139,250,0.2);
+    border-radius: 28px;
+    padding: 44px;
+    width: 100%;
+  }
+  .consent-text { font-size: 32px; line-height: 1.7; color: rgba(255,255,255,0.65); }
+  .consent-bold { font-weight: 700; color: #fff; }
+  .consent-link { color: #00d4ff; text-decoration: underline; }
+  .consent-sep { margin-top: 28px; }
+
+  .agree-btn {
+    width: 100%;
+    background: #7c3aed;
+    border-radius: 24px;
+    padding: 40px;
+    display: flex; align-items: center; justify-content: center; gap: 20px;
+    font-size: 36px; font-weight: 700; color: #fff;
+  }
+  .privacy-link { font-size: 28px; color: rgba(255,255,255,0.35); text-decoration: underline; text-align: center; }
+
+  /* ===== SCREEN 4: EXPLORE ===== */
+  .explore-header { padding: 24px 48px; }
+  .explore-title { font-size: 60px; font-weight: 700; color: #fff; }
+  .explore-sub { font-size: 30px; color: rgba(255,255,255,0.4); margin-top: 8px; }
+
+  .wisdom-card {
+    margin: 20px 48px;
+    background: linear-gradient(135deg, rgba(0,212,255,0.08), rgba(124,58,237,0.08));
+    border: 1.5px solid rgba(0,212,255,0.15);
+    border-radius: 28px;
+    padding: 44px;
+  }
+  .wisdom-label { font-size: 24px; font-weight: 600; color: #00d4ff; letter-spacing: 2px; margin-bottom: 16px; }
+  .wisdom-text { font-size: 36px; line-height: 1.6; color: rgba(255,255,255,0.85); font-style: italic; }
+
+  .explore-section-title { font-size: 30px; font-weight: 600; color: rgba(255,255,255,0.4); letter-spacing: 1.5px; padding: 24px 48px 0; }
+  .explore-grid { padding: 20px 48px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .explore-card {
+    background: rgba(255,255,255,0.05);
+    border: 1.5px solid rgba(255,255,255,0.08);
+    border-radius: 24px;
+    padding: 32px;
+  }
+  .explore-card-icon { font-size: 44px; margin-bottom: 16px; }
+  .explore-card-title { font-size: 30px; font-weight: 600; color: #fff; line-height: 1.4; }
+  .explore-card-desc { font-size: 24px; color: rgba(255,255,255,0.45); margin-top: 8px; line-height: 1.5; }
+</style>
+</head>
+<body>
+
+<!-- SCREEN 1: CHAT -->
+<div class="screen" id="screen1">
+  <div class="status-bar">
+    <span class="status-time">9:41</span>
+    <div class="status-icons">
+      <div class="signal-bars"><span></span><span></span><span></span><span></span></div>
+      <svg width="40" height="28" viewBox="0 0 40 28" fill="white">
+        <path d="M20 6C13.4 6 7.5 8.7 3.2 13L0 9.8C5.2 4.6 12.2 1.5 20 1.5S34.8 4.6 40 9.8L36.8 13C32.5 8.7 26.6 6 20 6z"/>
+        <path d="M20 14c-4.5 0-8.5 1.9-11.4 4.9l-3.2-3.2C9.4 12.2 14.4 10 20 10s10.6 2.2 14.6 5.7l-3.2 3.2C28.5 15.9 24.5 14 20 14z"/>
+        <circle cx="20" cy="24" r="3.5"/>
+      </svg>
+      <div class="battery">
+        <div class="battery-fill"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="chat-header">
+    <div>
+      <div class="chat-header-title">Good morning.</div>
+      <div class="chat-header-sub">Wednesday, 2 July</div>
+    </div>
+  </div>
+
+  <div class="mood-section">
+    <div class="mood-label">HOW ARE YOU FEELING?</div>
+    <div class="mood-grid">
+      <div class="mood-chip active"><span class="mood-emoji">🌤️</span>Alive &amp; open</div>
+      <div class="mood-chip"><span class="mood-emoji">💙</span>Need holding</div>
+      <div class="mood-chip"><span class="mood-emoji">🔥</span>Ready to rise</div>
+      <div class="mood-chip"><span class="mood-emoji">🔍</span>Searching</div>
+    </div>
+  </div>
+
+  <div class="ai-bubble-wrap">
+    <div class="ai-label"><span class="ai-dot"></span>SIRIUS</div>
+    <div class="ai-bubble">
+      Good morning. <strong>Something in you is open today</strong> — I can feel it in your choice. Let's not waste it. What wants your attention right now?
+    </div>
+  </div>
+
+  <div class="topics-section">
+    <div class="topics-label">EXPLORE A TOPIC</div>
+    <div class="topic-chips">
+      <div class="topic-chip">🧠 Deep thinking</div>
+      <div class="topic-chip">📈 Markets</div>
+      <div class="topic-chip">🌱 Growth</div>
+      <div class="topic-chip">✍️ Writing</div>
+    </div>
+  </div>
+
+  <div class="chat-input-area">
+    <span class="chat-input-placeholder">Ask me anything…</span>
+    <div class="send-btn">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#080c1a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+    </div>
+  </div>
+
+  <div class="tab-bar">
+    <div class="tab-item active">
+      <div class="tab-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#00d4ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+      <span class="tab-label" style="color:#00d4ff">Chat</span>
+    </div>
+    <div class="tab-item">
+      <div class="tab-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
+      <span class="tab-label">Explore</span>
+    </div>
+    <div class="tab-item">
+      <div class="tab-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+      <span class="tab-label">History</span>
+    </div>
+    <div class="tab-item">
+      <div class="tab-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+      <span class="tab-label">Profile</span>
+    </div>
+  </div>
+</div>
+
+<!-- SCREEN 2: SUBSCRIPTION -->
+<div class="screen" id="screen2">
+  <div class="status-bar">
+    <span class="status-time">9:41</span>
+    <div class="status-icons">
+      <div class="signal-bars"><span></span><span></span><span></span><span></span></div>
+      <svg width="40" height="28" viewBox="0 0 40 28" fill="white"><path d="M20 6C13.4 6 7.5 8.7 3.2 13L0 9.8C5.2 4.6 12.2 1.5 20 1.5S34.8 4.6 40 9.8L36.8 13C32.5 8.7 26.6 6 20 6z"/><path d="M20 14c-4.5 0-8.5 1.9-11.4 4.9l-3.2-3.2C9.4 12.2 14.4 10 20 10s10.6 2.2 14.6 5.7l-3.2 3.2C28.5 15.9 24.5 14 20 14z"/><circle cx="20" cy="24" r="3.5"/></svg>
+      <div class="battery"><div class="battery-fill"></div></div>
+    </div>
+  </div>
+
+  <div class="sub-header">Get more from Sirius</div>
+
+  <div class="plan-card-plus">
+    <div class="plan-header">
+      <div class="plan-icon">⚡</div>
+      <div>
+        <div class="plan-name">Sirius Plus</div>
+        <div class="plan-price">£6.99 / month</div>
+      </div>
+    </div>
+    <div class="plan-divider"></div>
+    <div class="plan-feature"><span class="check">✓</span> 200 messages per day</div>
+    <div class="plan-feature"><span class="check">✓</span> Image analysis</div>
+    <div class="plan-feature"><span class="check">✓</span> Memory Portrait — Sirius learns you</div>
+    <div class="plan-feature"><span class="check">✓</span> Voice conversations</div>
+    <div class="plan-note">Auto-renews monthly · Cancel any time in Apple Settings</div>
+  </div>
+
+  <div class="plan-card-pro">
+    <div class="plan-header">
+      <div class="plan-icon" style="font-size:44px">🏆</div>
+      <div>
+        <div class="plan-pro-title">Sirius Pro</div>
+        <div class="plan-pro-price">£14.99 / month</div>
+      </div>
+    </div>
+    <div class="plan-divider"></div>
+    <div class="plan-feature"><span class="check">✓</span> Unlimited messages every day</div>
+    <div class="plan-feature"><span class="check">✓</span> Deep memory — full context</div>
+    <div class="plan-feature"><span class="check">✓</span> Priority response speed</div>
+    <div class="plan-note" style="color:rgba(245,158,11,0.6)">Auto-renews monthly · Cancel any time in Apple Settings</div>
+  </div>
+
+  <div class="sub-legal">
+    <span>Privacy Policy</span>
+    <span class="sub-legal-sep">·</span>
+    <span>Terms of Use</span>
+  </div>
+  <div class="restore-btn">Restore purchases</div>
+
+  <div class="tab-bar">
+    <div class="tab-item">
+      <div class="tab-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+      <span class="tab-label">Chat</span>
+    </div>
+    <div class="tab-item">
+      <div class="tab-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
+      <span class="tab-label">Explore</span>
+    </div>
+    <div class="tab-item">
+      <div class="tab-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+      <span class="tab-label">History</span>
+    </div>
+    <div class="tab-item active">
+      <div class="tab-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#00d4ff" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+      <span class="tab-label" style="color:#00d4ff">Profile</span>
+    </div>
+  </div>
+</div>
+
+<!-- SCREEN 3: AI DATA CONSENT (ONBOARDING) -->
+<div class="screen" id="screen3">
+  <div class="status-bar">
+    <span class="status-time">9:41</span>
+    <div class="status-icons">
+      <div class="signal-bars"><span></span><span></span><span></span><span></span></div>
+      <svg width="40" height="28" viewBox="0 0 40 28" fill="white"><path d="M20 6C13.4 6 7.5 8.7 3.2 13L0 9.8C5.2 4.6 12.2 1.5 20 1.5S34.8 4.6 40 9.8L36.8 13C32.5 8.7 26.6 6 20 6z"/><path d="M20 14c-4.5 0-8.5 1.9-11.4 4.9l-3.2-3.2C9.4 12.2 14.4 10 20 10s10.6 2.2 14.6 5.7l-3.2 3.2C28.5 15.9 24.5 14 20 14z"/><circle cx="20" cy="24" r="3.5"/></svg>
+      <div class="battery"><div class="battery-fill"></div></div>
+    </div>
+  </div>
+
+  <div class="consent-wrap" style="margin-top: 100px;">
+    <div class="consent-icon-wrap">🛡️</div>
+    <div class="consent-title">Your data &amp; privacy</div>
+
+    <div class="consent-box-wrap">
+      <div class="consent-text">
+        Sirius sends your conversation messages to third-party AI providers — including <span class="consent-bold">Anthropic</span> and <span class="consent-bold">OpenAI</span> — to generate responses.
+      </div>
+      <div class="consent-text consent-sep">
+        Your messages may be processed on their servers. Please do not share sensitive financial, medical, or private personal data.
+      </div>
+      <div class="consent-text consent-sep">
+        By tapping <span class="consent-bold">I agree &amp; continue</span>, you consent to this data processing as described in our <span class="consent-link">Privacy Policy</span>.
+      </div>
+    </div>
+
+    <div class="agree-btn">
+      ✓&nbsp;&nbsp;I agree &amp; continue
+    </div>
+    <div class="privacy-link">Read full Privacy Policy</div>
+  </div>
+</div>
+
+<!-- SCREEN 4: EXPLORE / RESEARCH -->
+<div class="screen" id="screen4">
+  <div class="status-bar">
+    <span class="status-time">9:41</span>
+    <div class="status-icons">
+      <div class="signal-bars"><span></span><span></span><span></span><span></span></div>
+      <svg width="40" height="28" viewBox="0 0 40 28" fill="white"><path d="M20 6C13.4 6 7.5 8.7 3.2 13L0 9.8C5.2 4.6 12.2 1.5 20 1.5S34.8 4.6 40 9.8L36.8 13C32.5 8.7 26.6 6 20 6z"/><path d="M20 14c-4.5 0-8.5 1.9-11.4 4.9l-3.2-3.2C9.4 12.2 14.4 10 20 10s10.6 2.2 14.6 5.7l-3.2 3.2C28.5 15.9 24.5 14 20 14z"/><circle cx="20" cy="24" r="3.5"/></svg>
+      <div class="battery"><div class="battery-fill"></div></div>
+    </div>
+  </div>
+
+  <div class="explore-header">
+    <div class="explore-title">Explore</div>
+    <div class="explore-sub">Research anything with Sirius</div>
+  </div>
+
+  <div class="wisdom-card">
+    <div class="wisdom-label">TODAY'S WISDOM</div>
+    <div class="wisdom-text">"The quality of your attention determines the quality of your thinking."</div>
+  </div>
+
+  <div class="explore-section-title">DEEP RESEARCH</div>
+  <div class="explore-grid">
+    <div class="explore-card">
+      <div class="explore-card-icon">🧠</div>
+      <div class="explore-card-title">Philosophy &amp; Ideas</div>
+      <div class="explore-card-desc">Explore Stoicism, Eastern thought, modern philosophy</div>
+    </div>
+    <div class="explore-card">
+      <div class="explore-card-icon">📈</div>
+      <div class="explore-card-title">Markets &amp; Finance</div>
+      <div class="explore-card-desc">Strategies, trends, investment frameworks</div>
+    </div>
+    <div class="explore-card">
+      <div class="explore-card-icon">🌱</div>
+      <div class="explore-card-title">Personal Growth</div>
+      <div class="explore-card-desc">Habits, mindset, peak performance</div>
+    </div>
+    <div class="explore-card">
+      <div class="explore-card-icon">✍️</div>
+      <div class="explore-card-title">Writing &amp; Creativity</div>
+      <div class="explore-card-desc">Craft, storytelling, creative output</div>
+    </div>
+    <div class="explore-card">
+      <div class="explore-card-icon">🔬</div>
+      <div class="explore-card-title">Science &amp; Tech</div>
+      <div class="explore-card-desc">AI, quantum, neuroscience, breakthroughs</div>
+    </div>
+    <div class="explore-card">
+      <div class="explore-card-icon">🌍</div>
+      <div class="explore-card-title">World &amp; Society</div>
+      <div class="explore-card-desc">History, geopolitics, culture, trends</div>
+    </div>
+  </div>
+
+  <div class="tab-bar">
+    <div class="tab-item">
+      <div class="tab-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+      <span class="tab-label">Chat</span>
+    </div>
+    <div class="tab-item active">
+      <div class="tab-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#00d4ff" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
+      <span class="tab-label" style="color:#00d4ff">Explore</span>
+    </div>
+    <div class="tab-item">
+      <div class="tab-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+      <span class="tab-label">History</span>
+    </div>
+    <div class="tab-item">
+      <div class="tab-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+      <span class="tab-label">Profile</span>
+    </div>
+  </div>
+</div>
+
+<script>
+  const params = new URLSearchParams(window.location.search);
+  const page = params.get('n') || '1';
+  document.body.setAttribute('data-page', page);
+</script>
+</body>
+</html>

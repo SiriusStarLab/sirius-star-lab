@@ -263,3 +263,27 @@ id = "N03zdDuqh_Ca1bvQCtIhk"
 uri = "file://sirius-screenshots.zip"
 type = "unspecified"
 title = "Sirius App Store Screenshots (all 4)"
+
+[[outputs]]
+id = "0tcDQYh3qoEWj-VUL8Av7"
+uri = "file://screenshots/sirius_screen1_chat.jpg"
+type = "image"
+title = "Screenshot 1 — Chat Screen"
+
+[[outputs]]
+id = "SfU8RuQMGZJZ0k23j97Du"
+uri = "file://screenshots/sirius_screen2_subscription.jpg"
+type = "image"
+title = "Screenshot 2 — Subscription (Plus & Pro)"
+
+[[outputs]]
+id = "YEdzxPzCX7FbaUw0UbbYM"
+uri = "file://screenshots/sirius_screen3_privacy.jpg"
+type = "image"
+title = "Screenshot 3 — AI Data Consent"
+
+[[outputs]]
+id = "Px9bI0QJXVjjZEbrd8u0Z"
+uri = "file://screenshots/sirius_screen4_explore.jpg"
+type = "image"
+title = "Screenshot 4 — Explore"
