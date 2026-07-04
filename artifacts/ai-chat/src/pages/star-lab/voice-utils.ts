@@ -1,15 +1,26 @@
 let _currentAudio: HTMLAudioElement | null = null;
+let _currentAudioUrl: string | null = null;
 let _audioUnlocked = false;
+
+// iOS Safari silently stops playing audio from newly-created Audio() elements
+// after a handful of them have been instantiated in a session (no error, no
+// sound). Reusing a single element for the whole page lifetime avoids this.
+function getReusableAudioElement(): HTMLAudioElement {
+  if (!_currentAudio) {
+    _currentAudio = new Audio();
+    _currentAudio.preload = "auto";
+  }
+  return _currentAudio;
+}
 
 // Call this inside a real user-gesture handler (e.g. button tap) so iOS/Chrome
 // allow subsequent audio.play() calls that happen after async gaps.
 export function unlockAudio() {
   if (_audioUnlocked) return;
   _audioUnlocked = true;
+  const a = getReusableAudioElement();
   // Minimal 1-sample silent WAV played at volume 0 — unlocks the browser audio policy
-  const a = new Audio(
-    "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA=="
-  );
+  a.src = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==";
   a.volume = 0;
   a.play().catch(() => {});
 }
@@ -17,7 +28,12 @@ export function unlockAudio() {
 export function stopSpeaking() {
   if (_currentAudio) {
     _currentAudio.pause();
-    _currentAudio = null;
+    _currentAudio.onended = null;
+    _currentAudio.onerror = null;
+  }
+  if (_currentAudioUrl) {
+    URL.revokeObjectURL(_currentAudioUrl);
+    _currentAudioUrl = null;
   }
   if (typeof window !== "undefined" && window.speechSynthesis) {
     window.speechSynthesis.cancel();
@@ -47,10 +63,22 @@ export async function speakText(
       if (!resp.ok) throw new Error(`TTS ${resp.status}`);
       const blob = await resp.blob();
       const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      _currentAudio = audio;
-      audio.onended = () => { URL.revokeObjectURL(url); _currentAudio = null; onDone?.(); };
-      audio.onerror = () => { URL.revokeObjectURL(url); _currentAudio = null; onDone?.(); };
+      const audio = getReusableAudioElement();
+      audio.pause();
+      audio.volume = 1.0;
+      audio.src = url;
+      _currentAudioUrl = url;
+      audio.onended = () => {
+        URL.revokeObjectURL(url);
+        if (_currentAudioUrl === url) _currentAudioUrl = null;
+        onDone?.();
+      };
+      audio.onerror = () => {
+        URL.revokeObjectURL(url);
+        if (_currentAudioUrl === url) _currentAudioUrl = null;
+        onDone?.();
+      };
+      audio.load();
       await audio.play();
       return;
     } catch (e) {
