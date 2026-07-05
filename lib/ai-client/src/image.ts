@@ -11,9 +11,29 @@ export async function generateImageBuffer(
   const validDirectKey = directKey && !directKey.startsWith("sk-or-") ? directKey : null;
 
   if (validDirectKey) {
+    const { default: OpenAI } = await import("openai");
+    const client = new OpenAI({ apiKey: validDirectKey });
+
+    // Try gpt-image-1 first — many OpenAI orgs (esp. newer ones) only have
+    // access to gpt-image-1, not dall-e-3. gpt-image-1 always returns
+    // b64_json and does NOT accept a response_format parameter — passing one
+    // causes a "400 Unknown parameter: 'response_format'" error.
     try {
-      const { default: OpenAI } = await import("openai");
-      const client = new OpenAI({ apiKey: validDirectKey });
+      const response = await client.images.generate({
+        model: "gpt-image-1",
+        prompt,
+        size: normalised,
+      });
+      const base64 = response.data[0]?.b64_json ?? "";
+      if (!base64) throw new Error("No image data returned from OpenAI (gpt-image-1).");
+      console.log("[image] ✅ gpt-image-1 image generated successfully");
+      return Buffer.from(base64, "base64");
+    } catch (gptImageErr: any) {
+      console.warn("[image] gpt-image-1 failed, trying dall-e-3:", gptImageErr?.message);
+    }
+
+    // Fall back to dall-e-3 (older orgs / accounts that still have access).
+    try {
       const response = await client.images.generate({
         model: "dall-e-3",
         prompt,
@@ -21,7 +41,7 @@ export async function generateImageBuffer(
         response_format: "b64_json",
       });
       const base64 = response.data[0]?.b64_json ?? "";
-      if (!base64) throw new Error("No image data returned from OpenAI.");
+      if (!base64) throw new Error("No image data returned from OpenAI (dall-e-3).");
       console.log("[image] ✅ DALL-E 3 image generated successfully");
       return Buffer.from(base64, "base64");
     } catch (dalleErr: any) {
