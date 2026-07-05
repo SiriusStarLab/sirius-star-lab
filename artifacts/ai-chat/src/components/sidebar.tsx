@@ -75,7 +75,16 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession }: Sid
   const { profile } = useProfile();
   const { status, usagePercent, isPremium } = useSubscription();
   const userId = getUserId();
-  const showInstallButton = isMobileDevice() && !isIOS() && !isInStandaloneMode();
+  const [installEventReady, setInstallEventReady] = useState(() => !!(window as any).__siriusPWAInstallEvent);
+  useEffect(() => {
+    if (installEventReady) return;
+    const onReady = () => setInstallEventReady(true);
+    window.addEventListener("sirius-pwa-installable", onReady);
+    return () => window.removeEventListener("sirius-pwa-installable", onReady);
+  }, [installEventReady]);
+  // Show on mobile UAs (guide flow) OR any device — desktop/laptop Chrome/Edge
+  // included — once the browser has actually fired the native install prompt
+  const showInstallButton = !isIOS() && !isInStandaloneMode() && (isMobileDevice() || installEventReady);
 
   useEffect(() => {
     if (forceOpenPricing) setIsPricingOpen(true);

@@ -49,10 +49,21 @@ export function ChatPage() {
   const [expandedSection, setExpandedSection] = useState<ExpandedSection>(null);
   const [savedFlash, setSavedFlash] = useState(false);
   const [showPWAGuide, setShowPWAGuide] = useState(false);
-  const showInstallButton = isMobileDevice() && !isIOS() && !isInStandaloneMode();
+  const [installEventReady, setInstallEventReady] = useState(() => !!(window as any).__siriusPWAInstallEvent);
+  useEffect(() => {
+    if (installEventReady) return;
+    const onReady = () => setInstallEventReady(true);
+    window.addEventListener("sirius-pwa-installable", onReady);
+    return () => window.removeEventListener("sirius-pwa-installable", onReady);
+  }, [installEventReady]);
+  // Show the button on mobile UAs (guide flow) OR any device (desktop/laptop
+  // Chrome/Edge included) once the browser has actually fired the native install prompt
+  const showInstallButton = !isIOS() && !isInStandaloneMode() && (isMobileDevice() || installEventReady);
   const [voiceMode, setVoiceMode] = useState(() => localStorage.getItem("sirius_voice_mode") === "true");
   const prevConvId = useRef<number | undefined>(undefined);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const expandedPanelRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const { profile } = useProfile();
   const aiName = profile.aiName || "Sirius";
 
@@ -140,6 +151,20 @@ export function ChatPage() {
     setExpandedSection(prev => prev === section ? null : section);
   };
 
+  // Whenever a section (topics / mood / wisdom) opens, make sure it actually
+  // scrolls into full view — on shorter viewports (e.g. laptops) the panel can
+  // otherwise render underneath the fixed chat input bar at the bottom. The
+  // scroll container reserves trailing space (pb-56) below all content
+  // specifically so scrolling all the way down always clears the fixed bar.
+  useEffect(() => {
+    if (!expandedSection) return;
+    const raf = requestAnimationFrame(() => {
+      const el = scrollContainerRef.current;
+      if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [expandedSection]);
+
   const surpriseMe = () => {
     const idx = Math.floor(Math.random() * SURPRISE_PROMPTS.length);
     handleSend(SURPRISE_PROMPTS[idx]);
@@ -212,7 +237,7 @@ export function ChatPage() {
         </AnimatePresence>
 
         {/* Chat area */}
-        <div className="flex-1 overflow-y-auto scroll-smooth pb-44 sm:pb-36">
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto scroll-smooth pb-44 sm:pb-36">
           {isInitialLoading ? (
             <div className="h-full flex items-center justify-center">
               <div className="flex flex-col items-center gap-4 text-muted-foreground">
@@ -226,7 +251,7 @@ export function ChatPage() {
             </div>
           ) : isEmpty ? (
             /* ── Welcome screen: Gemini-inspired clean layout ── */
-            <div className="relative min-h-full flex flex-col items-center justify-center pb-56 px-5 md:px-8 max-w-2xl mx-auto w-full">
+            <div className={`relative min-h-full flex flex-col items-center pb-56 px-5 md:px-8 max-w-2xl mx-auto w-full ${expandedSection ? "justify-start pt-10 md:pt-16" : "justify-center"}`}>
 
               {/* Ambient background glow */}
               <div
@@ -393,6 +418,7 @@ export function ChatPage() {
               <AnimatePresence mode="wait">
                 {expandedSection === "topics" && (
                   <motion.div
+                    ref={expandedPanelRef}
                     key="topics"
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -417,6 +443,7 @@ export function ChatPage() {
 
                 {expandedSection === "mood" && (
                   <motion.div
+                    ref={expandedPanelRef}
                     key="mood"
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -441,6 +468,7 @@ export function ChatPage() {
 
                 {expandedSection === "wisdom" && (
                   <motion.div
+                    ref={expandedPanelRef}
                     key="wisdom"
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}

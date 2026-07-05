@@ -70,7 +70,7 @@ interface DailyWisdomProps {
 
 export function DailyWisdom({ onReflect }: DailyWisdomProps) {
   const [offset, setOffset] = useState(0);
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
 
   const quote = useMemo(() => WISDOM_QUOTES[getDailyQuoteIndex(offset)], [offset]);
 

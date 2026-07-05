@@ -33,10 +33,12 @@ export function PWAInstallPrompt() {
   useEffect(() => {
     if (isInStandaloneMode()) return;
 
-    // Capture Android install event and store globally — welcome screen uses it
+    // Capture install event (fires on any Chromium browser — Android, ChromeOS,
+    // Windows/Linux desktop laptops, etc.) and store globally — welcome screen uses it
     const handler = (e: Event) => {
       e.preventDefault();
       (window as any).__siriusPWAInstallEvent = e;
+      window.dispatchEvent(new Event("sirius-pwa-installable"));
     };
     window.addEventListener("beforeinstallprompt", handler);
     return () => window.removeEventListener("beforeinstallprompt", handler);
