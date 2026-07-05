@@ -18,35 +18,33 @@ I like functional programming.
 Do not make changes to the folder `lib/api-spec`.
 Changes to `artifacts/ai-chat/src/pages/star-lab.tsx` are permitted — Garry explicitly approved this. The previous restriction is lifted.
 
-## ★ PRIME DIRECTIVE — KAMATERA DEPLOYMENT (NON-NEGOTIABLE) ★
+## ★ PRIME DIRECTIVE — KAMATERA DEPLOYMENT (NON-NEGOTIABLE, HARDWIRED PROTOCOL) ★
 
-**ALL production traffic runs on the Kamatera VPS at 185.247.118.196:2222, NOT Replit.**
-**Never tell Garry to "republish on Replit" — that is not production.**
-**After EVERY code change session, run the three commands below. No exceptions.**
+**ALL production traffic for Sirius Star Lab runs on the Kamatera VPS at 185.247.118.196, NOT Replit.**
+Garry has repeatedly, explicitly, and forcefully required this. It is a standing rule for
+every session on this project, not something to be re-confirmed each time.
 
-```bash
-# 1. Build API server
-pnpm --filter @workspace/api-server run build
+**Hard rules:**
+1. **No fix or change is "done" until it is deployed to Kamatera and verified live on `https://sirius-ai.live`.**
+   Do not tell Garry a fix is complete, and do not ask him to verify something, until after deployment.
+2. **Never tell Garry to "republish" or "deploy" on Replit as if that affects production — it does not.**
+   Replit is only the dev/build workspace here.
+3. **This applies to every code change session automatically** — treat deploy-to-server as implicit in
+   every task, the same as running a build or a test. Do not wait to be asked.
+4. Full detail and current working deploy mechanics (SSH/SCP commands, paths, sed-patch procedure for
+   surgical fixes, env var gotchas) live in `.agents/memory/deploy-protocol.md` and
+   `.agents/memory/kamatera-deploy-path.md` — always re-check these at the start of any Sirius task, since
+   the exact commands can shift over time (e.g. the old `install.sh?token=` pull mechanism was superseded by
+   direct SCP + PM2 reload in later sessions — verify which mechanism is actually in place on the server
+   before assuming either one, since the server can self-modify its own deploy tooling too).
 
-# 2. Build frontend (PORT and BASE_PATH are required by vite.config.ts)
-PORT=3000 BASE_PATH=/ pnpm --filter @workspace/ai-chat run build
-
-# 3. Tell Kamatera to pull both builds and restart PM2
-ssh -i /home/runner/workspace/.local/sirius_deploy.key -p 2222 -o StrictHostKeyChecking=no root@185.247.118.196 \
-  "curl -sfL \"https://${REPLIT_DEV_DOMAIN}/api/deploy/install.sh?token=${DEPLOY_TOKEN}\" | bash"
-```
-
-**How it works:** The install.sh script (served by the running dev api-server) downloads the freshly built
-`dist/index.cjs` and `dist/public/` from Replit, copies them into `/opt/sirius/`, and does `pm2 restart sirius-api`.
-
-- SSH key: `/home/runner/workspace/.local/sirius_deploy.key`
-- Server: `root@185.247.118.196` port `2222`
+**Reference facts (verify these are still accurate before relying on them — server can drift):**
+- SSH key: `/home/runner/workspace/.local/sirius_deploy.key`, server: `root@185.247.118.196` port `2222`
 - PM2 process: `sirius-api` — app root: `/opt/sirius/`
 - Production URL: `https://sirius-ai.live`
-- Deploy token: `$DEPLOY_TOKEN` env secret
-- **nginx root on Kamatera: `/opt/sirius/frontend/public`** — the vite build outputs into `dist/public/` and the tarball preserves that subfolder. If nginx ever shows 403, check this path first.
-- **PM2 env vars — CRITICAL:** `pm2 restart` alone does NOT reload `/opt/sirius/.env`. Always use: `set -a && source /opt/sirius/.env && set +a && pm2 restart sirius-api --update-env`. The deploy install.sh already does this (fixed 2026-05-24). If any feature fails in production citing a missing env var, this is the cause — run the above command on the VPS.
-- **Object storage on Kamatera:** `PRIVATE_OBJECT_DIR`, `DEFAULT_OBJECT_STORAGE_BUCKET_ID`, `PUBLIC_OBJECT_SEARCH_PATHS` must be in `/opt/sirius/.env` — they are Replit secrets and are NOT auto-synced. If missing, SSH in and add them from the Replit secrets panel, then do the PM2 restart above.
+- **PM2 env vars:** `pm2 restart` alone does NOT reload `/opt/sirius/.env`. Use `pm2 reload sirius-api --update-env`, or `set -a && source /opt/sirius/.env && set +a && pm2 restart sirius-api --update-env`.
+- **Object storage on Kamatera:** `PRIVATE_OBJECT_DIR`, `DEFAULT_OBJECT_STORAGE_BUCKET_ID`, `PUBLIC_OBJECT_SEARCH_PATHS` must be in `/opt/sirius/.env` — they are Replit secrets and are NOT auto-synced.
+- **Server code can self-modify and drift from this Replit repo** (Sirius has a self-modification system). Before assuming this repo matches production, diff the relevant server files first.
 
 ## ★ NEW DIMENSIONS — CAD INTEGRATION (REMEMBER THIS) ★
 
