@@ -12,6 +12,6 @@
 - [Sirius Zod schema — message body](sirius-zod-schema.md) — SendOpenaiMessageBody must include mode/imageBase64/documentBase64/documentName or they're silently stripped; always run health check after deploys.
 - [Sirius stability fixes](sirius-stability-fixes.md) — self-repair call-site, health checks, Telegram auto-chat-id, mobile pnpm conflict, SSH heredoc safety.
 - [Deploy-to-server protocol (MANDATORY)](deploy-protocol.md) — every fix must be deployed to Kamatera server (sirius-ai.live), not left only in Replit workspace; user has repeated this many times.
-- [Sirius model names](sirius-model-names.md) — `anthropic/claude-sonnet-4-5` 404s on OpenRouter; use `anthropic/claude-3.7-sonnet`. Direct Anthropic uses bare `claude-3-7-sonnet-20250219`. Server has 18+ files to patch.
+- [Sirius model names](sirius-model-names.md) — OpenRouter retires model IDs periodically; never trust a hardcoded name, always re-verify live via curl before patching. 20+ server files affected each time.
 - [Sirius custom tools data loss](sirius-custom-tools-loss.md) — tools were never in Kamatera DB (migration gap); backup/restore now in self-repair.ts.
 - [Sirius EAS build fix — monorepo](sirius-eas-build-fix.md) — root cause of all EAS build failures in pnpm monorepo; expo-entry.js pattern, ios/ pre-generation, EAS_NO_VCS=1 behavior.
