@@ -69,6 +69,26 @@ function CodeBlock({ language, code }: { language: string; code: string }) {
   );
 }
 
+function preprocessContent(content: string): string {
+  let result = content;
+  // "URL: https://...image.png" → markdown image
+  result = result.replace(
+    /URL:\s*(https?:\/\/\S+\.(png|jpg|jpeg|gif|webp|bmp|svg)(\?\S*)?)/gi,
+    (_, url) => `\n\n![Generated image](${url})\n\n`
+  );
+  // Saved to: /opt/sirius/...renders/file.png → rendered image via API
+  result = result.replace(
+    /Saved to:\s*\/opt\/sirius\/artifacts\/api-server\/public\/renders\/([\w.\-]+)/gi,
+    (_, filename) => `\n\n![Generated image](https://sirius-ai.live/api/lab/renders/${filename})\n\n`
+  );
+  // Any bare https URL ending in an image extension not already inside a markdown link/image
+  result = result.replace(
+    /(?<!\()(https?:\/\/[^\s)\]"']+\.(png|jpg|jpeg|gif|webp|bmp|svg)([?#][^\s)\]"']*)?)/gi,
+    (url) => `\n\n![Generated image](${url})\n\n`
+  );
+  return result;
+}
+
 export function ChatMessage({ message }: ChatMessageProps) {
   const isUser = message.role === "user";
   const isSearching = !isUser && message.isSearching && !message.content;
@@ -374,7 +394,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
                         return <code className={className} {...props}>{children}</code>;
                       },
                     }}
-                  >{message.content}</ReactMarkdown>
+                  >{preprocessContent(message.content)}</ReactMarkdown>
                 ) : !isSearching ? (
                   <div className="flex items-center gap-1 h-6">
                     {[0, 150, 300].map(d => (
