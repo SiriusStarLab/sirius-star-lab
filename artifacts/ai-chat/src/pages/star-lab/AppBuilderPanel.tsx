@@ -18,6 +18,23 @@ import {
 } from 'lucide-react';
 import { getApiBase } from '@/lib/api-base';
 
+function preprocessImageUrls(content: string): string {
+  let result = content;
+  result = result.replace(
+    /URL:\s*(https?:\/\/\S+\.(png|jpg|jpeg|gif|webp|bmp|svg)(\?\S*)?)/gi,
+    (_, url) => `\n\n![Generated image](${url})\n\n`
+  );
+  result = result.replace(
+    /Saved to:\s*\/opt\/sirius\/artifacts\/api-server\/public\/renders\/([\w.\-]+)/gi,
+    (_, filename) => `\n\n![Generated image](https://sirius-ai.live/api/lab/renders/${filename})\n\n`
+  );
+  result = result.replace(
+    /(?<!\()(https?:\/\/[^\s)\]"']+\.(png|jpg|jpeg|gif|webp|bmp|svg)([?#][^\s)\]"']*)?)/gi,
+    (url) => `\n\n![Generated image](${url})\n\n`
+  );
+  return result;
+}
+
 
 // ── App Builder — 6-Phase Autonomous Agent System ────────────────────────────
 
@@ -2647,7 +2664,7 @@ export function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed, onViewP
                         <span className="text-[10px] font-semibold" style={{ color: "hsl(45,80%,40%)" }}>Architect · Extended Thinking</span>
                       </div>
                       <div className="rounded-xl p-3 text-xs leading-relaxed" style={{ background: "hsla(45,90%,50%,0.06)", border: "1px solid hsla(45,90%,50%,0.15)", color: "rgba(15,23,42,0.75)" }}>
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{preprocessImageUrls(msg.content)}</ReactMarkdown>
                         {architectLoading && i === architectMessages.length - 1 && <span className="inline-block w-1 h-3 ml-1 animate-pulse rounded" style={{ background: "hsl(45,90%,50%)" }} />}
                       </div>
                     </div>
