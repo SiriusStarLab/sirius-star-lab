@@ -891,6 +891,10 @@ function ChatPanel({ project, pin, mode, onUpdate }: { project: Project; pin: st
             if (d.type === "render_queued") {
               setMessages(prev => { const u = [...prev]; u[u.length - 1] = { role: "assistant", content: assistant + "\n\n🎨 Render queued — check the Renders tab in ~30 seconds." }; return u; });
             }
+            if (d.type === "image" && d.url) {
+              assistant += `\n\n![Generated image](${d.url})\n\n`;
+              setMessages(prev => { const u = [...prev]; u[u.length - 1] = { role: "assistant", content: assistant }; return u; });
+            }
             if (d.done) { streamDone = true; }
           } catch {}
         }
