@@ -26,6 +26,14 @@ function preprocessContent(content: string): string {
     (_, space, url) => `${space}\n\n![Generated image](${url})\n\n`
   );
 
+  // 4. Any bare https URL ending in an image extension not already inside a markdown link/image
+  //    Catches OpenAI CDN URLs, Pollinations URLs, etc. — anything like https://...img.png or ...img.jpg?query=...
+  //    The (?<!\() lookbehind prevents double-converting URLs already inside ![](url) from rules 1-3
+  result = result.replace(
+    /(?<!\()(https?:\/\/[^\s)\]"']+\.(png|jpg|jpeg|gif|webp|bmp|svg)([?#][^\s)\]"']*)?)/gi,
+    (url) => `\n\n![Generated image](${url})\n\n`
+  );
+
   return result;
 }
 
