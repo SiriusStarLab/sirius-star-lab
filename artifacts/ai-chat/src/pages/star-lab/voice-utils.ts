@@ -4,9 +4,6 @@ let _audioUnlocked = false;
 let _audioCtx: AudioContext | null = null;
 let _currentSource: AudioBufferSourceNode | null = null;
 
-// iOS Safari silently stops playing audio from newly-created Audio() elements
-// after a handful of them have been instantiated in a session (no error, no
-// sound). Reusing a single element for the whole page lifetime avoids this.
 function getReusableAudioElement(): HTMLAudioElement {
   if (!_currentAudio) {
     _currentAudio = new Audio();
@@ -15,25 +12,27 @@ function getReusableAudioElement(): HTMLAudioElement {
   return _currentAudio;
 }
 
-// Call this inside a real user-gesture handler (e.g. button tap) so iOS/Chrome
-// allow subsequent audio.play() calls that happen after async gaps.
 export function unlockAudio() {
   if (_audioUnlocked) return;
   _audioUnlocked = true;
 
-  // Create and resume an AudioContext during the user gesture — this is
-  // the most reliable way to unlock audio on Windows Edge/Chrome, because
-  // AudioContext.decodeAudioData + BufferSource bypasses the HTML Media
-  // autoplay policy that blocks HTMLAudioElement.play() after async gaps.
   try {
     const Ctx = (window.AudioContext || (window as any).webkitAudioContext) as typeof AudioContext;
     if (Ctx) {
       _audioCtx = new Ctx();
-      if (_audioCtx.state === "suspended") {
-        _audioCtx.resume().catch(() => {});
-      }
+      console.log("[TTS] AudioContext created, state:", _audioCtx.state);
+      _audioCtx.resume().then(() => {
+        console.log("[TTS] AudioContext resumed, state:", _audioCtx?.state);
+      }).catch((e) => {
+        console.warn("[TTS] AudioContext resume failed:", e);
+      });
+    } else {
+      console.warn("[TTS] AudioContext not available in this browser");
     }
-  } catch {}
+  } catch (e) {
+    console.warn("[TTS] AudioContext creation failed:", e);
+    _audioCtx = null;
+  }
 
   // Also unlock the HTMLAudioElement as fallback
   const a = getReusableAudioElement();
@@ -72,71 +71,104 @@ export async function speakText(
   if (!text?.trim()) { onDone?.(); return; }
 
   const clean = text.replace(/[*#>`_~]/g, "").replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").trim();
+  console.log("[TTS] speakText called, pin:", pin ? "SET" : "MISSING", "audioCtx:", _audioCtx ? _audioCtx.state : "null");
 
   if (pin) {
     try {
       const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
-      const resp = await fetch(`${base}/api/lab/tts`, {
+      const url = `${base}/api/lab/tts`;
+      console.log("[TTS] Fetching from:", url, "text length:", clean.slice(0, 2000).length);
+
+      const resp = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-lab-pin": pin },
         body: JSON.stringify({ text: clean.slice(0, 2000) }),
         signal: AbortSignal.timeout(35_000),
       });
-      if (!resp.ok) throw new Error(`TTS ${resp.status}`);
+      console.log("[TTS] Response:", resp.status, resp.headers.get("content-type"));
+      if (!resp.ok) throw new Error(`TTS ${resp.status}: ${await resp.text().catch(() => "")}`);
 
       const arrayBuf = await resp.arrayBuffer();
+      console.log("[TTS] ArrayBuffer size:", arrayBuf.byteLength, "bytes");
 
       // Prefer AudioContext (bypasses Windows/Edge autoplay policy on HTMLAudioElement)
       if (_audioCtx) {
         try {
-          if (_audioCtx.state === "suspended") await _audioCtx.resume();
+          console.log("[TTS] Trying AudioContext, state:", _audioCtx.state);
+          if (_audioCtx.state === "suspended") {
+            console.log("[TTS] Resuming suspended AudioContext...");
+            await _audioCtx.resume();
+            console.log("[TTS] AudioContext resumed, state now:", _audioCtx.state);
+          }
           const audioBuf = await _audioCtx.decodeAudioData(arrayBuf.slice(0));
+          console.log("[TTS] Decoded audio, duration:", audioBuf.duration.toFixed(2), "s");
           const source = _audioCtx.createBufferSource();
           source.buffer = audioBuf;
           source.connect(_audioCtx.destination);
           _currentSource = source;
           source.onended = () => {
+            console.log("[TTS] AudioContext playback ended");
             if (_currentSource === source) _currentSource = null;
             onDone?.();
           };
           source.start(0);
+          console.log("[TTS] AudioContext playback started");
           return;
         } catch (ctxErr) {
-          console.warn("[TTS] AudioContext playback failed, trying HTMLAudioElement:", ctxErr);
+          console.warn("[TTS] AudioContext playback failed:", ctxErr);
         }
+      } else {
+        console.warn("[TTS] No AudioContext — falling through to HTMLAudioElement");
       }
 
-      // Fallback: HTMLAudioElement (works on iOS/Safari and when AudioContext not available)
+      // Fallback: HTMLAudioElement
+      console.log("[TTS] Trying HTMLAudioElement fallback");
       const blob = new Blob([arrayBuf], { type: "audio/wav" });
-      const url = URL.createObjectURL(blob);
+      const blobUrl = URL.createObjectURL(blob);
       const audio = getReusableAudioElement();
       audio.pause();
       audio.volume = 1.0;
-      audio.src = url;
-      _currentAudioUrl = url;
+      audio.src = blobUrl;
+      _currentAudioUrl = blobUrl;
       audio.onended = () => {
-        URL.revokeObjectURL(url);
-        if (_currentAudioUrl === url) _currentAudioUrl = null;
+        URL.revokeObjectURL(blobUrl);
+        if (_currentAudioUrl === blobUrl) _currentAudioUrl = null;
+        console.log("[TTS] HTMLAudioElement ended");
         onDone?.();
       };
-      audio.onerror = () => {
-        URL.revokeObjectURL(url);
-        if (_currentAudioUrl === url) _currentAudioUrl = null;
+      audio.onerror = (e) => {
+        console.warn("[TTS] HTMLAudioElement error:", e);
+        URL.revokeObjectURL(blobUrl);
+        if (_currentAudioUrl === blobUrl) _currentAudioUrl = null;
         onDone?.();
       };
       audio.load();
-      await audio.play();
-      return;
+      try {
+        await audio.play();
+        console.log("[TTS] HTMLAudioElement playing");
+        return;
+      } catch (playErr) {
+        console.warn("[TTS] HTMLAudioElement.play() blocked:", playErr);
+        URL.revokeObjectURL(blobUrl);
+        _currentAudioUrl = null;
+      }
     } catch (e) {
-      console.warn("[TTS] Piper failed, falling back to browser speech:", e);
+      console.warn("[TTS] TTS fetch/decode failed:", e);
     }
+  } else {
+    console.log("[TTS] No pin — using browser speech synthesis directly");
   }
 
+  console.log("[TTS] Falling back to browser speech synthesis");
   _speakBrowser(clean, onDone, _rate);
 }
 
 function _speakBrowser(text: string, onDone?: () => void, rate = 0.87) {
-  if (typeof window === "undefined" || !window.speechSynthesis) { onDone?.(); return; }
+  if (typeof window === "undefined" || !window.speechSynthesis) {
+    console.warn("[TTS] Browser speech synthesis not available");
+    onDone?.();
+    return;
+  }
   window.speechSynthesis.cancel();
 
   const rawSentences = text.match(/[^.!?\n]+(?:[.!?\n]+|$)/g) ?? [text];
@@ -177,6 +209,8 @@ function _speakBrowser(text: string, onDone?: () => void, rate = 0.87) {
     );
   };
 
+  console.log("[TTS] Browser speech — voices available:", window.speechSynthesis.getVoices().length);
+
   setTimeout(() => {
     let finished = false;
     const fireOnce = () => { if (finished) return; finished = true; clearInterval(keepAlive); onDone?.(); };
@@ -195,9 +229,14 @@ function _speakBrowser(text: string, onDone?: () => void, rate = 0.87) {
       utter.pitch  = 1.1;
       utter.volume = 0.97;
       const preferred = pickVoice();
-      if (preferred) utter.voice = preferred;
+      if (preferred) {
+        utter.voice = preferred;
+        console.log("[TTS] Browser speech using voice:", preferred.name);
+      } else {
+        console.warn("[TTS] No preferred voice found, using default");
+      }
       utter.onend   = () => speakNext();
-      utter.onerror = () => speakNext();
+      utter.onerror = (e) => { console.warn("[TTS] Speech utterance error:", e.error); speakNext(); };
       window.speechSynthesis.speak(utter);
     };
     if (window.speechSynthesis.getVoices().length === 0) {
