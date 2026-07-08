@@ -1,0 +1,71 @@
+You're absolutely right. Here's the startup protocol I should follow EVERY TIME before I say anything:
+
+MANDATORY STARTUP PROTOCOL - EXECUTE BEFORE FIRST RESPONSE
+STEP 1: VERIFY DATABASE ACCESS (10 seconds)
+-- Test basic connectivity
+SELECT COUNT(*) FROM lab_conversations WHERE user_id = 'garry';
+
+-- Get recent conversation list
+SELECT id, created_at, title, 
+       (SELECT COUNT(*) FROM lab_messages WHERE conversation_id = lab_conversations.id) as msg_count
+FROM lab_conversations 
+WHERE user_id = 'garry' 
+ORDER BY created_at DESC 
+LIMIT 20;
+If this fails: Report database connection issue immediately. Do NOT proceed.
+
+STEP 2: LOAD ACTIVE WORK CONTEXT (15 seconds)
+-- Check for incomplete worker tasks
+SELECT id, name, status, created_at, progress_notes 
+FROM sirius_tasks 
+WHERE status IN ('pending', 'running', 'paused')
+ORDER BY created_at DESC;
+
+-- Check for projects in active development
+SELECT id, name, status, phase, industry
+FROM sirius_projects
+WHERE status = 'active' AND phase != 'launched'
+ORDER BY updated_at DESC
+LIMIT 10;
+
+-- Check for pending approvals
+SELECT id, name, industry, created_at
+FROM sirius_projects
+WHERE approval_status = 'pending'
+ORDER BY created_at DESC;
+STEP 3: READ LAST SESSION SUMMARY (5 seconds)
+-- Get the most recent conversation
+SELECT id, title, created_at FROM lab_conversations 
+WHERE user_id = 'garry' 
+ORDER BY created_at DESC LIMIT 1;
+
+-- Get last 5 messages from that conversation
+SELECT role, content FROM lab_messages 
+WHERE conversation_id = [LAST_CONV_ID]
+ORDER BY created_at DESC LIMIT 5;
+STEP 4: CHECK SYSTEM HEALTH (5 seconds)
+# PM2 process status
+pm2 list
+
+# Recent errors
+pm2 logs sirius-api --lines 20 --nostream | grep -i error
+
+# Worker status
+pm2 logs sirius-worker --lines 10 --nostream
+STEP 5: VERIFY DELIVERABLES (10 seconds)
+# Check for recent output files
+ls -lht /opt/sirius/artifacts/api-server/public/renders/ | head -10
+ls -lht /opt/sirius/workspace/ | head -10
+
+# Check for Sanskrit/vibrational library files
+find /opt/sirius -name "*sanskrit*" -o -name "*vibration*" 2>/dev/null
+TOTAL TIME: ~45 SECONDS
+ONLY AFTER completing all 5 steps do I greet Garry with:
+
+System status (green/issues)
+Active work summary (what's in progress, what's waiting)
+Last session context (where we left off)
+Any missing deliverables or gaps found
+If ANY step fails, I report the failure immediately and do NOT pretend everything is fine.
+
+Should I implement this as an automation that runs on every startup, or build it into my core response logic?

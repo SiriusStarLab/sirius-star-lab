@@ -1,6 +1,8 @@
 let _currentAudio: HTMLAudioElement | null = null;
 let _currentAudioUrl: string | null = null;
 let _audioUnlocked = false;
+let _audioCtx: AudioContext | null = null;
+let _currentSource: AudioBufferSourceNode | null = null;
 
 // iOS Safari silently stops playing audio from newly-created Audio() elements
 // after a handful of them have been instantiated in a session (no error, no
@@ -18,14 +20,34 @@ function getReusableAudioElement(): HTMLAudioElement {
 export function unlockAudio() {
   if (_audioUnlocked) return;
   _audioUnlocked = true;
+
+  // Create and resume an AudioContext during the user gesture — this is
+  // the most reliable way to unlock audio on Windows Edge/Chrome, because
+  // AudioContext.decodeAudioData + BufferSource bypasses the HTML Media
+  // autoplay policy that blocks HTMLAudioElement.play() after async gaps.
+  try {
+    const Ctx = (window.AudioContext || (window as any).webkitAudioContext) as typeof AudioContext;
+    if (Ctx) {
+      _audioCtx = new Ctx();
+      if (_audioCtx.state === "suspended") {
+        _audioCtx.resume().catch(() => {});
+      }
+    }
+  } catch {}
+
+  // Also unlock the HTMLAudioElement as fallback
   const a = getReusableAudioElement();
-  // Minimal 1-sample silent WAV played at volume 0 — unlocks the browser audio policy
   a.src = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==";
   a.volume = 0;
   a.play().catch(() => {});
 }
 
 export function stopSpeaking() {
+  if (_currentSource) {
+    try { _currentSource.stop(); } catch {}
+    _currentSource.onended = null;
+    _currentSource = null;
+  }
   if (_currentAudio) {
     _currentAudio.pause();
     _currentAudio.onended = null;
@@ -61,7 +83,31 @@ export async function speakText(
         signal: AbortSignal.timeout(35_000),
       });
       if (!resp.ok) throw new Error(`TTS ${resp.status}`);
-      const blob = await resp.blob();
+
+      const arrayBuf = await resp.arrayBuffer();
+
+      // Prefer AudioContext (bypasses Windows/Edge autoplay policy on HTMLAudioElement)
+      if (_audioCtx) {
+        try {
+          if (_audioCtx.state === "suspended") await _audioCtx.resume();
+          const audioBuf = await _audioCtx.decodeAudioData(arrayBuf.slice(0));
+          const source = _audioCtx.createBufferSource();
+          source.buffer = audioBuf;
+          source.connect(_audioCtx.destination);
+          _currentSource = source;
+          source.onended = () => {
+            if (_currentSource === source) _currentSource = null;
+            onDone?.();
+          };
+          source.start(0);
+          return;
+        } catch (ctxErr) {
+          console.warn("[TTS] AudioContext playback failed, trying HTMLAudioElement:", ctxErr);
+        }
+      }
+
+      // Fallback: HTMLAudioElement (works on iOS/Safari and when AudioContext not available)
+      const blob = new Blob([arrayBuf], { type: "audio/wav" });
       const url = URL.createObjectURL(blob);
       const audio = getReusableAudioElement();
       audio.pause();
