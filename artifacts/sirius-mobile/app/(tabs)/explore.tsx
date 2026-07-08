@@ -152,7 +152,7 @@ export default function ExploreScreen() {
   const handleBriefing = useCallback(async () => {
     setBriefingVisible(true);
     if (!userId) {
-      setBriefingText("Sign in to generate your personalised daily briefing.");
+      setBriefingText("Starting up — please try again in a moment.");
       return;
     }
     setBriefingLoading(true);
@@ -173,7 +173,7 @@ export default function ExploreScreen() {
     setResearchVisible(true);
     setResearchText("");
     if (!userId) {
-      setResearchText("Sign in to use Deep Research.");
+      setResearchText("Starting up — please try again in a moment.");
       setResearchLoading(false);
       return;
     }
