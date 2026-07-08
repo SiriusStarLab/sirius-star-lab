@@ -9,12 +9,16 @@ import type { Project, NavMode, AccessRole } from "./types";
 function preprocessImageUrls(content: string): string {
   let result = content;
   result = result.replace(
-    /URL:\s*(https?:\/\/\S+\.(png|jpg|jpeg|gif|webp|bmp|svg)(\?\S*)?)/gi,
+    /(?:Image generated at URL|URL):\s*(https?:\/\/\S+)/gi,
     (_, url) => `\n\n![Generated image](${url})\n\n`
   );
   result = result.replace(
     /Saved to:\s*\/opt\/sirius\/artifacts\/api-server\/public\/renders\/([\w.\-]+)/gi,
     (_, filename) => `\n\n![Generated image](https://sirius-ai.live/api/lab/renders/${filename})\n\n`
+  );
+  result = result.replace(
+    /(?<!\()(https?:\/\/image\.pollinations\.ai\/[^\s)\]"']+)/gi,
+    (url) => `\n\n![Generated image](${url})\n\n`
   );
   result = result.replace(
     /(?<!\()(https?:\/\/[^\s)\]"']+\.(png|jpg|jpeg|gif|webp|bmp|svg)([?#][^\s)\]"']*)?)/gi,
