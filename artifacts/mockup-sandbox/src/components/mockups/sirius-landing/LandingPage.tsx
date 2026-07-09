@@ -1,4 +1,5 @@
 import { useState } from "react";
+import siriusHero from "../../../assets/sirius-hero.png";
 
 function ConstellationBg() {
   const stars = Array.from({ length: 120 }, (_, i) => ({
@@ -266,7 +267,7 @@ export function LandingPage() {
             }}>
               <div style={{ borderRadius: "20px", overflow: "hidden", background: "#060B14" }}>
                 <img
-                  src="/sirius-hero.png"
+                  src={siriusHero}
                   alt="Sirius Star Lab — A and I"
                   style={{ width: "100%", display: "block", objectFit: "cover" }}
                 />
