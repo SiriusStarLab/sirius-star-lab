@@ -4546,12 +4546,13 @@ const LAB_TOOLS: any[] = [
     type: "function",
     function: {
       name: "generate_image",
-      description: "Generate an image from a text prompt using DALL-E 3. Use this when Garry asks you to create, visualise, or render anything — concepts, logos, mockups, diagrams, product renders, illustrations. Returns a permanent URL you can share.",
+      description: "Generate an image from a text prompt using DALL-E 3 or Pollinations AI. Use this when Garry asks you to create, visualise, or render anything — concepts, logos, mockups, diagrams, product renders, illustrations. Returns a permanent URL you can share. If generating for a specific project, pass its project_id so the image is saved to the project's renders gallery.",
       parameters: {
         type: "object",
         properties: {
           prompt: { type: "string", description: "Detailed description of the image to generate. Be specific about style, composition, colours, and subject." },
           size: { type: "string", enum: ["1024x1024", "1792x1024", "1024x1792"], description: "Image dimensions. Default: 1024x1024 (square). Use 1792x1024 for landscape, 1024x1792 for portrait." },
+          project_id: { type: "number", description: "Optional. If this image relates to a specific project, pass the project ID so it gets saved to that project's renders gallery." },
         },
         required: ["prompt"],
       },
@@ -7152,12 +7153,8 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
       }
 
       case "generate_image": {
-        const { prompt, size = "1024x1024" } = args as { prompt: string; size?: string };
+        const { prompt, size = "1024x1024", project_id } = args as { prompt: string; size?: string; project_id?: number };
         onProgress?.({ type: "status", message: `Generating image: "${prompt.slice(0, 60)}…"` });
-
-        const openaiKey = process.env.OPENAI_API_KEY;
-        const openrouterKey = process.env.OPENROUTER_API_KEY;
-        if (!openaiKey && !openrouterKey) return "Image generation requires an API key — not configured on this server.";
 
         const { writeFileSync, mkdirSync } = await import("fs");
         const { join } = await import("path");
@@ -7168,8 +7165,10 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
         const baseUrl = process.env.PUBLIC_BASE_URL || "https://sirius-ai.live";
         const imageUrl = `${baseUrl}/api/lab/renders/${filename}`;
 
+        const openaiKey = process.env.OPENAI_API_KEY;
+
         if (openaiKey) {
-          // Direct OpenAI — DALL-E 3 (universally available, gpt-image-1 requires org verification)
+          // Direct OpenAI — DALL-E 3
           const imgRes = await fetch("https://api.openai.com/v1/images/generations", {
             method: "POST",
             headers: { "Authorization": `Bearer ${openaiKey}`, "Content-Type": "application/json" },
@@ -7190,36 +7189,36 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
             return `No image data returned from OpenAI. Response: ${JSON.stringify(imgData).slice(0, 200)}`;
           }
         } else {
-          // OpenRouter — uses chat completions with gpt-image-1, returns base64 in content
-          const imgRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-            method: "POST",
-            headers: { "Authorization": `Bearer ${openrouterKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              model: "openai/gpt-image-1",
-              messages: [{ role: "user", content: prompt }],
-            }),
-          });
+          // Pollinations AI — free, no API key required
+          onProgress?.({ type: "status", message: "Using Pollinations AI (free fallback)…" });
+          const encodedPrompt = encodeURIComponent(prompt);
+          const seed = Math.floor(Math.random() * 1000000);
+          const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&seed=${seed}&nologo=true&enhance=true`;
+          const imgRes = await fetch(pollinationsUrl);
           if (!imgRes.ok) {
-            const err = await imgRes.text().catch(() => imgRes.statusText);
-            return `Image generation failed: ${err}`;
+            return `Image generation failed: Pollinations returned ${imgRes.status}`;
           }
-          const imgData = await imgRes.json() as any;
-          // gpt-image-1 via OpenRouter returns image as base64 in content parts
-          const content = imgData?.choices?.[0]?.message?.content;
-          let b64: string | undefined;
-          if (Array.isArray(content)) {
-            const imgPart = content.find((p: any) => p.type === "image_url" || p.type === "image");
-            b64 = imgPart?.image_url?.url?.replace(/^data:image\/\w+;base64,/, "")
-               ?? imgPart?.image?.data;
-          } else if (typeof content === "string" && content.startsWith("data:")) {
-            b64 = content.replace(/^data:image\/\w+;base64,/, "");
+          const imgBuffer = await imgRes.arrayBuffer();
+          writeFileSync(join(rendersDir, filename), Buffer.from(imgBuffer));
+        }
+
+        // Save URL to project renders if project_id provided
+        if (project_id) {
+          try {
+            const projectRows = await db.select({ renders: labProjects.renders }).from(labProjects).where(eq(labProjects.id, project_id));
+            if (projectRows[0]) {
+              const existing: string[] = (projectRows[0].renders as string[]) || [];
+              const updated = [...existing, imageUrl];
+              await db.update(labProjects).set({ renders: updated }).where(eq(labProjects.id, project_id));
+            }
+          } catch (e) {
+            // Non-fatal — image still generated, just not saved to project
           }
-          if (!b64) return `Image generation failed — unexpected response from OpenRouter: ${JSON.stringify(imgData).slice(0, 300)}`;
-          writeFileSync(join(rendersDir, filename), Buffer.from(b64, "base64"));
         }
 
         onProgress?.({ type: "image", url: imageUrl });
-        return `✅ Image generated successfully.`;
+        const savedNote = project_id ? ` Saved to project #${project_id} renders gallery.` : " (Pass project_id to save it to a project's gallery.)";
+        return `✅ Image generated successfully.${savedNote}\nURL: ${imageUrl}`;
       }
 
       case "send_email": {
