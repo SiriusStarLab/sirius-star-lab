@@ -169,7 +169,7 @@ When given an idea, respond with:
 Format your response naturally — flowing prose, then list the affirmations clearly. Be specific, not generic. Show you actually understand their idea.`;
 
     const stream = await openai.chat.completions.create({
-      model: "anthropic/claude-haiku-4-5",
+      model: "anthropic/claude-haiku-4.5",
       stream: true,
       messages: [
         { role: "system", content: systemPrompt },
@@ -279,7 +279,7 @@ NEVER engage with harmful, violent, exploitative, or hateful content. Gently red
     messages.push({ role: "user", content: message });
 
     const stream = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4-5",
+      model: "anthropic/claude-sonnet-4.5",
       stream: true,
       messages,
       max_tokens: 1500,
@@ -418,7 +418,7 @@ Rules:
 - No explanation, just the affirmations`;
 
     const response = await openai.chat.completions.create({
-      model: "anthropic/claude-haiku-4-5",
+      model: "anthropic/claude-haiku-4.5",
       messages: [
         { role: "system", content: "You generate powerful, personalised affirmations. High vibration, specific, first-person present tense." },
         { role: "user", content: prompt },

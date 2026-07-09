@@ -31,12 +31,14 @@ const _baseClient = new OpenAI({
       },
 });
 
-// When using Anthropic direct API, model IDs must NOT have the "anthropic/" prefix.
-// OpenRouter uses "anthropic/claude-sonnet-4-5" but Anthropic's API uses "claude-sonnet-4-5".
+// When using Anthropic direct API, model IDs must NOT have the "anthropic/" prefix,
+// and version numbers use dashes (claude-sonnet-4-5), not dots (claude-sonnet-4.5).
+// OpenRouter uses "anthropic/claude-sonnet-4.5"; Anthropic's API uses "claude-sonnet-4-5".
 // This proxy normalises the model field transparently so all callers work with either backend.
 function normaliseModel(model: string): string {
-  if (usingDirect && model.startsWith("anthropic/")) {
-    return model.slice("anthropic/".length);
+  if (usingDirect) {
+    const stripped = model.startsWith("anthropic/") ? model.slice("anthropic/".length) : model;
+    return stripped.replace(/\./g, "-");
   }
   return model;
 }

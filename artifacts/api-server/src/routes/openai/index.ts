@@ -1407,7 +1407,7 @@ LOOP PREVENTION: If you have already called a tool and received its result, do N
 
     for (let round = 0; round < MAX_ROUNDS; round++) {
       const completion = await openai.chat.completions.create({
-        model: "anthropic/claude-sonnet-4-5",
+        model: "anthropic/claude-sonnet-4.5",
         messages: agentMessages,
         tools: OWNER_TOOLS,
         tool_choice: "auto",
@@ -1588,7 +1588,7 @@ LOOP PREVENTION: If you have already called a tool and received its result, do N
     try {
       res.write(`data: ${JSON.stringify({ type: "action", label: "Extended reasoning engaged...", icon: "🧠", color: "hsl(270 70% 60%)" })}\n\n`);
       const thinkStream = await openai.chat.completions.create({
-        model: "anthropic/claude-sonnet-4-5",
+        model: "anthropic/claude-sonnet-4.5",
         messages: [
           { role: "system", content: systemPrompt },
           ...chatMessages,
@@ -1615,7 +1615,7 @@ LOOP PREVENTION: If you have already called a tool and received its result, do N
         if (fullResponse.length > 80) {
           try {
             const fuResult = await openai.chat.completions.create({
-              model: "anthropic/claude-haiku-4-5",
+              model: "anthropic/claude-haiku-4.5",
               messages: [
                 { role: "system", content: 'Generate exactly 3 short follow-up questions (max 8 words each). Return ONLY valid JSON: {"questions": ["q1?", "q2?", "q3?"]}' },
                 { role: "user", content: fullResponse.slice(-700) },
@@ -1704,7 +1704,7 @@ LOOP PREVENTION: If you have already called a tool and received its result, do N
       // Fallback to Claude Sonnet via OpenRouter
       try {
         const claudeStream = await openai.chat.completions.create({
-          model: "anthropic/claude-sonnet-4-5",
+          model: "anthropic/claude-sonnet-4.5",
           messages: [
             { role: "system", content: systemPrompt },
             ...chatMessages,
@@ -1778,7 +1778,7 @@ LOOP PREVENTION: If you have already called a tool and received its result, do N
   if (fullResponse && fullResponse.length > 80 && !isImageRequest(body.data.content)) {
     try {
       const fuResult = await openai.chat.completions.create({
-        model: "anthropic/claude-haiku-4-5",
+        model: "anthropic/claude-haiku-4.5",
         messages: [
           { role: "system", content: 'Based on this AI response, generate exactly 3 short follow-up questions (max 8 words each) the user might naturally want to ask next. Return ONLY valid JSON: {"questions": ["question one?", "question two?", "question three?"]}' },
           { role: "user", content: fullResponse.slice(-700) },
@@ -2008,7 +2008,7 @@ router.post("/openai/universe-stream", async (req, res) => {
     } catch (responsesErr: any) {
       if (!responsesApiWorked) {
         const stream = await openai.chat.completions.create({
-          model: "anthropic/claude-sonnet-4-5",
+          model: "anthropic/claude-sonnet-4.5",
           messages: chatMessages,
           stream: true,
           max_tokens: 1200,
