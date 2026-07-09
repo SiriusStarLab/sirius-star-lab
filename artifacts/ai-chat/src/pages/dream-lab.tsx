@@ -24,22 +24,62 @@ type ChatMsg = { id?: number; role: "user" | "assistant"; content: string; creat
 
 // ── Theme ─────────────────────────────────────────────────────────────────────
 
-const T = {
-  bg: "#16243E",
-  sidebar: "#111D34",
-  card: "rgba(255,255,255,0.07)",
-  cardHover: "rgba(255,255,255,0.11)",
-  cardActive: "rgba(0,196,255,0.13)",
-  border: "rgba(180,210,255,0.12)",
-  borderActive: "rgba(0,196,255,0.35)",
-  accent: "#00C4FF",
-  accentGreen: "#00E5A0",
-  text: "#EDF4FF",
-  textMid: "rgba(190,215,245,0.75)",
-  textFaint: "rgba(140,170,210,0.55)",
-  msgBg: "rgba(255,255,255,0.08)",
-  inputBg: "rgba(0,0,0,0.18)",
+type ThemeKey = "ocean" | "cosmic" | "forest" | "ember" | "slate";
+type Theme = {
+  bg: string; sidebar: string; card: string; cardHover: string; cardActive: string;
+  border: string; borderActive: string; accent: string; accentGreen: string;
+  text: string; textMid: string; textFaint: string; msgBg: string; inputBg: string;
 };
+const THEMES: Record<ThemeKey, Theme> = {
+  ocean: {
+    bg: "#16243E", sidebar: "#111D34", card: "rgba(255,255,255,0.07)",
+    cardHover: "rgba(255,255,255,0.11)", cardActive: "rgba(0,196,255,0.13)",
+    border: "rgba(180,210,255,0.12)", borderActive: "rgba(0,196,255,0.35)",
+    accent: "#00C4FF", accentGreen: "#00E5A0", text: "#EDF4FF",
+    textMid: "rgba(190,215,245,0.75)", textFaint: "rgba(140,170,210,0.55)",
+    msgBg: "rgba(255,255,255,0.08)", inputBg: "rgba(0,0,0,0.18)",
+  },
+  cosmic: {
+    bg: "#1A1230", sidebar: "#140D28", card: "rgba(255,255,255,0.07)",
+    cardHover: "rgba(255,255,255,0.11)", cardActive: "rgba(168,85,247,0.13)",
+    border: "rgba(200,180,255,0.12)", borderActive: "rgba(168,85,247,0.4)",
+    accent: "#C084FC", accentGreen: "#A78BFA", text: "#F0EAFF",
+    textMid: "rgba(210,195,245,0.75)", textFaint: "rgba(160,140,210,0.55)",
+    msgBg: "rgba(255,255,255,0.07)", inputBg: "rgba(0,0,0,0.22)",
+  },
+  forest: {
+    bg: "#0F2019", sidebar: "#0A1A12", card: "rgba(255,255,255,0.07)",
+    cardHover: "rgba(255,255,255,0.10)", cardActive: "rgba(52,211,153,0.12)",
+    border: "rgba(150,220,180,0.12)", borderActive: "rgba(52,211,153,0.4)",
+    accent: "#34D399", accentGreen: "#6EE7B7", text: "#EDFAF4",
+    textMid: "rgba(180,240,210,0.70)", textFaint: "rgba(110,170,140,0.55)",
+    msgBg: "rgba(255,255,255,0.07)", inputBg: "rgba(0,0,0,0.22)",
+  },
+  ember: {
+    bg: "#201408", sidebar: "#190F05", card: "rgba(255,255,255,0.07)",
+    cardHover: "rgba(255,255,255,0.10)", cardActive: "rgba(251,146,60,0.12)",
+    border: "rgba(255,200,140,0.12)", borderActive: "rgba(251,146,60,0.4)",
+    accent: "#FB923C", accentGreen: "#FBBF24", text: "#FFF7ED",
+    textMid: "rgba(255,220,180,0.75)", textFaint: "rgba(180,140,90,0.55)",
+    msgBg: "rgba(255,255,255,0.07)", inputBg: "rgba(0,0,0,0.24)",
+  },
+  slate: {
+    bg: "#1A1F2E", sidebar: "#141924", card: "rgba(255,255,255,0.07)",
+    cardHover: "rgba(255,255,255,0.10)", cardActive: "rgba(99,102,241,0.12)",
+    border: "rgba(180,185,220,0.12)", borderActive: "rgba(99,102,241,0.4)",
+    accent: "#818CF8", accentGreen: "#6EE7B7", text: "#EEF0FF",
+    textMid: "rgba(190,195,235,0.75)", textFaint: "rgba(130,135,180,0.55)",
+    msgBg: "rgba(255,255,255,0.07)", inputBg: "rgba(0,0,0,0.22)",
+  },
+};
+const THEME_SWATCHES: { key: ThemeKey; label: string; dot: string }[] = [
+  { key: "ocean",  label: "Ocean",  dot: "#00C4FF" },
+  { key: "cosmic", label: "Cosmic", dot: "#C084FC" },
+  { key: "forest", label: "Forest", dot: "#34D399" },
+  { key: "ember",  label: "Ember",  dot: "#FB923C" },
+  { key: "slate",  label: "Slate",  dot: "#818CF8" },
+];
+let T: Theme = THEMES[((): ThemeKey => { try { return (localStorage.getItem("dream_theme") as ThemeKey) || "ocean"; } catch { return "ocean"; } })()];
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; glow: string }> = {
   seed:       { label: "🌱 Seed",      color: "rgba(34,197,94,0.8)",   glow: "rgba(34,197,94,0.15)" },
@@ -85,10 +125,11 @@ function StatusBadge({ status, small }: { status: string; small?: boolean }) {
 // ── DreamSidebar ──────────────────────────────────────────────────────────────
 
 function DreamSidebar({
-  dreams, selectedId, onSelect, onNewDream, profile,
+  dreams, selectedId, onSelect, onNewDream, profile, themeKey, onThemeChange,
 }: {
   dreams: Dream[]; selectedId: number | null;
   onSelect: (d: Dream) => void; onNewDream: () => void; profile: DreamProfile | null;
+  themeKey: ThemeKey; onThemeChange: (k: ThemeKey) => void;
 }) {
   const sorted = [...dreams].sort((a, b) => {
     if (a.pinned && !b.pinned) return -1;
@@ -170,6 +211,7 @@ function DreamSidebar({
               onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
             >
               <div style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
+
                 <span style={{ fontSize: "1rem", flexShrink: 0, lineHeight: 1.2 }}>{d.emoji || "✨"}</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <p style={{
@@ -184,6 +226,35 @@ function DreamSidebar({
             </button>
           );
         })}
+      </div>
+
+      {/* Theme picker */}
+      <div style={{
+        padding: "10px 14px 12px",
+        borderTop: `1px solid ${T.border}`,
+        flexShrink: 0,
+      }}>
+        <p style={{ fontSize: "0.6rem", color: T.textFaint, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: "8px" }}>Theme</p>
+        <div style={{ display: "flex", gap: "7px", alignItems: "center" }}>
+          {THEME_SWATCHES.map(s => (
+            <button
+              key={s.key}
+              title={s.label}
+              onClick={() => onThemeChange(s.key)}
+              style={{
+                width: 20, height: 20,
+                borderRadius: "50%",
+                background: s.dot,
+                border: themeKey === s.key ? `2px solid ${T.text}` : "2px solid transparent",
+                cursor: "pointer",
+                padding: 0,
+                boxShadow: themeKey === s.key ? `0 0 0 2px ${s.dot}55` : "none",
+                transition: "all 0.15s",
+                flexShrink: 0,
+              }}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -224,7 +295,7 @@ function NewDreamForm({ onCreated, onCancel }: { onCreated: (d: Dream) => void; 
       exit={{ opacity: 0, scale: 0.96 }}
       style={{
         position: "absolute", inset: 0, zIndex: 50,
-        background: "rgba(7,9,15,0.85)",
+        background: "rgba(0,0,0,0.7)",
         backdropFilter: "blur(20px)",
         display: "flex", alignItems: "center", justifyContent: "center",
         padding: "24px",
@@ -232,7 +303,7 @@ function NewDreamForm({ onCreated, onCancel }: { onCreated: (d: Dream) => void; 
     >
       <div style={{
         width: "100%", maxWidth: "480px",
-        background: "#0D1526",
+        background: T.sidebar,
         border: `1px solid ${T.borderActive}`,
         borderRadius: "20px",
         padding: "32px 28px",
@@ -924,7 +995,16 @@ export function DreamLabPage() {
   const [loading, setLoading] = useState(true);
   const [showNewDream, setShowNewDream] = useState(false);
   const [onboarding, setOnboarding] = useState(false);
+  const [themeKey, setThemeKey] = useState<ThemeKey>(() => {
+    try { return (localStorage.getItem("dream_theme") as ThemeKey) || "ocean"; } catch { return "ocean"; }
+  });
+  T = THEMES[themeKey];
   const api = useApi();
+
+  const handleThemeChange = (k: ThemeKey) => {
+    try { localStorage.setItem("dream_theme", k); } catch { /* */ }
+    setThemeKey(k);
+  };
 
   useEffect(() => { init(); }, []);
 
@@ -1035,6 +1115,8 @@ export function DreamLabPage() {
                 onSelect={setSelectedDream}
                 onNewDream={() => setShowNewDream(true)}
                 profile={profile}
+                themeKey={themeKey}
+                onThemeChange={handleThemeChange}
               />
 
               {selectedDream ? (
