@@ -45,7 +45,7 @@ export function SplashPage({ onEnter }: { onEnter: () => void }) {
   return (
     <div style={{
       minHeight: "100vh",
-      background: "#07090F",
+      background: "linear-gradient(160deg, #0D1E3A 0%, #0F2040 40%, #0A1830 100%)",
       display: "flex",
       flexDirection: "column",
       alignItems: "center",
@@ -60,7 +60,7 @@ export function SplashPage({ onEnter }: { onEnter: () => void }) {
         position: "absolute", top: "50%", left: "50%",
         transform: "translate(-50%, -60%)",
         width: "700px", height: "700px",
-        background: "radial-gradient(ellipse at center, rgba(0,180,255,0.07) 0%, transparent 65%)",
+        background: "radial-gradient(ellipse at center, rgba(0,180,255,0.18) 0%, transparent 65%)",
         pointerEvents: "none", filter: "blur(30px)",
       }} />
 
@@ -84,7 +84,7 @@ export function SplashPage({ onEnter }: { onEnter: () => void }) {
             position: "absolute",
             bottom: 0, left: 0, right: 0,
             padding: "28px 20px 20px",
-            background: "linear-gradient(to top, rgba(7,9,15,0.95) 0%, rgba(7,9,15,0.5) 60%, transparent 100%)",
+            background: "linear-gradient(to top, rgba(10,22,45,0.95) 0%, rgba(10,22,45,0.5) 60%, transparent 100%)",
             display: "flex", flexDirection: "column", alignItems: "center", gap: "4px",
           }}>
             <span style={{
@@ -102,7 +102,7 @@ export function SplashPage({ onEnter }: { onEnter: () => void }) {
             onClick={handleEnter}
             style={{
               width: "100%",
-              background: hover ? "rgba(0,196,255,0.08)" : "rgba(7,10,18,0.9)",
+              background: hover ? "rgba(0,196,255,0.12)" : "rgba(13,28,55,0.92)",
               border: `1px solid ${hover ? "rgba(0,196,255,0.45)" : "rgba(0,196,255,0.2)"}`,
               borderTop: "none",
               borderRadius: "0 0 20px 20px",
@@ -144,7 +144,7 @@ export function SplashPage({ onEnter }: { onEnter: () => void }) {
         <div style={{
           position: "absolute", inset: 0, zIndex: 20,
           display: "flex", alignItems: "center", justifyContent: "center",
-          background: "#07090F", animation: "siriusFadeIn 0.5s ease forwards",
+          background: "#0D1E3A", animation: "siriusFadeIn 0.5s ease forwards",
         }}>
           <p style={{
             fontSize: "0.7rem", letterSpacing: "0.22em",

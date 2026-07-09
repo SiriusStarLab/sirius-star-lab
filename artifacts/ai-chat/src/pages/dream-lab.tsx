@@ -25,20 +25,20 @@ type ChatMsg = { id?: number; role: "user" | "assistant"; content: string; creat
 // ── Theme ─────────────────────────────────────────────────────────────────────
 
 const T = {
-  bg: "#09101F",
-  sidebar: "#0B1322",
-  card: "rgba(255,255,255,0.04)",
-  cardHover: "rgba(255,255,255,0.07)",
-  cardActive: "rgba(0,196,255,0.08)",
-  border: "rgba(255,255,255,0.07)",
-  borderActive: "rgba(0,196,255,0.25)",
+  bg: "#16243E",
+  sidebar: "#111D34",
+  card: "rgba(255,255,255,0.07)",
+  cardHover: "rgba(255,255,255,0.11)",
+  cardActive: "rgba(0,196,255,0.13)",
+  border: "rgba(180,210,255,0.12)",
+  borderActive: "rgba(0,196,255,0.35)",
   accent: "#00C4FF",
   accentGreen: "#00E5A0",
-  text: "#E8F4FF",
-  textMid: "rgba(180,210,240,0.6)",
-  textFaint: "rgba(100,130,160,0.45)",
-  msgBg: "rgba(255,255,255,0.05)",
-  inputBg: "rgba(0,0,0,0.3)",
+  text: "#EDF4FF",
+  textMid: "rgba(190,215,245,0.75)",
+  textFaint: "rgba(140,170,210,0.55)",
+  msgBg: "rgba(255,255,255,0.08)",
+  inputBg: "rgba(0,0,0,0.18)",
 };
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; glow: string }> = {
