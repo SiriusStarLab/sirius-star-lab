@@ -249,99 +249,27 @@ export function LandingPage() {
           {/* Hero graphic container */}
           <div
             className="relative mt-14"
-            style={{
-              width: "100%",
-              maxWidth: "720px",
-            }}
+            style={{ width: "100%", maxWidth: "600px" }}
           >
-            {/* Radial glow behind graphic */}
-            <div
-              className="absolute inset-0 pointer-events-none"
-              style={{
-                background: "radial-gradient(ellipse at 50% 60%, rgba(0,196,255,0.14) 0%, rgba(0,229,160,0.07) 40%, transparent 70%)",
-                filter: "blur(30px)",
-                transform: "scale(1.2)",
-              }}
-            />
-            {/* Frame */}
-            <div
-              style={{
-                position: "relative",
-                border: "1px solid rgba(0,196,255,0.18)",
-                borderRadius: "20px",
-                background: "rgba(0,20,40,0.5)",
-                backdropFilter: "blur(20px)",
-                padding: "3px",
-                overflow: "hidden",
-              }}
-            >
-              {/* Inner gradient border glow */}
-              <div
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  background: "linear-gradient(135deg, rgba(0,196,255,0.12) 0%, transparent 50%, rgba(0,229,160,0.08) 100%)",
-                  borderRadius: "20px",
-                  pointerEvents: "none",
-                }}
-              />
-              {/* Graphic placeholder — two figures in space */}
-              <div
-                style={{
-                  height: "320px",
-                  borderRadius: "18px",
-                  background: "linear-gradient(170deg, #060D1A 0%, #0B1628 40%, #061220 100%)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  overflow: "hidden",
-                  position: "relative",
-                }}
-              >
-                <StarConstellationBg />
-                {/* Central glowing orb / star */}
-                <div style={{
-                  position: "absolute",
-                  top: "50%", left: "50%", transform: "translate(-50%,-50%)",
-                  width: "180px", height: "180px",
-                  background: "radial-gradient(circle, rgba(0,196,255,0.22) 0%, rgba(0,229,160,0.1) 40%, transparent 70%)",
-                  borderRadius: "50%",
-                  filter: "blur(8px)",
-                }} />
-                {/* Two silhouette figures */}
-                <svg width="260" height="240" viewBox="0 0 260 240" fill="none" style={{ position: "relative", zIndex: 2 }}>
-                  {/* Left figure — Dream Lab character (ethereal/softer) */}
-                  <ellipse cx="80" cy="80" rx="18" ry="18" fill="none" stroke="rgba(0,196,255,0.5)" strokeWidth="1.5" />
-                  <line x1="80" y1="98" x2="80" y2="155" stroke="rgba(0,196,255,0.4)" strokeWidth="1.5" />
-                  <line x1="80" y1="115" x2="58" y2="135" stroke="rgba(0,196,255,0.35)" strokeWidth="1.5" />
-                  <line x1="80" y1="115" x2="102" y2="135" stroke="rgba(0,196,255,0.35)" strokeWidth="1.5" />
-                  <line x1="80" y1="155" x2="62" y2="185" stroke="rgba(0,196,255,0.35)" strokeWidth="1.5" />
-                  <line x1="80" y1="155" x2="98" y2="185" stroke="rgba(0,196,255,0.35)" strokeWidth="1.5" />
-                  {/* Soft cloud-like glow around left figure */}
-                  <ellipse cx="80" cy="130" rx="35" ry="55" fill="rgba(0,196,255,0.04)" />
-                  {/* Right figure — Star Lab character (sharper/crisp) */}
-                  <ellipse cx="180" cy="80" rx="18" ry="18" fill="none" stroke="rgba(0,229,160,0.6)" strokeWidth="1.5" />
-                  <line x1="180" y1="98" x2="180" y2="155" stroke="rgba(0,229,160,0.5)" strokeWidth="1.5" />
-                  <line x1="180" y1="115" x2="158" y2="135" stroke="rgba(0,229,160,0.45)" strokeWidth="1.5" />
-                  <line x1="180" y1="115" x2="202" y2="135" stroke="rgba(0,229,160,0.45)" strokeWidth="1.5" />
-                  <line x1="180" y1="155" x2="162" y2="185" stroke="rgba(0,229,160,0.45)" strokeWidth="1.5" />
-                  <line x1="180" y1="155" x2="198" y2="185" stroke="rgba(0,229,160,0.45)" strokeWidth="1.5" />
-                  {/* Star constellation lines around right figure */}
-                  <line x1="195" y1="65" x2="215" y2="50" stroke="rgba(0,229,160,0.3)" strokeWidth="0.8" />
-                  <line x1="215" y1="50" x2="225" y2="70" stroke="rgba(0,229,160,0.3)" strokeWidth="0.8" />
-                  <line x1="165" y1="65" x2="148" y2="52" stroke="rgba(0,229,160,0.3)" strokeWidth="0.8" />
-                  <circle cx="215" cy="50" r="2" fill="rgba(0,229,160,0.6)" />
-                  <circle cx="225" cy="70" r="1.5" fill="rgba(0,229,160,0.5)" />
-                  <circle cx="148" cy="52" r="2" fill="rgba(0,229,160,0.5)" />
-                  {/* Central star between them */}
-                  <circle cx="130" cy="115" r="3" fill="rgba(255,255,255,0.6)" />
-                  <line x1="130" y1="108" x2="130" y2="100" stroke="rgba(255,255,255,0.4)" strokeWidth="0.8" />
-                  <line x1="130" y1="122" x2="130" y2="130" stroke="rgba(255,255,255,0.4)" strokeWidth="0.8" />
-                  <line x1="123" y1="115" x2="115" y2="115" stroke="rgba(255,255,255,0.4)" strokeWidth="0.8" />
-                  <line x1="137" y1="115" x2="145" y2="115" stroke="rgba(255,255,255,0.4)" strokeWidth="0.8" />
-                  {/* SIRIUS label */}
-                  <text x="130" y="215" textAnchor="middle" fill="rgba(168,230,240,0.4)" fontSize="9" letterSpacing="4" fontFamily="'Inter', system-ui">SIRIUS STAR LAB</text>
-                </svg>
+            {/* Dual glow — cyan left (A / Dream Lab), mint right (I / Star Lab) */}
+            <div className="absolute inset-0 pointer-events-none" style={{
+              background: "radial-gradient(ellipse at 35% 55%, rgba(0,196,255,0.22) 0%, transparent 55%), radial-gradient(ellipse at 65% 55%, rgba(0,229,160,0.18) 0%, transparent 55%)",
+              filter: "blur(28px)",
+              transform: "scale(1.15)",
+            }} />
+            {/* Thin gradient border frame */}
+            <div style={{
+              position: "relative",
+              borderRadius: "22px",
+              padding: "2px",
+              background: "linear-gradient(135deg, rgba(0,196,255,0.45) 0%, rgba(0,229,160,0.35) 100%)",
+            }}>
+              <div style={{ borderRadius: "20px", overflow: "hidden", background: "#060B14" }}>
+                <img
+                  src="/sirius-hero.png"
+                  alt="Sirius Star Lab — A and I"
+                  style={{ width: "100%", display: "block", objectFit: "cover" }}
+                />
               </div>
             </div>
           </div>
