@@ -1,25 +1,32 @@
-import { useState, useEffect } from "react";
-import siriusHero from "../../../assets/sirius-hero.png";
+import { useState } from "react";
+import starLabHero from "../../../assets/sirius-starlab-hero.png";
 
 function ConstellationBg() {
-  const stars = Array.from({ length: 90 }, (_, i) => ({
+  const stars = Array.from({ length: 80 }, (_, i) => ({
     id: i,
     cx: Math.abs(Math.sin(i * 2.4) * 100),
     cy: Math.abs(Math.cos(i * 1.7) * 100),
-    r: i % 9 === 0 ? 1.4 : i % 3 === 0 ? 0.9 : 0.5,
-    opacity: 0.08 + (i % 5) * 0.05,
+    r: i % 9 === 0 ? 1.2 : i % 3 === 0 ? 0.7 : 0.4,
+    opacity: 0.06 + (i % 5) * 0.04,
   }));
   const lines = [
-    [0,12],[12,24],[24,36],[36,48],[48,60],[60,72],[72,84],
-    [0,24],[12,36],[24,48],[36,60],[48,72],[60,84],
+    [0,12],[12,24],[24,36],[36,48],[48,60],[60,72],
+    [0,24],[12,36],[24,48],[36,60],[48,72],
     [3,15],[15,27],[27,39],[39,51],[51,63],[63,75],
-    [6,18],[18,30],[30,42],[42,54],
+    [6,18],[18,30],[30,42],[42,54],[54,66],
   ];
   return (
-    <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice">
+    <svg
+      style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}
+      viewBox="0 0 100 100"
+      preserveAspectRatio="xMidYMid slice"
+    >
       {lines.map(([a, b], i) => (
-        <line key={i} x1={stars[a].cx} y1={stars[a].cy} x2={stars[b].cx} y2={stars[b].cy}
-          stroke="#4FC3F7" strokeWidth="0.06" strokeOpacity="0.12" />
+        <line key={i}
+          x1={stars[a].cx} y1={stars[a].cy}
+          x2={stars[b].cx} y2={stars[b].cy}
+          stroke="#4FC3F7" strokeWidth="0.05" strokeOpacity="0.1"
+        />
       ))}
       {stars.map((s) => (
         <circle key={s.id} cx={s.cx} cy={s.cy} r={s.r} fill="#A8E6F0" fillOpacity={s.opacity} />
@@ -29,162 +36,177 @@ function ConstellationBg() {
 }
 
 export function MinimalLanding() {
-  const [entered, setEntered] = useState(false);
   const [hover, setHover] = useState(false);
+  const [entering, setEntering] = useState(false);
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: "#0B0F19",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        fontFamily: "'Inter', 'DM Sans', system-ui, sans-serif",
-        position: "relative",
-        overflow: "hidden",
-        userSelect: "none",
-      }}
-    >
+    <div style={{
+      minHeight: "100vh",
+      background: "#07090F",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "center",
+      fontFamily: "'Inter', 'DM Sans', system-ui, sans-serif",
+      position: "relative",
+      overflow: "hidden",
+    }}>
       <ConstellationBg />
 
-      {/* Deep ambient glow */}
+      {/* Radial ambient glow behind image */}
       <div style={{
-        position: "absolute", top: "30%", left: "50%", transform: "translate(-50%,-50%)",
-        width: "600px", height: "400px", pointerEvents: "none",
-        background: "radial-gradient(ellipse at center, rgba(0,196,255,0.06) 0%, transparent 70%)",
-        filter: "blur(40px)",
+        position: "absolute",
+        top: "50%", left: "50%",
+        transform: "translate(-50%, -60%)",
+        width: "700px", height: "700px",
+        background: "radial-gradient(ellipse at center, rgba(0,180,255,0.07) 0%, transparent 65%)",
+        pointerEvents: "none",
+        filter: "blur(30px)",
       }} />
 
-      {/* Content */}
+      {/* Main content */}
       <div style={{
         position: "relative", zIndex: 10,
-        display: "flex", flexDirection: "column", alignItems: "center",
-        gap: "0",
-        opacity: entered ? 0 : 1,
-        transition: "opacity 0.6s ease",
+        display: "flex", flexDirection: "column",
+        alignItems: "center",
+        opacity: entering ? 0 : 1,
+        transition: "opacity 0.7s ease",
       }}>
 
-        {/* Logo image — small, centered */}
+        {/* Hero image — square, prominent */}
         <div style={{
-          width: "110px", height: "110px",
-          borderRadius: "16px",
+          position: "relative",
+          width: "min(420px, 88vw)",
+          aspectRatio: "1 / 1",
+          borderRadius: "20px",
           overflow: "hidden",
-          marginBottom: "32px",
-          border: "1px solid rgba(0,196,255,0.2)",
-          boxShadow: "0 0 40px rgba(0,196,255,0.12), 0 0 80px rgba(0,229,160,0.06)",
+          border: "1px solid rgba(0,196,255,0.18)",
+          boxShadow: "0 0 60px rgba(0,196,255,0.1), 0 0 120px rgba(0,229,160,0.05)",
+          marginBottom: "0px",
         }}>
-          <img src={siriusHero} alt="Sirius" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          <img
+            src={starLabHero}
+            alt="Sirius Star Lab"
+            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+          />
+
+          {/* "PRODUCTION" overlay at bottom of image */}
+          <div style={{
+            position: "absolute",
+            bottom: 0, left: 0, right: 0,
+            padding: "28px 20px 20px",
+            background: "linear-gradient(to top, rgba(7,9,15,0.92) 0%, rgba(7,9,15,0.5) 60%, transparent 100%)",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: "4px",
+          }}>
+            <span style={{
+              fontSize: "0.6rem",
+              letterSpacing: "0.3em",
+              fontWeight: 600,
+              color: "rgba(0,229,160,0.8)",
+              textTransform: "uppercase",
+            }}>
+              PRODUCTION
+            </span>
+            <div style={{
+              width: "32px", height: "1px",
+              background: "linear-gradient(90deg, transparent, rgba(0,196,255,0.5), transparent)",
+            }} />
+          </div>
         </div>
 
-        {/* SIRIUS wordmark */}
-        <p style={{
-          letterSpacing: "0.38em",
-          fontWeight: 700,
-          fontSize: "1.05rem",
-          background: "linear-gradient(90deg, #00C4FF 0%, #00E5A0 100%)",
-          WebkitBackgroundClip: "text",
-          WebkitTextFillColor: "transparent",
-          marginBottom: "20px",
-          textTransform: "uppercase",
+        {/* Enter tab */}
+        <div style={{
+          marginTop: "0px",
+          width: "min(420px, 88vw)",
         }}>
-          SIRIUS
-        </p>
+          <button
+            onMouseEnter={() => setHover(true)}
+            onMouseLeave={() => setHover(false)}
+            onClick={() => setEntering(true)}
+            style={{
+              width: "100%",
+              background: hover
+                ? "rgba(0,196,255,0.08)"
+                : "rgba(7,10,18,0.9)",
+              border: `1px solid ${hover ? "rgba(0,196,255,0.45)" : "rgba(0,196,255,0.2)"}`,
+              borderTop: "none",
+              borderRadius: "0 0 20px 20px",
+              color: hover ? "rgba(180,235,255,0.95)" : "rgba(140,180,210,0.65)",
+              padding: "18px 24px",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "10px",
+              transition: "all 0.25s",
+              backdropFilter: "blur(12px)",
+              boxShadow: hover ? "0 8px 32px rgba(0,196,255,0.08)" : "none",
+            }}
+          >
+            <span style={{
+              fontSize: "0.75rem",
+              fontWeight: 500,
+              letterSpacing: "0.12em",
+              textTransform: "uppercase",
+              fontFamily: "inherit",
+            }}>
+              You are now entering Sirius Star Lab
+            </span>
+            <span style={{
+              fontSize: "0.8rem",
+              opacity: hover ? 1 : 0.5,
+              transition: "opacity 0.25s, transform 0.25s",
+              transform: hover ? "translateX(3px)" : "translateX(0)",
+              display: "inline-block",
+            }}>→</span>
+          </button>
+        </div>
 
-        {/* Headline */}
-        <h1 style={{
-          fontSize: "clamp(1.6rem, 3.5vw, 2.6rem)",
-          fontWeight: 300,
-          lineHeight: 1.25,
-          letterSpacing: "-0.01em",
-          textAlign: "center",
-          maxWidth: "480px",
-          marginBottom: "48px",
-          background: "linear-gradient(160deg, rgba(255,255,255,0.95) 0%, rgba(168,230,240,0.8) 100%)",
-          WebkitBackgroundClip: "text",
-          WebkitTextFillColor: "transparent",
-          padding: "0 20px",
+        {/* Ghost links */}
+        <div style={{
+          display: "flex",
+          gap: "24px",
+          marginTop: "28px",
         }}>
-          A Place For Conscious People To Come
-        </h1>
-
-        {/* ENTER button */}
-        <button
-          onMouseEnter={() => setHover(true)}
-          onMouseLeave={() => setHover(false)}
-          onClick={() => setEntered(true)}
-          style={{
-            background: "transparent",
-            border: `1px solid ${hover ? "rgba(0,196,255,0.6)" : "rgba(0,196,255,0.25)"}`,
-            borderRadius: "8px",
-            color: hover ? "rgba(0,196,255,1)" : "rgba(0,196,255,0.7)",
-            fontSize: "0.75rem",
-            fontWeight: 600,
-            letterSpacing: "0.25em",
-            padding: "14px 44px",
-            cursor: "pointer",
-            textTransform: "uppercase",
-            transition: "all 0.25s",
-            backdropFilter: "blur(8px)",
-            boxShadow: hover ? "0 0 24px rgba(0,196,255,0.15)" : "none",
-            marginBottom: "20px",
-          }}
-        >
-          ENTER
-        </button>
-
-        {/* Subtle domain */}
-        <p style={{
-          fontSize: "0.65rem",
-          letterSpacing: "0.15em",
-          color: "rgba(80,100,120,0.5)",
-          textTransform: "uppercase",
-        }}>
-          sirius-ai.live
-        </p>
+          {["About", "Early Access", "Log In"].map(t => (
+            <span key={t} style={{
+              fontSize: "0.65rem",
+              letterSpacing: "0.1em",
+              color: "rgba(70,90,110,0.45)",
+              cursor: "pointer",
+              textTransform: "uppercase",
+            }}>{t}</span>
+          ))}
+        </div>
       </div>
 
-      {/* "Entered" state — shows the transition */}
-      {entered && (
+      {/* Entering state */}
+      {entering && (
         <div style={{
           position: "absolute", inset: 0, zIndex: 20,
           display: "flex", alignItems: "center", justifyContent: "center",
-          background: "#0B0F19",
-          animation: "fadeIn 0.5s ease",
+          background: "#07090F",
+          animation: "siriusFadeIn 0.5s ease forwards",
         }}>
-          <div style={{ textAlign: "center" }}>
-            <p style={{
-              fontSize: "0.7rem", letterSpacing: "0.22em",
-              color: "rgba(0,196,255,0.5)", textTransform: "uppercase",
-              animation: "pulse 1.5s infinite",
-            }}>
-              Entering Star Lab...
-            </p>
-          </div>
+          <p style={{
+            fontSize: "0.7rem",
+            letterSpacing: "0.22em",
+            color: "rgba(0,196,255,0.55)",
+            textTransform: "uppercase",
+            animation: "siriusPulse 1.5s infinite",
+          }}>
+            Entering Star Lab...
+          </p>
         </div>
       )}
 
       <style>{`
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes pulse { 0%,100% { opacity: 0.4; } 50% { opacity: 1; } }
+        @keyframes siriusFadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes siriusPulse { 0%,100% { opacity: 0.35; } 50% { opacity: 1; } }
       `}</style>
-
-      {/* Bottom nav — minimal */}
-      <div style={{
-        position: "absolute", bottom: "28px", left: 0, right: 0,
-        display: "flex", justifyContent: "center", gap: "28px",
-        zIndex: 10,
-      }}>
-        {["About", "Early Access", "Log In"].map(t => (
-          <span key={t} style={{
-            fontSize: "0.68rem", letterSpacing: "0.1em",
-            color: "rgba(80,100,120,0.45)", cursor: "pointer",
-            textTransform: "uppercase",
-            transition: "color 0.2s",
-          }}>{t}</span>
-        ))}
-      </div>
     </div>
   );
 }
