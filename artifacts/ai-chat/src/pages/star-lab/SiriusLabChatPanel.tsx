@@ -372,6 +372,12 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
             } else if (evt.type === "error") {
               fullText = evt.message || "Something went wrong.";
               streamDone = true;
+            } else if (evt.error) {
+              const isCredits = String(evt.error).toLowerCase().includes("credit") || String(evt.error).toLowerCase().includes("balance");
+              fullText = isCredits
+                ? "I'm temporarily offline — my API credits need topping up. I'll be back shortly."
+                : `Something went wrong: ${evt.error}`;
+              streamDone = true;
             }
           } catch {}
         }
