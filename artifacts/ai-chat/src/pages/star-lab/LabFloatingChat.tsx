@@ -44,6 +44,8 @@ export function LabFloatingChat({ pin, navMode, activeProject, onNavigate, onOpe
   const recognitionRef = React.useRef<any>(null);
   const stoppedRef = React.useRef(false);
   const conversationIdRef = React.useRef<number | null>(null);
+  const pendingNavRef = React.useRef<{ section: NavMode; projectId?: number | null } | null>(null);
+  const pendingNavAndBuildRef = React.useRef<{ section: NavMode; prompt?: string } | null>(null);
   const base = getApiBase();
   const prevNavModeRef = React.useRef(navMode);
 
@@ -294,23 +296,12 @@ VOICE STYLE: Short, direct sentences. No bullet points or markdown. Report what 
             }
             if (evt.type === "navigate") {
               if (evt.section) {
-                stoppedRef.current = true;
-                stopListeningNow();
-                onNavigate(evt.section as NavMode);
-                if (evt.projectId && onOpenProject) {
-                  const pName = streamText.match(/"([^"]+)"/)?.[1] ?? `project #${evt.projectId}`;
-                  setPendingOpen({ id: evt.projectId, name: pName });
-                } else {
-                  setTimeout(() => setOpen(false), 600);
-                }
+                pendingNavRef.current = { section: evt.section as NavMode, projectId: evt.projectId || null };
               }
             }
             if (evt.type === "navigate_and_build") {
               if (evt.section) {
-                stoppedRef.current = true;
-                stopListeningNow();
-                onNavigate(evt.section as NavMode);
-                setTimeout(() => setOpen(false), 600);
+                pendingNavAndBuildRef.current = { section: evt.section as NavMode, prompt: evt.prompt || "" };
               }
             }
             if (evt.type === "conversation_id" && evt.conversationId) {
@@ -328,6 +319,24 @@ VOICE STYLE: Short, direct sentences. No bullet points or markdown. Report what 
       const cleanText = (full || "No response — please try again.").replace(/<<[^>]+>>/g, "").replace(/[*#>`_~]/g, "").trim();
 
       setMessages(prev => [...prev, { role: "assistant", content: cleanText, actions: liveActions.length ? liveActions : undefined }]);
+
+      const pendingNav = pendingNavRef.current;
+      const pendingNavAndBuild = pendingNavAndBuildRef.current;
+      pendingNavRef.current = null;
+      pendingNavAndBuildRef.current = null;
+
+      if (pendingNavAndBuild) {
+        setTimeout(() => {
+          onNavigate(pendingNavAndBuild.section);
+        }, 300);
+      } else if (pendingNav) {
+        setTimeout(() => {
+          onNavigate(pendingNav.section);
+          if (pendingNav.projectId && onOpenProject) {
+            setTimeout(() => onOpenProject!(pendingNav.projectId!), 300);
+          }
+        }, 300);
+      }
 
       const spokenText = cleanText.length > 350 ? cleanText.slice(0, 350) + "." : cleanText;
       setVoicePhase("speaking");

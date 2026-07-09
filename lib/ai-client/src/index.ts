@@ -57,7 +57,7 @@ export const openai = new Proxy(_baseClient, {
                       ...params,
                       model: normaliseModel(params.model),
                     };
-                    return (compTarget.create as Function)(normalised);
+                    return compTarget.create.call(compTarget, normalised);
                   };
                 }
                 return (compTarget as any)[compProp];
