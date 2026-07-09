@@ -46,7 +46,7 @@ router.get("/intelligence/arc/:userId", async (req, res) => {
     .join("\n");
 
   const completion = await openai.chat.completions.create({
-    model: "anthropic/claude-haiku-4.5",
+    model: "anthropic/claude-haiku-4-5",
     messages: [
       {
         role: "system",
@@ -74,7 +74,7 @@ router.post("/intelligence/portrait/:userId", async (req, res) => {
   }
 
   const completion = await openai.chat.completions.create({
-    model: "anthropic/claude-sonnet-4.5",
+    model: "anthropic/claude-sonnet-4-5",
     messages: [
       {
         role: "system",
@@ -114,7 +114,7 @@ router.post("/intelligence/briefing/:userId", async (req, res) => {
   const today = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
   const completion = await openai.chat.completions.create({
-    model: "anthropic/claude-sonnet-4.5",
+    model: "anthropic/claude-sonnet-4-5",
     messages: [
       {
         role: "system",
@@ -151,7 +151,7 @@ router.post("/intelligence/research", async (req, res) => {
 
   try {
     const stream = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.5",
+      model: "anthropic/claude-sonnet-4-5",
       stream: true,
       messages: [
         {

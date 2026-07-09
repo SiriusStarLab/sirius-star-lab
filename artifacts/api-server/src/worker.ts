@@ -112,7 +112,7 @@ ${context ? `## YOUR CONTEXT\n${context}\n` : ""}
       console.log(`[Worker] Task ${task.id} — round ${round}/${MAX_ROUNDS}`);
 
       const response = await openai.chat.completions.create({
-        model: process.env.ANTHROPIC_API_KEY ? "anthropic/claude-sonnet-4.5" : "anthropic/claude-sonnet-4.5",
+        model: process.env.ANTHROPIC_API_KEY ? "anthropic/claude-sonnet-4-5" : "anthropic/claude-sonnet-4-5",
         messages,
         tools,
         tool_choice: "auto",

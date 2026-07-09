@@ -272,7 +272,7 @@ When you are done, call no more tools and write a final summary of exactly what 
 
   for (let i = 0; i < maxIterations; i++) {
     const response = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.5",
+      model: "anthropic/claude-sonnet-4-5",
       messages,
       tools: CODE_TOOLS,
       tool_choice: "auto",
