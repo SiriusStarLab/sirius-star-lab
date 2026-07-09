@@ -52,6 +52,18 @@ function broadcastCodeEvent(event: CodeAgentEvent) {
 
 const router: IRouter = Router();
 
+// ── Batch completion job state (in-memory, single server) ──────────────────
+const batchJob = {
+  running: false,
+  total: 0,
+  completed: 0,
+  failed: 0,
+  currentProject: "",
+  startedAt: null as Date | null,
+  finishedAt: null as Date | null,
+  log: [] as string[],
+};
+
 // PIN loaded from DB on startup via shared lab-auth module
 loadLabPinFromDb();
 
@@ -4038,6 +4050,29 @@ const LAB_TOOLS: any[] = [
   {
     type: "function",
     function: {
+      name: "batch_complete_all",
+      description: "Start a background job that runs the full completion pipeline on every project that has missing content. This includes: brief, market research, technical specs, business case, go-to-market plan, brochure, pitch, social posts, cost analysis, landing page, embed widget, and one AI render per project. The job runs on the server in the background — you don't need to stay in chat. Call get_batch_status to check progress. Only call this once; it will refuse to start if already running.",
+      parameters: {
+        type: "object",
+        properties: {
+          confirm: { type: "boolean", description: "Must be true to start the batch job." },
+          renders: { type: "boolean", description: "If true, also generate one AI render per project that has no renders. Default: true." },
+        },
+        required: ["confirm"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_batch_status",
+      description: "Check the status of the background batch_complete_all job — how many projects are done, which one is currently running, and how long it's been going.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "query_projects",
       description: "Search, filter, and list Star Lab projects. Use this for ALL project queries: 'show me my projects', 'list everything', 'what projects do we have', 'what did the scan find last night' (source=scan, days_ago=1), 'recent projects' (days_ago=3), filtering by industry, status, or keyword. This is the single tool for all project retrieval.",
       parameters: {
@@ -5210,6 +5245,179 @@ Context: ${ctx}`,
           `All ${results.filter(r => r.startsWith("✓")).length} projects now have complete documentation.`,
           `Call launch_project for each project when ready to go live.`,
         ].join("\n");
+      }
+
+      case "batch_complete_all": {
+        if (!args.confirm) return "Set confirm: true to start the batch job.";
+        if (batchJob.running) {
+          const elapsed = batchJob.startedAt ? Math.round((Date.now() - batchJob.startedAt.getTime()) / 1000) : 0;
+          return `Batch job already running — ${batchJob.completed}/${batchJob.total} done (${elapsed}s elapsed). Current: "${batchJob.currentProject}". Call get_batch_status for full details.`;
+        }
+
+        const includeRenders = args.renders !== false;
+
+        // Count projects upfront
+        const allForBatch = await db.select().from(labProjects).orderBy(labProjects.id);
+        batchJob.running = true;
+        batchJob.total = allForBatch.length;
+        batchJob.completed = 0;
+        batchJob.failed = 0;
+        batchJob.currentProject = "";
+        batchJob.startedAt = new Date();
+        batchJob.finishedAt = null;
+        batchJob.log = [];
+
+        // Run in background — do NOT await
+        (async () => {
+          const ENGINEERING_SECTORS = ["oil_gas", "aerospace", "medical", "medical_devices", "manufacturing", "hydrogen", "clean_energy", "engineering", "defence", "nuclear"];
+          const gen = async (sys: string, user: string, tokens = 500): Promise<string> => {
+            const r = await openai.chat.completions.create({
+              model: "anthropic/claude-haiku-4-5",
+              messages: [{ role: "system", content: sys }, { role: "user", content: user }],
+              max_tokens: tokens,
+            });
+            return r.choices[0]?.message?.content?.trim() || "";
+          };
+
+          for (const proj of allForBatch) {
+            try {
+              batchJob.currentProject = proj.name;
+              const name = proj.name;
+              const industry = proj.industry || "General";
+              const ctx = `Product: "${name}"\nIndustry: ${industry}\nBrief: ${(proj.brief || "").slice(0, 600)}`;
+              const isEng = ENGINEERING_SECTORS.some(s => industry.toLowerCase().includes(s));
+              const updates: Record<string, any> = {};
+
+              // Generate all missing text sections in parallel
+              const [brief, research, specs, businessCase, goToMarket, brochure, pitch, socialPosts, costToBuild, landingPage, embedCode] = await Promise.all([
+                proj.brief ? Promise.resolve("") : gen("You are a strategic product consultant.", `Write a comprehensive product brief for "${name}" (${industry}): what it is, who it's for, core problem, key features (5-8), competitive advantage, market opportunity. 400-500 words.`, 700),
+                proj.research ? Promise.resolve("") : gen("You are a market research analyst.", `Market research for "${name}" (${industry}): target market size, key competitors, customer pain points, market trends, opportunity gap. 300-400 words.\n${ctx}`, 600),
+                proj.specs ? Promise.resolve("") : gen("You are a technical product architect.", `Technical specifications for "${name}" (${industry}): core components, tech stack, integrations, performance requirements, scalability, MVP feature set. 300-400 words.\n${ctx}`, 600),
+                proj.businessCase ? Promise.resolve("") : gen("You are a business strategist.", `Business case for "${name}" (${industry}): ROI analysis, revenue model, cost structure, payback period, strategic value. 300-400 words.\n${ctx}`, 600),
+                proj.goToMarket ? Promise.resolve("") : gen("You are a GTM strategist.", `Go-to-market plan for "${name}" (${industry}): launch strategy, customer segments, pricing, distribution channels, partnerships, 90-day roadmap. 300-400 words.\n${ctx}`, 600),
+                proj.brochure ? Promise.resolve("") : gen("You are a professional copywriter.", `Marketing brochure for "${name}" (${industry}): headline, tagline, value prop, 3 key benefits, features, testimonial, CTA. 250-350 words.\n${ctx}`, 500),
+                proj.pitch ? Promise.resolve("") : gen("You are a pitch deck writer.", `Investor pitch for "${name}" (${industry}): problem, solution, market size TAM/SAM/SOM, business model, traction/roadmap, team, funding ask. 300-400 words.\n${ctx}`, 600),
+                (proj.socialPosts && proj.socialPosts !== "{}") ? Promise.resolve("") : gen("You are a social media manager.", `Write social media launch posts for "${name}" (${industry}) as JSON with keys: linkedin, twitter, instagram, facebook, pressRelease. Return ONLY valid JSON.\n${ctx}`, 700),
+                proj.costToBuild ? Promise.resolve("") : gen("You are a product cost analyst.", `Cost-to-build estimate for "${name}" (${industry}): dev hours (frontend, backend, AI/ML, DevOps), infrastructure costs, tooling, time-to-market, operating costs, break-even.\n${ctx}`, 600),
+                (proj as any).landingPage ? Promise.resolve("") : gen(
+                  "You are a world-class frontend developer. Write complete, self-contained HTML landing pages. No external dependencies.",
+                  `Write a complete standalone HTML landing page for "${name}" (${industry}).
+REQUIREMENTS:
+- Single self-contained HTML file, no CDN links, no external fonts
+- Brand: primary #006680, background #F5F8FF, text #0F172A, accent #00A3C4
+- Font: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif
+- Sections: nav, hero (headline+tagline+CTA), 3 feature cards, about section, CTA footer, footer
+- CTA links to mailto:contact@sirius-ai.live — Responsive (640px breakpoint)
+- Return ONLY the complete HTML (<!DOCTYPE html> through </html>)
+${ctx}`, 3000),
+                (proj as any).embedCode ? Promise.resolve("") : gen(
+                  "You are a frontend developer. Write minimal self-contained HTML embed snippets.",
+                  `Write a compact HTML embed widget for "${name}" (${industry}).
+- Single <div>, max 20 lines, all styles inline
+- Shows: product name, tagline, "Learn more →" button (mailto:contact@sirius-ai.live)
+- Style: white bg, 1px solid #E2E8F0 border, 12px radius, 20px padding, max-width 360px
+- Button: #006680 bg, white text, 8px 18px padding, 8px radius
+Return ONLY the <div>...</div> snippet.\n${ctx}`, 400),
+              ]);
+
+              if (brief) updates.brief = brief;
+              if (research) updates.research = research;
+              if (specs) updates.specs = specs;
+              if (businessCase) updates.businessCase = businessCase;
+              if (goToMarket) updates.goToMarket = goToMarket;
+              if (brochure) updates.brochure = brochure;
+              if (pitch) updates.pitch = pitch;
+              if (socialPosts) updates.socialPosts = socialPosts;
+              if (costToBuild) updates.costToBuild = costToBuild;
+              if (landingPage) updates.landingPage = landingPage;
+              if (embedCode) updates.embedCode = embedCode;
+
+              // Engineering extras
+              if (isEng && !proj.materials) {
+                updates.materials = await gen("You are a materials engineer.", `Materials specification for "${name}" (${industry}): material grade, standard, mechanical properties, suppliers, certifications.\n${ctx}`, 500);
+              }
+
+              // Render via Pollinations if project has no renders
+              if (includeRenders) {
+                const currentRenders: any[] = (() => { try { return JSON.parse(proj.renders as any || "[]"); } catch { return []; } })();
+                if (currentRenders.length === 0) {
+                  try {
+                    const prompt = encodeURIComponent(`Professional product render of ${name}, ${industry} industry, sleek modern design, studio lighting, high quality, 4K`);
+                    const renderUrl = `https://image.pollinations.ai/prompt/${prompt}?width=1280&height=720&nologo=true&seed=${proj.id}`;
+                    // Verify image is accessible
+                    const check = await fetch(renderUrl, { method: "HEAD" }).catch(() => null);
+                    if (check?.ok) {
+                      updates.renders = JSON.stringify([{ url: renderUrl, label: `${name} — Product Render`, type: "render", generatedAt: new Date().toISOString() }]);
+                    }
+                  } catch { /* skip render on failure */ }
+                }
+              }
+
+              updates.phase = "complete";
+              if (Object.keys(updates).length > 1) {
+                await db.update(labProjects).set(updates as any).where(eq(labProjects.id, proj.id));
+              }
+
+              const count = Object.keys(updates).filter(k => k !== "phase").length;
+              batchJob.log.push(`✓ #${proj.id} "${name}" — ${count} sections`);
+              batchJob.completed++;
+            } catch (err: any) {
+              batchJob.log.push(`✗ #${proj.id} "${proj.name}" — ${err?.message || "error"}`);
+              batchJob.failed++;
+              batchJob.completed++;
+            }
+          }
+
+          batchJob.running = false;
+          batchJob.finishedAt = new Date();
+          batchJob.currentProject = "";
+          batchJob.log.push(`✅ Batch complete — ${allForBatch.length} projects processed at ${new Date().toLocaleTimeString()}`);
+        })().catch(err => {
+          batchJob.running = false;
+          batchJob.finishedAt = new Date();
+          batchJob.log.push(`🔴 Batch crashed: ${err?.message || "unknown"}`);
+        });
+
+        return [
+          `╔══ BATCH JOB STARTED ══╗`,
+          ``,
+          `Running full completion pipeline on ${allForBatch.length} projects in the background.`,
+          `Each project will get: brief, research, specs, business case, GTM, brochure, pitch, social posts, cost analysis, landing page, embed widget${includeRenders ? ", and one AI render" : ""}.`,
+          ``,
+          `The job runs on the server — this chat session can close and it will continue.`,
+          `Call get_batch_status at any time to check progress.`,
+        ].join("\n");
+      }
+
+      case "get_batch_status": {
+        const elapsed = batchJob.startedAt
+          ? Math.round((Date.now() - (batchJob.running ? batchJob.startedAt : batchJob.finishedAt || batchJob.startedAt)!.getTime()) / 1000)
+          : 0;
+        const elapsedTotal = batchJob.startedAt ? Math.round((Date.now() - batchJob.startedAt.getTime()) / 1000) : 0;
+        const pct = batchJob.total > 0 ? Math.round((batchJob.completed / batchJob.total) * 100) : 0;
+        const eta = (batchJob.running && batchJob.completed > 0)
+          ? Math.round((elapsedTotal / batchJob.completed) * (batchJob.total - batchJob.completed))
+          : 0;
+        const recentLog = batchJob.log.slice(-10).join("\n");
+
+        if (!batchJob.startedAt) {
+          return `No batch job has been started yet. Call batch_complete_all with confirm: true to begin.`;
+        }
+
+        return [
+          `╔══ BATCH STATUS ══╗`,
+          ``,
+          batchJob.running ? `🔄 RUNNING` : batchJob.failed > 0 ? `⚠ FINISHED WITH ERRORS` : `✅ COMPLETE`,
+          `Progress: ${batchJob.completed}/${batchJob.total} (${pct}%)`,
+          batchJob.running ? `Current: "${batchJob.currentProject}"` : "",
+          batchJob.running && eta > 0 ? `ETA: ~${eta}s remaining` : "",
+          `Succeeded: ${batchJob.completed - batchJob.failed}  |  Failed: ${batchJob.failed}`,
+          `Started: ${batchJob.startedAt?.toLocaleTimeString()}`,
+          batchJob.finishedAt ? `Finished: ${batchJob.finishedAt?.toLocaleTimeString()}` : "",
+          ``,
+          `Recent activity:`,
+          recentLog || "(none yet)",
+        ].filter(l => l !== undefined && l !== null && l !== "").join("\n");
       }
 
       case "system_check": {
@@ -9790,6 +9998,139 @@ router.post("/lab/tts", async (req, res): Promise<void> => {
   } finally {
     unlink(tmpFile).catch(() => {});
   }
+});
+
+// ── Batch complete all projects (background job) ──────────────────────────
+router.get("/lab/batch-status", authMiddleware, async (req: Request, res: Response) => {
+  const elapsed = batchJob.startedAt ? Math.round((Date.now() - batchJob.startedAt.getTime()) / 1000) : 0;
+  const pct = batchJob.total > 0 ? Math.round((batchJob.completed / batchJob.total) * 100) : 0;
+  res.json({
+    running: batchJob.running,
+    total: batchJob.total,
+    completed: batchJob.completed,
+    failed: batchJob.failed,
+    pct,
+    currentProject: batchJob.currentProject,
+    startedAt: batchJob.startedAt,
+    finishedAt: batchJob.finishedAt,
+    elapsedSeconds: elapsed,
+    recentLog: batchJob.log.slice(-20),
+  });
+});
+
+router.post("/lab/batch-complete-all", authMiddleware, async (req: Request, res: Response) => {
+  if (batchJob.running) {
+    res.status(409).json({ error: "Batch job already running", state: batchJob });
+    return;
+  }
+
+  const includeRenders = req.body?.renders !== false;
+  const allForBatch = await db.select().from(labProjects).orderBy(labProjects.id);
+
+  batchJob.running = true;
+  batchJob.total = allForBatch.length;
+  batchJob.completed = 0;
+  batchJob.failed = 0;
+  batchJob.currentProject = "";
+  batchJob.startedAt = new Date();
+  batchJob.finishedAt = null;
+  batchJob.log = [];
+
+  res.json({ started: true, total: allForBatch.length, message: `Batch job started — ${allForBatch.length} projects queued. Poll GET /api/lab/batch-status for progress.` });
+
+  // Run after response is sent
+  setImmediate(async () => {
+    const ENGINEERING_SECTORS = ["oil_gas", "aerospace", "medical", "medical_devices", "manufacturing", "hydrogen", "clean_energy", "engineering", "defence", "nuclear"];
+    const gen = async (sys: string, user: string, tokens = 500): Promise<string> => {
+      const r = await openai.chat.completions.create({
+        model: "anthropic/claude-haiku-4-5",
+        messages: [{ role: "system", content: sys }, { role: "user", content: user }],
+        max_tokens: tokens,
+      });
+      return r.choices[0]?.message?.content?.trim() || "";
+    };
+
+    for (const proj of allForBatch) {
+      try {
+        batchJob.currentProject = proj.name;
+        const name = proj.name;
+        const industry = proj.industry || "General";
+        const ctx = `Product: "${name}"\nIndustry: ${industry}\nBrief: ${(proj.brief || "").slice(0, 600)}`;
+        const isEng = ENGINEERING_SECTORS.some(s => industry.toLowerCase().includes(s));
+        const updates: Record<string, any> = {};
+
+        const [brief, research, specs, businessCase, goToMarket, brochure, pitch, socialPosts, costToBuild, landingPage, embedCode] = await Promise.all([
+          proj.brief ? Promise.resolve("") : gen("You are a strategic product consultant.", `Write a comprehensive product brief for "${name}" (${industry}): what it is, who it's for, core problem, key features (5-8), competitive advantage, market opportunity. 400-500 words.`, 700),
+          proj.research ? Promise.resolve("") : gen("You are a market research analyst.", `Market research for "${name}" (${industry}): target market size, key competitors, customer pain points, market trends, opportunity gap. 300-400 words.\n${ctx}`, 600),
+          proj.specs ? Promise.resolve("") : gen("You are a technical product architect.", `Technical specifications for "${name}" (${industry}): core components, tech stack, integrations, performance requirements, scalability, MVP feature set. 300-400 words.\n${ctx}`, 600),
+          proj.businessCase ? Promise.resolve("") : gen("You are a business strategist.", `Business case for "${name}" (${industry}): ROI analysis, revenue model, cost structure, payback period, strategic value. 300-400 words.\n${ctx}`, 600),
+          proj.goToMarket ? Promise.resolve("") : gen("You are a GTM strategist.", `Go-to-market plan for "${name}" (${industry}): launch strategy, customer segments, pricing, distribution channels, key partnerships, 90-day roadmap. 300-400 words.\n${ctx}`, 600),
+          proj.brochure ? Promise.resolve("") : gen("You are a professional copywriter.", `Marketing brochure for "${name}" (${industry}): headline, tagline, value prop, 3 key benefits, features, testimonial, CTA. 250-350 words.\n${ctx}`, 500),
+          proj.pitch ? Promise.resolve("") : gen("You are a pitch deck writer.", `Investor pitch for "${name}" (${industry}): problem, solution, market size TAM/SAM/SOM, business model, traction/roadmap, team, funding ask. 300-400 words.\n${ctx}`, 600),
+          (proj.socialPosts && proj.socialPosts !== "{}") ? Promise.resolve("") : gen("You are a social media manager.", `Social media launch posts for "${name}" (${industry}) as JSON with keys: linkedin, twitter, instagram, facebook, pressRelease. Return ONLY valid JSON.\n${ctx}`, 700),
+          proj.costToBuild ? Promise.resolve("") : gen("You are a product cost analyst.", `Cost-to-build for "${name}" (${industry}): dev hours (frontend, backend, AI/ML, DevOps), infrastructure costs, tooling, time-to-market, operating costs, break-even.\n${ctx}`, 600),
+          (proj as any).landingPage ? Promise.resolve("") : gen(
+            "You are a world-class frontend developer. Write complete, self-contained HTML landing pages. No external dependencies.",
+            `Write a complete standalone HTML landing page for "${name}" (${industry}).
+REQUIREMENTS: Single self-contained HTML, no CDN links, no external fonts.
+Brand: primary #006680, bg #F5F8FF, text #0F172A, accent #00A3C4. Font: system-ui.
+Sections: nav, hero (headline+tagline+CTA), 3 feature cards, about section, CTA footer, footer.
+CTAs: mailto:contact@sirius-ai.live. Responsive at 640px. Return ONLY complete HTML.
+${ctx}`, 3000),
+          (proj as any).embedCode ? Promise.resolve("") : gen(
+            "You are a frontend developer. Write minimal self-contained HTML embed snippets.",
+            `Compact HTML embed widget for "${name}" (${industry}): single <div>, inline styles, shows name+tagline+"Learn more →" button (mailto:contact@sirius-ai.live). Style: white bg, #E2E8F0 border, 12px radius, 20px padding, max-w 360px; button #006680 bg. Return ONLY the <div>.\n${ctx}`, 400),
+        ]);
+
+        if (brief) updates.brief = brief;
+        if (research) updates.research = research;
+        if (specs) updates.specs = specs;
+        if (businessCase) updates.businessCase = businessCase;
+        if (goToMarket) updates.goToMarket = goToMarket;
+        if (brochure) updates.brochure = brochure;
+        if (pitch) updates.pitch = pitch;
+        if (socialPosts) updates.socialPosts = socialPosts;
+        if (costToBuild) updates.costToBuild = costToBuild;
+        if (landingPage) updates.landingPage = landingPage;
+        if (embedCode) updates.embedCode = embedCode;
+
+        if (isEng && !proj.materials) {
+          updates.materials = await gen("You are a materials engineer.", `Materials spec for "${name}" (${industry}): grade, standard, mechanical properties, suppliers, certs.\n${ctx}`, 500);
+        }
+
+        if (includeRenders) {
+          const currentRenders: any[] = (() => { try { return JSON.parse(proj.renders as any || "[]"); } catch { return []; } })();
+          if (currentRenders.length === 0) {
+            try {
+              const prompt = encodeURIComponent(`Professional product render of ${name}, ${industry} industry, sleek modern design, studio lighting, high quality`);
+              const renderUrl = `https://image.pollinations.ai/prompt/${prompt}?width=1280&height=720&nologo=true&seed=${proj.id}`;
+              const check = await fetch(renderUrl, { method: "HEAD" }).catch(() => null);
+              if (check?.ok) {
+                updates.renders = JSON.stringify([{ url: renderUrl, label: `${name} — Product Render`, type: "render", generatedAt: new Date().toISOString() }]);
+              }
+            } catch { /* skip render */ }
+          }
+        }
+
+        updates.phase = "complete";
+        const fieldsUpdated = Object.keys(updates).filter(k => k !== "phase").length;
+        if (fieldsUpdated > 0) {
+          await db.update(labProjects).set(updates as any).where(eq(labProjects.id, proj.id));
+        }
+        batchJob.log.push(`✓ #${proj.id} "${name}" — ${fieldsUpdated} section${fieldsUpdated !== 1 ? "s" : ""} updated`);
+        batchJob.completed++;
+      } catch (err: any) {
+        batchJob.log.push(`✗ #${proj.id} "${proj.name}" — ${err?.message || "error"}`);
+        batchJob.failed++;
+        batchJob.completed++;
+      }
+    }
+
+    batchJob.running = false;
+    batchJob.finishedAt = new Date();
+    batchJob.currentProject = "";
+    batchJob.log.push(`✅ Batch complete — ${allForBatch.length} projects processed`);
+  });
 });
 
 // Export project as a self-contained HTML document (all content in one downloadable file)
