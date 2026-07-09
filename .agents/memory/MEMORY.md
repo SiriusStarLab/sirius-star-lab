@@ -16,3 +16,5 @@
 - [Piper TTS stdout deadlock](piper-tts-stdout-deadlock.md) — piper hangs on long texts; fix is stdout.resume() after spawn.
 - [Sirius custom tools data loss](sirius-custom-tools-loss.md) — tools were never in Kamatera DB (migration gap); backup/restore now in self-repair.ts.
 - [Sirius EAS build fix — monorepo](sirius-eas-build-fix.md) — root cause of all EAS build failures in pnpm monorepo; expo-entry.js pattern, ios/ pre-generation, EAS_NO_VCS=1 behavior.
+- [Sirius DB tables — memories](sirius-db-memories-table.md) — save_memory() writes to `core_memories` table (columns: category, content, importance). `memories` does NOT exist. To insert directly via psql use core_memories. Conversation history: table is `messages` not `chat_messages`; conversations table has user_id='garry'.
+- [Sanskrit vibrational work location](sanskrit-vibrational-work.md) — full work in conversation 9579 (July 5 2026); 4 core_memories entries saved (category: vibrational_architecture, conversation_path); files at /opt/sirius/frequency-lab/. Startup protocol in lab.ts now has exact SQL paths.
