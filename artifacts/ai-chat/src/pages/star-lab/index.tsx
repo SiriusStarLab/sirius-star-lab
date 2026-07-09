@@ -938,6 +938,13 @@ function ChatPanel({ project, pin, mode, onUpdate }: { project: Project; pin: st
                 <Download className="w-3 h-3" style={{ color: "rgba(15,23,42,0.4)" }} />
               </button>
             )}
+            <a href={`${getApiBase()}lab/projects/${project.id}/export`}
+              download
+              title="Download project as HTML export pack"
+              className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs transition-all whitespace-nowrap"
+              style={{ background: "rgba(15,23,42,0.05)", color: "rgba(15,23,42,0.5)", border: "1px solid rgba(15,23,42,0.08)", textDecoration: "none" }}>
+              <Download className="w-3 h-3" /> Export
+            </a>
             {mode !== "bot" && !project.brief && !project.specs && (
               <button
                 onClick={() => send("Concept: " + project.name + " — " + (project.industry || "product") + ". Design this from scratch: research the market, write a full product brief, generate detailed technical specs with real materials for the application, create the bill of materials, manufacturing workflows, and business case. Start now.")}
@@ -2583,6 +2590,12 @@ function ProductPackageTab({ project, pin, onUpdate }: { project: Project; pin: 
               </span>
             </div>
             <div className="flex items-center gap-1.5">
+              <a href={`${base}lab/p/${project.id}`}
+                target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg transition-all"
+                style={{ background: "hsl(155,70%,92%)", color: "hsl(155,60%,35%)", border: "1px solid hsl(155,70%,82%)", textDecoration: "none" }}>
+                <ExternalLink className="w-3 h-3" /> Live Page
+              </a>
               <button onClick={previewLanding}
                 className="flex items-center gap-1 text-xs px-2 py-1 rounded-md transition-all"
                 style={{ background: "rgba(15,23,42,0.05)", color: "rgba(15,23,42,0.55)" }}>

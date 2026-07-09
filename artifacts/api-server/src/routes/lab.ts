@@ -6716,30 +6716,66 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
 
         onProgress?.({ type: "searching", query: query.slice(0, 80) });
 
-        // Use Perplexity Sonar on OpenRouter — native live web search with citations
-        const model = depth === "deep" ? "perplexity/sonar-pro" : "perplexity/sonar";
+        // Try Perplexity Sonar on OpenRouter first (best quality with citations)
+        try {
+          const model = depth === "deep" ? "perplexity/sonar-pro" : "perplexity/sonar";
+          const response = await openai.chat.completions.create({
+            model,
+            messages: [
+              {
+                role: "system",
+                content: `You are a world-class research intelligence engine. Today is ${TODAY()}. Search the web exhaustively to answer the query. Return a comprehensive, well-structured answer with specific facts, figures, names, dates, and sources. Never be vague. Cite your sources inline. If researching academic papers, include title, authors, institution, and year. If researching technology or products, include real specifications, pricing, and availability. Always note the recency of your sources.`,
+              },
+              { role: "user", content: query },
+            ],
+            max_tokens: 2000,
+            temperature: 0.1,
+          });
 
-        const response = await openai.chat.completions.create({
-          model,
-          messages: [
-            {
-              role: "system",
-              content: `You are a world-class research intelligence engine. Today is ${TODAY()}. Search the web exhaustively to answer the query. Return a comprehensive, well-structured answer with specific facts, figures, names, dates, and sources. Never be vague. Cite your sources inline. If researching academic papers, include title, authors, institution, and year. If researching technology or products, include real specifications, pricing, and availability. Always note the recency of your sources.`,
-            },
-            { role: "user", content: query },
-          ],
-          max_tokens: 2000,
-          temperature: 0.1,
-        });
+          const answer = response.choices[0]?.message?.content || "No results returned.";
+          const citations = (response as any).citations || [];
+          const citationBlock = citations.length > 0
+            ? `\n\n**Sources:**\n${citations.slice(0, 8).map((c: string, i: number) => `${i + 1}. ${c}`).join("\n")}`
+            : "";
 
-        const answer = response.choices[0]?.message?.content || "No results returned.";
-        const citations = (response as any).citations || [];
-        const citationBlock = citations.length > 0
-          ? `\n\n**Sources:**\n${citations.slice(0, 8).map((c: string, i: number) => `${i + 1}. ${c}`).join("\n")}`
-          : "";
+          onProgress?.({ type: "search_done" });
+          return `🌐 **Web Search: "${query}"**\n\n${answer}${citationBlock}`;
+        } catch (primaryErr: any) {
+          // Fallback: DuckDuckGo HTML search — free, no API key required
+          onProgress?.({ type: "status", message: "Falling back to DuckDuckGo search…" });
+          try {
+            const ddgUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}&kl=uk-en`;
+            const ddgRes = await fetch(ddgUrl, {
+              headers: { "User-Agent": "Mozilla/5.0 (compatible; SiriusStarLab/1.0; research bot)", "Accept": "text/html" },
+              signal: AbortSignal.timeout(12000),
+            });
+            const html = await ddgRes.text();
 
-        onProgress?.({ type: "search_done" });
-        return `🌐 **Web Search: "${query}"**\n\n${answer}${citationBlock}`;
+            // Parse result titles, snippets, and URLs from DuckDuckGo HTML
+            const results: { title: string; snippet: string; url: string }[] = [];
+            const resultPattern = /<a class="result__a"[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<a class="result__snippet"[^>]*>([\s\S]*?)<\/a>/g;
+            let match;
+            while ((match = resultPattern.exec(html)) !== null && results.length < 8) {
+              const url = match[1]?.replace(/\\/g, "").trim() || "";
+              const title = match[2]?.replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").trim() || "";
+              const snippet = match[3]?.replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&#x27;/g, "'").trim() || "";
+              if (title && snippet) results.push({ title, snippet, url });
+            }
+
+            if (results.length === 0) {
+              return `🌐 **Web Search: "${query}"**\n\nNo results found. (Primary search unavailable: ${primaryErr?.message?.slice(0, 80)})`;
+            }
+
+            const formatted = results.map((r, i) =>
+              `**${i + 1}. ${r.title}**\n${r.snippet}${r.url ? `\n*${r.url.slice(0, 80)}*` : ""}`
+            ).join("\n\n");
+
+            onProgress?.({ type: "search_done" });
+            return `🌐 **Web Search: "${query}"** *(via DuckDuckGo)*\n\n${formatted}\n\n*Note: Using free search fallback — results may be less comprehensive than primary source.*`;
+          } catch (fallbackErr: any) {
+            return `Search unavailable: primary error: ${primaryErr?.message?.slice(0, 100)}, fallback error: ${fallbackErr?.message?.slice(0, 100)}`;
+          }
+        }
       }
 
       case "fetch_url": {
@@ -7202,14 +7238,16 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
           writeFileSync(join(rendersDir, filename), Buffer.from(imgBuffer));
         }
 
-        // Save URL to project renders if project_id provided
+        // Save to project renders if project_id provided
         if (project_id) {
           try {
             const projectRows = await db.select({ renders: labProjects.renders }).from(labProjects).where(eq(labProjects.id, project_id));
             if (projectRows[0]) {
-              const existing: string[] = (projectRows[0].renders as string[]) || [];
-              const updated = [...existing, imageUrl];
-              await db.update(labProjects).set({ renders: updated }).where(eq(labProjects.id, project_id));
+              const existing: { url: string; label: string; type: string; generatedAt: string }[] =
+                (() => { try { return JSON.parse(projectRows[0].renders as any || "[]"); } catch { return []; } })();
+              const newRender = { url: imageUrl, label: prompt.slice(0, 60), type: "ai-generated", generatedAt: new Date().toISOString() };
+              const updated = [newRender, ...existing].slice(0, 12);
+              await db.update(labProjects).set({ renders: JSON.stringify(updated), updatedAt: new Date() }).where(eq(labProjects.id, project_id));
             }
           } catch (e) {
             // Non-fatal — image still generated, just not saved to project
@@ -7217,7 +7255,7 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
         }
 
         onProgress?.({ type: "image", url: imageUrl });
-        const savedNote = project_id ? ` Saved to project #${project_id} renders gallery.` : " (Pass project_id to save it to a project's gallery.)";
+        const savedNote = project_id ? ` Saved to project #${project_id} renders gallery.` : " (Tip: pass project_id to save it to a project's gallery permanently.)";
         return `✅ Image generated successfully.${savedNote}\nURL: ${imageUrl}`;
       }
 
@@ -9752,6 +9790,88 @@ router.post("/lab/tts", async (req, res): Promise<void> => {
   } finally {
     unlink(tmpFile).catch(() => {});
   }
+});
+
+// Export project as a self-contained HTML document (all content in one downloadable file)
+router.get("/lab/projects/:id/export", authMiddleware, async (req: Request, res: Response) => {
+  const id = parseInt(req.params.id as string);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid project ID" }); return; }
+  const [project] = await db.select().from(labProjects).where(eq(labProjects.id, id));
+  if (!project) { res.status(404).json({ error: "Project not found" }); return; }
+
+  const renders: { url: string; label: string }[] = (() => { try { return JSON.parse(project.renders as any || "[]"); } catch { return []; } })();
+  const safeHtml = (s: string) => (s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const filename = `${(project.name || "project").replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase().slice(0, 60)}-export.html`;
+  const exportDate = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+
+  const section = (title: string, content: string) => content
+    ? `<section><h2>${title}</h2><pre>${safeHtml(content)}</pre></section>`
+    : "";
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${safeHtml(project.name)} — Project Export</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f8fafc; color: #0f172a; }
+  .cover { background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%); color: white; padding: 3rem 4rem; }
+  .cover h1 { font-size: 2.5rem; font-weight: 700; margin-bottom: 0.5rem; }
+  .cover .meta { opacity: 0.6; font-size: 0.9rem; margin-top: 0.75rem; }
+  .cover .badge { display: inline-block; background: rgba(255,255,255,0.15); border-radius: 999px; padding: 0.25rem 0.75rem; font-size: 0.8rem; margin-right: 0.5rem; }
+  .content { max-width: 860px; margin: 0 auto; padding: 2rem; }
+  section { background: white; border-radius: 12px; padding: 1.5rem 2rem; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.07); }
+  h2 { font-size: 1rem; font-weight: 600; color: #1e40af; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid #e2e8f0; text-transform: uppercase; letter-spacing: 0.05em; font-size: 0.75rem; }
+  pre { white-space: pre-wrap; font-family: inherit; font-size: 0.88rem; line-height: 1.7; color: #334155; }
+  .renders { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; }
+  .renders figure { margin: 0; }
+  .renders img { width: 100%; border-radius: 8px; display: block; }
+  .renders figcaption { font-size: 0.75rem; color: #94a3b8; text-align: center; margin-top: 0.4rem; }
+  @media print { body { background: white; } .cover { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+</style>
+</head>
+<body>
+<div class="cover">
+  <h1>${safeHtml(project.name)}</h1>
+  <div>
+    ${project.industry ? `<span class="badge">${safeHtml(project.industry)}</span>` : ""}
+    ${project.phase ? `<span class="badge">${safeHtml(project.phase)}</span>` : ""}
+  </div>
+  <p class="meta">Exported ${exportDate} · Sirius Star Lab</p>
+</div>
+<div class="content">
+  ${section("Executive Brief", project.brief || "")}
+  ${section("Market Research", project.research || "")}
+  ${section("Technical Specifications", project.specs || "")}
+  ${section("Business Case", project.businessCase || "")}
+  ${section("Go-To-Market Strategy", project.goToMarket || "")}
+  ${section("Implementation / Code", project.code || "")}
+  ${section("Brochure", project.brochure || "")}
+  ${section("Pitch", project.pitch || "")}
+  ${renders.length > 0 ? `<section><h2>Renders (${renders.length})</h2><div class="renders">${renders.map((r: any) => `<figure><img src="${r.url || r}" alt="${safeHtml(r.label || "Render")}" loading="lazy"><figcaption>${safeHtml(r.label || "")}</figcaption></figure>`).join("")}</div></section>` : ""}
+</div>
+</body>
+</html>`;
+
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  res.send(html);
+});
+
+// Public landing page — no auth, serves landing_page HTML directly in the browser
+router.get("/lab/p/:id", async (req: Request, res: Response) => {
+  const id = parseInt(req.params.id as string);
+  if (isNaN(id)) { res.status(400).send("<h1>Invalid ID</h1>"); return; }
+  const [project] = await db.select({ landingPage: labProjects.landingPage, name: labProjects.name }).from(labProjects).where(eq(labProjects.id, id));
+  if (!project?.landingPage) {
+    res.status(404).send(`<!DOCTYPE html><html><head><title>Not Found</title></head><body style="font-family:sans-serif;padding:4rem;text-align:center"><h1 style="color:#0f172a">Page not found</h1><p style="color:#64748b;margin-top:1rem">This project doesn't have a landing page yet.</p></body></html>`);
+    return;
+  }
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  res.send(project.landingPage);
 });
 
 // Serve AI-generated images saved by the generate_image tool
