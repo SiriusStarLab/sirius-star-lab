@@ -182,6 +182,9 @@ ${context ? `## YOUR CONTEXT\n${context}\n` : ""}
   }
 }
 
+let consecutivePollErrors = 0;
+const MAX_POLL_ERRORS_BEFORE_NOTIFY = 5;
+
 async function poll() {
   try {
     const tasks = await db.select().from(siriusTasks)
@@ -189,14 +192,23 @@ async function poll() {
       .orderBy(asc(siriusTasks.createdAt))
       .limit(1);
 
+    consecutivePollErrors = 0;
     if (tasks.length > 0) {
       await runTask(tasks[0]);
     }
   } catch (err: any) {
+    consecutivePollErrors++;
     console.error("[Worker] Poll error:", err.message);
+    if (consecutivePollErrors === MAX_POLL_ERRORS_BEFORE_NOTIFY) {
+      await sendTelegram(
+        `⚠️ *Sirius Worker — poll failing*\n\n${MAX_POLL_ERRORS_BEFORE_NOTIFY} consecutive errors.\nLast error: ${err.message}\n\nTasks are NOT being processed. Check the server.`,
+        "CRITICAL"
+      ).catch(() => {});
+    }
   }
 }
 
 console.log("[Worker] Sirius background task worker started — polling every 30s.");
+sendTelegram("🟢 *Sirius Worker started* — background task processor online").catch(() => {});
 poll();
 setInterval(poll, POLL_INTERVAL_MS);

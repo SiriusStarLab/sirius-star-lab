@@ -1,4 +1,6 @@
-const REVIEWER_MODEL = "gpt-4o-mini";
+import { openai } from "@workspace/ai-client";
+
+const REVIEWER_MODEL = "anthropic/claude-haiku-4.5";
 
 const PROTECTED_PATHS = new Set([
   "src/app.ts",
@@ -77,32 +79,18 @@ ${diff.slice(0, 6000)}
 Is this safe to auto-deploy?`;
 
   try {
-    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://sirius-ai.live",
-        "X-Title": "Sirius Code Reviewer",
-      },
-      body: JSON.stringify({
-        model: REVIEWER_MODEL,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-        max_tokens: 500,
-        temperature: 0.1,
-        response_format: { type: "json_object" },
-      }),
+    const completion = await openai.chat.completions.create({
+      model: REVIEWER_MODEL,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      max_tokens: 500,
+      temperature: 0.1,
+      response_format: { type: "json_object" },
     });
 
-    if (!res.ok) {
-      throw new Error(`Reviewer API ${res.status}: ${await res.text()}`);
-    }
-
-    const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-    const raw = data.choices?.[0]?.message?.content ?? "{}";
+    const raw = completion.choices?.[0]?.message?.content ?? "{}";
     const parsed = JSON.parse(raw) as { approved?: boolean; concerns?: string[]; summary?: string };
 
     return {

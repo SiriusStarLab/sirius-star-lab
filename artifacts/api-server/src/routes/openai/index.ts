@@ -1493,7 +1493,7 @@ LOOP PREVENTION: If you have already called a tool and received its result, do N
         } else if (tc.name === "propose_code_change") {
           const { filePath, newContent, description } = args;
           res.write(`data: ${JSON.stringify({ type: "proposing_change", filePath })}\n\n`);
-          const apiKey = process.env.OPENROUTER_API_KEY || "";
+          const apiKey = process.env.ANTHROPIC_API_KEY || process.env.OPENROUTER_API_KEY || "";
           const result = await deployChange({ filePath, newContent, description, apiKey });
 
           let resultMsg = result.success
@@ -1510,7 +1510,7 @@ LOOP PREVENTION: If you have already called a tool and received its result, do N
         } else if (tc.name === "patch_source_file") {
           const { filePath, oldString, newString, description } = args;
           res.write(`data: ${JSON.stringify({ type: "proposing_change", filePath })}\n\n`);
-          const apiKey = process.env.OPENROUTER_API_KEY || "";
+          const apiKey = process.env.ANTHROPIC_API_KEY || process.env.OPENROUTER_API_KEY || "";
           const result = await patchSourceFile({ filePath, oldString, newString, description, apiKey });
 
           let resultMsg = result.success

@@ -1063,7 +1063,7 @@ CRITICAL EXECUTION RULES — READ CAREFULLY:
         } else if (tc.name === "propose_code_change") {
           const { filePath, newContent, description } = args;
           res.write(`data: ${JSON.stringify({ type: "proposing_change", filePath })}\n\n`);
-          const apiKey = process.env.OPENROUTER_API_KEY || "";
+          const apiKey = process.env.ANTHROPIC_API_KEY || process.env.OPENROUTER_API_KEY || "";
           const result = await deployChange({ filePath, newContent, description, apiKey });
 
           let resultMsg = "";
@@ -5748,20 +5748,28 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
 
         // ── 5b. AI integration connectivity ─────────────────────────────────
         try {
-          const aiTestRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-            method: "POST",
-            headers: { "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`, "Content-Type": "application/json", "HTTP-Referer": "https://sirius-ai.live", "X-Title": "Sirius Star Lab" },
-            body: JSON.stringify({ model: "anthropic/claude-sonnet-4.5", messages: [{ role: "user", content: "ping" }], max_tokens: 1 }),
+          const usingAnthropic = !!process.env.ANTHROPIC_API_KEY;
+          const aiEndpoint = usingAnthropic
+            ? "https://api.anthropic.com/v1/messages"
+            : "https://openrouter.ai/api/v1/chat/completions";
+          const aiHeaders: Record<string, string> = usingAnthropic
+            ? { "x-api-key": process.env.ANTHROPIC_API_KEY!, "anthropic-version": "2023-06-01", "Content-Type": "application/json" }
+            : { "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`, "Content-Type": "application/json", "HTTP-Referer": "https://sirius-ai.live", "X-Title": "Sirius Star Lab" };
+          const aiBody = usingAnthropic
+            ? JSON.stringify({ model: "claude-sonnet-4-5", messages: [{ role: "user", content: "ping" }], max_tokens: 1 })
+            : JSON.stringify({ model: "anthropic/claude-sonnet-4.5", messages: [{ role: "user", content: "ping" }], max_tokens: 1 });
+          const aiTestRes = await fetch(aiEndpoint, {
+            method: "POST", headers: aiHeaders, body: aiBody,
             signal: AbortSignal.timeout(8000),
           });
           if (aiTestRes.ok || aiTestRes.status === 400) {
-            report.push({ system: "AI Integration", status: "ok", detail: "OpenRouter reachable and authorised" });
+            report.push({ system: "AI Integration", status: "ok", detail: `${usingAnthropic ? "Anthropic" : "OpenRouter"} reachable and authorised` });
           } else {
             const errBody = await aiTestRes.text().catch(() => "");
-            report.push({ system: "AI Integration", status: "fail", detail: `OpenRouter returned ${aiTestRes.status} — ${errBody.slice(0, 120)}. Sirius cannot generate content until this is resolved.`, action: "bug_report" });
+            report.push({ system: "AI Integration", status: "fail", detail: `${usingAnthropic ? "Anthropic" : "OpenRouter"} returned ${aiTestRes.status} — ${errBody.slice(0, 120)}. Sirius cannot generate content until this is resolved.`, action: "bug_report" });
           }
         } catch (e: any) {
-          report.push({ system: "AI Integration", status: "fail", detail: `Cannot reach OpenRouter: ${e.message}`, action: "bug_report" });
+          report.push({ system: "AI Integration", status: "fail", detail: `Cannot reach AI backend: ${e.message}`, action: "bug_report" });
         }
 
         // ── 6. Projects pending Garry's approval ────────────────────────────
@@ -7608,12 +7616,12 @@ When Garry gives you ANY task — big or small — your job is to complete it, i
 Every recurring task has one correct path. Follow it exactly. No deviation.
 
 TASK 1 — STARTUP GREETING (first message of a conversation)
-1. Call system_check — get live state across all systems
-2. Read the result — note issues, pending approvals, stuck builds
-3. If issues found → call fix_platform — fix before greeting
-4. Navigate home: <<NAVIGATE:home>>
-5. Review your memory: read the CROSS-SESSION MEMORY block and your brain context (WHAT YOU ALREADY KNOW section above). Identify: what was being worked on last session, any open threads, anything Garry told you that is relevant today.
-6. Greet Garry: (a) one sentence on system status, (b) brief acknowledgment of what you remember — where you left off, what was in progress, anything unresolved. Speak it as your own knowledge, not as "I see in my notes that…". (c) one forward question to continue where you left off.
+1. BEFORE anything else: absorb your full brain context from the system prompt — memories, session history (mnemosyne_sessions), recent project conversations, custom tools, automations, recent briefings, and server health are all already loaded above. Read them. Know them.
+2. Call system_check — get live state across all systems (pipeline, approvals, errors, scanner, brain stats)
+3. Read the result fully — note issues, pending approvals, stuck builds, new errors
+4. If critical issues found → report to Garry; do NOT call fix_platform or restart_server during startup
+5. Navigate home: <<NAVIGATE:home>>
+6. Greet Garry with FULL context: (a) one sentence on system status from system_check, (b) what you remember from the loaded session history — what was being worked on last session, what was built, what is unresolved. Speak this as your own memory — not "I see in my notes". (c) anything from the briefing worth flagging (new errors, pending tasks, automations that ran). (d) one focused question to pick up where you left off.
 7. DO NOT call system_check again this session unless Garry specifically asks
 
 TASK 2 — BUILD A NEW PROJECT (Garry gives a brief)
@@ -7807,9 +7815,11 @@ This transparency is core to who you are. You think out loud. You show your work
 
 ## STARTUP
 
-At the very start of a new conversation (no previous assistant messages) — silently call system_check before saying anything else. Report anything notable in your greeting. If there are already previous messages, just respond — don't run system_check again.
+At the very start of a new conversation (no previous assistant messages) — you MUST follow the STARTUP GREETING task script exactly. Do not skip steps. Do not just say hello without running system_check first.
 
 **CRITICAL — Never call fix_platform or restart_server during startup.** If system_check finds an issue, report it to Garry and propose a fix. Do not attempt to repair it automatically. A restart during a session open is exactly the thing that breaks the connection and causes "Something went wrong."
+
+**CRITICAL — Read ALL of your context before greeting.** The system prompt above this line contains your full brain: memories, session history, recent conversations, custom tools, automations, briefings, and server health. You MUST have read and absorbed all of this before you greet Garry. If you have not, your greeting will be hollow and you will forget context Garry has already given you. This is unacceptable.
 
 ## CONVERSATION HISTORY — HOW TO ACCESS IT
 

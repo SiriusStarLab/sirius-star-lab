@@ -321,6 +321,29 @@ app.post("/api/deploy/trigger-cad", async (req, res) => {
 // ── 12. All other routes ──────────────────────────────────────────────────────
 app.use("/api", router);
 
+// ── Startup crash notification ────────────────────────────────────────────────
+// Send a Telegram message whenever sirius-api starts/restarts so Garry knows
+// the process was restarted (possibly after a crash).
+(async () => {
+  try {
+    const { sendTelegram } = await import("./lib/telegram.js");
+    const { execSync: ex } = await import("child_process");
+    let restartInfo = "";
+    try {
+      const pm2Out = ex("pm2 jlist 2>/dev/null", { timeout: 3000 }).toString();
+      const processes = JSON.parse(pm2Out) as Array<{ name: string; pm2_env?: { restart_time?: number; unstable_restarts?: number } }>;
+      const api = processes.find(p => p.name === "sirius-api");
+      if (api?.pm2_env?.restart_time !== undefined) {
+        restartInfo = ` (restart #${api.pm2_env.restart_time})`;
+      }
+    } catch { /* pm2 not available in dev */ }
+    const env = process.env.NODE_ENV || "production";
+    if (env !== "development") {
+      await sendTelegram(`🔄 *Sirius API started*${restartInfo}\nServer online at sirius-ai.live`);
+    }
+  } catch { /* never crash startup */ }
+})();
+
 // ── 12. Serve the built React frontend in production ─────────────────────────
 // In development the Vite dev server handles the frontend separately.
 // In production the single `node` process must serve both the API and the SPA.
