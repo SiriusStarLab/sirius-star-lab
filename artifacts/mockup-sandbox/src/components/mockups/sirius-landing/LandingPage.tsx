@@ -250,7 +250,7 @@ export function LandingPage() {
           {/* Hero graphic container */}
           <div
             className="relative mt-14"
-            style={{ width: "100%", maxWidth: "600px" }}
+            style={{ width: "100%", maxWidth: "380px" }}
           >
             {/* Dual glow — cyan left (A / Dream Lab), mint right (I / Star Lab) */}
             <div className="absolute inset-0 pointer-events-none" style={{
