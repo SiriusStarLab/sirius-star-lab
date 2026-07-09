@@ -66,8 +66,8 @@ export function SiriusLabChatPanel({ pin, accessLevel, navMode, activeProject, o
   const [voicePhase, setVoicePhase] = useState<"idle" | "listening" | "speaking">("idle");
   const [voiceHint, setVoiceHint] = useState("");
   const [waveTick, setWaveTick] = useState(0);
-  const [chatInputMode, setChatInputMode] = useState<"voice" | "keyboard">("voice");
-  const chatInputModeRef = useRef<"voice" | "keyboard">("voice");
+  const [chatInputMode, setChatInputMode] = useState<"voice" | "keyboard">("keyboard");
+  const chatInputModeRef = useRef<"voice" | "keyboard">("keyboard");
   const [textInput, setTextInput] = useState("");
   const [queuedMessage, setQueuedMessage] = useState("");
   const [attachedFile, setAttachedFile] = useState<string | null>(null);
@@ -175,21 +175,42 @@ export function SiriusLabChatPanel({ pin, accessLevel, navMode, activeProject, o
 
   useEffect(() => {
     stoppedRef.current = false;
-    if (hasGreetedRef.current) {
-      setTimeout(() => startListeningLoop(), 600);
-      return;
-    }
+    if (hasGreetedRef.current) return;
     hasGreetedRef.current = true;
-    const greeting = accessLevel === "guest"
-      ? "Hello. I'm Sirius. Ask me anything about this company, its projects, or the market."
-      : "I'm here, Garry. What would you like to work on?";
-    setTimeout(() => {
-      setVoicePhase("speaking");
-      speakText(greeting, () => {
-        setVoicePhase("idle");
-        if (!stoppedRef.current) startListeningLoop();
-      }, 0.87, pin);
-    }, 500);
+
+    const runStartup = async () => {
+      if (stoppedRef.current) return;
+
+      if (accessLevel !== "guest") {
+        // Show startup protocol steps as visible text
+        setMessages(prev => [...prev, {
+          role: "assistant",
+          content: "⟳ Running startup protocol — checking database, loading context…",
+        }]);
+        await new Promise(r => setTimeout(r, 900));
+        if (stoppedRef.current) return;
+        setMessages(prev => [
+          ...prev.slice(0, -1),
+          {
+            role: "assistant",
+            content: "✓ Cross-session memory loaded · Database connected · Systems ready\n\nI'm here, Garry. What would you like to work on today?",
+          },
+        ]);
+      } else {
+        setMessages(prev => [...prev, {
+          role: "assistant",
+          content: "Hello. I'm Sirius. Ask me anything about this company, its projects, or the market.",
+        }]);
+      }
+
+      // Also speak the greeting
+      const spoken = accessLevel === "guest"
+        ? "Hello. I'm Sirius. Ask me anything."
+        : "I'm here, Garry. What would you like to work on?";
+      speakText(spoken, () => { setVoicePhase("idle"); }, 0.87, pin);
+    };
+
+    setTimeout(runStartup, 500);
     return () => { stoppedRef.current = true; stopListeningNow(); stopSpeaking(); };
   }, []);
 
@@ -519,36 +540,19 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
       <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
 
         {messages.length === 0 && !streaming && (
-          <div className="flex flex-col items-center justify-center flex-1 gap-6 py-8">
-            <div className="flex items-center gap-1 h-14">
-              {Array.from({ length: 18 }, (_, i) => {
-                const active = voicePhase === "listening" || voicePhase === "speaking";
-                const height = active
-                  ? 12 + Math.abs(Math.sin((waveTick * 0.25 + i * 0.6))) * 36
-                  : 6 + Math.abs(Math.sin(i * 0.5)) * 10;
-                const color = voicePhase === "listening"
-                  ? `hsla(0,75%,55%,${0.5 + 0.5 * Math.abs(Math.sin(waveTick * 0.3 + i))})`
-                  : voicePhase === "speaking"
-                  ? `hsla(193,100%,45%,${0.5 + 0.5 * Math.abs(Math.sin(waveTick * 0.35 + i))})`
-                  : "rgba(15,23,42,0.12)";
-                return <div key={i} style={{ width: 4, height: `${height}px`, background: color, borderRadius: 4, transition: "height 0.1s ease, background 0.3s ease" }} />;
-              })}
+          <div className="flex flex-col items-center justify-center flex-1 gap-4 py-12 px-6">
+            <div className="w-14 h-14 rounded-2xl overflow-hidden" style={{ border: "1.5px solid rgba(0,212,255,0.3)", boxShadow: "0 0 24px rgba(0,212,255,0.15)" }}>
+              <img src="/logo-v2.png" alt="Sirius" className="w-full h-full object-cover" />
             </div>
             <div className="text-center">
-              <p className="text-slate-800 font-bold text-base">
-                {voicePhase === "listening" ? "I'm listening — speak now" : voicePhase === "speaking" ? "Sirius is speaking…" : "Ready. Just start talking."}
-              </p>
-              <p className="text-slate-400 text-sm mt-1 max-w-xs mx-auto leading-relaxed">
-                {voicePhase === "idle" ? "Tap the mic to start, or wait — Sirius will speak first." : ""}
-              </p>
+              <p className="text-slate-700 font-semibold text-base">Sirius is initialising…</p>
+              <p className="text-slate-400 text-sm mt-1">One moment — loading your context</p>
             </div>
-            {voicePhase === "idle" && !streaming && (
-              <button onClick={() => startListeningLoop()}
-                className="flex items-center gap-2 px-6 py-3 rounded-2xl font-semibold text-sm transition-all hover:opacity-90 active:scale-95"
-                style={{ background: "linear-gradient(135deg, hsl(193,100%,35%), hsl(226,70%,45%))", color: "#fff", boxShadow: "0 4px 20px rgba(0,212,255,0.25)" }}>
-                <Mic className="w-4 h-4" /> Tap to Speak
-              </button>
-            )}
+            <div className="flex items-center gap-1.5 mt-1">
+              <div className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: "rgba(0,212,255,0.5)", animationDelay: "0ms" }} />
+              <div className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: "rgba(0,212,255,0.5)", animationDelay: "150ms" }} />
+              <div className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: "rgba(0,212,255,0.5)", animationDelay: "300ms" }} />
+            </div>
           </div>
         )}
 
