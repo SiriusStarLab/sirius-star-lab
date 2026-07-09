@@ -1,11 +1,15 @@
 import { db, siriusTasks, userProfilesTable } from "@workspace/db";
 import { openai } from "@workspace/ai-client";
-import { eq, asc } from "drizzle-orm";
+import { eq, asc, notInArray, and } from "drizzle-orm";
 import { sendTelegram } from "./lib/telegram.js";
 
 const POLL_INTERVAL_MS = 30_000;
 const MAX_ROUNDS = 12;
 const BRAIN_USER = "garry";
+const MAX_CONCURRENT = 3; // run up to 3 tasks at the same time
+
+// Track which task IDs are actively running so we don't double-pick them
+const runningTaskIds = new Set<number>();
 
 async function getSiriusContext(): Promise<string> {
   try {
@@ -40,7 +44,8 @@ async function appendProgress(id: number, step: string) {
 }
 
 async function runTask(task: typeof siriusTasks.$inferSelect) {
-  console.log(`[Worker] Starting task ${task.id}: "${task.title}"`);
+  runningTaskIds.add(task.id);
+  console.log(`[Worker] Starting task ${task.id}: "${task.title}" (${runningTaskIds.size}/${MAX_CONCURRENT} slots in use)`);
 
   await db.update(siriusTasks)
     .set({ status: "running", startedAt: new Date() })
@@ -179,6 +184,9 @@ ${context ? `## YOUR CONTEXT\n${context}\n` : ""}
     }).where(eq(siriusTasks.id, task.id));
 
     await sendTelegram(`❌ *Task Failed*\n\n*${task.title}*\n\nError: ${err.message}`, "WARNING");
+  } finally {
+    runningTaskIds.delete(task.id);
+    console.log(`[Worker] Task ${task.id} slot released (${runningTaskIds.size}/${MAX_CONCURRENT} in use)`);
   }
 }
 
@@ -187,14 +195,29 @@ const MAX_POLL_ERRORS_BEFORE_NOTIFY = 5;
 
 async function poll() {
   try {
+    const available = MAX_CONCURRENT - runningTaskIds.size;
+    if (available <= 0) return; // all slots busy
+
+    const excludeIds = [...runningTaskIds];
+    const whereClause = excludeIds.length > 0
+      ? and(eq(siriusTasks.status, "pending"), notInArray(siriusTasks.id, excludeIds))
+      : eq(siriusTasks.status, "pending");
+
     const tasks = await db.select().from(siriusTasks)
-      .where(eq(siriusTasks.status, "pending"))
+      .where(whereClause)
       .orderBy(asc(siriusTasks.createdAt))
-      .limit(1);
+      .limit(available);
 
     consecutivePollErrors = 0;
+
     if (tasks.length > 0) {
-      await runTask(tasks[0]);
+      if (tasks.length > 1) {
+        console.log(`[Worker] Picking up ${tasks.length} tasks in parallel`);
+      }
+      // Fire all tasks concurrently — don't await so poll returns immediately
+      for (const task of tasks) {
+        runTask(task).catch(err => console.error(`[Worker] Unhandled task error (${task.id}):`, err));
+      }
     }
   } catch (err: any) {
     consecutivePollErrors++;
