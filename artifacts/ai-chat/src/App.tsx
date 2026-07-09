@@ -65,7 +65,10 @@ function App() {
   const [entered, setEntered] = useState(() => !!localStorage.getItem("sirius_entered"));
 
   if (!entered) {
-    return <SplashPage onEnter={() => setEntered(true)} />;
+    return <SplashPage onEnter={() => {
+      window.history.replaceState({}, "", "/");
+      setEntered(true);
+    }} />;
   }
 
   return (
