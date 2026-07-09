@@ -175,7 +175,7 @@ Format your response naturally — flowing prose, then list the affirmations cle
         { role: "system", content: systemPrompt },
         { role: "user", content: `Help me develop this idea:\n\nTitle: ${idea.title}\nDescription: ${idea.description || "(no description yet)"}\nCategory: ${idea.category}\nEnergy level: ${idea.energyLevel}/10` },
       ],
-      max_tokens: 800,
+      max_tokens: 1500,
     });
 
     let full = "";
@@ -218,12 +218,12 @@ router.post("/dream-lab/sirius-chat", requireUser, async (req: Request, res: Res
     const ideas = await db.select().from(dreamLabIdeas)
       .where(eq(dreamLabIdeas.userId, userId))
       .orderBy(desc(dreamLabIdeas.createdAt))
-      .limit(8);
+      .limit(12);
 
     const journalEntries = await db.select().from(dreamLabJournal)
       .where(eq(dreamLabJournal.userId, userId))
       .orderBy(desc(dreamLabJournal.createdAt))
-      .limit(4);
+      .limit(6);
 
     const ideasContext = ideas.length > 0
       ? `\nIDEAS & DREAMS IN THEIR BOARD:\n${ideas.map(i => `- "${i.title}"${i.description ? `: ${i.description}` : ""} [${i.status || "seed"}]`).join("\n")}`
@@ -272,7 +272,7 @@ NEVER engage with harmful, violent, exploitative, or hateful content. Gently red
 
     const messages: any[] = [{ role: "system", content: systemPrompt }];
     if (Array.isArray(history)) {
-      for (const h of history.slice(-12)) {
+      for (const h of history.slice(-30)) {
         if (h.role && h.content) messages.push({ role: h.role, content: h.content });
       }
     }
@@ -282,7 +282,7 @@ NEVER engage with harmful, violent, exploitative, or hateful content. Gently red
       model: "anthropic/claude-sonnet-4.5",
       stream: true,
       messages,
-      max_tokens: 1500,
+      max_tokens: 2500,
       temperature: 0.8,
     });
 

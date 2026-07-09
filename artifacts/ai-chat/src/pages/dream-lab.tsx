@@ -1312,7 +1312,7 @@ function SiriusChatView({ T, profile }: { T: typeof THEMES.cosmic; profile: Drea
 
   // Persist chat to localStorage whenever messages change
   useEffect(() => {
-    try { localStorage.setItem(storageKey, JSON.stringify(messages.slice(-40))); } catch {}
+    try { localStorage.setItem(storageKey, JSON.stringify(messages.slice(-60))); } catch {}
   }, [messages]);
 
   const startVoice = () => {
@@ -1346,7 +1346,7 @@ function SiriusChatView({ T, profile }: { T: typeof THEMES.cosmic; profile: Drea
     setStreaming(true);
 
     try {
-      const history = messages.slice(-12).map(m => ({ role: m.role, content: m.content }));
+      const history = messages.slice(-30).map(m => ({ role: m.role, content: m.content }));
       const res = await fetch(`${base}dream-lab/sirius-chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-dream-user": userId },
@@ -1536,7 +1536,7 @@ function SiriusChatView({ T, profile }: { T: typeof THEMES.cosmic; profile: Drea
               border: `1px solid ${voiceActive ? T.accent : T.border}`,
               color: T.text,
               minHeight: 48,
-              maxHeight: 120,
+              maxHeight: 240,
             }}
           />
           <button onClick={() => send()} disabled={streaming || !input.trim()}
