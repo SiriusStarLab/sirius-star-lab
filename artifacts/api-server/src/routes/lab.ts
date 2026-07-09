@@ -4100,6 +4100,34 @@ const LAB_TOOLS: any[] = [
   {
     type: "function",
     function: {
+      name: "create_task",
+      description: "Queue a background task for the Sirius Worker to run autonomously while Garry is away. The worker has full tool access: web search, file read/write, database queries, image generation, and notifications. Use this when a task would take too long for a live chat session, or when Garry asks you to 'do it while I'm away', 'handle that in the background', or 'queue that up'. The worker will notify Garry via Telegram when done.",
+      parameters: {
+        type: "object",
+        properties: {
+          title: { type: "string", description: "Short, clear task name (like an email subject)" },
+          description: { type: "string", description: "Full task brief — everything the worker needs to know to complete it without asking questions. Include specific goals, required outputs, any relevant context or IDs." },
+        },
+        required: ["title", "description"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_tasks",
+      description: "Show the current background task queue — pending, running, and recently completed tasks.",
+      parameters: {
+        type: "object",
+        properties: {
+          status: { type: "string", enum: ["pending", "running", "done", "failed", "all"], description: "Filter by status. Default: 'all'" },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "batch_complete_all",
       description: "Start a background job that runs the full completion pipeline on every project that has missing content. This includes: brief, market research, technical specs, business case, go-to-market plan, brochure, pitch, social posts, cost analysis, landing page, embed widget, and one AI render per project. The job runs on the server in the background — you don't need to stay in chat. Call get_batch_status to check progress. Only call this once; it will refuse to start if already running.",
       parameters: {
@@ -5295,6 +5323,48 @@ Context: ${ctx}`,
           `All ${results.filter(r => r.startsWith("✓")).length} projects now have complete documentation.`,
           `Call launch_project for each project when ready to go live.`,
         ].join("\n");
+      }
+
+      case "create_task": {
+        const { title, description } = args;
+        if (!title?.trim()) return "Task title is required.";
+        if (!description?.trim()) return "Task description is required — the worker needs enough detail to complete the task without asking questions.";
+        const [newTask] = await db.insert(siriusTasks).values({
+          title: title.trim(),
+          description: description.trim(),
+          status: "pending",
+          createdAt: new Date(),
+        } as any).returning();
+        return [
+          `╔══ TASK QUEUED ══╗`,
+          ``,
+          `Task #${newTask.id} — "${title}"`,
+          `Status: Pending (worker picks it up within 30 seconds)`,
+          ``,
+          `The worker has full tool access — web search, file I/O, database queries, image generation, and Garry notifications. It will Telegram Garry when done.`,
+          ``,
+          `Call list_tasks to check progress.`,
+        ].join("\n");
+      }
+
+      case "list_tasks": {
+        const statusFilter = (args.status || "all").toLowerCase();
+        let tasks;
+        if (statusFilter === "all") {
+          tasks = await db.select().from(siriusTasks).orderBy(desc(siriusTasks.createdAt)).limit(20);
+        } else {
+          tasks = await db.select().from(siriusTasks)
+            .where(eq(siriusTasks.status, statusFilter))
+            .orderBy(desc(siriusTasks.createdAt)).limit(20);
+        }
+        if (tasks.length === 0) return `No ${statusFilter === "all" ? "" : statusFilter + " "}tasks found.`;
+        const statusIcon: Record<string, string> = { pending: "⏳", running: "🔄", done: "✅", failed: "❌" };
+        const lines = tasks.map(t => {
+          const age = t.createdAt ? Math.round((Date.now() - new Date(t.createdAt).getTime()) / 60000) : 0;
+          const icon = statusIcon[t.status || "pending"] || "•";
+          return `${icon} #${t.id} "${t.title}" — ${t.status}${age < 60 ? ` (${age}m ago)` : ""}${t.result ? `\n   Result: ${t.result.slice(0, 120)}…` : ""}`;
+        });
+        return [`╔══ TASK QUEUE ══╗`, ``, ...lines].join("\n");
       }
 
       case "batch_complete_all": {
