@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import starLabHero from "@assets/IMG_0562_1783590587232.png";
+import starLabHero from "@assets/IMG_0562_1783595769136.png";
 
 function ConstellationBg() {
   const stars = Array.from({ length: 80 }, (_, i) => ({
@@ -71,7 +71,7 @@ export function SplashPage({ onEnter }: { onEnter: () => void }) {
         transition: "opacity 0.7s ease",
       }}>
         <div style={{
-          width: "min(400px, 85vw)",
+          width: "min(520px, 92vw)",
           aspectRatio: "1 / 1",
           borderRadius: "20px",
           overflow: "hidden",
@@ -95,7 +95,7 @@ export function SplashPage({ onEnter }: { onEnter: () => void }) {
           </div>
         </div>
 
-        <div style={{ marginTop: "0", width: "min(400px, 85vw)" }}>
+        <div style={{ marginTop: "0", width: "min(520px, 92vw)" }}>
           <button
             onMouseEnter={() => setHover(true)}
             onMouseLeave={() => setHover(false)}
