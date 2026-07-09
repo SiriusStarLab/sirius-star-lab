@@ -1,11 +1,6 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  Sparkles, Star, Flame, Heart, Lightbulb, BookOpen, Plus, X,
-  ChevronRight, ChevronDown, Send, Loader2, Trash2, Pin, PinOff,
-  Settings, ArrowLeft, Zap, Moon, Sun, Target, TrendingUp, Smile,
-  Globe, RefreshCw, Edit3, Check, Wand2, HelpCircle, Mic
-} from "lucide-react";
+import { Sparkles, Star, Plus, X, Send, Loader2, ChevronRight, Settings, ArrowLeft, Mic, Edit3, Check, Zap, TrendingUp } from "lucide-react";
 import { useLocation } from "wouter";
 import { getUserId } from "@/lib/user-id";
 import { getApiBase } from "@/lib/api-base";
@@ -13,1344 +8,406 @@ import { getApiBase } from "@/lib/api-base";
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type DreamProfile = {
-  id: number;
-  userId: string;
-  displayName: string;
-  personality: string;
-  lifestyle: string;
-  coreValues: string;
-  bigDream: string;
-  manifestationStyle: string;
-  colourTheme: string;
+  id: number; userId: string; displayName: string; personality: string;
+  lifestyle: string; coreValues: string; bigDream: string;
+  manifestationStyle: string; colourTheme: string;
 };
 
-type Idea = {
-  id: number;
-  userId: string;
-  title: string;
-  description: string;
-  category: string;
-  status: string;
-  affirmations: string;
-  siriusInsights: string;
-  energyLevel: number;
-  pinned: boolean;
-  colour: string;
-  emoji: string;
-  createdAt: string;
+type Dream = {
+  id: number; userId: string; title: string; description: string;
+  category: string; status: string; affirmations: string;
+  siriusInsights: string; energyLevel: number; pinned: boolean;
+  colour: string; emoji: string; createdAt: string;
 };
 
-type Manifestation = {
-  id: number;
-  text: string;
-  type: string;
-  frequency: string;
-  createdAt: string;
+type ChatMsg = { id?: number; role: "user" | "assistant"; content: string; createdAt?: string };
+
+// ── Theme ─────────────────────────────────────────────────────────────────────
+
+const T = {
+  bg: "#09101F",
+  sidebar: "#0B1322",
+  card: "rgba(255,255,255,0.04)",
+  cardHover: "rgba(255,255,255,0.07)",
+  cardActive: "rgba(0,196,255,0.08)",
+  border: "rgba(255,255,255,0.07)",
+  borderActive: "rgba(0,196,255,0.25)",
+  accent: "#00C4FF",
+  accentGreen: "#00E5A0",
+  text: "#E8F4FF",
+  textMid: "rgba(180,210,240,0.6)",
+  textFaint: "rgba(100,130,160,0.45)",
+  msgBg: "rgba(255,255,255,0.05)",
+  inputBg: "rgba(0,0,0,0.3)",
 };
 
-type JournalEntry = {
-  id: number;
-  title: string;
-  content: string;
-  mood: string;
-  tags: string;
-  createdAt: string;
+const STATUS_CONFIG: Record<string, { label: string; color: string; glow: string }> = {
+  seed:       { label: "🌱 Seed",      color: "rgba(34,197,94,0.8)",   glow: "rgba(34,197,94,0.15)" },
+  growing:    { label: "🌿 Growing",   color: "rgba(6,182,212,0.8)",   glow: "rgba(6,182,212,0.15)" },
+  blooming:   { label: "🌸 Blooming",  color: "rgba(168,85,247,0.8)",  glow: "rgba(168,85,247,0.15)" },
+  manifested: { label: "⭐ Manifested", color: "rgba(245,158,11,0.8)", glow: "rgba(245,158,11,0.15)" },
 };
 
-type ChatMsg = { role: "user" | "assistant"; content: string };
+const STATUSES = ["seed", "growing", "blooming", "manifested"];
 
-// ── Colour themes ─────────────────────────────────────────────────────────────
-
-const THEMES: Record<string, { bg: string; gradient: string; accent: string; soft: string; text: string; border: string; msgBg: string; inputBg: string }> = {
-  sirius:  { bg: "#EFF6FF", gradient: "linear-gradient(160deg, hsl(193,80%,93%) 0%, hsl(210,70%,91%) 40%, hsl(220,65%,93%) 100%)", accent: "#0891b2", soft: "rgba(8,145,178,0.1)", text: "#0F172A", border: "rgba(15,23,42,0.1)", msgBg: "white", inputBg: "white" },
-  pearl:   { bg: "#F8FAFC", gradient: "linear-gradient(135deg, hsl(280,60%,97%) 0%, hsl(260,50%,95%) 50%, hsl(240,45%,96%) 100%)", accent: "#7c3aed", soft: "rgba(124,58,237,0.09)", text: "#1e1b4b", border: "rgba(124,58,237,0.12)", msgBg: "white", inputBg: "white" },
-  cosmic:  { bg: "#0f0a1e", gradient: "linear-gradient(135deg, #1a0533 0%, #0d1b3e 50%, #0f0a1e 100%)", accent: "#a855f7", soft: "rgba(168,85,247,0.12)", text: "#e2d9f3", border: "rgba(168,85,247,0.2)", msgBg: "rgba(255,255,255,0.07)", inputBg: "rgba(255,255,255,0.07)" },
-  golden:  { bg: "#1a1200", gradient: "linear-gradient(135deg, #2a1a00 0%, #1a1200 50%, #0f0d00 100%)", accent: "#f59e0b", soft: "rgba(245,158,11,0.12)", text: "#fef3c7", border: "rgba(245,158,11,0.2)", msgBg: "rgba(255,255,255,0.07)", inputBg: "rgba(255,255,255,0.07)" },
-  ocean:   { bg: "#001a2e", gradient: "linear-gradient(135deg, #002244 0%, #001a2e 50%, #000f1a 100%)", accent: "#06b6d4", soft: "rgba(6,182,212,0.12)", text: "#cffafe", border: "rgba(6,182,212,0.2)", msgBg: "rgba(255,255,255,0.07)", inputBg: "rgba(255,255,255,0.07)" },
-  forest:  { bg: "#051a08", gradient: "linear-gradient(135deg, #0a2e0f 0%, #051a08 50%, #010f03 100%)", accent: "#22c55e", soft: "rgba(34,197,94,0.12)", text: "#dcfce7", border: "rgba(34,197,94,0.2)", msgBg: "rgba(255,255,255,0.07)", inputBg: "rgba(255,255,255,0.07)" },
-  rose:    { bg: "#1a0010", gradient: "linear-gradient(135deg, #2e001a 0%, #1a0010 50%, #0f0009 100%)", accent: "#f43f5e", soft: "rgba(244,63,94,0.12)", text: "#ffe4e6", border: "rgba(244,63,94,0.2)", msgBg: "rgba(255,255,255,0.07)", inputBg: "rgba(255,255,255,0.07)" },
-};
-
-const IDEA_COLOURS: Record<string, string> = {
-  violet: "#a855f7",
-  blue:   "#3b82f6",
-  cyan:   "#06b6d4",
-  green:  "#22c55e",
-  amber:  "#f59e0b",
-  rose:   "#f43f5e",
-  pink:   "#ec4899",
-  indigo: "#6366f1",
-};
-
-const CATEGORIES = [
-  { id: "idea",       label: "Idea",        emoji: "💡" },
-  { id: "business",  label: "Business",     emoji: "🚀" },
-  { id: "personal",  label: "Personal",     emoji: "🌱" },
-  { id: "creative",  label: "Creative",     emoji: "🎨" },
-  { id: "health",    label: "Health",       emoji: "💚" },
-  { id: "finance",   label: "Finance",      emoji: "💰" },
-  { id: "relationship", label: "Relationships", emoji: "❤️" },
-  { id: "spiritual", label: "Spiritual",    emoji: "✨" },
-];
-
-const MOODS = [
-  { id: "inspired",  emoji: "✨", label: "Inspired"  },
-  { id: "grateful",  emoji: "🙏", label: "Grateful"  },
-  { id: "excited",   emoji: "⚡", label: "Excited"   },
-  { id: "peaceful",  emoji: "🌿", label: "Peaceful"  },
-  { id: "focused",   emoji: "🎯", label: "Focused"   },
-  { id: "hopeful",   emoji: "🌅", label: "Hopeful"   },
-  { id: "joyful",    emoji: "😊", label: "Joyful"    },
-  { id: "reflective", emoji: "🌙", label: "Reflective" },
-];
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function useApiHeaders() {
-  const userId = getUserId();
-  return { "Content-Type": "application/json", "x-dream-user": userId };
-}
+// ── API helper ────────────────────────────────────────────────────────────────
 
 function useApi() {
   const base = getApiBase();
   const userId = getUserId();
-  const h = () => ({ "Content-Type": "application/json", "x-dream-user": userId });
-  const get = (path: string) => fetch(`${base}${path}`, { headers: { "x-dream-user": userId } });
-  const post = (path: string, body?: any) => fetch(`${base}${path}`, { method: "POST", headers: h(), body: JSON.stringify(body) });
-  const put = (path: string, body?: any) => fetch(`${base}${path}`, { method: "PUT", headers: h(), body: JSON.stringify(body) });
-  const del = (path: string) => fetch(`${base}${path}`, { method: "DELETE", headers: { "x-dream-user": userId } });
-  return { get, post, put, del };
+  const headers = { "Content-Type": "application/json", "x-dream-user": userId };
+  return {
+    get: (path: string) => fetch(`${base}${path}`, { headers }),
+    post: (path: string, body?: any) => fetch(`${base}${path}`, { method: "POST", headers, body: body ? JSON.stringify(body) : undefined }),
+    put: (path: string, body?: any) => fetch(`${base}${path}`, { method: "PUT", headers, body: body ? JSON.stringify(body) : undefined }),
+    del: (path: string) => fetch(`${base}${path}`, { method: "DELETE", headers }),
+  };
 }
 
-// ── Main Component ────────────────────────────────────────────────────────────
+// ── StatusBadge ───────────────────────────────────────────────────────────────
 
-type DreamView = "board" | "idea-detail" | "manifestations" | "journal" | "settings" | "chat" | "onboard";
-
-export function DreamLabPage() {
-  const [, setLocation] = useLocation();
-  const [profile, setProfile] = useState<DreamProfile | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<DreamView>("board");
-  const [selectedIdea, setSelectedIdea] = useState<Idea | null>(null);
-  const [theme, setTheme] = useState<string>("sirius");
-  const [showInfo, setShowInfo] = useState(false);
-  const api = useApi();
-
-  useEffect(() => {
-    loadProfile();
-  }, []);
-
-  const loadProfile = async () => {
-    setLoading(true);
-    try {
-      const r = await api.get("dream-lab/profile");
-      if (r.ok) {
-        const p = await r.json();
-        if (p) {
-          setProfile(p);
-          setTheme(p.colourTheme || "cosmic");
-          setView("board");
-        } else {
-          setView("onboard");
-        }
-      } else {
-        setView("onboard");
-      }
-    } catch {
-      setView("onboard");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const T = THEMES[theme] || THEMES.cosmic;
-  const isPearl = theme === "pearl";
-
-  if (loading) {
-    return (
-      <div className="h-screen flex items-center justify-center" style={{ background: THEMES.sirius.gradient }}>
-        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center gap-4">
-          <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{ background: THEMES.sirius.soft }}>
-            <Sparkles className="w-8 h-8 animate-pulse" style={{ color: THEMES.sirius.accent }} />
-          </div>
-          <p className="text-sm" style={{ color: "rgba(15,23,42,0.45)" }}>Loading your Dream Lab…</p>
-        </motion.div>
-      </div>
-    );
-  }
-
+function StatusBadge({ status, small }: { status: string; small?: boolean }) {
+  const s = STATUS_CONFIG[status] || STATUS_CONFIG.seed;
   return (
-    <div className="h-screen flex flex-col overflow-hidden" style={{ background: T.gradient }}>
-
-      {/* Header */}
-      <div className="flex items-center justify-between px-5 py-3 flex-shrink-0"
-        style={{ borderBottom: `1px solid ${T.border}`, background: `rgba(0,0,0,${(theme === "sirius" || theme === "pearl") ? "0.03" : "0.25"})`, backdropFilter: "blur(20px)" }}>
-
-        <div className="flex items-center gap-3">
-          {(view === "board" || view === "onboard") ? (
-            <button onClick={() => setLocation("/")}
-              title="Back to Sirius"
-              className="flex items-center justify-center w-8 h-8 rounded-xl transition-all"
-              style={{ background: T.soft, color: T.accent }}>
-              <X className="w-4 h-4" />
-            </button>
-          ) : (
-            <button onClick={() => { setView("board"); setSelectedIdea(null); }}
-              className="flex items-center justify-center w-8 h-8 rounded-xl transition-all"
-              style={{ background: T.soft, color: T.accent }}>
-              <ArrowLeft className="w-4 h-4" />
-            </button>
-          )}
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl flex items-center justify-center"
-              style={{ background: `linear-gradient(135deg, ${T.accent}, ${T.accent}88)` }}>
-              <Star className="w-4 h-4" style={{ color: isPearl ? "#fff" : "#fff" }} />
-            </div>
-            <div>
-              <h1 className="font-bold text-sm leading-none" style={{ color: T.text }}>Dream Lab</h1>
-              <p className="text-[10px] mt-0.5" style={{ color: `${T.text}80` }}>
-                {profile?.displayName ? `${profile.displayName}'s space` : "Your personal space"}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button onClick={() => setView("chat")} title="Chat with Sirius"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all"
-            style={{ background: view === "chat" ? T.accent : T.soft, color: view === "chat" ? "#fff" : T.accent }}>
-            <Sparkles className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Sirius</span>
-          </button>
-          <button onClick={() => setView("manifestations")} title="Manifestations"
-            className="flex items-center justify-center w-8 h-8 rounded-xl transition-all"
-            style={{ background: view === "manifestations" ? T.accent : T.soft, color: view === "manifestations" ? "#fff" : T.accent }}>
-            <Zap className="w-3.5 h-3.5" />
-          </button>
-          <button onClick={() => setView("journal")} title="Dream Journal"
-            className="flex items-center justify-center w-8 h-8 rounded-xl transition-all"
-            style={{ background: view === "journal" ? T.accent : T.soft, color: view === "journal" ? "#fff" : T.accent }}>
-            <BookOpen className="w-3.5 h-3.5" />
-          </button>
-          <button onClick={() => setView("settings")} title="Personalise"
-            className="flex items-center justify-center w-8 h-8 rounded-xl transition-all"
-            style={{ background: view === "settings" ? T.accent : T.soft, color: view === "settings" ? "#fff" : T.accent }}>
-            <Settings className="w-3.5 h-3.5" />
-          </button>
-          <button onClick={() => setShowInfo(true)} title="What is Dream Lab?"
-            className="flex items-center justify-center w-8 h-8 rounded-xl transition-all"
-            style={{ background: T.soft, color: T.accent }}>
-            <HelpCircle className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      </div>
-
-      {/* Info overlay */}
-      <AnimatePresence>
-        {showInfo && <DreamLabInfoOverlay T={T} onClose={() => setShowInfo(false)} />}
-      </AnimatePresence>
-
-      {/* Body */}
-      <div className="flex-1 overflow-hidden">
-        <AnimatePresence mode="wait">
-          {view === "onboard" && (
-            <motion.div key="onboard" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="h-full">
-              <OnboardView T={T} theme={theme} onComplete={(p) => { setProfile(p); setTheme(p.colourTheme); setView("board"); }} />
-            </motion.div>
-          )}
-          {view === "board" && (
-            <motion.div key="board" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-              className="h-full">
-              <BoardView T={T} profile={profile} theme={theme} onSelectIdea={(idea) => { setSelectedIdea(idea); setView("idea-detail"); }} />
-            </motion.div>
-          )}
-          {view === "idea-detail" && selectedIdea && (
-            <motion.div key="idea-detail" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}
-              className="h-full">
-              <IdeaDetailView T={T} idea={selectedIdea} onBack={() => { setView("board"); setSelectedIdea(null); }}
-                onUpdate={(updated) => setSelectedIdea(updated)} />
-            </motion.div>
-          )}
-          {view === "manifestations" && (
-            <motion.div key="manifestations" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-              className="h-full">
-              <ManifestationsView T={T} />
-            </motion.div>
-          )}
-          {view === "journal" && (
-            <motion.div key="journal" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-              className="h-full">
-              <JournalView T={T} />
-            </motion.div>
-          )}
-          {view === "chat" && (
-            <motion.div key="chat" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-              className="h-full">
-              <SiriusChatView T={T} profile={profile} />
-            </motion.div>
-          )}
-          {view === "settings" && (
-            <motion.div key="settings" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-              className="h-full">
-              <SettingsView T={T} profile={profile} theme={theme}
-                onSave={(p) => { setProfile(p); setTheme(p.colourTheme); setView("board"); }} />
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-    </div>
+    <span style={{
+      fontSize: small ? "0.6rem" : "0.65rem",
+      fontWeight: 600,
+      padding: small ? "2px 7px" : "3px 9px",
+      borderRadius: "20px",
+      color: s.color,
+      background: s.glow,
+      letterSpacing: "0.03em",
+      whiteSpace: "nowrap",
+    }}>{s.label}</span>
   );
 }
 
-// ── Onboard View ──────────────────────────────────────────────────────────────
+// ── DreamSidebar ──────────────────────────────────────────────────────────────
 
-function OnboardView({ T, theme, onComplete }: { T: typeof THEMES.cosmic; theme: string; onComplete: (p: DreamProfile) => void }) {
-  const [step, setStep] = useState(0);
-  const [form, setForm] = useState({
-    displayName: "", personality: "", lifestyle: "", coreValues: "", bigDream: "",
-    manifestationStyle: "", colourTheme: theme,
+function DreamSidebar({
+  dreams, selectedId, onSelect, onNewDream, profile,
+}: {
+  dreams: Dream[]; selectedId: number | null;
+  onSelect: (d: Dream) => void; onNewDream: () => void; profile: DreamProfile | null;
+}) {
+  const sorted = [...dreams].sort((a, b) => {
+    if (a.pinned && !b.pinned) return -1;
+    if (!a.pinned && b.pinned) return 1;
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
   });
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const api = useApi();
-
-  const STEPS = [
-    {
-      title: "Welcome to your Dream Lab",
-      subtitle: "This is your private space to grow ideas, manifest visions, and build the life you imagine. Let's personalise it for you.",
-      field: null,
-      icon: Sparkles,
-    },
-    {
-      title: "What's your name?",
-      subtitle: "How should Sirius address you in your Dream Lab?",
-      field: "displayName",
-      placeholder: "Your name or how you'd like to be called…",
-      icon: Heart,
-    },
-    {
-      title: "Describe your personality",
-      subtitle: "Tell Sirius who you are — your energy, how you think, what lights you up.",
-      field: "personality",
-      placeholder: "e.g. Creative, driven, big-picture thinker who loves connecting ideas across different worlds…",
-      multiline: true,
-      icon: Star,
-    },
-    {
-      title: "How do you live?",
-      subtitle: "Your lifestyle, your values, what matters most to how you live each day.",
-      field: "lifestyle",
-      placeholder: "e.g. Building a family business while staying grounded in spirituality, health, and creativity…",
-      multiline: true,
-      icon: Globe,
-    },
-    {
-      title: "What do you stand for?",
-      subtitle: "Your core values — the principles that guide everything you do.",
-      field: "coreValues",
-      placeholder: "e.g. Integrity, innovation, human connection, contribution, freedom…",
-      multiline: true,
-      icon: Target,
-    },
-    {
-      title: "Your biggest dream",
-      subtitle: "The vision that excites you most. Don't hold back — dream out loud.",
-      field: "bigDream",
-      placeholder: "e.g. Building a portfolio of AI-powered businesses that genuinely help people live better lives…",
-      multiline: true,
-      icon: Flame,
-    },
-    {
-      title: "How do you manifest?",
-      subtitle: "What feels most natural for you when calling in what you want?",
-      field: "manifestationStyle",
-      placeholder: "e.g. Journalling, visualisation, affirmations in the morning, vision boards, prayer…",
-      multiline: true,
-      icon: Wand2,
-    },
-    {
-      title: "Choose your space",
-      subtitle: "Pick the visual energy that feels right for your Dream Lab.",
-      field: "colourTheme",
-      icon: Moon,
-    },
-  ];
-
-  const current = STEPS[step];
-  const isLast = step === STEPS.length - 1;
-  const isPearl = form.colourTheme === "pearl";
-  const curT = THEMES[form.colourTheme] || T;
-
-  const handleSave = async () => {
-    setSaving(true);
-    setError("");
-    try {
-      const r = await api.post("dream-lab/profile", form);
-      if (!r.ok) {
-        const d = await r.json();
-        setError(d.error || "Failed to save");
-        return;
-      }
-      const p = await r.json();
-      onComplete(p);
-    } catch (err: any) {
-      setError(err?.message || "Failed to save");
-    } finally {
-      setSaving(false);
-    }
-  };
 
   return (
-    <div className="h-full flex flex-col items-center justify-center p-6 overflow-y-auto"
-      style={{ background: curT.gradient }}>
-      <motion.div
-        key={step}
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -20 }}
-        className="w-full max-w-lg">
-
-        {/* Icon */}
-        <div className="flex justify-center mb-6">
-          <div className="w-16 h-16 rounded-2xl flex items-center justify-center"
-            style={{ background: `linear-gradient(135deg, ${curT.accent}40, ${curT.accent}20)`, border: `1px solid ${curT.border}` }}>
-            <current.icon className="w-7 h-7" style={{ color: curT.accent }} />
-          </div>
-        </div>
-
-        {/* Text */}
-        <h2 className="text-2xl font-bold text-center mb-2" style={{ color: curT.text }}>
-          {current.title}
-        </h2>
-        <p className="text-center text-sm mb-8 leading-relaxed" style={{ color: `${curT.text}80` }}>
-          {current.subtitle}
-        </p>
-
-        {/* Input */}
-        {current.field && current.field !== "colourTheme" && (
-          current.multiline ? (
-            <textarea
-              value={(form as any)[current.field]}
-              onChange={e => setForm(f => ({ ...f, [current.field!]: e.target.value }))}
-              placeholder={current.placeholder}
-              rows={4}
-              className="w-full rounded-2xl p-4 text-sm mb-6 resize-none outline-none transition-all"
-              style={{
-                background: isPearl ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.08)",
-                border: `1px solid ${curT.border}`,
-                color: curT.text,
-                lineHeight: 1.7,
-              }}
-              autoFocus
-            />
-          ) : (
-            <input
-              value={(form as any)[current.field]}
-              onChange={e => setForm(f => ({ ...f, [current.field!]: e.target.value }))}
-              placeholder={current.placeholder}
-              className="w-full rounded-2xl p-4 text-sm mb-6 outline-none transition-all"
-              style={{
-                background: isPearl ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.08)",
-                border: `1px solid ${curT.border}`,
-                color: curT.text,
-              }}
-              autoFocus
-              onKeyDown={e => { if (e.key === "Enter" && !isLast) setStep(s => s + 1); }}
-            />
-          )
-        )}
-
-        {/* Theme picker */}
-        {current.field === "colourTheme" && (
-          <div className="grid grid-cols-3 gap-3 mb-6">
-            {Object.entries(THEMES).map(([key, th]) => (
-              <button
-                key={key}
-                onClick={() => setForm(f => ({ ...f, colourTheme: key }))}
-                className="relative h-20 rounded-2xl overflow-hidden transition-all flex flex-col items-center justify-center gap-1.5"
-                style={{
-                  background: th.gradient,
-                  border: form.colourTheme === key ? `2px solid ${th.accent}` : `1px solid ${th.border}`,
-                  boxShadow: form.colourTheme === key ? `0 0 20px ${th.accent}40` : "none",
-                }}>
-                {form.colourTheme === key && (
-                  <div className="absolute top-2 right-2 w-4 h-4 rounded-full flex items-center justify-center"
-                    style={{ background: th.accent }}>
-                    <Check className="w-2.5 h-2.5 text-white" />
-                  </div>
-                )}
-                <div className="w-6 h-6 rounded-full" style={{ background: th.accent }} />
-                <span className="text-[10px] font-bold capitalize" style={{ color: th.text }}>{key}</span>
-              </button>
-            ))}
-          </div>
-        )}
-
-        {error && (
-          <p className="text-center text-sm mb-4 px-4 py-2 rounded-xl" style={{ background: "rgba(244,63,94,0.15)", color: "#f43f5e" }}>
-            {error}
+    <div style={{
+      width: "260px",
+      flexShrink: 0,
+      background: T.sidebar,
+      borderRight: `1px solid ${T.border}`,
+      display: "flex",
+      flexDirection: "column",
+      overflow: "hidden",
+    }}>
+      {/* Sidebar header */}
+      <div style={{ padding: "16px 14px 12px", borderBottom: `1px solid ${T.border}` }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+          <p style={{ fontSize: "0.7rem", letterSpacing: "0.15em", color: T.textFaint, textTransform: "uppercase", fontWeight: 600 }}>
+            My Dreams
           </p>
-        )}
-
-        {/* Actions */}
-        <div className="flex gap-3">
-          {step > 0 && (
-            <button onClick={() => setStep(s => s - 1)}
-              className="flex-1 py-3 rounded-2xl font-medium text-sm transition-all"
-              style={{ background: curT.soft, color: curT.accent }}>
-              Back
-            </button>
+          {profile?.displayName && (
+            <span style={{ fontSize: "0.65rem", color: T.textMid }}>{profile.displayName}</span>
           )}
-          <button
-            onClick={() => isLast ? handleSave() : setStep(s => s + 1)}
-            disabled={saving}
-            className="flex-1 py-3 rounded-2xl font-bold text-sm transition-all flex items-center justify-center gap-2"
-            style={{ background: `linear-gradient(135deg, ${curT.accent}, ${curT.accent}cc)`, color: "#fff" }}>
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-            {isLast ? (saving ? "Creating your space…" : "Enter your Dream Lab ✨") : step === 0 ? "Let's begin" : "Continue"}
-          </button>
         </div>
+        <button
+          onClick={onNewDream}
+          style={{
+            width: "100%",
+            background: "rgba(0,196,255,0.08)",
+            border: "1px dashed rgba(0,196,255,0.25)",
+            borderRadius: "10px",
+            color: T.accent,
+            fontSize: "0.78rem",
+            fontWeight: 500,
+            padding: "9px 12px",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: "7px",
+            letterSpacing: "0.02em",
+            transition: "all 0.2s",
+          }}
+        >
+          <Plus style={{ width: 14, height: 14 }} />
+          Plant a new dream
+        </button>
+      </div>
 
-        {/* Progress dots */}
-        <div className="flex items-center justify-center gap-1.5 mt-6">
-          {STEPS.map((_, i) => (
-            <div key={i} className="rounded-full transition-all"
+      {/* Dream list */}
+      <div style={{ flex: 1, overflowY: "auto", padding: "8px 8px" }}>
+        {sorted.length === 0 && (
+          <div style={{ padding: "24px 12px", textAlign: "center" }}>
+            <p style={{ fontSize: "0.75rem", color: T.textFaint, lineHeight: 1.6 }}>
+              No dreams yet.<br />Plant your first one above.
+            </p>
+          </div>
+        )}
+        {sorted.map(d => {
+          const isActive = d.id === selectedId;
+          return (
+            <button
+              key={d.id}
+              onClick={() => onSelect(d)}
               style={{
-                width: i === step ? 20 : 6,
-                height: 6,
-                background: i === step ? curT.accent : i < step ? `${curT.accent}60` : `${curT.text}20`,
-              }} />
-          ))}
-        </div>
-      </motion.div>
+                width: "100%",
+                background: isActive ? T.cardActive : "transparent",
+                border: `1px solid ${isActive ? T.borderActive : "transparent"}`,
+                borderRadius: "10px",
+                padding: "10px 12px",
+                cursor: "pointer",
+                textAlign: "left",
+                marginBottom: "3px",
+                transition: "all 0.15s",
+              }}
+              onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = T.cardHover; }}
+              onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+            >
+              <div style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
+                <span style={{ fontSize: "1rem", flexShrink: 0, lineHeight: 1.2 }}>{d.emoji || "✨"}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{
+                    fontSize: "0.8rem", fontWeight: isActive ? 600 : 400,
+                    color: isActive ? T.text : "rgba(200,220,240,0.8)",
+                    whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                    marginBottom: "4px", lineHeight: 1.3,
+                  }}>{d.title}</p>
+                  <StatusBadge status={d.status} small />
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
 
-// ── Board View ─────────────────────────────────────────────────────────────────
+// ── NewDreamForm ──────────────────────────────────────────────────────────────
 
-function BoardView({ T, profile, theme, onSelectIdea }: { T: typeof THEMES.cosmic; profile: DreamProfile | null; theme: string; onSelectIdea: (i: Idea) => void }) {
-  const [ideas, setIdeas] = useState<Idea[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [creating, setCreating] = useState(false);
-  const [newTitle, setNewTitle] = useState("");
-  const [newDesc, setNewDesc] = useState("");
-  const [newCategory, setNewCategory] = useState("idea");
-  const [newColour, setNewColour] = useState("violet");
-  const [newEmoji, setNewEmoji] = useState("✨");
-  const [newEnergy, setNewEnergy] = useState(7);
+function NewDreamForm({ onCreated, onCancel }: { onCreated: (d: Dream) => void; onCancel: () => void }) {
+  const [title, setTitle] = useState("");
+  const [desc, setDesc] = useState("");
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
   const api = useApi();
-  const isPearl = theme === "pearl";
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const loadIdeas = useCallback(async () => {
-    setLoading(true);
-    try {
-      const r = await api.get("dream-lab/ideas");
-      if (r.ok) setIdeas(await r.json());
-    } finally { setLoading(false); }
-  }, []);
+  useEffect(() => { inputRef.current?.focus(); }, []);
 
-  useEffect(() => { loadIdeas(); }, [loadIdeas]);
-
-  const createIdea = async () => {
-    if (!newTitle.trim()) return;
+  const submit = async () => {
+    if (!title.trim() || saving) return;
     setSaving(true);
-    setError("");
     try {
       const r = await api.post("dream-lab/ideas", {
-        title: newTitle, description: newDesc, category: newCategory,
-        colour: newColour, emoji: newEmoji, energyLevel: newEnergy,
+        title: title.trim(),
+        description: desc.trim(),
+        category: "dream",
+        energyLevel: 7,
       });
-      if (!r.ok) { const d = await r.json(); setError(d.error || "Failed"); return; }
-      const idea = await r.json();
-      setIdeas(prev => [idea, ...prev]);
-      setCreating(false);
-      setNewTitle(""); setNewDesc(""); setNewCategory("idea"); setNewColour("violet"); setNewEmoji("✨"); setNewEnergy(7);
-    } catch (err: any) {
-      setError(err?.message || "Failed to create");
+      if (r.ok) {
+        const d = await r.json();
+        onCreated(d);
+      }
     } finally { setSaving(false); }
   };
 
-  const togglePin = async (idea: Idea, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const r = await api.put(`dream-lab/ideas/${idea.id}`, { ...idea, pinned: !idea.pinned });
-    if (r.ok) setIdeas(prev => prev.map(i => i.id === idea.id ? { ...i, pinned: !i.pinned } : i)
-      .sort((a, b) => Number(b.pinned) - Number(a.pinned)));
-  };
-
-  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
-
-  const deleteIdea = async (id: number, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (confirmDeleteId !== id) { setConfirmDeleteId(id); setTimeout(() => setConfirmDeleteId(null), 3000); return; }
-    setConfirmDeleteId(null);
-    await api.del(`dream-lab/ideas/${id}`);
-    setIdeas(prev => prev.filter(i => i.id !== id));
-  };
-
-  const STATUS_LABELS: Record<string, string> = {
-    seed: "🌱 Seed",
-    growing: "🌿 Growing",
-    blooming: "🌸 Blooming",
-    manifested: "⭐ Manifested",
-  };
-
   return (
-    <div className="h-full overflow-y-auto px-4 sm:px-6 py-5">
+    <motion.div
+      initial={{ opacity: 0, scale: 0.96 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.96 }}
+      style={{
+        position: "absolute", inset: 0, zIndex: 50,
+        background: "rgba(7,9,15,0.85)",
+        backdropFilter: "blur(20px)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        padding: "24px",
+      }}
+    >
+      <div style={{
+        width: "100%", maxWidth: "480px",
+        background: "#0D1526",
+        border: `1px solid ${T.borderActive}`,
+        borderRadius: "20px",
+        padding: "32px 28px",
+        boxShadow: "0 0 60px rgba(0,196,255,0.08)",
+      }}>
+        <div style={{ height: "2px", background: "linear-gradient(90deg, #00C4FF, #00E5A0)", borderRadius: "2px", marginBottom: "24px" }} />
+        <h2 style={{ fontSize: "1.1rem", fontWeight: 300, color: T.text, marginBottom: "6px", letterSpacing: "-0.01em" }}>
+          Plant a new dream
+        </h2>
+        <p style={{ fontSize: "0.78rem", color: T.textMid, marginBottom: "22px" }}>
+          Give it a name — Sirius will help you grow it from here.
+        </p>
 
-      {/* Greeting */}
-      {profile && (
-        <div className="mb-6">
-          <h2 className="text-xl font-bold mb-1" style={{ color: T.text }}>
-            {getDayGreeting()}, {profile.displayName || "Dreamer"} ✨
-          </h2>
-          {profile.bigDream && (
-            <p className="text-sm" style={{ color: `${T.text}70` }}>
-              Manifesting: {profile.bigDream.slice(0, 80)}{profile.bigDream.length > 80 ? "…" : ""}
-            </p>
-          )}
-        </div>
-      )}
-
-      {/* Add idea button */}
-      <button
-        onClick={() => setCreating(true)}
-        className="w-full py-3.5 rounded-2xl flex items-center justify-center gap-2 font-semibold text-sm mb-6 transition-all"
-        style={{ background: `linear-gradient(135deg, ${T.accent}, ${T.accent}bb)`, color: "#fff", boxShadow: `0 4px 20px ${T.accent}40` }}>
-        <Plus className="w-4 h-4" />
-        Add a new dream or idea
-      </button>
-
-      {/* Create form */}
-      <AnimatePresence>
-        {creating && (
-          <motion.div
-            initial={{ opacity: 0, y: -10, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -10, scale: 0.97 }}
-            className="rounded-2xl p-5 mb-6"
-            style={{ background: isPearl ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.07)", border: `1px solid ${T.border}` }}>
-
-            <div className="flex items-center justify-between mb-4">
-              <span className="font-semibold text-sm" style={{ color: T.text }}>New Dream or Idea</span>
-              <button onClick={() => setCreating(false)} style={{ color: `${T.text}50` }}>
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Category */}
-            <div className="flex flex-wrap gap-2 mb-4">
-              {CATEGORIES.map(c => (
-                <button key={c.id} onClick={() => setNewCategory(c.id)}
-                  className="px-3 py-1.5 rounded-xl text-xs font-medium transition-all"
-                  style={{
-                    background: newCategory === c.id ? T.accent : T.soft,
-                    color: newCategory === c.id ? "#fff" : T.text,
-                  }}>
-                  {c.emoji} {c.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Colour */}
-            <div className="flex gap-2 mb-4">
-              {Object.entries(IDEA_COLOURS).map(([key, hex]) => (
-                <button key={key} onClick={() => setNewColour(key)}
-                  className="w-6 h-6 rounded-full transition-all"
-                  style={{
-                    background: hex,
-                    transform: newColour === key ? "scale(1.25)" : "scale(1)",
-                    boxShadow: newColour === key ? `0 0 0 2px ${isPearl ? "#fff" : "#000"}, 0 0 0 4px ${hex}` : "none",
-                  }} />
-              ))}
-            </div>
-
-            <input
-              value={newTitle}
-              onChange={e => setNewTitle(e.target.value)}
-              placeholder="Your dream or idea…"
-              className="w-full rounded-xl p-3 text-sm mb-3 outline-none"
-              style={{ background: T.soft, color: T.text, border: `1px solid ${T.border}` }}
-              autoFocus
-            />
-            <textarea
-              value={newDesc}
-              onChange={e => setNewDesc(e.target.value)}
-              placeholder="Describe it — what's the vision? What excites you about this? (optional)"
-              rows={3}
-              className="w-full rounded-xl p-3 text-sm mb-4 outline-none resize-none"
-              style={{ background: T.soft, color: T.text, border: `1px solid ${T.border}`, lineHeight: 1.6 }}
-            />
-
-            {/* Energy slider */}
-            <div className="mb-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-medium" style={{ color: `${T.text}80` }}>Energy level</span>
-                <span className="text-xs font-bold" style={{ color: T.accent }}>{newEnergy}/10 {newEnergy >= 8 ? "🔥" : newEnergy >= 5 ? "⚡" : "🌱"}</span>
-              </div>
-              <input type="range" min={1} max={10} value={newEnergy} onChange={e => setNewEnergy(parseInt(e.target.value))}
-                className="w-full" style={{ accentColor: T.accent }} />
-            </div>
-
-            {error && <p className="text-xs mb-3 px-3 py-2 rounded-xl" style={{ background: "rgba(244,63,94,0.15)", color: "#f43f5e" }}>{error}</p>}
-
-            <div className="flex gap-3">
-              <button onClick={() => setCreating(false)}
-                className="flex-1 py-2.5 rounded-xl text-sm font-medium"
-                style={{ background: T.soft, color: T.text }}>
-                Cancel
-              </button>
-              <button onClick={createIdea} disabled={saving || !newTitle.trim()}
-                className="flex-1 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2"
-                style={{ background: T.accent, color: "#fff", opacity: !newTitle.trim() ? 0.5 : 1 }}>
-                {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
-                Plant this dream
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Ideas grid */}
-      {loading ? (
-        <div className="flex justify-center py-16">
-          <Loader2 className="w-6 h-6 animate-spin" style={{ color: T.accent }} />
-        </div>
-      ) : ideas.length === 0 ? (
-        <div className="flex flex-col items-center py-16 gap-4 text-center">
-          <div className="w-20 h-20 rounded-3xl flex items-center justify-center"
-            style={{ background: T.soft, border: `1px solid ${T.border}` }}>
-            <Lightbulb className="w-9 h-9" style={{ color: T.accent }} />
-          </div>
-          <div>
-            <p className="font-semibold mb-1" style={{ color: T.text }}>Your Dream Lab is ready</p>
-            <p className="text-sm" style={{ color: `${T.text}60` }}>
-              Add your first idea, vision, or dream — Sirius will help you grow it.
-            </p>
-          </div>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {ideas.map(idea => {
-            const colour = IDEA_COLOURS[idea.colour] || T.accent;
-            const cat = CATEGORIES.find(c => c.id === idea.category);
-            return (
-              <motion.div
-                key={idea.id}
-                layout
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                onClick={() => onSelectIdea(idea)}
-                className="group relative rounded-2xl p-4 cursor-pointer transition-all"
-                style={{
-                  background: isPearl ? "rgba(255,255,255,0.85)" : "rgba(255,255,255,0.07)",
-                  border: `1px solid ${colour}30`,
-                  boxShadow: idea.pinned ? `0 0 20px ${colour}20` : "none",
-                }}
-                whileHover={{ y: -3, boxShadow: `0 8px 30px ${colour}25` }}>
-
-                {/* Pin indicator */}
-                {idea.pinned && (
-                  <div className="absolute top-3 left-3 w-1.5 h-1.5 rounded-full"
-                    style={{ background: colour }} />
-                )}
-
-                {/* Actions — always visible on touch, hover on desktop */}
-                <div className="absolute top-3 right-3 flex gap-1.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                  <button onClick={e => togglePin(idea, e)}
-                    className="w-6 h-6 rounded-lg flex items-center justify-center"
-                    style={{ background: T.soft, color: idea.pinned ? colour : `${T.text}50` }}>
-                    {idea.pinned ? <Pin className="w-3 h-3" /> : <PinOff className="w-3 h-3" />}
-                  </button>
-                  <button onClick={e => deleteIdea(idea.id, e)}
-                    className="rounded-lg flex items-center justify-center transition-all text-[10px] font-bold"
-                    style={{
-                      background: confirmDeleteId === idea.id ? "#f43f5e" : "rgba(244,63,94,0.1)",
-                      color: confirmDeleteId === idea.id ? "#fff" : "#f43f5e",
-                      width: confirmDeleteId === idea.id ? "auto" : 24,
-                      height: 24,
-                      padding: confirmDeleteId === idea.id ? "0 6px" : undefined,
-                    }}>
-                    {confirmDeleteId === idea.id ? "Sure?" : <Trash2 className="w-3 h-3" />}
-                  </button>
-                </div>
-
-                {/* Emoji + category */}
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-xl">{idea.emoji || cat?.emoji || "💡"}</span>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                    style={{ background: `${colour}20`, color: colour }}>
-                    {cat?.label || idea.category}
-                  </span>
-                </div>
-
-                {/* Title */}
-                <h3 className="font-bold text-sm mb-1 leading-snug" style={{ color: T.text }}>
-                  {idea.title}
-                </h3>
-
-                {/* Description */}
-                {idea.description && (
-                  <p className="text-xs mb-3 leading-relaxed line-clamp-2" style={{ color: `${T.text}70` }}>
-                    {idea.description}
-                  </p>
-                )}
-
-                {/* Footer */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <div className="h-1.5 rounded-full overflow-hidden flex-1" style={{ background: T.soft, width: 60 }}>
-                      <div className="h-full rounded-full" style={{ width: `${idea.energyLevel * 10}%`, background: colour }} />
-                    </div>
-                    <span className="text-[9px]" style={{ color: `${T.text}50` }}>{idea.energyLevel}/10</span>
-                  </div>
-                  <span className="text-[10px]" style={{ color: `${T.text}40` }}>
-                    {STATUS_LABELS[idea.status] || idea.status}
-                  </span>
-                </div>
-
-                {/* Sirius insight indicator */}
-                {idea.siriusInsights && (
-                  <div className="mt-2 flex items-center gap-1">
-                    <Sparkles className="w-2.5 h-2.5" style={{ color: colour }} />
-                    <span className="text-[9px] font-medium" style={{ color: colour }}>Sirius has insights</span>
-                  </div>
-                )}
-              </motion.div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Idea Detail View ───────────────────────────────────────────────────────────
-
-function IdeaDetailView({ T, idea, onBack, onUpdate }: { T: typeof THEMES.cosmic; idea: Idea; onBack: () => void; onUpdate: (i: Idea) => void }) {
-  const [insights, setInsights] = useState(idea.siriusInsights || "");
-  const [streaming, setStreaming] = useState(false);
-  const [editDesc, setEditDesc] = useState(idea.description);
-  const [editStatus, setEditStatus] = useState(idea.status);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const colour = IDEA_COLOURS[idea.colour] || T.accent;
-  const cat = CATEGORIES.find(c => c.id === idea.category);
-  const api = useApi();
-  const base = getApiBase();
-  const userId = getUserId();
-
-  const askSirius = async () => {
-    setStreaming(true);
-    setInsights("");
-    try {
-      const res = await fetch(`${base}dream-lab/ideas/${idea.id}/sirius`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-dream-user": userId },
-      });
-      if (!res.body) return;
-      const reader = res.body.getReader();
-      const dec = new TextDecoder();
-      let buf = "";
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buf += dec.decode(value, { stream: true });
-        const lines = buf.split("\n");
-        buf = lines.pop() || "";
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          try {
-            const d = JSON.parse(line.slice(6));
-            if (d.text) setInsights(prev => prev + d.text);
-          } catch {}
-        }
-      }
-    } finally { setStreaming(false); }
-  };
-
-  const saveChanges = async () => {
-    setSaving(true);
-    const r = await api.put(`dream-lab/ideas/${idea.id}`, { ...idea, description: editDesc, status: editStatus });
-    if (r.ok) { const updated = await r.json(); onUpdate(updated); setSaved(true); setTimeout(() => setSaved(false), 2500); }
-    setSaving(false);
-  };
-
-  const STATUS_OPTIONS = [
-    { id: "seed",       label: "🌱 Seed",      desc: "Just planted" },
-    { id: "growing",    label: "🌿 Growing",   desc: "Taking shape" },
-    { id: "blooming",   label: "🌸 Blooming",  desc: "Really developing" },
-    { id: "manifested", label: "⭐ Manifested", desc: "Brought to life" },
-  ];
-
-  return (
-    <div className="h-full overflow-y-auto px-4 sm:px-6 py-5">
-
-      {/* Header */}
-      <div className="flex items-start gap-3 mb-6">
-        <span className="text-3xl">{idea.emoji || cat?.emoji || "💡"}</span>
-        <div className="flex-1">
-          <h2 className="text-xl font-bold leading-tight" style={{ color: T.text }}>{idea.title}</h2>
-          <div className="flex items-center gap-2 mt-1">
-            <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: `${colour}20`, color: colour }}>
-              {cat?.label || idea.category}
-            </span>
-            <span className="text-[10px]" style={{ color: `${T.text}50` }}>
-              {new Date(idea.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "long" })}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Description edit */}
-      <div className="mb-5">
-        <label className="text-xs font-semibold mb-2 block" style={{ color: `${T.text}70` }}>Your vision</label>
-        <textarea
-          value={editDesc}
-          onChange={e => setEditDesc(e.target.value)}
-          placeholder="Describe this idea in more detail — what's the vision? What does it look like when it's real?"
-          rows={4}
-          className="w-full rounded-2xl p-4 text-sm outline-none resize-none"
-          style={{ background: "rgba(255,255,255,0.07)", border: `1px solid ${T.border}`, color: T.text, lineHeight: 1.7 }}
+        <input
+          ref={inputRef}
+          value={title}
+          onChange={e => setTitle(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && !e.shiftKey && submit()}
+          placeholder="Name your dream…"
+          style={{
+            width: "100%", background: T.inputBg, border: `1px solid ${T.border}`,
+            borderRadius: "10px", color: T.text, fontSize: "0.9rem",
+            padding: "12px 14px", outline: "none", marginBottom: "12px",
+            boxSizing: "border-box",
+          }}
         />
-      </div>
+        <textarea
+          value={desc}
+          onChange={e => setDesc(e.target.value)}
+          placeholder="A little more detail… (optional)"
+          rows={3}
+          style={{
+            width: "100%", background: T.inputBg, border: `1px solid ${T.border}`,
+            borderRadius: "10px", color: T.text, fontSize: "0.82rem",
+            padding: "10px 14px", outline: "none", resize: "none", marginBottom: "20px",
+            boxSizing: "border-box", lineHeight: 1.6,
+          }}
+        />
 
-      {/* Status */}
-      <div className="mb-5">
-        <label className="text-xs font-semibold mb-3 block" style={{ color: `${T.text}70` }}>Status</label>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          {STATUS_OPTIONS.map(s => (
-            <button key={s.id} onClick={() => setEditStatus(s.id)}
-              className="py-2 px-3 rounded-xl text-xs font-medium text-center transition-all"
-              style={{
-                background: editStatus === s.id ? `${colour}25` : "rgba(255,255,255,0.05)",
-                border: `1px solid ${editStatus === s.id ? colour : T.border}`,
-                color: editStatus === s.id ? colour : `${T.text}70`,
-              }}>
-              {s.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Save */}
-      <button onClick={saveChanges} disabled={saving}
-        className="w-full py-3 rounded-2xl text-sm font-semibold mb-6 flex items-center justify-center gap-2 transition-all"
-        style={{ background: saved ? `${colour}35` : `${colour}25`, border: `1px solid ${saved ? colour : `${colour}50`}`, color: colour }}>
-        {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-        {saved ? "Saved ✓" : "Save changes"}
-      </button>
-
-      {/* Sirius section */}
-      <div className="rounded-2xl p-5 mb-5"
-        style={{ background: "rgba(255,255,255,0.05)", border: `1px solid ${T.border}` }}>
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4" style={{ color: colour }} />
-            <span className="font-semibold text-sm" style={{ color: T.text }}>Sirius Insights</span>
-          </div>
-          <button onClick={askSirius} disabled={streaming}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all"
-            style={{ background: streaming ? "rgba(255,255,255,0.05)" : colour, color: streaming ? `${T.text}50` : "#fff" }}>
-            {streaming ? <Loader2 className="w-3 h-3 animate-spin" /> : <Wand2 className="w-3 h-3" />}
-            {insights ? "Refresh" : "Ask Sirius"}
+        <div style={{ display: "flex", gap: "10px" }}>
+          <button onClick={onCancel} style={{
+            flex: 1, background: "transparent", border: `1px solid ${T.border}`,
+            borderRadius: "10px", color: T.textMid, fontSize: "0.82rem",
+            padding: "11px", cursor: "pointer",
+          }}>Cancel</button>
+          <button onClick={submit} disabled={!title.trim() || saving} style={{
+            flex: 2,
+            background: title.trim() ? "linear-gradient(135deg, #00C4FF, #00E5A0)" : T.card,
+            border: "none", borderRadius: "10px",
+            color: title.trim() ? "#0B0F19" : T.textFaint,
+            fontSize: "0.82rem", fontWeight: 700,
+            padding: "11px", cursor: title.trim() ? "pointer" : "not-allowed",
+            transition: "all 0.2s",
+          }}>
+            {saving ? "Planting…" : "Plant dream"}
           </button>
         </div>
-
-        {insights ? (
-          <div className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: `${T.text}90` }}>
-            {insights}
-            {streaming && <span className="animate-pulse">▊</span>}
-          </div>
-        ) : (
-          <div className="text-center py-6">
-            <p className="text-sm" style={{ color: `${T.text}50` }}>
-              {streaming ? "Sirius is thinking about your idea…" : "Ask Sirius to analyse this idea, suggest affirmations, and reveal its hidden potential."}
-            </p>
-          </div>
-        )}
       </div>
-    </div>
+    </motion.div>
   );
 }
 
-// ── Manifestations View ────────────────────────────────────────────────────────
+// ── DreamConversation ─────────────────────────────────────────────────────────
 
-function ManifestationsView({ T }: { T: typeof THEMES.cosmic }) {
-  const [items, setItems] = useState<Manifestation[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [generating, setGenerating] = useState(false);
-  const [theme, setTheme] = useState("");
-  const [adding, setAdding] = useState(false);
-  const [newText, setNewText] = useState("");
-  const [newType, setNewType] = useState("affirmation");
-  const [generated, setGenerated] = useState<string[]>([]);
-  const [addedIndices, setAddedIndices] = useState<Set<number>>(new Set());
-  const api = useApi();
-
-  useEffect(() => {
-    api.get("dream-lab/manifestations").then(async r => {
-      if (r.ok) setItems(await r.json());
-    }).finally(() => setLoading(false));
-  }, []);
-
-  const generateAffirmations = async () => {
-    setGenerating(true);
-    setGenerated([]);
-    setAddedIndices(new Set());
-    try {
-      const r = await api.post("dream-lab/generate-affirmations", { theme, count: 6 });
-      if (r.ok) { const d = await r.json(); setGenerated(d.affirmations || []); }
-    } finally { setGenerating(false); }
-  };
-
-  const addManifestation = async (text: string, type: string = "affirmation", index?: number) => {
-    const r = await api.post("dream-lab/manifestations", { text, type, frequency: "daily" });
-    if (r.ok) {
-      const item = await r.json();
-      setItems(prev => [item, ...prev]);
-      if (index !== undefined) setAddedIndices(prev => new Set([...prev, index]));
-    }
-  };
-
-  const deleteItem = async (id: number) => {
-    await api.del(`dream-lab/manifestations/${id}`);
-    setItems(prev => prev.filter(i => i.id !== id));
-  };
-
-  const TYPE_LABELS: Record<string, { label: string; emoji: string }> = {
-    affirmation: { label: "Affirmation", emoji: "✨" },
-    intention:   { label: "Intention",   emoji: "🎯" },
-    gratitude:   { label: "Gratitude",   emoji: "🙏" },
-    vision:      { label: "Vision",      emoji: "🌟" },
-  };
-
-  return (
-    <div className="h-full overflow-y-auto px-4 sm:px-6 py-5">
-      <h2 className="text-xl font-bold mb-2" style={{ color: T.text }}>Manifestations</h2>
-      <p className="text-sm mb-6" style={{ color: `${T.text}60` }}>Your affirmations, intentions, and daily practices.</p>
-
-      {/* Sirius generator */}
-      <div className="rounded-2xl p-5 mb-6" style={{ background: "rgba(255,255,255,0.07)", border: `1px solid ${T.border}` }}>
-        <div className="flex items-center gap-2 mb-3">
-          <Wand2 className="w-4 h-4" style={{ color: T.accent }} />
-          <span className="font-semibold text-sm" style={{ color: T.text }}>Generate with Sirius</span>
-        </div>
-        <input value={theme} onChange={e => setTheme(e.target.value)}
-          placeholder="Theme e.g. abundance, confidence, love, my business… (optional)"
-          className="w-full rounded-xl p-3 text-sm mb-3 outline-none"
-          style={{ background: T.soft, border: `1px solid ${T.border}`, color: T.text }}
-        />
-        <button onClick={generateAffirmations} disabled={generating}
-          className="w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
-          style={{ background: T.accent, color: "#fff" }}>
-          {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-          {generating ? "Generating…" : "Generate personalised affirmations"}
-        </button>
-
-        {/* Generated results */}
-        <AnimatePresence>
-          {generated.length > 0 && (
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-4 space-y-2">
-              {generated.map((aff, i) => {
-                const wasAdded = addedIndices.has(i);
-                return (
-                  <div key={i} className="flex items-start gap-3 p-3 rounded-xl"
-                    style={{ background: T.soft, border: `1px solid ${wasAdded ? T.accent + "60" : T.border}` }}>
-                    <p className="text-sm flex-1 leading-relaxed" style={{ color: T.text }}>{aff}</p>
-                    <button onClick={() => !wasAdded && addManifestation(aff, "affirmation", i)}
-                      disabled={wasAdded}
-                      className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center transition-all"
-                      style={{ background: wasAdded ? T.accent + "30" : T.accent, color: wasAdded ? T.accent : "#fff" }}>
-                      {wasAdded ? <Check className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
-                    </button>
-                  </div>
-                );
-              })}
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-
-      {/* Add manually */}
-      <button onClick={() => setAdding(a => !a)}
-        className="flex items-center gap-2 mb-4 text-sm font-medium"
-        style={{ color: T.accent }}>
-        <Plus className="w-4 h-4" />
-        Add your own
-      </button>
-
-      <AnimatePresence>
-        {adding && (
-          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
-            className="mb-5 rounded-2xl p-4 overflow-hidden"
-            style={{ background: "rgba(255,255,255,0.07)", border: `1px solid ${T.border}` }}>
-            <div className="flex gap-2 mb-3">
-              {Object.entries(TYPE_LABELS).map(([k, v]) => (
-                <button key={k} onClick={() => setNewType(k)}
-                  className="px-3 py-1.5 rounded-xl text-xs font-medium transition-all"
-                  style={{ background: newType === k ? T.accent : T.soft, color: newType === k ? "#fff" : T.text }}>
-                  {v.emoji} {v.label}
-                </button>
-              ))}
-            </div>
-            <textarea value={newText} onChange={e => setNewText(e.target.value)}
-              placeholder="Write your affirmation or intention…"
-              rows={2} className="w-full rounded-xl p-3 text-sm mb-3 outline-none resize-none"
-              style={{ background: T.soft, border: `1px solid ${T.border}`, color: T.text, lineHeight: 1.6 }}
-            />
-            <button onClick={() => { if (newText.trim()) { addManifestation(newText, newType); setNewText(""); setAdding(false); } }}
-              className="w-full py-2 rounded-xl text-sm font-semibold"
-              style={{ background: T.accent, color: "#fff" }}>
-              Add to my practice
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* List */}
-      {loading ? (
-        <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin" style={{ color: T.accent }} /></div>
-      ) : items.length === 0 ? (
-        <div className="text-center py-10">
-          <p className="text-sm" style={{ color: `${T.text}50` }}>No affirmations yet — generate some with Sirius or add your own.</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {items.map(item => {
-            const meta = TYPE_LABELS[item.type] || { label: item.type, emoji: "✨" };
-            return (
-              <motion.div key={item.id} layout
-                className="group flex items-start gap-3 p-4 rounded-2xl"
-                style={{ background: "rgba(255,255,255,0.06)", border: `1px solid ${T.border}` }}>
-                <span className="text-lg flex-shrink-0">{meta.emoji}</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm leading-relaxed" style={{ color: T.text }}>{item.text}</p>
-                  <span className="text-[10px] mt-1 block" style={{ color: `${T.text}40` }}>{meta.label} · Daily</span>
-                </div>
-                <button onClick={() => deleteItem(item.id)}
-                  className="opacity-40 hover:opacity-100 transition-opacity flex-shrink-0"
-                  style={{ color: "rgba(244,63,94,0.8)" }}>
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </motion.div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Journal View ───────────────────────────────────────────────────────────────
-
-function JournalView({ T }: { T: typeof THEMES.cosmic }) {
-  const [entries, setEntries] = useState<JournalEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [writing, setWriting] = useState(false);
-  const [title, setTitle] = useState("");
-  const [content, setContent] = useState("");
-  const [mood, setMood] = useState("inspired");
-  const [saving, setSaving] = useState(false);
-  const [confirmDeleteJournal, setConfirmDeleteJournal] = useState<number | null>(null);
-  const api = useApi();
-
-  const deleteEntry = async (id: number) => {
-    if (confirmDeleteJournal !== id) {
-      setConfirmDeleteJournal(id);
-      setTimeout(() => setConfirmDeleteJournal(null), 3000);
-      return;
-    }
-    setConfirmDeleteJournal(null);
-    await api.del(`dream-lab/journal/${id}`);
-    setEntries(prev => prev.filter(e => e.id !== id));
-  };
-
-  useEffect(() => {
-    api.get("dream-lab/journal").then(async r => {
-      if (r.ok) setEntries(await r.json());
-    }).finally(() => setLoading(false));
-  }, []);
-
-  const saveEntry = async () => {
-    if (!content.trim()) return;
-    setSaving(true);
-    try {
-      const r = await api.post("dream-lab/journal", { title, content, mood });
-      if (r.ok) {
-        const entry = await r.json();
-        setEntries(prev => [entry, ...prev]);
-        setWriting(false); setTitle(""); setContent(""); setMood("inspired");
-      }
-    } finally { setSaving(false); }
-  };
-
-  return (
-    <div className="h-full overflow-y-auto px-4 sm:px-6 py-5">
-      <div className="flex items-center justify-between mb-2">
-        <h2 className="text-xl font-bold" style={{ color: T.text }}>Dream Journal</h2>
-        <button onClick={() => setWriting(w => !w)}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all"
-          style={{ background: writing ? T.soft : T.accent, color: writing ? T.text : "#fff" }}>
-          <Edit3 className="w-3.5 h-3.5" />
-          {writing ? "Cancel" : "New entry"}
-        </button>
-      </div>
-      <p className="text-sm mb-6" style={{ color: `${T.text}60` }}>Capture your thoughts, reflections, and visions.</p>
-
-      <AnimatePresence>
-        {writing && (
-          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
-            className="rounded-2xl p-5 mb-6"
-            style={{ background: "rgba(255,255,255,0.07)", border: `1px solid ${T.border}` }}>
-
-            {/* Mood */}
-            <div className="flex flex-wrap gap-2 mb-4">
-              {MOODS.map(m => (
-                <button key={m.id} onClick={() => setMood(m.id)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all"
-                  style={{ background: mood === m.id ? T.accent : T.soft, color: mood === m.id ? "#fff" : T.text }}>
-                  {m.emoji} {m.label}
-                </button>
-              ))}
-            </div>
-
-            <input value={title} onChange={e => setTitle(e.target.value)}
-              placeholder="Title (optional)"
-              className="w-full rounded-xl p-3 text-sm mb-3 outline-none"
-              style={{ background: T.soft, border: `1px solid ${T.border}`, color: T.text }}
-            />
-            <textarea value={content} onChange={e => setContent(e.target.value)}
-              placeholder="Write freely… What are you thinking about? What are you grateful for? What's your vision today?"
-              rows={6} autoFocus
-              className="w-full rounded-xl p-4 text-sm mb-4 outline-none resize-none"
-              style={{ background: T.soft, border: `1px solid ${T.border}`, color: T.text, lineHeight: 1.8 }}
-            />
-            <button onClick={saveEntry} disabled={saving || !content.trim()}
-              className="w-full py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2"
-              style={{ background: T.accent, color: "#fff", opacity: !content.trim() ? 0.5 : 1 }}>
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <BookOpen className="w-4 h-4" />}
-              Save entry
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {loading ? (
-        <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin" style={{ color: T.accent }} /></div>
-      ) : entries.length === 0 ? (
-        <div className="text-center py-10">
-          <p className="text-sm" style={{ color: `${T.text}50` }}>Your journal is empty — write your first entry.</p>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {entries.map(entry => {
-            const moodMeta = MOODS.find(m => m.id === entry.mood);
-            return (
-              <div key={entry.id} className="rounded-2xl p-5"
-                style={{ background: "rgba(255,255,255,0.06)", border: `1px solid ${T.border}` }}>
-                <div className="flex items-start justify-between mb-2">
-                  <div className="flex-1 min-w-0">
-                    {entry.title && <h4 className="font-semibold text-sm mb-0.5" style={{ color: T.text }}>{entry.title}</h4>}
-                    <div className="flex items-center gap-2">
-                      {moodMeta && <span className="text-xs" style={{ color: `${T.text}60` }}>{moodMeta.emoji} {moodMeta.label}</span>}
-                      <span className="text-[10px]" style={{ color: `${T.text}40` }}>
-                        {new Date(entry.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}
-                      </span>
-                    </div>
-                  </div>
-                  <button onClick={() => deleteEntry(entry.id)}
-                    className="ml-3 flex-shrink-0 flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-bold transition-all"
-                    style={{
-                      background: confirmDeleteJournal === entry.id ? "#f43f5e" : "rgba(244,63,94,0.08)",
-                      color: confirmDeleteJournal === entry.id ? "#fff" : "rgba(244,63,94,0.5)",
-                    }}>
-                    {confirmDeleteJournal === entry.id ? "Sure?" : <Trash2 className="w-3 h-3" />}
-                  </button>
-                </div>
-                <p className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: `${T.text}85` }}>
-                  {entry.content}
-                </p>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Sirius Chat View ───────────────────────────────────────────────────────────
-
-function SiriusChatView({ T, profile }: { T: typeof THEMES.cosmic; profile: DreamProfile | null }) {
-  const storageKey = `dream_lab_chat_${getUserId()}`;
-  const welcomeMsg: ChatMsg = { role: "assistant", content: profile
-    ? `${profile.displayName ? `Hey ${profile.displayName}` : "Hey"} — good to be here with you. ${profile.bigDream ? `I know your big dream is "${profile.bigDream}" — that's something worth building carefully and boldly.` : "I'm here to help you build something real."} What's alive in your mind right now? A new idea, something you've been sitting with, or a feeling you want to make sense of?`
-    : "Welcome to your Dream Lab — this is your space to dream out loud, think things through, and build the life you're imagining. I'm here for all of it. What's on your mind?" };
-
-  const [messages, setMessages] = useState<ChatMsg[]>(() => {
-    try {
-      const saved = localStorage.getItem(storageKey);
-      if (saved) return JSON.parse(saved) as ChatMsg[];
-    } catch {}
-    return [welcomeMsg];
-  });
+function DreamConversation({
+  dream, profile, onDreamUpdated, onBack,
+}: {
+  dream: Dream; profile: DreamProfile | null;
+  onDreamUpdated: (d: Dream) => void; onBack: () => void;
+}) {
+  const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
-  const [suggestions, setSuggestions] = useState<string[]>(["What's alive in my mind right now", "I have a new idea to explore", "I need help getting unstuck"]);
-  const [savedConfirm, setSavedConfirm] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
   const [voiceActive, setVoiceActive] = useState(false);
-  const voiceRecRef = useRef<any>(null);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(dream.title);
+  const [statusSuggestion, setStatusSuggestion] = useState<string | null>(null);
+  const [chips, setChips] = useState<string[]>([]);
   const endRef = useRef<HTMLDivElement>(null);
+  const voiceRef = useRef<any>(null);
+  const api = useApi();
   const base = getApiBase();
   const userId = getUserId();
 
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, streaming]);
+  useEffect(() => { setTitleDraft(dream.title); }, [dream.id, dream.title]);
 
-  // Persist chat to localStorage whenever messages change
+  // Load messages from DB when dream changes
   useEffect(() => {
-    try { localStorage.setItem(storageKey, JSON.stringify(messages.slice(-60))); } catch {}
-  }, [messages]);
+    setMessages([]);
+    setLoading(true);
+    setStatusSuggestion(null);
+    setChips([]);
+    api.get(`dream-lab/dreams/${dream.id}/messages`).then(async r => {
+      if (r.ok) {
+        const data = await r.json();
+        if (data.length === 0) {
+          // First time opening this dream — Sirius introduces herself to it
+          setMessages([{
+            role: "assistant",
+            content: buildWelcome(dream, profile),
+          }]);
+        } else {
+          setMessages(data);
+        }
+      }
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, [dream.id]);
 
-  const startVoice = () => {
-    const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRec || voiceActive) return;
-    const rec = new SpeechRec();
-    voiceRecRef.current = rec;
-    rec.lang = "en-GB"; rec.continuous = false; rec.interimResults = false;
-    rec.onstart = () => setVoiceActive(true);
-    rec.onerror = () => { setVoiceActive(false); };
-    rec.onend = () => setVoiceActive(false);
-    rec.onresult = (e: any) => {
-      const text = e.results[0]?.[0]?.transcript?.trim() || "";
-      if (text.length > 1) { setVoiceActive(false); rec.stop(); setInput(text); }
-    };
-    rec.start();
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, streaming]);
+
+  function buildWelcome(d: Dream, p: DreamProfile | null): string {
+    const name = p?.displayName ? `${p.displayName}` : "you";
+    const lines = [
+      `Let's build this together. "${d.title}" — I love that you've named it.`,
+      d.description
+        ? `You said: *"${d.description}"* — that's the seed. There's already something alive in there.`
+        : `Tell me everything about it. What does this dream look like when it's fully real?`,
+      `What's alive in your mind about this right now — the excitement, the fear, the part you don't know how to start?`,
+    ];
+    return lines.join("\n\n");
+  }
+
+  const detectStatusSuggestion = (text: string) => {
+    const lower = text.toLowerCase();
+    const currentIdx = STATUSES.indexOf(dream.status);
+    const nextStatus = STATUSES[currentIdx + 1];
+    if (!nextStatus) return;
+
+    const growKeywords = ["ready to grow", "ready to move", "time to move", "graduating", "next stage", "next phase", "level up", "moving forward", "growing phase", "mark this as growing", "mark this as blooming", "mark this as manifested"];
+    if (growKeywords.some(k => lower.includes(k))) {
+      setStatusSuggestion(nextStatus);
+    }
   };
 
-  const stopVoice = () => {
-    try { voiceRecRef.current?.stop(); } catch {}
-    voiceRecRef.current = null;
-    setVoiceActive(false);
+  const buildChips = (text: string): string[] => {
+    const lower = text.toLowerCase();
+    const out: string[] = [];
+    if (lower.includes("fear") || lower.includes("block") || lower.includes("stuck")) out.push("What's really holding me back?");
+    if (lower.includes("step") || lower.includes("action") || lower.includes("plan")) out.push("Help me plan the first 30 days");
+    if (lower.includes("affirmation") || lower.includes("manifest")) out.push("Create affirmations for this");
+    if (lower.includes("money") || lower.includes("revenue") || lower.includes("income")) out.push("How do I make this financially real?");
+    if (lower.includes("timeline") || lower.includes("goal") || lower.includes("target")) out.push("What does success look like in 90 days?");
+    const fallbacks = [
+      "Tell me more about the vision",
+      "What would I regret not doing?",
+      "Give me a challenge for this week",
+      "What's the boldest version of this dream?",
+    ];
+    for (const f of fallbacks) {
+      if (out.length >= 3) break;
+      if (!out.includes(f)) out.push(f);
+    }
+    return out.slice(0, 3);
   };
 
   const send = async (override?: string) => {
     const msg = (override || input).trim();
     if (!msg || streaming) return;
     setInput("");
-    const nextMessages = [...messages, { role: "user" as const, content: msg }, { role: "assistant" as const, content: "" }];
-    setMessages(nextMessages);
+    setChips([]);
+    setStatusSuggestion(null);
+
+    const userMsg: ChatMsg = { role: "user", content: msg };
+    const assistantMsg: ChatMsg = { role: "assistant", content: "" };
+    setMessages(prev => [...prev, userMsg, assistantMsg]);
     setStreaming(true);
 
     try {
-      const history = messages.slice(-30).map(m => ({ role: m.role, content: m.content }));
-      const res = await fetch(`${base}dream-lab/sirius-chat`, {
+      const res = await fetch(`${base}dream-lab/dreams/${dream.id}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-dream-user": userId },
-        body: JSON.stringify({ message: msg, history }),
+        body: JSON.stringify({ message: msg }),
       });
 
       if (!res.body) return;
@@ -1380,129 +437,234 @@ function SiriusChatView({ T, profile }: { T: typeof THEMES.cosmic; profile: Drea
           } catch {}
         }
       }
-      const lastReply = reply;
-      setSuggestions(getChips(lastReply));
+
+      detectStatusSuggestion(reply);
+      setChips(buildChips(reply));
     } finally {
       setStreaming(false);
     }
   };
 
-  const getChips = (lastReply: string): string[] => {
-    const t = lastReply.toLowerCase();
-    const chips: string[] = [];
-    if (t.includes("affirmation") || t.includes("manifest")) chips.push("Create affirmations for this");
-    if (t.includes("step") || t.includes("action") || t.includes("start")) chips.push("Break it into smaller steps");
-    if (t.includes("fear") || t.includes("block") || t.includes("stuck") || t.includes("worry")) chips.push("How do I push through this?");
-    if (t.includes("idea") || t.includes("concept") || t.includes("vision")) chips.push("Develop this idea further");
-    if (t.includes("goal") || t.includes("aim") || t.includes("target")) chips.push("What would success look like in 90 days?");
-    if (t.includes("business") || t.includes("income") || t.includes("revenue") || t.includes("money")) chips.push("How do I make this financially viable?");
-    if (t.includes("feel") || t.includes("emotion") || t.includes("mind")) chips.push("What's really holding me back?");
-    const fallbacks = [
-      "Tell me more about this",
-      "How do I take the first step today?",
-      "What would success actually feel like?",
-      "What's the biggest obstacle to plan for?",
-      "Give me a challenge to work on this week",
-    ];
-    for (const f of fallbacks) {
-      if (chips.length >= 3) break;
-      if (!chips.includes(f)) chips.push(f);
+  const upgradeStatus = async () => {
+    if (!statusSuggestion) return;
+    const r = await api.put(`dream-lab/ideas/${dream.id}`, { status: statusSuggestion });
+    if (r.ok) {
+      const updated = await r.json();
+      onDreamUpdated(updated);
+      setStatusSuggestion(null);
     }
-    return chips.slice(0, 3);
   };
 
-  const saveAsIdea = async (content: string, idx: number) => {
-    const title = content.slice(0, 60).replace(/[*#_`]/g, "").trim() + (content.length > 60 ? "…" : "");
-    try {
-      await fetch(`${base}dream-lab/ideas`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-dream-user": userId },
-        body: JSON.stringify({ title, description: content.slice(0, 400), category: "insight", energyLevel: 7 }),
-      });
-      setSavedConfirm(idx);
-      setTimeout(() => setSavedConfirm(null), 2500);
-    } catch {}
+  const saveTitle = async () => {
+    if (!titleDraft.trim()) return;
+    const r = await api.put(`dream-lab/ideas/${dream.id}`, { title: titleDraft.trim() });
+    if (r.ok) {
+      const updated = await r.json();
+      onDreamUpdated(updated);
+    }
+    setEditingTitle(false);
   };
+
+  const startVoice = () => {
+    const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRec || voiceActive) return;
+    const rec = new SpeechRec();
+    voiceRef.current = rec;
+    rec.lang = "en-GB"; rec.continuous = false; rec.interimResults = false;
+    rec.onstart = () => setVoiceActive(true);
+    rec.onerror = () => setVoiceActive(false);
+    rec.onend = () => setVoiceActive(false);
+    rec.onresult = (e: any) => {
+      const text = e.results[0]?.[0]?.transcript?.trim() || "";
+      if (text) { setVoiceActive(false); rec.stop(); setInput(text); }
+    };
+    rec.start();
+  };
+
+  const stopVoice = () => {
+    try { voiceRef.current?.stop(); } catch {}
+    voiceRef.current = null;
+    setVoiceActive(false);
+  };
+
+  const sc = STATUS_CONFIG[dream.status] || STATUS_CONFIG.seed;
+
+  if (loading) {
+    return (
+      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", background: T.bg }}>
+        <Sparkles style={{ color: T.accent, opacity: 0.4, animation: "spin 2s linear infinite" }} />
+        <style>{`@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}`}</style>
+      </div>
+    );
+  }
 
   return (
-    <div className="h-full flex flex-col">
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", background: T.bg, overflow: "hidden", position: "relative" }}>
+
+      {/* Dream header */}
+      <div style={{
+        padding: "12px 20px",
+        borderBottom: `1px solid ${T.border}`,
+        background: "rgba(0,0,0,0.2)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        flexShrink: 0,
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", flex: 1, minWidth: 0 }}>
+          <button onClick={onBack} style={{
+            background: "transparent", border: "none", color: T.textMid,
+            cursor: "pointer", padding: "4px", display: "flex", alignItems: "center",
+            flexShrink: 0,
+          }}>
+            <ArrowLeft style={{ width: 16, height: 16 }} />
+          </button>
+          <span style={{ fontSize: "1.1rem", flexShrink: 0 }}>{dream.emoji}</span>
+
+          {editingTitle ? (
+            <div style={{ display: "flex", alignItems: "center", gap: "6px", flex: 1, minWidth: 0 }}>
+              <input
+                value={titleDraft}
+                onChange={e => setTitleDraft(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") saveTitle(); if (e.key === "Escape") setEditingTitle(false); }}
+                autoFocus
+                style={{
+                  flex: 1, background: T.inputBg, border: `1px solid ${T.borderActive}`,
+                  borderRadius: "8px", color: T.text, fontSize: "0.9rem",
+                  padding: "6px 10px", outline: "none",
+                }}
+              />
+              <button onClick={saveTitle} style={{ background: "transparent", border: "none", color: T.accent, cursor: "pointer" }}>
+                <Check style={{ width: 16, height: 16 }} />
+              </button>
+              <button onClick={() => setEditingTitle(false)} style={{ background: "transparent", border: "none", color: T.textFaint, cursor: "pointer" }}>
+                <X style={{ width: 16, height: 16 }} />
+              </button>
+            </div>
+          ) : (
+            <button onClick={() => setEditingTitle(true)} style={{
+              background: "transparent", border: "none", color: T.text,
+              fontSize: "0.9rem", fontWeight: 500, cursor: "pointer",
+              display: "flex", alignItems: "center", gap: "6px",
+              textAlign: "left", minWidth: 0,
+            }}>
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{dream.title}</span>
+              <Edit3 style={{ width: 12, height: 12, color: T.textFaint, flexShrink: 0 }} />
+            </button>
+          )}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
+          <StatusBadge status={dream.status} />
+        </div>
+      </div>
+
+      {/* Status upgrade suggestion */}
+      <AnimatePresence>
+        {statusSuggestion && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            style={{
+              padding: "10px 20px",
+              background: "rgba(0,229,160,0.06)",
+              borderBottom: "1px solid rgba(0,229,160,0.15)",
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              flexShrink: 0,
+            }}
+          >
+            <span style={{ fontSize: "0.75rem", color: "rgba(0,229,160,0.8)" }}>
+              <TrendingUp style={{ width: 12, height: 12, display: "inline", marginRight: 6 }} />
+              Sirius thinks this dream is ready to move to {STATUS_CONFIG[statusSuggestion]?.label}
+            </span>
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button onClick={upgradeStatus} style={{
+                background: "rgba(0,229,160,0.15)", border: "1px solid rgba(0,229,160,0.3)",
+                borderRadius: "8px", color: "rgba(0,229,160,0.9)", fontSize: "0.72rem",
+                fontWeight: 600, padding: "4px 12px", cursor: "pointer",
+              }}>Move up ✓</button>
+              <button onClick={() => setStatusSuggestion(null)} style={{
+                background: "transparent", border: "none", color: T.textFaint, cursor: "pointer",
+              }}>
+                <X style={{ width: 12, height: 12 }} />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-5 space-y-4">
+      <div style={{ flex: 1, overflowY: "auto", padding: "24px 20px", display: "flex", flexDirection: "column", gap: "16px" }}>
         {messages.map((msg, i) => (
-          <motion.div key={i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-            className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"} gap-3`}>
+          <motion.div
+            key={i}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2 }}
+            style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start", gap: "10px" }}
+          >
             {msg.role === "assistant" && (
-              <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5"
-                style={{ background: `linear-gradient(135deg, ${T.accent}, ${T.accent}aa)` }}>
-                <Sparkles className="w-4 h-4 text-white" />
+              <div style={{
+                width: 32, height: 32, borderRadius: "10px", flexShrink: 0,
+                background: `linear-gradient(135deg, ${T.accent}, ${T.accentGreen})`,
+                display: "flex", alignItems: "center", justifyContent: "center", marginTop: 2,
+              }}>
+                <Sparkles style={{ width: 14, height: 14, color: "#0B0F19" }} />
               </div>
             )}
-            <div className="flex flex-col gap-2 max-w-[82%]">
-              <div className="rounded-2xl px-4 py-3"
-                style={{
-                  background: msg.role === "user" ? `linear-gradient(135deg, ${T.accent}, ${T.accent}cc)` : T.msgBg,
-                  border: msg.role === "assistant" ? `1px solid ${T.border}` : "none",
-                  color: msg.role === "user" ? "#fff" : T.text,
-                  boxShadow: msg.role === "assistant" ? "0 1px 4px rgba(15,23,42,0.05)" : "none",
-                }}>
-                {msg.role === "assistant" && streaming && i === messages.length - 1 && !msg.content ? (
-                  <div className="flex items-center gap-1 py-1">
-                    {[0, 1, 2].map(d => (
-                      <span key={d} style={{ width: 7, height: 7, borderRadius: "50%", background: T.accent, display: "inline-block",
-                        animation: "dlBounce 1.1s ease-in-out infinite", animationDelay: `${d * 0.18}s` }} />
+            <div style={{ maxWidth: "78%" }}>
+              <div style={{
+                padding: "12px 16px",
+                borderRadius: msg.role === "user" ? "18px 18px 4px 18px" : "4px 18px 18px 18px",
+                background: msg.role === "user"
+                  ? `linear-gradient(135deg, ${T.accent}CC, ${T.accentGreen}AA)`
+                  : T.msgBg,
+                border: msg.role === "assistant" ? `1px solid ${T.border}` : "none",
+                color: msg.role === "user" ? "#0B0F19" : T.text,
+                fontSize: "0.85rem",
+                lineHeight: 1.65,
+              }}>
+                {streaming && i === messages.length - 1 && msg.role === "assistant" && !msg.content ? (
+                  <div style={{ display: "flex", gap: 5, alignItems: "center", padding: "2px 0" }}>
+                    {[0,1,2].map(d => (
+                      <span key={d} style={{
+                        width: 6, height: 6, borderRadius: "50%", background: T.accent, display: "inline-block",
+                        animation: `dlb 1.1s ease-in-out infinite`, animationDelay: `${d * 0.18}s`,
+                      }} />
                     ))}
-                    <style>{`@keyframes dlBounce{0%,80%,100%{transform:translateY(0);opacity:0.4}40%{transform:translateY(-5px);opacity:1}}`}</style>
                   </div>
                 ) : (
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                  <p style={{ whiteSpace: "pre-wrap", margin: 0 }}>
                     {msg.content}
                     {streaming && i === messages.length - 1 && msg.role === "assistant" && msg.content && (
-                      <span className="animate-pulse ml-0.5">▊</span>
+                      <span style={{ opacity: 0.7, animation: "pulse 1s infinite" }}>▊</span>
                     )}
                   </p>
                 )}
               </div>
-              {/* Save as idea button on assistant messages */}
-              {msg.role === "assistant" && !streaming && msg.content && msg.content.length > 80 && (
-                <button
-                  onClick={() => saveAsIdea(msg.content, i)}
-                  className="self-start text-[11px] px-2.5 py-1 rounded-lg transition-all duration-200"
-                  style={{
-                    background: savedConfirm === i ? `${T.accent}18` : "transparent",
-                    border: `1px solid ${savedConfirm === i ? T.accent : T.border}`,
-                    color: savedConfirm === i ? T.accent : `${T.text}50`,
-                  }}
-                >
-                  {savedConfirm === i ? "✓ Saved to ideas" : "💡 Save as idea"}
-                </button>
-              )}
             </div>
           </motion.div>
         ))}
 
-        {/* Quick-reply chips below last Sirius message */}
-        {!streaming && suggestions.length > 0 && messages[messages.length - 1]?.role === "assistant" && (
+        {/* Quick reply chips */}
+        {!streaming && chips.length > 0 && messages[messages.length - 1]?.role === "assistant" && (
           <motion.div
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25 }}
-            className="flex flex-wrap gap-2 pl-11"
+            style={{ display: "flex", flexWrap: "wrap", gap: "8px", paddingLeft: "42px" }}
           >
-            {suggestions.map((s, i) => (
+            {chips.map((c, i) => (
               <button
                 key={i}
-                onClick={() => { setSuggestions([]); send(s); }}
-                className="text-xs px-3 py-2 rounded-xl transition-all duration-150"
+                onClick={() => { setChips([]); send(c); }}
                 style={{
-                  background: T.msgBg,
-                  border: `1px solid ${T.border}`,
-                  color: T.accent,
+                  background: T.msgBg, border: `1px solid ${T.border}`,
+                  borderRadius: "20px", color: T.accent, fontSize: "0.75rem",
+                  padding: "6px 14px", cursor: "pointer", transition: "all 0.15s",
                 }}
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = T.accent; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = T.border; }}
-              >
-                {s}
-              </button>
+              >{c}</button>
             ))}
           </motion.div>
         )}
@@ -1511,286 +673,394 @@ function SiriusChatView({ T, profile }: { T: typeof THEMES.cosmic; profile: Drea
       </div>
 
       {/* Input */}
-      <div className="flex-shrink-0 px-4 sm:px-6 pb-5 pt-3"
-        style={{ borderTop: `1px solid ${T.border}` }}>
-        <div className="flex gap-2 items-end">
-          {/* Mic button */}
+      <div style={{ flexShrink: 0, padding: "12px 20px 16px", borderTop: `1px solid ${T.border}`, background: "rgba(0,0,0,0.15)" }}>
+        <div style={{ display: "flex", gap: "8px", alignItems: "flex-end" }}>
           <button
             onClick={voiceActive ? stopVoice : startVoice}
             disabled={streaming}
-            className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 transition-all"
-            style={{ background: voiceActive ? "hsl(0,80%,55%)" : T.soft, color: voiceActive ? "#fff" : T.accent,
-              border: voiceActive ? "none" : `1px solid ${T.border}`, opacity: streaming ? 0.4 : 1 }}
-            title={voiceActive ? "Stop listening" : "Speak to Sirius"}>
-            {voiceActive ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mic className="w-4 h-4" />}
+            style={{
+              width: 40, height: 40, borderRadius: "12px", flexShrink: 0,
+              background: voiceActive ? "#e53e3e" : T.card,
+              border: `1px solid ${voiceActive ? "transparent" : T.border}`,
+              color: voiceActive ? "#fff" : T.accent,
+              cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+              opacity: streaming ? 0.4 : 1,
+            }}
+          >
+            {voiceActive ? <Loader2 style={{ width: 15, height: 15, animation: "spin 1s linear infinite" }} /> : <Mic style={{ width: 15, height: 15 }} />}
           </button>
           <textarea
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-            placeholder={voiceActive ? "Listening…" : "Share a dream, a thought, an idea — anything…"}
+            placeholder="Share anything about this dream — your thoughts, fears, ideas, progress…"
             rows={1}
-            className="flex-1 rounded-2xl px-4 py-3 text-sm outline-none resize-none"
             style={{
-              background: voiceActive ? `${T.accent}18` : T.inputBg,
-              border: `1px solid ${voiceActive ? T.accent : T.border}`,
-              color: T.text,
-              minHeight: 48,
-              maxHeight: 240,
+              flex: 1, background: T.inputBg, border: `1px solid ${T.border}`,
+              borderRadius: "14px", color: T.text, fontSize: "0.85rem",
+              padding: "10px 14px", outline: "none", resize: "none",
+              minHeight: 42, maxHeight: 200, lineHeight: 1.5,
+              fontFamily: "inherit",
             }}
           />
-          <button onClick={() => send()} disabled={streaming || !input.trim()}
-            className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 transition-all"
-            style={{ background: streaming || !input.trim() ? T.soft : T.accent, color: "#fff" }}>
-            {streaming ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+          <button
+            onClick={() => send()}
+            disabled={streaming || !input.trim()}
+            style={{
+              width: 40, height: 40, borderRadius: "12px", flexShrink: 0,
+              background: streaming || !input.trim() ? T.card : `linear-gradient(135deg, ${T.accent}, ${T.accentGreen})`,
+              border: "none", cursor: !input.trim() ? "not-allowed" : "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}
+          >
+            {streaming
+              ? <Loader2 style={{ width: 15, height: 15, color: T.accent, animation: "spin 1s linear infinite" }} />
+              : <Send style={{ width: 15, height: 15, color: input.trim() ? "#0B0F19" : T.textFaint }} />}
           </button>
         </div>
+        <p style={{ fontSize: "0.65rem", color: T.textFaint, textAlign: "center", marginTop: "8px" }}>
+          Sirius remembers everything — this conversation never gets lost
+        </p>
+      </div>
+
+      <style>{`
+        @keyframes dlb { 0%,80%,100%{transform:translateY(0);opacity:0.4} 40%{transform:translateY(-5px);opacity:1} }
+        @keyframes spin { from{transform:rotate(0)} to{transform:rotate(360deg)} }
+        @keyframes pulse { 0%,100%{opacity:0.5} 50%{opacity:1} }
+      `}</style>
+    </div>
+  );
+}
+
+// ── WelcomeView ────────────────────────────────────────────────────────────────
+
+function WelcomeView({ profile, onNewDream }: { profile: DreamProfile | null; onNewDream: () => void }) {
+  return (
+    <div style={{
+      flex: 1, display: "flex", flexDirection: "column",
+      alignItems: "center", justifyContent: "center",
+      background: T.bg, padding: "40px 24px",
+    }}>
+      <div style={{
+        width: 56, height: 56, borderRadius: "16px",
+        background: `linear-gradient(135deg, rgba(0,196,255,0.15), rgba(0,229,160,0.1))`,
+        border: `1px solid rgba(0,196,255,0.2)`,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        marginBottom: "20px",
+        boxShadow: "0 0 40px rgba(0,196,255,0.08)",
+      }}>
+        <Sparkles style={{ width: 24, height: 24, color: T.accent }} />
+      </div>
+
+      <h2 style={{
+        fontSize: "1.4rem", fontWeight: 300, color: T.text,
+        letterSpacing: "-0.01em", textAlign: "center", marginBottom: "10px",
+      }}>
+        {profile?.displayName ? `What shall we build today, ${profile.displayName}?` : "What dream shall we build together?"}
+      </h2>
+      <p style={{
+        fontSize: "0.85rem", color: T.textMid, textAlign: "center",
+        maxWidth: "360px", lineHeight: 1.7, marginBottom: "32px",
+      }}>
+        Each dream gets its own space. Sirius will remember every conversation, coach you through every stage, and help you turn ideas into reality.
+      </p>
+
+      <button
+        onClick={onNewDream}
+        style={{
+          background: "linear-gradient(135deg, rgba(0,196,255,0.12), rgba(0,229,160,0.08))",
+          border: "1px dashed rgba(0,196,255,0.35)",
+          borderRadius: "14px",
+          color: T.accent,
+          fontSize: "0.85rem",
+          fontWeight: 500,
+          padding: "14px 28px",
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          transition: "all 0.2s",
+          letterSpacing: "0.02em",
+        }}
+      >
+        <Plus style={{ width: 16, height: 16 }} />
+        Plant your first dream
+      </button>
+
+      <div style={{ marginTop: "48px", display: "flex", gap: "32px", opacity: 0.4 }}>
+        {["Dream it", "Build it", "Live it"].map((step, i) => (
+          <div key={step} style={{ textAlign: "center" }}>
+            <div style={{
+              width: 8, height: 8, borderRadius: "50%",
+              background: i === 0 ? T.accent : i === 1 ? T.accentGreen : "rgba(168,85,247,0.8)",
+              margin: "0 auto 6px",
+            }} />
+            <p style={{ fontSize: "0.65rem", color: T.textFaint, textTransform: "uppercase", letterSpacing: "0.12em" }}>{step}</p>
+          </div>
+        ))}
       </div>
     </div>
   );
 }
 
-// ── Settings View ──────────────────────────────────────────────────────────────
+// ── OnboardingView ─────────────────────────────────────────────────────────────
 
-function SettingsView({ T, profile, theme, onSave }: { T: typeof THEMES.cosmic; profile: DreamProfile | null; theme: string; onSave: (p: DreamProfile) => void }) {
-  const [form, setForm] = useState({
-    displayName: profile?.displayName || "",
-    personality: profile?.personality || "",
-    lifestyle: profile?.lifestyle || "",
-    coreValues: profile?.coreValues || "",
-    bigDream: profile?.bigDream || "",
-    manifestationStyle: profile?.manifestationStyle || "",
-    colourTheme: profile?.colourTheme || theme,
-  });
+function OnboardingView({ onComplete }: { onComplete: (p: DreamProfile) => void }) {
+  const [name, setName] = useState("");
+  const [bigDream, setBigDream] = useState("");
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
   const api = useApi();
 
-  const save = async () => {
+  const submit = async () => {
+    if (!name.trim() || saving) return;
     setSaving(true);
-    setError("");
     try {
-      const r = await api.post("dream-lab/profile", form);
-      if (!r.ok) { const d = await r.json(); setError(d.error || "Failed"); return; }
-      const p = await r.json();
-      onSave(p);
-    } catch (err: any) {
-      setError(err?.message || "Failed");
+      const r = await api.post("dream-lab/profile", {
+        displayName: name.trim(),
+        bigDream: bigDream.trim(),
+        colourTheme: "cosmic",
+        personality: "", lifestyle: "", coreValues: "", manifestationStyle: "",
+      });
+      if (r.ok) {
+        const p = await r.json();
+        onComplete(p);
+      }
     } finally { setSaving(false); }
   };
 
-  const curT = THEMES[form.colourTheme] || T;
-
   return (
-    <div className="h-full overflow-y-auto px-4 sm:px-6 py-5" style={{ background: curT.gradient }}>
-      <h2 className="text-xl font-bold mb-2" style={{ color: curT.text }}>Personalise your Dream Lab</h2>
-      <p className="text-sm mb-6" style={{ color: `${curT.text}60` }}>Help Sirius understand you better — the more context, the more personalised the experience.</p>
-
-      {[
-        { field: "displayName",        label: "Your name",           placeholder: "How should Sirius call you?",                          multi: false },
-        { field: "personality",        label: "Your personality",    placeholder: "How would you describe yourself, your energy, your thinking style?", multi: true },
-        { field: "lifestyle",          label: "Your lifestyle",      placeholder: "How you live, what matters day-to-day…",              multi: true },
-        { field: "coreValues",         label: "Core values",         placeholder: "The principles that guide you…",                      multi: true },
-        { field: "bigDream",           label: "Your biggest dream",  placeholder: "The vision that excites you most…",                   multi: true },
-        { field: "manifestationStyle", label: "How you manifest",    placeholder: "Journalling, affirmations, visualisation, prayer…",   multi: true },
-      ].map(({ field, label, placeholder, multi }) => (
-        <div key={field} className="mb-5">
-          <label className="text-xs font-semibold mb-2 block" style={{ color: `${curT.text}70` }}>{label}</label>
-          {multi ? (
-            <textarea value={(form as any)[field]} onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))}
-              placeholder={placeholder} rows={3}
-              className="w-full rounded-2xl p-4 text-sm outline-none resize-none"
-              style={{ background: "rgba(255,255,255,0.08)", border: `1px solid ${curT.border}`, color: curT.text, lineHeight: 1.7 }}
-            />
-          ) : (
-            <input value={(form as any)[field]} onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))}
-              placeholder={placeholder}
-              className="w-full rounded-2xl p-4 text-sm outline-none"
-              style={{ background: "rgba(255,255,255,0.08)", border: `1px solid ${curT.border}`, color: curT.text }}
-            />
-          )}
+    <div style={{
+      flex: 1, display: "flex", flexDirection: "column",
+      alignItems: "center", justifyContent: "center",
+      background: T.bg, padding: "40px 24px",
+    }}>
+      <div style={{
+        width: "100%", maxWidth: "440px",
+        background: "#0D1526",
+        border: `1px solid ${T.borderActive}`,
+        borderRadius: "24px",
+        padding: "36px 32px",
+        boxShadow: "0 0 80px rgba(0,196,255,0.06)",
+      }}>
+        <div style={{ height: "2px", background: "linear-gradient(90deg, #00C4FF, #00E5A0)", borderRadius: "2px", marginBottom: "28px" }} />
+        <div style={{ textAlign: "center", marginBottom: "28px" }}>
+          <div style={{
+            width: 48, height: 48, borderRadius: "14px",
+            background: "rgba(0,196,255,0.1)", border: "1px solid rgba(0,196,255,0.2)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            margin: "0 auto 16px",
+          }}>
+            <Star style={{ width: 22, height: 22, color: T.accent }} />
+          </div>
+          <h2 style={{ fontSize: "1.3rem", fontWeight: 300, color: T.text, marginBottom: "8px" }}>
+            Welcome to Dream Lab
+          </h2>
+          <p style={{ fontSize: "0.82rem", color: T.textMid, lineHeight: 1.6 }}>
+            This is your private space with Sirius. Let's set it up.
+          </p>
         </div>
-      ))}
 
-      {/* Theme */}
-      <div className="mb-6">
-        <label className="text-xs font-semibold mb-3 block" style={{ color: `${curT.text}70` }}>Space theme</label>
-        <div className="grid grid-cols-3 gap-3">
-          {Object.entries(THEMES).map(([key, th]) => (
-            <button key={key} onClick={() => setForm(f => ({ ...f, colourTheme: key }))}
-              className="relative h-16 rounded-2xl overflow-hidden flex flex-col items-center justify-center gap-1 transition-all"
+        <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+          <div>
+            <label style={{ fontSize: "0.72rem", color: T.textMid, letterSpacing: "0.05em", display: "block", marginBottom: "6px" }}>
+              What's your name?
+            </label>
+            <input
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="Your name…"
+              autoFocus
               style={{
-                background: th.gradient,
-                border: form.colourTheme === key ? `2px solid ${th.accent}` : `1px solid ${th.border}`,
-                boxShadow: form.colourTheme === key ? `0 0 16px ${th.accent}40` : "none",
-              }}>
-              {form.colourTheme === key && (
-                <div className="absolute top-1.5 right-1.5 w-3.5 h-3.5 rounded-full flex items-center justify-center"
-                  style={{ background: th.accent }}>
-                  <Check className="w-2 h-2 text-white" />
-                </div>
-              )}
-              <div className="w-4 h-4 rounded-full" style={{ background: th.accent }} />
-              <span className="text-[9px] font-bold capitalize" style={{ color: th.text }}>{key}</span>
-            </button>
-          ))}
+                width: "100%", background: T.inputBg, border: `1px solid ${T.border}`,
+                borderRadius: "10px", color: T.text, fontSize: "0.88rem",
+                padding: "11px 14px", outline: "none", boxSizing: "border-box",
+              }}
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: "0.72rem", color: T.textMid, letterSpacing: "0.05em", display: "block", marginBottom: "6px" }}>
+              What's the big dream you're working toward? (optional)
+            </label>
+            <textarea
+              value={bigDream}
+              onChange={e => setBigDream(e.target.value)}
+              placeholder="Describe it freely — a sentence or a paragraph…"
+              rows={3}
+              style={{
+                width: "100%", background: T.inputBg, border: `1px solid ${T.border}`,
+                borderRadius: "10px", color: T.text, fontSize: "0.82rem",
+                padding: "10px 14px", outline: "none", resize: "none",
+                boxSizing: "border-box", lineHeight: 1.6, fontFamily: "inherit",
+              }}
+            />
+          </div>
+          <button
+            onClick={submit}
+            disabled={!name.trim() || saving}
+            style={{
+              background: name.trim() ? "linear-gradient(135deg, #00C4FF, #00E5A0)" : T.card,
+              border: "none", borderRadius: "12px",
+              color: name.trim() ? "#0B0F19" : T.textFaint,
+              fontSize: "0.88rem", fontWeight: 700,
+              padding: "13px", cursor: name.trim() ? "pointer" : "not-allowed",
+              marginTop: "4px", transition: "all 0.2s",
+            }}
+          >
+            {saving ? "Setting up…" : "Enter Dream Lab →"}
+          </button>
         </div>
       </div>
-
-      {error && <p className="text-sm mb-4 px-4 py-2 rounded-xl" style={{ background: "rgba(244,63,94,0.15)", color: "#f43f5e" }}>{error}</p>}
-
-      <button onClick={save} disabled={saving}
-        className="w-full py-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2"
-        style={{ background: `linear-gradient(135deg, ${curT.accent}, ${curT.accent}cc)`, color: "#fff" }}>
-        {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-        {saving ? "Saving…" : "Save my Dream Lab"}
-      </button>
     </div>
   );
 }
 
-// ── Dream Lab Info Overlay ─────────────────────────────────────────────────────
+// ── DreamLabPage (main) ────────────────────────────────────────────────────────
 
-function DreamLabInfoOverlay({ T, onClose }: { T: typeof THEMES.cosmic; onClose: () => void }) {
-  const isPearl = T.bg === THEMES.pearl.bg;
+export function DreamLabPage() {
+  const [, setLocation] = useLocation();
+  const [profile, setProfile] = useState<DreamProfile | null>(null);
+  const [dreams, setDreams] = useState<Dream[]>([]);
+  const [selectedDream, setSelectedDream] = useState<Dream | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [showNewDream, setShowNewDream] = useState(false);
+  const [onboarding, setOnboarding] = useState(false);
+  const api = useApi();
 
-  const features = [
-    {
-      icon: Lightbulb,
-      emoji: "💡",
-      title: "Idea Board",
-      description: "Capture every idea before it slips away. Add ideas across any category — business, personal, creative, health, finance, relationships, spiritual. Rate your energy for each one, pin your favourites, and track them from seed through to manifested.",
-    },
-    {
-      icon: Sparkles,
-      emoji: "✨",
-      title: "Sirius AI Enhancement",
-      description: "On any idea, tap the Sirius button and she analyses it personally — what makes it powerful, what unique strengths you bring to it, the hidden opportunity inside, three tailored daily affirmations, and one concrete action you can take today.",
-    },
-    {
-      icon: Zap,
-      emoji: "⚡",
-      title: "Manifestations",
-      description: "Build your personal practice. Generate affirmations tailored to your profile and goals, or write your own. Save the ones that resonate and return to them daily. Covers affirmations, intentions, mantras, and visualisations.",
-    },
-    {
-      icon: BookOpen,
-      emoji: "📖",
-      title: "Dream Journal",
-      description: "A private space to write freely. Capture thoughts, reflections, gratitude, and visions with a mood tag. Your entries are yours alone — they help you spot patterns and stay connected to what matters most.",
-    },
-    {
-      icon: Moon,
-      emoji: "💬",
-      title: "Chat with Sirius",
-      description: "Have a real conversation about your dreams, goals, and ideas. Sirius knows your profile — your personality, your values, your big dream — so every conversation goes deeper than a generic AI chat.",
-    },
-    {
-      icon: Settings,
-      emoji: "🎨",
-      title: "Your Personal Space",
-      description: "Dream Lab remembers you. Set your name, describe your personality and lifestyle, share your core values and biggest dream, and pick your visual theme. The more Sirius knows about you, the more personalised every experience becomes.",
-    },
-  ];
+  useEffect(() => { init(); }, []);
+
+  const init = async () => {
+    setLoading(true);
+    try {
+      const [pRes, dRes] = await Promise.all([
+        api.get("dream-lab/profile"),
+        api.get("dream-lab/ideas"),
+      ]);
+      if (pRes.ok) {
+        const p = await pRes.json();
+        if (p) {
+          setProfile(p);
+          setOnboarding(false);
+        } else {
+          setOnboarding(true);
+        }
+      } else {
+        setOnboarding(true);
+      }
+      if (dRes.ok) {
+        const d = await dRes.json();
+        setDreams(d);
+        if (d.length > 0 && !selectedDream) {
+          setSelectedDream(d[0]);
+        }
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDreamCreated = (d: Dream) => {
+    setDreams(prev => [d, ...prev]);
+    setSelectedDream(d);
+    setShowNewDream(false);
+  };
+
+  const handleDreamUpdated = (updated: Dream) => {
+    setDreams(prev => prev.map(d => d.id === updated.id ? updated : d));
+    setSelectedDream(updated);
+  };
+
+  if (loading) {
+    return (
+      <div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: T.bg }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <Sparkles style={{ color: T.accent, opacity: 0.5, animation: "spin 2s linear infinite" }} />
+          <p style={{ fontSize: "0.8rem", color: T.textFaint }}>Loading Dream Lab…</p>
+        </div>
+        <style>{`@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}`}</style>
+      </div>
+    );
+  }
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(12px)" }}
-      onClick={onClose}
-    >
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        transition={{ type: "spring", damping: 25, stiffness: 300 }}
-        className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl"
-        style={{ background: T.gradient, border: `1px solid ${T.border}` }}
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="sticky top-0 flex items-center justify-between px-6 pt-6 pb-4"
-          style={{ background: isPearl ? "rgba(248,250,252,0.95)" : "rgba(0,0,0,0.4)", backdropFilter: "blur(20px)", borderBottom: `1px solid ${T.border}` }}>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl flex items-center justify-center"
-              style={{ background: `linear-gradient(135deg, ${T.accent}, ${T.accent}88)` }}>
-              <Star className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h2 className="text-lg font-bold" style={{ color: T.text }}>Welcome to Dream Lab</h2>
-              <p className="text-xs" style={{ color: `${T.text}60` }}>Your private space to grow, reflect, and manifest</p>
-            </div>
-          </div>
-          <button onClick={onClose} aria-label="Close"
-            className="w-9 h-9 rounded-xl flex items-center justify-center transition-all"
-            style={{ background: T.soft, color: T.accent }}>
-            <X className="w-4 h-4" />
+    <div style={{ height: "100vh", display: "flex", flexDirection: "column", background: T.bg, fontFamily: "'Inter', 'DM Sans', system-ui, sans-serif" }}>
+
+      {/* Top header */}
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "10px 18px", flexShrink: 0,
+        borderBottom: `1px solid ${T.border}`,
+        background: "rgba(0,0,0,0.3)",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <button onClick={() => setLocation("/")} style={{
+            background: "transparent", border: "none", color: T.textMid,
+            cursor: "pointer", display: "flex", alignItems: "center", gap: "5px",
+            fontSize: "0.75rem",
+          }}>
+            <X style={{ width: 14, height: 14 }} />
           </button>
+          <div style={{ width: 1, height: 14, background: T.border }} />
+          <div style={{ display: "flex", alignItems: "center", gap: "7px" }}>
+            <div style={{
+              width: 26, height: 26, borderRadius: "8px",
+              background: `linear-gradient(135deg, ${T.accent}22, ${T.accentGreen}18)`,
+              border: `1px solid rgba(0,196,255,0.2)`,
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <Star style={{ width: 12, height: 12, color: T.accent }} />
+            </div>
+            <span style={{ fontSize: "0.82rem", fontWeight: 500, color: T.text }}>Dream Lab</span>
+          </div>
         </div>
 
-        {/* Intro */}
-        <div className="px-6 py-5">
-          <div className="rounded-2xl p-5 mb-6"
-            style={{ background: `${T.accent}18`, border: `1px solid ${T.accent}30` }}>
-            <p className="text-sm leading-relaxed" style={{ color: T.text }}>
-              Dream Lab is your personal creative and growth space — completely separate from the business side of Sirius.
-              It's where you capture ideas, build daily practices, journal your thoughts, and have deep one-on-one conversations
-              with Sirius about the life you're building. Everything here is personal to you, remembered by Sirius, and always free.
-            </p>
-          </div>
-
-          {/* Feature grid */}
-          <div className="space-y-3">
-            {features.map((f, i) => (
-              <motion.div
-                key={f.title}
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.06 }}
-                className="flex gap-4 p-4 rounded-2xl"
-                style={{ background: isPearl ? "rgba(255,255,255,0.8)" : "rgba(255,255,255,0.07)", border: `1px solid ${T.border}` }}
-              >
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-xl">
-                  {f.emoji}
-                </div>
-                <div>
-                  <h3 className="font-bold text-sm mb-1" style={{ color: T.text }}>{f.title}</h3>
-                  <p className="text-xs leading-relaxed" style={{ color: `${T.text}70` }}>{f.description}</p>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-
-          {/* Footer note */}
-          <div className="mt-6 flex items-start gap-3 p-4 rounded-2xl"
-            style={{ background: T.soft, border: `1px solid ${T.border}` }}>
-            <Heart className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: T.accent }} />
-            <p className="text-xs leading-relaxed" style={{ color: `${T.text}70` }}>
-              <span className="font-semibold" style={{ color: T.text }}>Dream Lab is always free.</span>
-              {" "}No subscription needed. Sirius AI features include a generous usage limit to keep the experience great for everyone.
-              Your ideas, journal, and profile are private to you and never shared.
-            </p>
-          </div>
-
-          <button onClick={onClose}
-            className="w-full mt-5 py-3.5 rounded-2xl font-bold text-sm"
-            style={{ background: `linear-gradient(135deg, ${T.accent}, ${T.accent}cc)`, color: "#fff" }}>
-            Enter my Dream Lab ✨
-          </button>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <span style={{ fontSize: "0.68rem", color: T.textFaint, letterSpacing: "0.05em" }}>
+            {profile?.displayName || ""}
+          </span>
         </div>
-      </motion.div>
-    </motion.div>
+      </div>
+
+      {/* Body */}
+      <div style={{ flex: 1, display: "flex", overflow: "hidden", position: "relative" }}>
+
+        {onboarding ? (
+          <OnboardingView onComplete={p => { setProfile(p); setOnboarding(false); }} />
+        ) : (
+          <>
+            {/* Sidebar — hidden on very small screens, always visible on md+ */}
+            <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+              <DreamSidebar
+                dreams={dreams}
+                selectedId={selectedDream?.id ?? null}
+                onSelect={setSelectedDream}
+                onNewDream={() => setShowNewDream(true)}
+                profile={profile}
+              />
+
+              {selectedDream ? (
+                <DreamConversation
+                  key={selectedDream.id}
+                  dream={selectedDream}
+                  profile={profile}
+                  onDreamUpdated={handleDreamUpdated}
+                  onBack={() => setSelectedDream(null)}
+                />
+              ) : (
+                <WelcomeView profile={profile} onNewDream={() => setShowNewDream(true)} />
+              )}
+            </div>
+
+            <AnimatePresence>
+              {showNewDream && (
+                <NewDreamForm
+                  onCreated={handleDreamCreated}
+                  onCancel={() => setShowNewDream(false)}
+                />
+              )}
+            </AnimatePresence>
+          </>
+        )}
+      </div>
+    </div>
   );
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function getDayGreeting(): string {
-  const h = new Date().getHours();
-  if (h < 12) return "Good morning";
-  if (h < 17) return "Good afternoon";
-  return "Good evening";
 }

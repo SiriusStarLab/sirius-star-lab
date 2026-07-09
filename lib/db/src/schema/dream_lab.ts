@@ -53,7 +53,17 @@ export const dreamLabJournal = pgTable("dream_lab_journal", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const dreamLabMessages = pgTable("dream_lab_messages", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  dreamId: integer("dream_id"),
+  role: text("role").notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export type DreamLabProfile = typeof dreamLabProfiles.$inferSelect;
 export type DreamLabIdea = typeof dreamLabIdeas.$inferSelect;
 export type DreamLabManifestation = typeof dreamLabManifestations.$inferSelect;
 export type DreamLabJournal = typeof dreamLabJournal.$inferSelect;
+export type DreamLabMessage = typeof dreamLabMessages.$inferSelect;

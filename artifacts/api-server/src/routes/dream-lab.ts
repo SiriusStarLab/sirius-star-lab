@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { eq, desc, and } from "drizzle-orm";
-import { db, dreamLabProfiles, dreamLabIdeas, dreamLabManifestations, dreamLabJournal } from "@workspace/db";
+import { eq, desc, and, asc } from "drizzle-orm";
+import { db, dreamLabProfiles, dreamLabIdeas, dreamLabManifestations, dreamLabJournal, dreamLabMessages } from "@workspace/db";
 import { openai } from "@workspace/ai-client";
 
 const router: IRouter = Router();
@@ -431,6 +431,139 @@ Rules:
     res.json({ affirmations });
   } catch (err: any) {
     res.status(500).json({ error: err?.message });
+  }
+});
+
+// ── GET /dream-lab/dreams/:dreamId/messages ────────────────────────────────────
+// Load full conversation history for a specific dream
+router.get("/dream-lab/dreams/:dreamId/messages", requireUser, async (req: Request, res: Response) => {
+  try {
+    const userId = req.headers["x-dream-user"] as string;
+    const dreamId = parseInt(req.params.dreamId as string);
+    if (isNaN(dreamId)) { res.status(400).json({ error: "Invalid dream ID" }); return; }
+
+    // Verify dream belongs to this user
+    const [dream] = await db.select().from(dreamLabIdeas)
+      .where(and(eq(dreamLabIdeas.id, dreamId), eq(dreamLabIdeas.userId, userId)));
+    if (!dream) { res.status(404).json({ error: "Dream not found" }); return; }
+
+    const msgs = await db.select().from(dreamLabMessages)
+      .where(and(eq(dreamLabMessages.userId, userId), eq(dreamLabMessages.dreamId, dreamId)))
+      .orderBy(asc(dreamLabMessages.createdAt));
+
+    res.json(msgs);
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+
+// ── POST /dream-lab/dreams/:dreamId/chat ───────────────────────────────────────
+// Send a message about a dream — streams Sirius response, saves both to DB
+router.post("/dream-lab/dreams/:dreamId/chat", requireUser, async (req: Request, res: Response) => {
+  try {
+    const userId = req.headers["x-dream-user"] as string;
+    const dreamId = parseInt(req.params.dreamId as string);
+    if (isNaN(dreamId)) { res.status(400).json({ error: "Invalid dream ID" }); return; }
+    const { message } = req.body;
+    if (!message?.trim()) { res.status(400).json({ error: "Message required" }); return; }
+    if (!isContentSafe(message)) {
+      res.status(400).json({ error: "Let's keep the Dream Lab a high-vibration space. Please rephrase." });
+      return;
+    }
+
+    // Load dream + profile
+    const [dream] = await db.select().from(dreamLabIdeas)
+      .where(and(eq(dreamLabIdeas.id, dreamId), eq(dreamLabIdeas.userId, userId)));
+    if (!dream) { res.status(404).json({ error: "Dream not found" }); return; }
+
+    const [profile] = await db.select().from(dreamLabProfiles)
+      .where(eq(dreamLabProfiles.userId, userId));
+
+    // Load full conversation history from DB (no limit — full memory)
+    const history = await db.select().from(dreamLabMessages)
+      .where(and(eq(dreamLabMessages.userId, userId), eq(dreamLabMessages.dreamId, dreamId)))
+      .orderBy(asc(dreamLabMessages.createdAt));
+
+    // Save the user message
+    await db.insert(dreamLabMessages).values({
+      userId, dreamId, role: "user", content: message.trim(),
+    });
+
+    const stageDescriptions: Record<string, string> = {
+      seed:       "This dream is in the SEED stage — it's freshly planted. Help them clarify what it is, understand their motivation, and explore the landscape of possibilities. Ask deep questions about why this matters, what the dream looks like when fully alive.",
+      growing:    "This dream is GROWING — it has roots and is taking shape. Help them build a concrete plan, identify specific obstacles, set timelines, and take first actions. Move from vision to execution.",
+      blooming:   "This dream is BLOOMING — it's really developing. Help them track progress, celebrate wins, work through specific challenges, and stay on track. They're building momentum.",
+      manifested: "This dream has been MANIFESTED — it's happened! Help them reflect on the journey, capture what they learned, and start thinking about what's next. Celebrate and plant the next seed.",
+    };
+
+    const systemPrompt = `You are Sirius — a deeply engaged, warm, and brilliant intelligence partner. You are the private thinking partner inside someone's Dream Lab. This is their sacred space.
+
+DREAM YOU ARE WORKING ON:
+- Title: "${dream.title}"
+- Description: "${dream.description || "Not yet described in depth"}"
+- Stage: ${dream.status?.toUpperCase() || "SEED"}
+- Energy level: ${dream.energyLevel}/10
+
+${stageDescriptions[dream.status || "seed"] || stageDescriptions.seed}
+
+${profile ? `WHO YOU ARE TALKING TO:
+- Name: ${profile.displayName || "them"}
+- Big dream: ${profile.bigDream || ""}
+- Personality: ${profile.personality || ""}
+- Core values: ${profile.coreValues || ""}
+- Manifestation style: ${profile.manifestationStyle || ""}` : ""}
+
+YOUR ROLE IN EVERY RESPONSE:
+1. LISTEN deeply — reflect back what you actually heard, show you understood
+2. ADD something real — a new angle, pattern you noticed, something they haven't considered
+3. MOVE IT FORWARD — end with a question, challenge, or next step that creates momentum
+4. BUILD on the full story — you have the whole conversation history. Reference earlier things. Connect dots. Remember everything.
+5. COACH them — if they're stuck, name the block. If they're making progress, celebrate it specifically. If you think they're ready for the next stage, say so naturally (e.g. "This feels like it's growing into something real — you might be ready to move from Seed to Growing.").
+
+STYLE: Warm but real. Specific, not generic. Use their actual words. Conversational, not a lecture. Length: enough to be genuinely helpful.
+
+NEVER engage with harmful content. Keep everything high-vibration and constructive.`;
+
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+
+    const messages: any[] = [{ role: "system", content: systemPrompt }];
+    // Add full history as message context
+    for (const h of history) {
+      messages.push({ role: h.role, content: h.content });
+    }
+    messages.push({ role: "user", content: message.trim() });
+
+    const stream = await openai.chat.completions.create({
+      model: "anthropic/claude-sonnet-4.5",
+      stream: true,
+      messages,
+      max_tokens: 2500,
+      temperature: 0.82,
+    });
+
+    let fullReply = "";
+    for await (const chunk of stream) {
+      const text = chunk.choices[0]?.delta?.content || "";
+      if (text) {
+        fullReply += text;
+        res.write(`data: ${JSON.stringify({ text })}\n\n`);
+      }
+    }
+
+    // Save assistant reply to DB
+    if (fullReply) {
+      await db.insert(dreamLabMessages).values({
+        userId, dreamId, role: "assistant", content: fullReply,
+      });
+    }
+
+    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+    res.end();
+  } catch (err: any) {
+    res.write(`data: ${JSON.stringify({ error: err?.message })}\n\n`);
+    res.end();
   }
 });
 

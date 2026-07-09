@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -15,6 +16,7 @@ import { UniversePage } from "@/pages/universe";
 import { DiscoverPage } from "@/pages/discover";
 import { LearnPage } from "@/pages/learn";
 import { ComparePage } from "@/pages/compare";
+import { SplashPage } from "@/pages/splash";
 import NotFound from "@/pages/not-found";
 import { PWAInstallPrompt } from "@/components/pwa-install-prompt";
 import { LabAuthGate } from "@/components/lab-auth-gate";
@@ -60,6 +62,12 @@ function Router() {
 }
 
 function App() {
+  const [entered, setEntered] = useState(() => !!localStorage.getItem("sirius_entered"));
+
+  if (!entered) {
+    return <SplashPage onEnter={() => setEntered(true)} />;
+  }
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider delayDuration={300}>
