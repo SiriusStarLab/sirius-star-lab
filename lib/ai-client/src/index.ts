@@ -33,12 +33,19 @@ const _baseClient = new OpenAI({
 
 // When using Anthropic direct API, model IDs must NOT have the "anthropic/" prefix,
 // and version numbers use dashes (claude-sonnet-4-5), not dots (claude-sonnet-4.5).
-// OpenRouter uses "anthropic/claude-sonnet-4.5"; Anthropic's API uses "claude-sonnet-4-5".
-// This proxy normalises the model field transparently so all callers work with either backend.
+// OpenRouter uses "anthropic/claude-sonnet-4.5"; Anthropic's API uses "claude-sonnet-4-5-20250929".
+// Short aliases (without date suffix) are NOT valid on the direct API — map them here.
+const DIRECT_MODEL_ALIASES: Record<string, string> = {
+  "claude-sonnet-4-5": "claude-sonnet-4-5-20250929",
+  "claude-haiku-4-5":  "claude-haiku-4-5-20251001",
+  "claude-opus-4-5":   "claude-opus-4-5-20251101",
+};
+
 function normaliseModel(model: string): string {
   if (usingDirect) {
     const stripped = model.startsWith("anthropic/") ? model.slice("anthropic/".length) : model;
-    return stripped.replace(/\./g, "-");
+    const dashed = stripped.replace(/\./g, "-");
+    return DIRECT_MODEL_ALIASES[dashed] ?? dashed;
   }
   return model;
 }
