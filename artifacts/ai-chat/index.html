@@ -85,23 +85,15 @@
     }
     </script>
 
-    <!-- Force SW cache bust on new deploys -->
+    <!-- Clear stale SW caches on new deploys — NO page reload (reload breaks iOS PWA Add to Home Screen) -->
     <script>
       (function() {
-        var V = 'sirius_bundle_v1';
-        var stored = localStorage.getItem(V);
-        if (stored !== '1') {
+        var V = 'sirius_bundle_v2';
+        if (!localStorage.getItem(V)) {
           localStorage.setItem(V, '1');
           if ('caches' in window) {
             caches.keys().then(function(keys) {
-              Promise.all(keys.map(function(k) { return caches.delete(k); }));
-            });
-          }
-          if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.getRegistrations().then(function(regs) {
-              Promise.all(regs.map(function(r) { return r.unregister(); })).then(function() {
-                window.location.reload(true);
-              });
+              keys.forEach(function(k) { caches.delete(k); });
             });
           }
         }

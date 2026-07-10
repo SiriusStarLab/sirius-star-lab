@@ -66,13 +66,16 @@ export default defineConfig({
             purpose: "maskable",
           },
         ],
+        id: "/",
         categories: ["productivity", "utilities", "lifestyle"],
         lang: "en",
       },
       workbox: {
-        skipWaiting: false,
-        clientsClaim: false,
+        skipWaiting: true,
+        clientsClaim: true,
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
+        navigateFallback: "index.html",
+        navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
@@ -93,7 +96,6 @@ export default defineConfig({
             },
           },
         ],
-        navigateFallback: null,
       },
       devOptions: {
         enabled: false,
