@@ -249,7 +249,7 @@ function DomainCard({ domain, onClick }: { domain: Domain; onClick: () => void }
       onClick={onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      className="relative text-left w-full rounded-2xl p-6 overflow-hidden transition-all duration-300 group"
+      className="relative text-left w-full h-full rounded-2xl p-6 overflow-hidden transition-all duration-300 group"
       style={{
         background: hovered
           ? `linear-gradient(135deg, white 0%, ${domain.glow.replace("0.25)", "0.07)")} 100%)`
@@ -651,6 +651,7 @@ export function UniversePage() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.1 + i * 0.06 }}
+                    className="h-full"
                   >
                     <DomainCard domain={domain} onClick={() => setActiveDomain(domain)} />
                   </motion.div>
