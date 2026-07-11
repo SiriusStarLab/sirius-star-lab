@@ -115,6 +115,8 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
   const [upgradingFromLimit, setUpgradingFromLimit] = useState(false);
   const [showModeGuide, setShowModeGuide] = useState(false);
   const [modeBarCanScrollRight, setModeBarCanScrollRight] = useState(false);
+  const [hoveredModeId, setHoveredModeId] = useState<string | null>(null);
+  const [tooltipRect, setTooltipRect] = useState<{ left: number; bottom: number } | null>(null);
   const modeBarRef = useRef<HTMLDivElement>(null);
   const { status } = useSubscription();
   const userId = getUserId();
@@ -333,8 +335,13 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
             return (
               <button
                 key={m.id}
-                title={m.detail}
                 onClick={() => { setMode(m.id); setShowModeGuide(false); setTimeout(() => textareaRef.current?.focus(), 0); }}
+                onMouseEnter={(e) => {
+                  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                  setHoveredModeId(m.id);
+                  setTooltipRect({ left: rect.left + rect.width / 2, bottom: window.innerHeight - rect.top + 8 });
+                }}
+                onMouseLeave={() => { setHoveredModeId(null); setTooltipRect(null); }}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium whitespace-nowrap transition-all duration-200 shrink-0"
                 style={{
                   background: active ? "hsl(193 100% 52% / 0.12)" : "hsl(210 30% 95%)",
@@ -634,6 +641,50 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
           {isRecording ? "🔴 Recording — click mic to stop" : isTranscribing ? "Transcribing your voice..." : "Secure · Private · Always on"}
         </p>
       </div>
+
+      {/* Mode hover tooltip — fixed so it floats above the tab bar */}
+      {hoveredModeId && tooltipRect && (() => {
+        const m = MODES.find(x => x.id === hoveredModeId);
+        if (!m) return null;
+        const CARD_W = 260;
+        const safeLeft = Math.min(Math.max(tooltipRect.left - CARD_W / 2, 12), window.innerWidth - CARD_W - 12);
+        return (
+          <div
+            style={{
+              position: "fixed",
+              bottom: tooltipRect.bottom,
+              left: safeLeft,
+              width: CARD_W,
+              zIndex: 9999,
+              background: "hsl(224 28% 8%)",
+              border: "1px solid hsl(193 100% 52% / 0.25)",
+              borderRadius: 14,
+              padding: "12px 14px",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.45), 0 0 24px hsl(193 100% 52% / 0.08)",
+              pointerEvents: "none",
+            }}
+          >
+            {/* arrow */}
+            <div style={{
+              position: "absolute", bottom: -6, left: "50%", transform: "translateX(-50%)",
+              width: 10, height: 6,
+              borderLeft: "5px solid transparent",
+              borderRight: "5px solid transparent",
+              borderTop: "6px solid hsl(193 100% 52% / 0.25)",
+            }} />
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              <span style={{ fontSize: 16 }}>{m.emoji}</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "hsl(193 100% 70%)", letterSpacing: "0.04em" }}>{m.label}</span>
+            </div>
+            <p style={{ fontSize: 11, color: "rgba(200,220,240,0.85)", lineHeight: 1.5, margin: "0 0 6px" }}>
+              {m.detail}
+            </p>
+            <p style={{ fontSize: 10, color: "hsl(193 100% 52% / 0.55)", lineHeight: 1.4, margin: 0 }}>
+              Best for: {m.when}
+            </p>
+          </div>
+        );
+      })()}
     </div>
   );
 }
