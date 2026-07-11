@@ -16,7 +16,7 @@ import { UniversePage } from "@/pages/universe";
 import { DiscoverPage } from "@/pages/discover";
 import { LearnPage } from "@/pages/learn";
 import { ComparePage } from "@/pages/compare";
-import { SplashPage } from "@/pages/splash";
+import { AuthGate } from "@/components/auth-gate";
 import NotFound from "@/pages/not-found";
 import { PWAInstallPrompt } from "@/components/pwa-install-prompt";
 import { LabAuthGate } from "@/components/lab-auth-gate";
@@ -61,14 +61,16 @@ function Router() {
   );
 }
 
-function App() {
-  const [entered, setEntered] = useState(() => !!localStorage.getItem("sirius_entered"));
+function isAuthenticated(): boolean {
+  const userId = localStorage.getItem("sirius_user_id");
+  return !!userId && (userId.startsWith("acct_") || userId === "garry");
+}
 
-  if (!entered) {
-    return <SplashPage onEnter={() => {
-      window.history.replaceState({}, "", "/");
-      setEntered(true);
-    }} />;
+function App() {
+  const [authed, setAuthed] = useState(() => isAuthenticated());
+
+  if (!authed) {
+    return <AuthGate onAuth={() => setAuthed(true)} />;
   }
 
   return (

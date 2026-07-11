@@ -17,9 +17,11 @@ import dreamLabRouter from "./dream-lab";
 import paymentRouter from "./payment";
 import intelligenceProxyRouter from "./intelligence-proxy.js";
 import selfModifyRouter from "./self-modify.js";
+import authRouter from "./auth.js";
 
 const router: IRouter = Router();
 
+router.use(authRouter);
 router.use(publicRouter);
 router.use(healthRouter);
 router.use(openaiRouter);

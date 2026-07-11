@@ -46,3 +46,4 @@ export * from "./dream_lab";
 export * from "./payment_requests";
 export * from "./new_dimensions";
 export * from "./sirius_tasks";
+export * from "./sirius_accounts";

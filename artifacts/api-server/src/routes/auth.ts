@@ -1,0 +1,100 @@
+import { Router } from "express";
+import bcrypt from "bcryptjs";
+import { db } from "@workspace/db";
+import { siriusAccountsTable, userProfilesTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
+
+const router = Router();
+
+router.post("/auth/signup", async (req, res): Promise<void> => {
+  try {
+    const { email, password, name } = req.body as { email?: string; password?: string; name?: string };
+
+    if (!email || !password) {
+      res.status(400).json({ error: "Email and password are required." });
+      return;
+    }
+    if (password.length < 8) {
+      res.status(400).json({ error: "Password must be at least 8 characters." });
+      return;
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+
+    const existing = await db
+      .select({ id: siriusAccountsTable.id })
+      .from(siriusAccountsTable)
+      .where(eq(siriusAccountsTable.email, normalizedEmail))
+      .limit(1);
+
+    if (existing.length > 0) {
+      res.status(409).json({ error: "An account with this email already exists. Please log in." });
+      return;
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    const [account] = await db
+      .insert(siriusAccountsTable)
+      .values({ email: normalizedEmail, passwordHash })
+      .returning({ id: siriusAccountsTable.id });
+
+    const userId = `acct_${account.id}`;
+    const displayName = name?.trim() || normalizedEmail.split("@")[0];
+
+    await db
+      .insert(userProfilesTable)
+      .values({ userId, displayName })
+      .onConflictDoNothing();
+
+    res.json({ userId, email: normalizedEmail, displayName });
+  } catch (err) {
+    console.error("[auth/signup]", err);
+    res.status(500).json({ error: "Something went wrong. Please try again." });
+  }
+});
+
+router.post("/auth/login", async (req, res): Promise<void> => {
+  try {
+    const { email, password } = req.body as { email?: string; password?: string };
+
+    if (!email || !password) {
+      res.status(400).json({ error: "Email and password are required." });
+      return;
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+
+    const [account] = await db
+      .select()
+      .from(siriusAccountsTable)
+      .where(eq(siriusAccountsTable.email, normalizedEmail))
+      .limit(1);
+
+    if (!account) {
+      res.status(401).json({ error: "No account found with that email." });
+      return;
+    }
+
+    const valid = await bcrypt.compare(password, account.passwordHash);
+    if (!valid) {
+      res.status(401).json({ error: "Incorrect password." });
+      return;
+    }
+
+    const userId = `acct_${account.id}`;
+
+    const [profile] = await db
+      .select({ displayName: userProfilesTable.displayName })
+      .from(userProfilesTable)
+      .where(eq(userProfilesTable.userId, userId))
+      .limit(1);
+
+    res.json({ userId, email: normalizedEmail, displayName: profile?.displayName ?? "" });
+  } catch (err) {
+    console.error("[auth/login]", err);
+    res.status(500).json({ error: "Something went wrong. Please try again." });
+  }
+});
+
+export default router;
