@@ -492,20 +492,7 @@ export default function SettingsScreen() {
                   </View>
                   <Text style={styles.plusCardNote}>Auto-renews monthly · Cancel any time in Apple Settings</Text>
                 </Pressable>
-              ) : (
-                <View style={[styles.plusCard, { opacity: 0.5 }]}>
-                  <View style={styles.plusCardInner}>
-                    <View style={styles.plusIconWrap}>
-                      <Feather name="zap" size={22} color={Colors.background} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.plusCardTitle}>Sirius Plus — £6.99/month</Text>
-                      <Text style={styles.plusCardDesc}>200 messages/day · Image analysis · Sirius remembers you</Text>
-                    </View>
-                  </View>
-                  <Text style={styles.plusCardNote}>Auto-renews monthly · Cancel any time in Apple Settings</Text>
-                </View>
-              )}
+              ) : null}
 
               {subscription.proPackage ? (
                 <Pressable
@@ -522,15 +509,7 @@ export default function SettingsScreen() {
                   </View>
                   <Feather name="chevron-right" size={16} color="rgba(245,158,11,0.5)" />
                 </Pressable>
-              ) : (
-                <View style={[styles.proCard, { opacity: 0.5 }]}>
-                  <Feather name="award" size={18} color="#f59e0b" />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.proCardTitle}>Sirius Pro — £14.99/month</Text>
-                    <Text style={styles.proCardDesc}>Unlimited everything · Deep memory · Priority speed</Text>
-                  </View>
-                </View>
-              )}
+              ) : null}
             </>
           )}
 
@@ -543,6 +522,11 @@ export default function SettingsScreen() {
               ? <ActivityIndicator size="small" color={Colors.textMuted} />
               : <Text style={styles.restoreBtnText}>Restore purchases</Text>}
           </Pressable>
+
+          {/* Apple §3.1.2 required subscription disclosure */}
+          <Text style={styles.iapDisclosure}>
+            Payment will be charged to your Apple ID account at the confirmation of purchase. Subscription automatically renews unless it is cancelled at least 24 hours before the end of the current period. Your account will be charged for renewal within 24 hours prior to the end of the current period. You can manage and cancel your subscriptions by going to your account settings on the App Store after purchase.
+          </Text>
 
           {/* Required legal links in subscription section (Apple §3.1.2c) */}
           <View style={styles.iapLegalRow}>
@@ -1036,6 +1020,16 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.textMuted,
     fontFamily: "Inter_400Regular",
+  },
+  iapDisclosure: {
+    fontSize: 10,
+    color: "#64748b",
+    fontFamily: "Inter_400Regular",
+    lineHeight: 15,
+    textAlign: "center",
+    marginTop: 12,
+    marginBottom: 4,
+    paddingHorizontal: 4,
   },
   iapLegalRow: {
     flexDirection: "row",

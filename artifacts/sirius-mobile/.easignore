@@ -12,7 +12,10 @@ artifacts/fitstack-crm/
 artifacts/ai-chat/
 artifacts/api-server/
 artifacts/mockup-sandbox/
+artifacts/sirius-promo/
+artifacts/new-dimensions/
 attached_assets/
 .local/
 lib/
 *.log
+pnpm-lock.yaml

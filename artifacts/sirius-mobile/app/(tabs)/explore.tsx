@@ -422,6 +422,11 @@ export default function ExploreScreen() {
           </Pressable>
         ))}
       </View>
+
+      {/* §1.4 disclaimer — mood/health features are for wellbeing, not medical advice */}
+      <Text style={styles.disclaimerText}>
+        Sirius is not a medical provider. Content is for informational and personal growth purposes only. Always consult a qualified professional for health, mental health, or medical decisions.
+      </Text>
     </ScrollView>
   );
 }
@@ -547,4 +552,14 @@ const styles = StyleSheet.create({
   },
   diveTitle: { fontSize: 14, fontWeight: "600", color: Colors.text, fontFamily: "Inter_600SemiBold", marginBottom: 3 },
   diveSubtitle: { fontSize: 12, color: Colors.textMuted, fontFamily: "Inter_400Regular", lineHeight: 18 },
+  disclaimerText: {
+    fontSize: 11,
+    color: "#475569",
+    fontFamily: "Inter_400Regular",
+    lineHeight: 16,
+    textAlign: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    marginTop: 4,
+  },
 });
