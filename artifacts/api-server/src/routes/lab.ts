@@ -10348,5 +10348,109 @@ router.get("/lab/renders/:filename", (req: Request, res: Response) => {
   createReadStream(filePath).pipe(res);
 });
 
+// ── Project PDF Export ────────────────────────────────────────────────────
+// Returns a print-ready HTML page with all project data + images
+router.get("/lab/projects/:id/export-pdf", authMiddleware, async (req: Request, res: Response) => {
+  const id = parseInt(req.params.id as string);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid project ID" }); return; }
+  const [project] = await db.select().from(labProjects).where(eq(labProjects.id, id));
+  if (!project) { res.status(404).json({ error: "Project not found" }); return; }
+
+  const renders: { url: string; label: string }[] = (() => { try { return JSON.parse(project.renders as any || "[]"); } catch { return []; } })();
+  const docs = await db.select().from(techDocs).where(eq(techDocs.projectId, id)).orderBy(desc(techDocs.uploadedAt));
+
+  // Get signed URLs for image docs
+  const imageDocs: { doc: typeof docs[0]; url: string }[] = [];
+  const nonImageDocs = docs.filter(d => !d.mimeType?.startsWith("image/"));
+  await Promise.all(
+    docs.filter(d => d.mimeType?.startsWith("image/")).map(async doc => {
+      try {
+        const storageInst = new ObjectStorageService();
+        const url = await storageInst.getObjectEntityDownloadURL(doc.objectPath, 3600);
+        imageDocs.push({ doc, url });
+      } catch {}
+    })
+  );
+
+  const safeHtml = (s: string) => (s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const exportDate = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+  const section = (title: string, content: string) => (content || "").trim()
+    ? `<section><h2>${title}</h2><div class="content-block">${safeHtml(content)}</div></section>` : "";
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${safeHtml(project.name)} — Project Overview</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f8fafc; color: #0f172a; }
+  @media print {
+    body { background: white; }
+    .no-print { display: none !important; }
+    .cover { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    section { break-inside: avoid; }
+    .media-grid img { break-inside: avoid; }
+  }
+  .cover { background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%); color: white; padding: 3rem 4rem; }
+  .cover h1 { font-size: 2.4rem; font-weight: 700; margin-bottom: 0.5rem; }
+  .cover .meta { opacity: 0.55; font-size: 0.85rem; margin-top: 0.75rem; }
+  .badge { display: inline-block; background: rgba(255,255,255,0.15); border-radius: 999px; padding: 0.2rem 0.65rem; font-size: 0.78rem; margin-right: 0.4rem; margin-top: 0.4rem; }
+  .print-bar { background: white; border-bottom: 1px solid #e2e8f0; padding: 0.75rem 4rem; display: flex; align-items: center; gap: 1rem; }
+  .print-btn { display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 1.5rem; background: #0f172a; color: white; border: none; border-radius: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
+  .print-btn:hover { background: #1e293b; }
+  .content { max-width: 860px; margin: 0 auto; padding: 2rem; }
+  section { background: white; border-radius: 12px; padding: 1.5rem 2rem; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.07); }
+  h2 { font-size: 0.72rem; font-weight: 700; color: #1e40af; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid #e2e8f0; text-transform: uppercase; letter-spacing: 0.06em; }
+  .content-block { white-space: pre-wrap; font-family: inherit; font-size: 0.87rem; line-height: 1.75; color: #334155; }
+  .media-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; }
+  .media-grid figure { margin: 0; }
+  .media-grid img { width: 100%; border-radius: 8px; display: block; }
+  .media-grid figcaption { font-size: 0.72rem; color: #94a3b8; text-align: center; margin-top: 0.35rem; }
+  .file-list li { padding: 0.5rem 0; border-bottom: 1px solid #f1f5f9; font-size: 0.84rem; list-style: none; }
+  .file-list .file-type { color: #94a3b8; font-size: 0.75rem; margin-left: 0.5rem; }
+  .sirius-footer { text-align: center; padding: 2rem; color: #94a3b8; font-size: 0.75rem; }
+</style>
+</head>
+<body>
+<div class="cover">
+  <h1>${safeHtml(project.name)}</h1>
+  <div>
+    ${project.industry ? `<span class="badge">${safeHtml(project.industry)}</span>` : ""}
+    ${project.phase ? `<span class="badge">${safeHtml(project.phase)}</span>` : ""}
+    ${project.manufacturingProcess ? `<span class="badge">${safeHtml(project.manufacturingProcess)}</span>` : ""}
+  </div>
+  <p class="meta">Generated ${exportDate} &nbsp;·&nbsp; Sirius Star Lab</p>
+</div>
+<div class="print-bar no-print">
+  <button class="print-btn" onclick="window.print()">&#x2B07; Save as PDF / Print</button>
+  <span style="color:#64748b;font-size:0.82rem;">Use your browser's Print → Save as PDF option</span>
+</div>
+<div class="content">
+  ${section("Executive Brief", project.brief || "")}
+  ${section("Market Research", project.research || "")}
+  ${section("Technical Specifications", project.specs || "")}
+  ${section("Materials & Components", project.materials || "")}
+  ${section("Drawing Notes", project.drawingNotes || "")}
+  ${section("Workflows", project.workflows || "")}
+  ${section("Market & Uses", project.industryProblem || "")}
+  ${section("Business Case", project.businessCase || "")}
+  ${section("Go-To-Market Strategy", project.goToMarket || "")}
+  ${section("Brochure", project.brochure || "")}
+  ${section("Pitch Deck", project.pitch || "")}
+  ${section("Economics & Pricing", project.costToBuild || "")}
+  ${renders.length > 0 ? `<section><h2>AI Renders (${renders.length})</h2><div class="media-grid">${renders.map((r: any) => `<figure><img src="${r.url || r}" alt="${safeHtml(r.label || "Render")}" loading="lazy"><figcaption>${safeHtml(r.label || "")}</figcaption></figure>`).join("")}</div></section>` : ""}
+  ${imageDocs.length > 0 ? `<section><h2>Files &amp; Media (${imageDocs.length})</h2><div class="media-grid">${imageDocs.map(({ doc, url }) => `<figure><img src="${url}" alt="${safeHtml(doc.fileName)}" loading="lazy"><figcaption>${safeHtml(doc.fileName)}${doc.docType ? ` · ${safeHtml(doc.docType)}` : ""}</figcaption></figure>`).join("")}</div></section>` : ""}
+  ${nonImageDocs.length > 0 ? `<section><h2>Attached Documents (${nonImageDocs.length})</h2><ul class="file-list">${nonImageDocs.map(doc => `<li><strong>${safeHtml(doc.fileName)}</strong><span class="file-type">${safeHtml(doc.docType)}</span>${doc.description ? `<br><span style="color:#64748b;font-size:0.8rem;">${safeHtml(doc.description)}</span>` : ""}</li>`).join("")}</ul></section>` : ""}
+  <div class="sirius-footer">Generated by Sirius Star Lab &nbsp;·&nbsp; sirius-ai.live</div>
+</div>
+</body>
+</html>`;
+
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.send(html);
+});
+
 export default router;
 

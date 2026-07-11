@@ -14,7 +14,7 @@ import {
   Banknote, CreditCard, ShoppingBag, BarChart3, ArrowRight, FileSearch, Hammer, ClipboardList,
   Brain, MessageSquare, Activity, Target, Building, Mic, MicOff, ShieldAlert, Rocket,
   LayoutDashboard, ArrowLeft, Clock, Award, Layers3, Share, Keyboard, CornerDownLeft, Search,
-  Archive, Paperclip
+  Archive, Paperclip, Image
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { getApiBase } from "@/lib/api-base";
@@ -639,6 +639,7 @@ const ALL_TABS = [
   { id: "ai-arch", label: "AI Architecture", icon: Layers, field: null, phase: "all", placeholder: "", generated: false },
   { id: "launch", label: "Launch", icon: Send, field: null, phase: "all", placeholder: "", generated: false },
   { id: "package", label: "Package", icon: Globe, field: null, phase: "all", placeholder: "", generated: false },
+  { id: "files", label: "Files & Media", icon: Paperclip, field: null, phase: "all", placeholder: "", generated: false },
 ];
 
 
@@ -1866,6 +1867,14 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack, allProjects, onNavig
   const [expandedInsight, setExpandedInsight] = useState<number | null>(null);
   const [genVersion, setGenVersion] = useState(0);
   const [reviewFilter, setReviewFilter] = useState<"all" | "launch-ready" | "cad-pending">("all");
+  const [techDocs, setTechDocs] = useState<any[]>([]);
+  const [techDocsLoading, setTechDocsLoading] = useState(false);
+  const [techDocUrls, setTechDocUrls] = useState<Record<number, string>>({});
+  const [lightboxId, setLightboxId] = useState<number | null>(null);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+  const [exportingPdf, setExportingPdf] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const base = getApiBase();
 
   const headers = useCallback(() => ({ "Content-Type": "application/json", "x-lab-pin": pin }), [pin]);
@@ -1900,12 +1909,76 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack, allProjects, onNavig
     setInsightsLoaded(true);
   }, [base, pin, project.id]);
 
+  const loadTechDocs = useCallback(async () => {
+    setTechDocsLoading(true);
+    try {
+      const res = await fetch(`${base}lab/projects/${project.id}/tech-docs`, { headers: { "x-lab-pin": pin } });
+      if (res.ok) {
+        const docs = await res.json();
+        setTechDocs(docs);
+        const urls: Record<number, string> = {};
+        await Promise.all(docs.map(async (doc: any) => {
+          if (doc.mimeType?.startsWith("image/")) {
+            try {
+              const r = await fetch(`${base}lab/projects/${project.id}/tech-docs/${doc.id}/download-url`, { headers: { "x-lab-pin": pin } });
+              if (r.ok) { const d = await r.json(); urls[doc.id] = d.url; }
+            } catch {}
+          }
+        }));
+        setTechDocUrls(urls);
+      }
+    } catch {}
+    setTechDocsLoading(false);
+  }, [base, pin, project.id]);
+
+  const uploadTechDoc = async (file: File) => {
+    setUploadingFile(true);
+    setUploadError("");
+    try {
+      const r1 = await fetch(`${base}lab/projects/${project.id}/tech-docs/upload-url`, { method: "POST", headers: { "x-lab-pin": pin } });
+      if (!r1.ok) throw new Error("Failed to get upload URL");
+      const { uploadURL, objectPath } = await r1.json();
+      const r2 = await fetch(uploadURL, { method: "PUT", body: file, headers: { "Content-Type": file.type || "application/octet-stream" } });
+      if (!r2.ok) throw new Error("Upload failed");
+      const docType = file.type.startsWith("image/") ? "photo" : /\.pdf$/i.test(file.name) ? "spec" : /\.(dwg|dxf)$/i.test(file.name) ? "drawing" : "other";
+      await fetch(`${base}lab/projects/${project.id}/tech-docs`, {
+        method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+        body: JSON.stringify({ fileName: file.name, fileSize: file.size, mimeType: file.type || "application/octet-stream", objectPath, docType }),
+      });
+      await loadTechDocs();
+    } catch (e: any) { setUploadError(e.message || "Upload failed — please try again."); }
+    setUploadingFile(false);
+  };
+
+  const deleteTechDoc = async (docId: number) => {
+    await fetch(`${base}lab/projects/${project.id}/tech-docs/${docId}`, { method: "DELETE", headers: { "x-lab-pin": pin } });
+    setTechDocs(d => d.filter(doc => doc.id !== docId));
+    setTechDocUrls(u => { const n = { ...u }; delete n[docId]; return n; });
+  };
+
+  const exportPdf = async () => {
+    setExportingPdf(true);
+    try {
+      const res = await fetch(`${base}lab/projects/${project.id}/export-pdf`, { headers: { "x-lab-pin": pin } });
+      const html = await res.text();
+      const blob = new Blob([html], { type: "text/html" });
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank");
+      setTimeout(() => URL.revokeObjectURL(url), 15000);
+    } catch {}
+    setExportingPdf(false);
+  };
+
   useEffect(() => {
     setInsights([]); setInsightsLoaded(false);
+    setTechDocs([]); setTechDocUrls({}); setLightboxId(null);
     loadCompleteness();
-    // Auto-load insights for any project that has at least a name
     loadInsights();
   }, [project.id]);
+
+  useEffect(() => {
+    if (activeTab === "files") loadTechDocs();
+  }, [activeTab, project.id]);
 
   const saveField = async (field: string, value: string) => {
     setSaving(true);
@@ -2134,6 +2207,12 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack, allProjects, onNavig
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs transition-all"
             style={{ background: "#E8EEF5", color: "hsl(193,100%,60%)", border: "1px solid rgba(15,23,42,0.09)" }}>
             <Cpu className="w-3 h-3" /> Drawings
+          </button>
+          <button onClick={exportPdf} disabled={exportingPdf}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs transition-all"
+            style={{ background: "#E8EEF5", color: "hsl(155,70%,40%)", border: "1px solid rgba(15,23,42,0.09)", opacity: exportingPdf ? 0.6 : 1 }}>
+            {exportingPdf ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
+            {exportingPdf ? "Generating…" : "Export PDF"}
           </button>
         </div>
       </div>
@@ -2368,6 +2447,154 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack, allProjects, onNavig
 
           {activeTab === "renders" && (
             <RendersTab project={project} pin={pin} onUpdate={onUpdate} />
+          )}
+
+          {activeTab === "files" && (
+            <div className="flex-1 flex flex-col min-h-0 overflow-y-auto relative">
+              {/* Lightbox */}
+              {lightboxId !== null && (() => {
+                const doc = techDocs.find(d => d.id === lightboxId);
+                const url = techDocUrls[lightboxId];
+                return doc ? (
+                  <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center"
+                    style={{ background: "rgba(0,0,0,0.88)" }}
+                    onClick={() => setLightboxId(null)}>
+                    <button className="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center"
+                      style={{ background: "rgba(255,255,255,0.15)" }}
+                      onClick={() => setLightboxId(null)}>
+                      <X className="w-4 h-4 text-white" />
+                    </button>
+                    {url ? (
+                      <img src={url} alt={doc.fileName}
+                        className="max-h-[85vh] max-w-[85vw] rounded-xl object-contain shadow-2xl"
+                        onClick={e => e.stopPropagation()} />
+                    ) : (
+                      <Loader2 className="w-8 h-8 text-white animate-spin" />
+                    )}
+                    <p className="absolute bottom-6 text-white/50 text-xs">{doc.fileName}</p>
+                  </div>
+                ) : null;
+              })()}
+
+              <div className="p-5 space-y-4">
+                {/* Header + upload */}
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h3 className="text-slate-800 font-semibold text-sm">Files &amp; Media</h3>
+                    <p className="text-xs mt-0.5" style={{ color: "rgba(15,23,42,0.4)" }}>
+                      Photos, drawings, PDFs and any visual references for this project
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button onClick={loadTechDocs} disabled={techDocsLoading}
+                      className="p-1.5 rounded-lg transition-all hover:bg-slate-900/5"
+                      title="Refresh">
+                      <RefreshCw className={`w-3.5 h-3.5 text-slate-300 ${techDocsLoading ? "animate-spin" : ""}`} />
+                    </button>
+                    <button onClick={() => fileInputRef.current?.click()} disabled={uploadingFile}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all"
+                      style={{ background: "hsl(193,100%,35%)", color: "white", opacity: uploadingFile ? 0.7 : 1 }}>
+                      {uploadingFile ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+                      {uploadingFile ? "Uploading…" : "Upload File"}
+                    </button>
+                    <input ref={fileInputRef} type="file"
+                      accept="image/*,.pdf,.dwg,.dxf,.step,.stp,.iges,.stl"
+                      className="hidden"
+                      onChange={e => { const f = e.target.files?.[0]; if (f) { uploadTechDoc(f); e.target.value = ""; } }} />
+                  </div>
+                </div>
+
+                {uploadError && (
+                  <div className="rounded-xl p-3 text-xs" style={{ background: "#FEF2F2", color: "#DC2626", border: "1px solid #FECACA" }}>
+                    {uploadError}
+                  </div>
+                )}
+
+                {techDocsLoading && techDocs.length === 0 && (
+                  <div className="flex items-center justify-center py-16">
+                    <Loader2 className="w-6 h-6 animate-spin text-slate-200" />
+                  </div>
+                )}
+
+                {!techDocsLoading && techDocs.length === 0 && (
+                  <div className="flex flex-col items-center justify-center py-16 text-center">
+                    <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
+                      style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.08)" }}>
+                      <Image className="w-6 h-6 text-slate-300" />
+                    </div>
+                    <p className="text-slate-500 text-sm font-medium">No files yet</p>
+                    <p className="text-xs mt-1.5 max-w-xs leading-relaxed" style={{ color: "rgba(15,23,42,0.35)" }}>
+                      Upload product photos, concept sketches, engineering drawings, PDFs — anything that helps describe what you're building
+                    </p>
+                    <button onClick={() => fileInputRef.current?.click()}
+                      className="mt-4 flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-medium transition-all"
+                      style={{ background: "#F1F5F9", color: "rgba(15,23,42,0.55)", border: "1px solid rgba(15,23,42,0.09)" }}>
+                      <Upload className="w-3 h-3" /> Upload your first file
+                    </button>
+                  </div>
+                )}
+
+                {techDocs.length > 0 && (
+                  <div className="grid grid-cols-2 gap-3">
+                    {techDocs.map(doc => {
+                      const isImage = doc.mimeType?.startsWith("image/");
+                      const url = techDocUrls[doc.id];
+                      const TYPE_STYLE: Record<string, { bg: string; text: string }> = {
+                        photo:   { bg: "hsla(193,100%,20%,0.7)", text: "hsl(193,100%,65%)" },
+                        drawing: { bg: "hsla(155,70%,15%,0.7)",  text: "hsl(155,70%,50%)"  },
+                        concept: { bg: "hsla(280,70%,20%,0.7)",  text: "hsl(280,70%,65%)"  },
+                        spec:    { bg: "hsla(45,100%,15%,0.7)",  text: "hsl(45,100%,55%)"  },
+                        other:   { bg: "rgba(15,23,42,0.08)",    text: "rgba(15,23,42,0.45)" },
+                      };
+                      const ts = TYPE_STYLE[doc.docType] || TYPE_STYLE.other;
+                      return (
+                        <div key={doc.id} className="rounded-xl overflow-hidden group relative"
+                          style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.09)", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+                          {/* Thumbnail */}
+                          {isImage && url ? (
+                            <div className="aspect-[4/3] cursor-pointer overflow-hidden bg-slate-50"
+                              onClick={() => setLightboxId(doc.id)}>
+                              <img src={url} alt={doc.fileName}
+                                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                            </div>
+                          ) : (
+                            <div className="aspect-[4/3] flex flex-col items-center justify-center gap-2"
+                              style={{ background: "#F8FAFC" }}>
+                              <Paperclip className="w-7 h-7 text-slate-200" />
+                              <span className="text-xs text-slate-300 px-3 text-center truncate w-full">{doc.fileName}</span>
+                            </div>
+                          )}
+                          {/* Info */}
+                          <div className="px-3 py-2.5">
+                            <p className="text-slate-700 text-xs font-medium truncate">{doc.fileName}</p>
+                            <div className="flex items-center justify-between mt-1.5">
+                              <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold" style={{ background: ts.bg, color: ts.text }}>
+                                {doc.docType}
+                              </span>
+                              <button onClick={() => deleteTechDoc(doc.id)}
+                                className="opacity-0 group-hover:opacity-100 p-1 rounded-md transition-all"
+                                style={{ color: "#EF4444" }}
+                                title="Delete">
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                            {doc.description && (
+                              <p className="text-xs mt-1.5 leading-relaxed" style={{ color: "rgba(15,23,42,0.45)" }}>{doc.description}</p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {techDocs.length > 0 && (
+                  <p className="text-center text-xs" style={{ color: "rgba(15,23,42,0.3)" }}>
+                    {techDocs.length} file{techDocs.length !== 1 ? "s" : ""} · These are also included when you Export PDF
+                  </p>
+                )}
+              </div>
+            </div>
           )}
 
           {activeTab === "funding" && (
