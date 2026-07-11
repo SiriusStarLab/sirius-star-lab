@@ -119,7 +119,7 @@ export function SplashPage({ onEnter }: { onEnter: () => void }) {
             }}
           >
             <span style={{ fontSize: "0.75rem", fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase" }}>
-              You are now entering Sirius Star Lab
+              Please press here to enter Sirius Star Lab
             </span>
             <span style={{
               fontSize: "0.8rem", opacity: hover ? 1 : 0.5,
