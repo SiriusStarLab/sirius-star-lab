@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { PlusCircle, MessageSquare, Trash2, X, Settings, Zap, Loader2, Sparkles, FlaskConical, BookOpen, GraduationCap, Globe2, Heart, Smartphone } from "lucide-react";
+import { PlusCircle, MessageSquare, Trash2, X, Settings, Zap, Loader2, Sparkles, FlaskConical, BookOpen, GraduationCap, Globe2, Heart, Smartphone, User } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { SettingsPanel } from "@/components/settings-panel";
+import { AccountPanel } from "@/components/account-panel";
 import { MemoryPortrait } from "@/components/memory-portrait";
 import { PricingModal, startCheckout } from "@/components/pricing-modal";
 import { TutorialsModal } from "@/components/tutorials-modal";
@@ -67,6 +68,7 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession }: Sid
   const labPendingCount = useLabPendingCount();
   const queryClient = useQueryClient();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isAccountOpen, setIsAccountOpen] = useState(false);
   const [isPortraitOpen, setIsPortraitOpen] = useState(false);
   const [isPricingOpen, setIsPricingOpen] = useState(false);
   const [isTutorialsOpen, setIsTutorialsOpen] = useState(false);
@@ -519,6 +521,28 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession }: Sid
           </span>
         </button>
 
+        {/* Account button */}
+        <button
+          onClick={() => setIsAccountOpen(true)}
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 text-sm"
+          style={{
+            color: "hsl(193 100% 52% / 0.65)",
+            background: "hsl(193 100% 52% / 0.03)",
+            border: "1px solid hsl(193 100% 52% / 0.1)",
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.color = "hsl(193 100% 52%)";
+            e.currentTarget.style.background = "hsl(193 100% 52% / 0.08)";
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.color = "hsl(193 100% 52% / 0.65)";
+            e.currentTarget.style.background = "hsl(193 100% 52% / 0.03)";
+          }}
+        >
+          <User size={14} />
+          <span className="text-[13px] font-medium">My Account</span>
+        </button>
+
 
 
         {/* Add to Home Screen — mobile only, hidden once installed */}
@@ -575,6 +599,7 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession }: Sid
       </motion.div>
 
       <SettingsPanel isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+      <AccountPanel isOpen={isAccountOpen} onClose={() => setIsAccountOpen(false)} />
       <MemoryPortrait isOpen={isPortraitOpen} onClose={() => setIsPortraitOpen(false)} aiName={aiName} />
       <PricingModal isOpen={isPricingOpen} onClose={() => setIsPricingOpen(false)} currentTier={status.tier} />
       <TutorialsModal open={isTutorialsOpen} onClose={() => setIsTutorialsOpen(false)} />

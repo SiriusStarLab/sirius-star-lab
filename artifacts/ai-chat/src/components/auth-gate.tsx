@@ -74,6 +74,7 @@ export function AuthGate({ onAuth }: AuthGateProps) {
 
       localStorage.setItem("sirius_user_id", data.userId);
       localStorage.setItem("sirius_entered", "1");
+      localStorage.setItem("sirius_account_email", email.trim());
       onAuth(data.userId);
     } catch {
       setError("Network error. Please try again.");
