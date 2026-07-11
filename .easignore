@@ -6,6 +6,8 @@ artifacts/fitstack-crm/
 artifacts/ai-chat/
 artifacts/api-server/
 artifacts/mockup-sandbox/
+artifacts/sirius-promo/
+artifacts/new-dimensions/
 dist/
 .expo/
 ios/
@@ -17,3 +19,4 @@ android/
 screenshots/
 pnpm-lock.yaml
 *.log
+lib/
