@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Zap, Check, Crown, Loader2, Building2, Copy, CheckCheck, CreditCard } from "lucide-react";
 import { getUserId } from "@/lib/user-id";
@@ -30,6 +30,25 @@ export function PricingModal({ isOpen, onClose, currentTier = "free", defaultTie
   const [payMethod] = useState<"bank">("bank");
   const userId = getUserId();
   const isPremium = currentTier !== "free";
+  const historyPushedRef = useRef(false);
+  const closingRef = useRef(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    window.history.pushState({ siriusPricing: true }, "");
+    historyPushedRef.current = true;
+    closingRef.current = false;
+    const onPop = () => {
+      if (!closingRef.current) {
+        closingRef.current = true;
+        historyPushedRef.current = false;
+        setStep("plans"); setDone(false); setName(""); setEmail("");
+        onClose();
+      }
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, [isOpen]);
 
   const PRICES = {
     plus: { amount: "£6.99", label: "Sirius Plus", monthly: "£6.99/month" },
@@ -86,7 +105,11 @@ export function PricingModal({ isOpen, onClose, currentTier = "free", defaultTie
     setDone(false);
     setName("");
     setEmail("");
-    setPayMethod("bank");
+    if (historyPushedRef.current) {
+      historyPushedRef.current = false;
+      closingRef.current = true;
+      window.history.back();
+    }
     onClose();
   }
 
