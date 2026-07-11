@@ -27,7 +27,7 @@ export function PricingModal({ isOpen, onClose, currentTier = "free", defaultTie
   const [copied, setCopied] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [payMethod, setPayMethod] = useState<"bank" | "card">("bank");
+  const [payMethod] = useState<"bank">("bank");
   const userId = getUserId();
   const isPremium = currentTier !== "free";
 
@@ -291,67 +291,6 @@ export function PricingModal({ isOpen, onClose, currentTier = "free", defaultTie
                         Choose how you'd like to pay
                       </p>
                     </div>
-
-                    {/* Payment method toggle */}
-                    <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
-                      {(["bank", "card"] as const).map(m => (
-                        <button
-                          key={m}
-                          onClick={() => setPayMethod(m)}
-                          style={{
-                            flex: 1, padding: "12px 8px", borderRadius: 12, cursor: "pointer",
-                            border: payMethod === m ? "1.5px solid #00d4ff" : "1.5px solid rgba(255,255,255,0.1)",
-                            background: payMethod === m ? "rgba(0,212,255,0.1)" : "rgba(255,255,255,0.04)",
-                            display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
-                          }}
-                        >
-                          {m === "bank"
-                            ? <Building2 size={18} style={{ color: payMethod === "bank" ? "#00d4ff" : "rgba(255,255,255,0.4)" }} />
-                            : <CreditCard size={18} style={{ color: payMethod === "card" ? "#00d4ff" : "rgba(255,255,255,0.4)" }} />}
-                          <span style={{ fontSize: 12, fontWeight: 600, color: payMethod === m ? "#00d4ff" : "rgba(255,255,255,0.4)" }}>
-                            {m === "bank" ? "Bank transfer" : "Apple / Google Pay"}
-                          </span>
-                          {m === "bank" && (
-                            <span style={{ fontSize: 10, color: "rgba(0,212,255,0.6)" }}>No fees · UK only</span>
-                          )}
-                          {m === "card" && (
-                            <span style={{ fontSize: 10, color: "rgba(0,212,255,0.6)" }}>Instant · Worldwide</span>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-
-                    {/* Card / Apple Pay / Google Pay */}
-                    {payMethod === "card" && (
-                      <>
-                        <div style={{
-                          borderRadius: 14, background: "rgba(255,255,255,0.04)",
-                          border: "1px solid rgba(255,255,255,0.1)", padding: "16px 18px", marginBottom: 16,
-                        }}>
-                          <p style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", lineHeight: 1.6, marginBottom: 0 }}>
-                            You'll be taken to a secure Stripe checkout page. <strong style={{ color: "#fff" }}>Apple Pay</strong> and <strong style={{ color: "#fff" }}>Google Pay</strong> will appear automatically if your device supports them — no card number needed. All major cards accepted. Payments are processed by Stripe.
-                          </p>
-                        </div>
-                        <button
-                          onClick={handleStripeCheckout}
-                          disabled={loading}
-                          style={{
-                            width: "100%", padding: "15px", borderRadius: 12, border: "none",
-                            background: loading ? "rgba(0,212,255,0.2)" : "#00d4ff",
-                            color: loading ? "#00d4ff" : "#080c1a",
-                            fontSize: 15, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer",
-                            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                          }}
-                        >
-                          {loading
-                            ? <><Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> Loading…</>
-                            : <><CreditCard size={16} /> Continue to checkout</>}
-                        </button>
-                        <p style={{ fontSize: 11, color: "rgba(255,255,255,0.25)", textAlign: "center", marginTop: 10 }}>
-                          Secured by Stripe · Cancel any time
-                        </p>
-                      </>
-                    )}
 
                     {/* Bank transfer */}
                     {payMethod === "bank" && (

@@ -97,4 +97,62 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   }
 });
 
+// Shared tester password — all team testers use this password (they cannot change it)
+const TESTER_PASSWORD = "SiriusTester2026!";
+
+function labPinGuard(req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) {
+  const pin = req.headers["x-lab-pin"] as string;
+  const expected = process.env.STAR_LAB_PIN || "2025";
+  if (!pin || pin !== expected) { res.status(401).json({ error: "Unauthorised" }); return; }
+  next();
+}
+
+// POST /api/auth/create-tester — PIN-protected; creates a team tester account
+router.post("/auth/create-tester", labPinGuard, async (req, res): Promise<void> => {
+  try {
+    const { email } = req.body as { email?: string };
+    if (!email?.trim()) { res.status(400).json({ error: "Email is required." }); return; }
+
+    const normalizedEmail = email.toLowerCase().trim();
+    const existing = await db
+      .select({ id: siriusAccountsTable.id })
+      .from(siriusAccountsTable)
+      .where(eq(siriusAccountsTable.email, normalizedEmail))
+      .limit(1);
+
+    if (existing.length > 0) {
+      res.status(409).json({ error: "An account with this email already exists." }); return;
+    }
+
+    const passwordHash = await bcrypt.hash(TESTER_PASSWORD, 12);
+    const [account] = await db
+      .insert(siriusAccountsTable)
+      .values({ email: normalizedEmail, passwordHash })
+      .returning({ id: siriusAccountsTable.id });
+
+    const userId = `acct_${account.id}`;
+    const displayName = normalizedEmail.split("@")[0];
+    await db.insert(userProfilesTable).values({ userId, displayName }).onConflictDoNothing();
+
+    res.json({ success: true, userId, email: normalizedEmail, displayName, password: TESTER_PASSWORD });
+  } catch (err) {
+    console.error("[auth/create-tester]", err);
+    res.status(500).json({ error: "Something went wrong. Please try again." });
+  }
+});
+
+// GET /api/auth/testers — PIN-protected; lists all tester accounts
+router.get("/auth/testers", labPinGuard, async (_req, res): Promise<void> => {
+  try {
+    const accounts = await db
+      .select({ id: siriusAccountsTable.id, email: siriusAccountsTable.email, createdAt: siriusAccountsTable.createdAt })
+      .from(siriusAccountsTable)
+      .orderBy(siriusAccountsTable.createdAt);
+    res.json(accounts);
+  } catch (err) {
+    console.error("[auth/testers]", err);
+    res.status(500).json({ error: "Failed to load testers." });
+  }
+});
+
 export default router;
