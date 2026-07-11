@@ -43,6 +43,7 @@ export function LabAuthGate({ children, title = "Star Lab" }: Props) {
 
       if (res.ok && data.success) {
         sessionStorage.setItem(SESSION_KEY, pin.trim());
+        sessionStorage.setItem("lab_role", data.role === "guest" ? "guest" : "owner");
         localStorage.removeItem("lab_pin_persist");
         setStatus("unlocked");
       } else if (res.status === 403) {
