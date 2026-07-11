@@ -287,3 +287,9 @@ id = "Px9bI0QJXVjjZEbrd8u0Z"
 uri = "file://screenshots/sirius_screen4_explore.jpg"
 type = "image"
 title = "Screenshot 4 — Explore"
+
+[[outputs]]
+id = "Z_N_XwnJaAaxim3gI1glM"
+uri = "file://sirius-appstore-guide.pdf"
+type = "pdf"
+title = "Sirius Star Lab — Apple App Store Submission Guide"
