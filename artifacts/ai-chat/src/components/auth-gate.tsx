@@ -208,7 +208,24 @@ export function AuthGate({ onAuth }: AuthGateProps) {
             padding: "32px 28px",
             backdropFilter: "blur(20px)",
             boxShadow: "0 0 60px rgba(0,196,255,0.08)",
+            position: "relative",
           }}>
+            {/* Close / back button — top right */}
+            <button
+              onClick={() => { setMode("splash"); setError(""); }}
+              aria-label="Back"
+              style={{
+                position: "absolute", top: 14, right: 14,
+                width: 30, height: 30, borderRadius: "50%",
+                background: "rgba(255,255,255,0.06)",
+                border: "1px solid rgba(255,255,255,0.12)",
+                color: "rgba(160,200,240,0.7)",
+                fontSize: "1rem", lineHeight: 1,
+                cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                transition: "background 0.15s",
+              }}
+            >✕</button>
+
             <div style={{ textAlign: "center", marginBottom: "28px" }}>
               <div style={{
                 width: 48, height: 48, borderRadius: "50%",
@@ -279,12 +296,6 @@ export function AuthGate({ onAuth }: AuthGateProps) {
                 {mode === "signup" ? "Already have an account? Sign in" : "No account yet? Create one free"}
               </button>
 
-              <button
-                style={{ ...btnStyle, background: "transparent", border: "none", color: "rgba(70,100,140,0.4)", fontSize: "0.65rem", fontWeight: 400, letterSpacing: "0.08em", padding: "2px 0" }}
-                onClick={() => { setMode("splash"); setError(""); }}
-              >
-                ← Back
-              </button>
             </div>
           </div>
         )}

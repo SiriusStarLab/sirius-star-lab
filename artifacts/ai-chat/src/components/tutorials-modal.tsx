@@ -187,7 +187,7 @@ const SECTIONS: Section[] = [
       },
       {
         title: "Changing or cancelling",
-        body: "Manage your subscription at any time from the account settings. Changes take effect at the start of your next billing cycle. Cancellations are immediate with no lock-in.",
+        body: "To cancel, simply stop your monthly bank transfer — no forms, no lock-in. Drop us an email at siriusailab@gmail.com and we'll confirm the cancellation.",
       },
     ],
   },
