@@ -98,13 +98,16 @@ interface ChatInputProps {
   onStop: () => void;
   voiceMode?: boolean;
   onToggleVoice?: () => void;
+  externalMode?: string;
 }
 
-export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggleVoice }: ChatInputProps) {
+export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggleVoice, externalMode }: ChatInputProps) {
   const [input, setInput] = React.useState("");
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [phVisible, setPhVisible] = useState(true);
-  const [mode, setMode] = useState("guru");
+  const [internalMode, setInternalMode] = useState("guru");
+  const mode = externalMode ?? internalMode;
+  const setMode = (m: string) => { if (!externalMode) setInternalMode(m); };
   const [imageBase64, setImageBase64] = useState<string | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [documentBase64, setDocumentBase64] = useState<string | null>(null);
@@ -326,8 +329,8 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
   return (
     <div className="relative w-full max-w-3xl mx-auto">
 
-      {/* Mode selector */}
-      <div className="flex items-center gap-1.5 mb-1.5">
+      {/* Mode selector — hidden when mode is controlled externally (via sidebar) */}
+      <div className="flex items-center gap-1.5 mb-1.5" style={{ display: externalMode ? "none" : undefined }}>
         <div className="relative flex-1 min-w-0">
         <div ref={modeBarRef} className="flex items-center gap-1.5 overflow-x-auto pb-0.5" style={{ scrollbarWidth: "none" }}>
           {MODES.map((m) => {

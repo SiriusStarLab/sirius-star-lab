@@ -51,7 +51,21 @@ interface SidebarProps {
   onClose: () => void;
   forceOpenPricing?: "plus" | "pro" | null;
   onNewSession?: () => void;
+  chatMode?: string;
+  onChatModeChange?: (mode: string) => void;
 }
+
+const SIDEBAR_MODES = [
+  { id: "guru",        label: "Guru",        emoji: "🧿" },
+  { id: "coach",       label: "Coach",       emoji: "🏋️" },
+  { id: "scientist",   label: "Scientist",   emoji: "🔬" },
+  { id: "philosopher", label: "Philosopher", emoji: "🦉" },
+  { id: "creative",    label: "Creative",    emoji: "🎨" },
+  { id: "friend",      label: "Friend",      emoji: "🤝" },
+  { id: "tutor",       label: "Tutor",       emoji: "🎓" },
+  { id: "research",    label: "Research",    emoji: "🌐" },
+  { id: "think",       label: "Think",       emoji: "🧠" },
+];
 
 function isIOS() { return /iphone|ipad|ipod/i.test(navigator.userAgent); }
 function isIOSSafari() {
@@ -63,7 +77,7 @@ function isInStandaloneMode() {
 }
 function isMobileDevice() { return /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent); }
 
-export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession }: SidebarProps) {
+export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession, chatMode = "guru", onChatModeChange }: SidebarProps) {
   const [location, setLocation] = useLocation();
   const labPendingCount = useLabPendingCount();
   const queryClient = useQueryClient();
@@ -156,7 +170,34 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession }: Sid
         </Button>
       </div>
 
-      <div className="px-4 pb-2 space-y-2">
+      {/* ── Conversation Mode ── */}
+      <div className="px-4 pb-1 pt-1">
+        <p className="text-[10px] font-mono font-medium uppercase tracking-[0.2em] mb-2"
+          style={{ color: "hsl(193 100% 52% / 0.4)" }}>Conversation Mode</p>
+        <div className="flex flex-wrap gap-1.5">
+          {SIDEBAR_MODES.map(m => {
+            const active = chatMode === m.id;
+            return (
+              <button
+                key={m.id}
+                onClick={() => { onChatModeChange?.(m.id); onClose(); }}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium transition-all duration-200"
+                style={{
+                  background: active ? "hsl(193 100% 52% / 0.14)" : "hsl(193 100% 52% / 0.04)",
+                  border: active ? "1px solid hsl(193 100% 52% / 0.5)" : "1px solid hsl(193 100% 52% / 0.12)",
+                  color: active ? "hsl(193 100% 38%)" : "hsl(193 100% 52% / 0.6)",
+                  boxShadow: active ? "0 0 10px hsl(193 100% 52% / 0.15)" : "none",
+                }}
+              >
+                <span>{m.emoji}</span>
+                <span>{m.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="px-4 pb-2 space-y-2 pt-2">
         <button
           onClick={() => { if (onNewSession) { onNewSession(); } else { setLocation("/"); } onClose(); }}
           className="w-full flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200"
@@ -584,15 +625,15 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession }: Sid
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40 lg:hidden"
+            className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40"
           />
         )}
       </AnimatePresence>
 
       <motion.div
         className={cn(
-          "fixed inset-y-0 left-0 z-50 lg:static lg:block transition-transform duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)]",
-          !isOpen && "-translate-x-full lg:translate-x-0"
+          "fixed inset-y-0 left-0 z-50 transition-transform duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)]",
+          !isOpen && "-translate-x-full"
         )}
       >
         {SidebarContent}
