@@ -70,6 +70,17 @@ export function Scene1() {
         The AI that grows with you
       </motion.p>
 
+      {/* Hero faces image — fades in behind text */}
+      <motion.img
+        src={`${import.meta.env.BASE_URL}images/logo-starlab.png`}
+        alt=""
+        aria-hidden="true"
+        className="absolute inset-0 w-full h-full object-cover"
+        initial={{ opacity: 0, scale: 1.06 }}
+        animate={{ opacity: 0.18, scale: 1 }}
+        transition={{ duration: 2.5, ease: [0.16, 1, 0.3, 1] }}
+      />
+
       {/* Corner HUD elements */}
       <motion.div
         className="absolute top-8 right-8 text-[#00C4FF]/50 text-xs font-mono"

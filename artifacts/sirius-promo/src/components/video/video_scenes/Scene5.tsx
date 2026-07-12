@@ -38,7 +38,7 @@ export function Scene5() {
         transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
       >
         <motion.img
-          src={`${import.meta.env.BASE_URL}images/logo.png`}
+          src={`${import.meta.env.BASE_URL}images/logo-starlab.png`}
           alt="Sirius AI"
           className="w-20 h-20 rounded-2xl object-cover mx-auto"
           style={{ boxShadow: '0 0 60px rgba(0,196,255,0.6), 0 0 120px rgba(0,196,255,0.2)' }}
