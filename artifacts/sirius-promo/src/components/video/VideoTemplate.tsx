@@ -8,30 +8,30 @@ import { Scene4 } from './video_scenes/Scene4';
 import { Scene5 } from './video_scenes/Scene5';
 
 export const SCENE_DURATIONS: Record<string, number> = {
-  intro: 5000,
-  starLab: 6000,
-  dreamLab: 6000,
-  friend: 5000,
-  outro: 6000,
+  hook: 4500,
+  modes: 5000,
+  memory: 4500,
+  labs: 6000,
+  outro: 5000,
 };
 
 const SCENE_COMPONENTS: Record<string, React.ComponentType> = {
-  intro: Scene1,
-  starLab: Scene2,
-  dreamLab: Scene3,
-  friend: Scene4,
+  hook: Scene1,
+  modes: Scene2,
+  memory: Scene3,
+  labs: Scene4,
   outro: Scene5,
 };
 
 const GLOW_POSITIONS = {
-  purple: {
-    x: ['-20%', '20%', '-20%', '15%', '-15%'],
-    y: ['-10%', '30%', '70%', '10%', '50%'],
-    scale: [1, 1.2, 0.8, 1.1, 1],
+  cyan: {
+    x: ['-20%', '30%', '-10%', '15%', '-20%'],
+    y: ['-10%', '40%', '80%', '20%', '50%'],
+    scale: [1, 1.2, 0.9, 1.3, 1],
   },
-  blue: {
-    x: ['30%', '-10%', '40%', '0%', '20%'],
-    y: ['60%', '20%', '80%', '40%', '10%'],
+  green: {
+    x: ['40%', '-20%', '50%', '0%', '30%'],
+    y: ['70%', '10%', '60%', '30%', '20%'],
   },
 };
 
@@ -55,50 +55,50 @@ export default function VideoTemplate({
   }, [currentSceneKey, onSceneChange]);
 
   return (
-    <div className="relative w-full h-[100dvh] overflow-hidden bg-[#0A0514] text-white flex justify-center items-center">
-      <div className="relative w-full max-w-[56.25vh] aspect-[9/16] h-full overflow-hidden shadow-2xl">
+    <div className="relative w-full h-[100dvh] overflow-hidden bg-[#0D1E3A] text-[#EDF4FF] flex justify-center items-center font-body">
+      <div className="relative w-full max-w-[56.25vh] aspect-[9/16] h-full overflow-hidden shadow-2xl bg-[#0D1E3A]">
 
         {/* Animated CSS nebula background */}
         <div className="absolute inset-0 z-0 overflow-hidden">
           <motion.div
             className="absolute inset-0"
             style={{
-              background: 'radial-gradient(ellipse at 30% 20%, rgba(88,28,135,0.6) 0%, transparent 60%), radial-gradient(ellipse at 70% 80%, rgba(29,78,216,0.4) 0%, transparent 50%), radial-gradient(ellipse at 50% 50%, rgba(10,5,20,1) 0%, transparent 100%)',
+              background: 'radial-gradient(ellipse at 30% 20%, rgba(0,196,255,0.15) 0%, transparent 60%), radial-gradient(ellipse at 70% 80%, rgba(0,229,160,0.1) 0%, transparent 50%), radial-gradient(ellipse at 50% 50%, #0D1E3A 0%, transparent 100%)',
             }}
             animate={{ opacity: [0.8, 1, 0.85, 1, 0.9] }}
             transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
           />
           {/* Star field */}
           <motion.div
-            className="absolute w-[200%] h-[200%] -top-[50%] -left-[50%] opacity-25"
+            className="absolute w-[200%] h-[200%] -top-[50%] -left-[50%] opacity-20"
             style={{
-              backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)',
-              backgroundSize: '40px 40px',
+              backgroundImage: 'radial-gradient(circle, #EDF4FF 1px, transparent 1px)',
+              backgroundSize: '30px 30px',
             }}
-            animate={{ rotate: 360 }}
-            transition={{ duration: 120, repeat: Infinity, ease: 'linear' }}
+            animate={{ rotate: 360, scale: [1, 1.05, 1] }}
+            transition={{ duration: 180, repeat: Infinity, ease: 'linear' }}
           />
         </div>
 
-        {/* Persistent purple glow */}
+        {/* Persistent cyan glow */}
         <motion.div
-          className="absolute w-[80%] h-[80%] rounded-full blur-[100px] opacity-40 mix-blend-screen pointer-events-none z-0"
-          style={{ background: 'radial-gradient(circle, #8a2be2, transparent)' }}
+          className="absolute w-[80%] h-[80%] rounded-full blur-[100px] opacity-30 mix-blend-screen pointer-events-none z-0"
+          style={{ background: 'radial-gradient(circle, #00C4FF, transparent)' }}
           animate={{
-            x: GLOW_POSITIONS.purple.x[sceneIndex] ?? '-20%',
-            y: GLOW_POSITIONS.purple.y[sceneIndex] ?? '-10%',
-            scale: GLOW_POSITIONS.purple.scale[sceneIndex] ?? 1,
+            x: GLOW_POSITIONS.cyan.x[sceneIndex] ?? '-20%',
+            y: GLOW_POSITIONS.cyan.y[sceneIndex] ?? '-10%',
+            scale: GLOW_POSITIONS.cyan.scale[sceneIndex] ?? 1,
           }}
           transition={{ duration: 4, ease: 'easeInOut' }}
         />
 
-        {/* Persistent blue glow */}
+        {/* Persistent green glow */}
         <motion.div
-          className="absolute w-[60%] h-[60%] rounded-full blur-[80px] opacity-30 mix-blend-screen pointer-events-none z-0"
-          style={{ background: 'radial-gradient(circle, #4169e1, transparent)' }}
+          className="absolute w-[60%] h-[60%] rounded-full blur-[80px] opacity-20 mix-blend-screen pointer-events-none z-0"
+          style={{ background: 'radial-gradient(circle, #00E5A0, transparent)' }}
           animate={{
-            x: GLOW_POSITIONS.blue.x[sceneIndex] ?? '30%',
-            y: GLOW_POSITIONS.blue.y[sceneIndex] ?? '60%',
+            x: GLOW_POSITIONS.green.x[sceneIndex] ?? '30%',
+            y: GLOW_POSITIONS.green.y[sceneIndex] ?? '60%',
           }}
           transition={{ duration: 5, ease: 'easeInOut' }}
         />

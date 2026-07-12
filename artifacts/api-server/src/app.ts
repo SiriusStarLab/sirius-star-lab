@@ -1,5 +1,7 @@
 import express, { type Express } from "express";
 import cors from "cors";
+import session from "express-session";
+import connectPgSimple from "connect-pg-simple";
 import path from "path";
 import fs from "fs";
 import { execSync } from "child_process";
@@ -39,7 +41,26 @@ app.use(cors({
   allowedHeaders: ["Content-Type", "Authorization", "x-lab-pin"],
 }));
 
-// ── 3. General rate limiting — all API routes ─────────────────────────────────
+// ── 3. Session middleware (persistent login across devices) ──────────────────
+const PgSession = connectPgSimple(session);
+app.use(session({
+  store: new PgSession({
+    conString: process.env.DATABASE_URL,
+    tableName: "user_sessions",
+    createTableIfMissing: true,
+  }),
+  secret: process.env.SESSION_SECRET || "sirius-session-secret-2026",
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+  },
+}));
+
+// ── 4. General rate limiting — all API routes ─────────────────────────────────
 app.use(generalRateLimit);
 
 // ── 4. Suspicious request detector (logging only — never blocks legitimate use) ──

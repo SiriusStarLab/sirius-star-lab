@@ -4,6 +4,13 @@ import { db } from "@workspace/db";
 import { siriusAccountsTable, userProfilesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
+// Extend express-session to include our userId field
+declare module "express-session" {
+  interface SessionData {
+    userId?: string;
+  }
+}
+
 const router = Router();
 
 router.post("/auth/signup", async (req, res): Promise<void> => {
@@ -47,6 +54,7 @@ router.post("/auth/signup", async (req, res): Promise<void> => {
       .values({ userId, displayName })
       .onConflictDoNothing();
 
+    req.session.userId = userId;
     res.json({ userId, email: normalizedEmail, displayName });
   } catch (err) {
     console.error("[auth/signup]", err);
@@ -90,11 +98,51 @@ router.post("/auth/login", async (req, res): Promise<void> => {
       .where(eq(userProfilesTable.userId, userId))
       .limit(1);
 
+    req.session.userId = userId;
     res.json({ userId, email: normalizedEmail, displayName: profile?.displayName ?? "" });
   } catch (err) {
     console.error("[auth/login]", err);
     res.status(500).json({ error: "Something went wrong. Please try again." });
   }
+});
+
+// GET /api/auth/me — restore session from cookie (auto-login)
+router.get("/auth/me", async (req, res): Promise<void> => {
+  const userId = req.session.userId;
+  if (!userId) {
+    res.status(401).json({ error: "Not authenticated" });
+    return;
+  }
+  try {
+    // For Garry's bypass account
+    if (userId === "garry") {
+      res.json({ userId, email: "", displayName: "Garry" });
+      return;
+    }
+    const accountId = parseInt(userId.replace("acct_", ""));
+    const [account] = await db
+      .select({ email: siriusAccountsTable.email })
+      .from(siriusAccountsTable)
+      .where(eq(siriusAccountsTable.id, accountId))
+      .limit(1);
+    const [profile] = await db
+      .select({ displayName: userProfilesTable.displayName })
+      .from(userProfilesTable)
+      .where(eq(userProfilesTable.userId, userId))
+      .limit(1);
+    res.json({ userId, email: account?.email ?? "", displayName: profile?.displayName ?? "" });
+  } catch (err) {
+    console.error("[auth/me]", err);
+    res.status(500).json({ error: "Session restore failed." });
+  }
+});
+
+// POST /api/auth/logout — clear session
+router.post("/auth/logout", (req, res): void => {
+  req.session.destroy(() => {
+    res.clearCookie("connect.sid");
+    res.json({ ok: true });
+  });
 });
 
 // Shared tester password — all team testers use this password (they cannot change it)

@@ -1,7 +1,9 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;700;900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
+
 @import "tailwindcss";
 
 :root {
-  --font-display: 'Cormorant Garamond', serif;
+  --font-display: 'Outfit', sans-serif;
   --font-body: 'Plus Jakarta Sans', sans-serif;
 }
 
@@ -12,8 +14,8 @@
 
 body {
   font-family: var(--font-body);
-  background-color: #0A0514;
-  color: #f8faff;
+  background-color: #0D1E3A;
+  color: #EDF4FF;
   margin: 0;
   padding: 0;
   overflow: hidden;
@@ -21,6 +23,10 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-.text-glow {
-  text-shadow: 0 0 20px rgba(180, 150, 255, 0.4);
+.text-glow-cyan {
+  text-shadow: 0 0 20px rgba(0, 196, 255, 0.6);
+}
+
+.text-glow-green {
+  text-shadow: 0 0 20px rgba(0, 229, 160, 0.6);
 }
