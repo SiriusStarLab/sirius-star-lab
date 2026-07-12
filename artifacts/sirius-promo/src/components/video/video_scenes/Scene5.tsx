@@ -93,23 +93,27 @@ export function Scene5() {
         animate={phase >= 3 ? { opacity: 1, y: 0, scale: 1 } : {}}
         transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
       >
-        <a
+        <motion.p
+          className="text-white text-lg font-bold tracking-wide mb-2"
+          initial={{ opacity: 0 }}
+          animate={phase >= 3 ? { opacity: 1 } : {}}
+          transition={{ duration: 0.5 }}
+          style={{ textShadow: '0 0 20px rgba(255,255,255,0.3)' }}
+        >
+          Join the revolution — visit us here
+        </motion.p>
+        <motion.a
           href="https://sirius-ai.live"
           target="_blank"
           rel="noopener noreferrer"
-          className="block w-full py-4 rounded-2xl text-lg font-semibold tracking-wider text-[#0D1E3A] text-center"
-          style={{ background: 'linear-gradient(135deg, #00C4FF, #00E5A0)', boxShadow: '0 0 40px rgba(0,196,255,0.5)', textDecoration: 'none' }}
-        >
-          START FREE TODAY →
-        </a>
-        <motion.p
-          className="text-white/30 text-xs mt-2"
+          className="block w-full py-3 rounded-2xl text-xl font-bold tracking-widest text-center"
+          style={{ background: 'linear-gradient(135deg, #00C4FF, #00E5A0)', boxShadow: '0 0 40px rgba(0,196,255,0.5)', textDecoration: 'none', color: '#0D1E3A' }}
           initial={{ opacity: 0 }}
           animate={phase >= 4 ? { opacity: 1 } : {}}
           transition={{ duration: 0.5 }}
         >
-          No credit card required
-        </motion.p>
+          sirius-ai.live
+        </motion.a>
       </motion.div>
     </motion.div>
   );
