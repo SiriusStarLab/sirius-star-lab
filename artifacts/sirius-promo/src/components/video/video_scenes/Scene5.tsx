@@ -52,7 +52,7 @@ export function Scene5() {
       </motion.div>
 
       <motion.h1
-        className="text-5xl font-black tracking-widest text-white mb-1"
+        className="text-5xl font-extralight tracking-[0.25em] text-white mb-1"
         initial={{ opacity: 0, y: 10 }}
         animate={phase >= 1 ? { opacity: 1, y: 0 } : {}}
         transition={{ duration: 0.6, delay: 0.2 }}
@@ -94,7 +94,7 @@ export function Scene5() {
         transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
       >
         <div
-          className="w-full py-4 rounded-2xl text-lg font-black tracking-wider text-[#0D1E3A] text-center"
+          className="w-full py-4 rounded-2xl text-lg font-semibold tracking-wider text-[#0D1E3A] text-center"
           style={{ background: 'linear-gradient(135deg, #00C4FF, #00E5A0)', boxShadow: '0 0 40px rgba(0,196,255,0.5)' }}
         >
           START FREE TODAY →

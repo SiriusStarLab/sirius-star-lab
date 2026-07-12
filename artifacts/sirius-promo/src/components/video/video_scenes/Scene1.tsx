@@ -47,15 +47,15 @@ export function Scene1() {
 
       {/* Main headline */}
       <motion.h1
-        className="text-[4.5rem] font-black leading-none tracking-tight mb-6"
+        className="text-[4.2rem] font-extralight leading-none tracking-[0.08em] mb-6"
         style={{ fontFamily: 'var(--font-display)' }}
-        initial={{ opacity: 0, scale: 0.85, filter: 'blur(20px)' }}
-        animate={phase >= 3 ? { opacity: 1, scale: 1, filter: 'blur(0px)' } : { opacity: 0, scale: 0.85, filter: 'blur(20px)' }}
+        initial={{ opacity: 0, scale: 0.88, filter: 'blur(20px)' }}
+        animate={phase >= 3 ? { opacity: 1, scale: 1, filter: 'blur(0px)' } : { opacity: 0, scale: 0.88, filter: 'blur(20px)' }}
         transition={{ duration: 1.0, ease: [0.16, 1, 0.3, 1] }}
       >
         <span className="text-white">SIRIUS</span>
         <br />
-        <span style={{ color: '#00C4FF', textShadow: '0 0 40px rgba(0,196,255,0.8), 0 0 80px rgba(0,196,255,0.4)' }}>
+        <span className="font-light" style={{ color: '#00C4FF', textShadow: '0 0 40px rgba(0,196,255,0.8), 0 0 80px rgba(0,196,255,0.4)' }}>
           never does.
         </span>
       </motion.h1>

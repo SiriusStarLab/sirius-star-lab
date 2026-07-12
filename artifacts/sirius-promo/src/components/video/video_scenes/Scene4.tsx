@@ -36,7 +36,7 @@ export function Scene4() {
       </motion.p>
 
       <motion.h2
-        className="text-4xl font-black text-white mb-5 leading-tight"
+        className="text-4xl font-extralight text-white mb-5 leading-tight tracking-wide"
         initial={{ opacity: 0, y: 20 }}
         animate={phase >= 1 ? { opacity: 1, y: 0 } : {}}
         transition={{ duration: 0.7 }}

@@ -43,7 +43,7 @@ export function Scene3() {
       </motion.p>
 
       <motion.h2
-        className="text-5xl font-black text-white mb-5 leading-tight"
+        className="text-5xl font-extralight text-white mb-5 leading-tight tracking-wide"
         initial={{ opacity: 0, y: 20, filter: 'blur(10px)' }}
         animate={phase >= 1 ? { opacity: 1, y: 0, filter: 'blur(0px)' } : {}}
         transition={{ duration: 0.7 }}

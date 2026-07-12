@@ -69,7 +69,7 @@ export function Scene2() {
         animate={phase >= 6 ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.9 }}
         transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
       >
-        <p className="text-4xl font-black text-white leading-tight">
+        <p className="text-4xl font-extralight text-white leading-tight tracking-wide">
           Remembered.{' '}
           <span style={{ color: '#00E5A0', textShadow: '0 0 30px rgba(0,229,160,0.7)' }}>
             Forever.
