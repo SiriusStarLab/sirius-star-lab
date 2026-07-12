@@ -21,7 +21,6 @@ const MODES = [
   {
     id: "guru",
     label: "Guru",
-    emoji: "🧿",
     desc: "Deep expertise & thorough answers",
     detail: "The default. Sirius gives you its full depth — comprehensive, well-structured, and thorough. Best when you want a complete picture of something.",
     when: "Researching a topic, getting a full explanation, understanding something complex",
@@ -29,7 +28,6 @@ const MODES = [
   {
     id: "coach",
     label: "Coach",
-    emoji: "🏋️",
     desc: "Action plans & accountability",
     detail: "Direct, energising, and action-focused. Sirius cuts through vagueness, asks what you actually want, and ends every reply with a clear next step.",
     when: "Feeling stuck, building habits, wanting to move forward on a goal",
@@ -37,7 +35,6 @@ const MODES = [
   {
     id: "scientist",
     label: "Scientist",
-    emoji: "🔬",
     desc: "Evidence-based & methodical",
     detail: "Everything must be evidenced. Sirius cites studies, separates strong consensus from weak findings, and is honest when the evidence is thin.",
     when: "Health questions, understanding research, fact-checking, anything where accuracy matters",
@@ -45,7 +42,6 @@ const MODES = [
   {
     id: "philosopher",
     label: "Philosopher",
-    emoji: "🦉",
     desc: "Reflective & exploratory",
     detail: "Explores from first principles. Challenges your assumptions, draws on philosophy from across cultures, and sits comfortably with questions that don't have neat answers.",
     when: "Big life questions, ethical dilemmas, understanding your own thinking, exploring meaning",
@@ -53,7 +49,6 @@ const MODES = [
   {
     id: "creative",
     label: "Creative",
-    emoji: "🎨",
     desc: "Imaginative & generative",
     detail: "Thinks laterally. Sirius deliberately avoids the obvious and comes at things from unexpected angles — using metaphor, imagination, and surprise.",
     when: "Writing, brainstorming, creative projects, when you want the non-obvious take",
@@ -61,7 +56,6 @@ const MODES = [
   {
     id: "friend",
     label: "Friend",
-    emoji: "🤝",
     desc: "Warm, honest conversation",
     detail: "All formality dropped. Sirius talks like a present, warm friend — sharing its own view, being real, not lecturing. Just genuine conversation.",
     when: "When you need to talk something through, want a honest opinion, or just want company",
@@ -69,7 +63,6 @@ const MODES = [
   {
     id: "tutor",
     label: "Tutor",
-    emoji: "🎓",
     desc: "Guides your thinking — asks questions, doesn't just give answers",
     detail: "Sirius won't hand you the answer. It asks what you already know, reveals things layer by layer, and checks your understanding. Based on the Socratic method.",
     when: "Learning something new, studying, preparing for an exam, wanting to actually understand — not just be told",
@@ -77,7 +70,6 @@ const MODES = [
   {
     id: "research",
     label: "Research",
-    emoji: "🌐",
     desc: "Deep web research with cited sources",
     detail: "Sirius runs live web searches, cross-references sources, and synthesises a comprehensive research brief with citations. Also searches PubMed and arXiv for academic papers. Takes a little longer — worth it for important questions.",
     when: "Market research, academic topics, current events, fact-checking, competitive analysis, scientific literature, anything that needs the latest information",
@@ -85,7 +77,6 @@ const MODES = [
   {
     id: "think",
     label: "Think",
-    emoji: "🧠",
     desc: "Extended reasoning — works through problems step by step",
     detail: "Sirius uses an extended thinking model that reasons through your question carefully before answering. You can see the full reasoning chain. Best for complex problems that need depth over speed.",
     when: "Complex reasoning, maths, logic, strategy, ethical dilemmas, anything that benefits from careful step-by-step thought",
@@ -353,7 +344,6 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
                   boxShadow: active ? "0 0 12px hsl(193 100% 52% / 0.15)" : "none",
                 }}
               >
-                <span>{m.emoji}</span>
                 <span>{m.label}</span>
               </button>
             );
@@ -404,7 +394,6 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
                 style={{ background: mode === m.id ? "hsl(193 100% 52% / 0.07)" : "transparent" }}
               >
                 <div className="flex items-start gap-3">
-                  <span className="text-base mt-0.5 shrink-0">{m.emoji}</span>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
                       <span className="text-[12px] font-semibold" style={{ color: mode === m.id ? "hsl(193 100% 35%)" : "hsl(220 15% 25%)" }}>
@@ -676,7 +665,6 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
               borderTop: "6px solid hsl(193 100% 52% / 0.25)",
             }} />
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-              <span style={{ fontSize: 16 }}>{m.emoji}</span>
               <span style={{ fontSize: 12, fontWeight: 700, color: "hsl(193 100% 70%)", letterSpacing: "0.04em" }}>{m.label}</span>
             </div>
             <p style={{ fontSize: 11, color: "rgba(200,220,240,0.85)", lineHeight: 1.5, margin: "0 0 6px" }}>

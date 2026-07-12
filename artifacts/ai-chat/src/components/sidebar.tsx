@@ -56,15 +56,15 @@ interface SidebarProps {
 }
 
 const SIDEBAR_MODES = [
-  { id: "guru",        label: "Guru",        emoji: "🧿" },
-  { id: "coach",       label: "Coach",       emoji: "🏋️" },
-  { id: "scientist",   label: "Scientist",   emoji: "🔬" },
-  { id: "philosopher", label: "Philosopher", emoji: "🦉" },
-  { id: "creative",    label: "Creative",    emoji: "🎨" },
-  { id: "friend",      label: "Friend",      emoji: "🤝" },
-  { id: "tutor",       label: "Tutor",       emoji: "🎓" },
-  { id: "research",    label: "Research",    emoji: "🌐" },
-  { id: "think",       label: "Think",       emoji: "🧠" },
+  { id: "guru",        label: "Guru" },
+  { id: "coach",       label: "Coach" },
+  { id: "scientist",   label: "Scientist" },
+  { id: "philosopher", label: "Philosopher" },
+  { id: "creative",    label: "Creative" },
+  { id: "friend",      label: "Friend" },
+  { id: "tutor",       label: "Tutor" },
+  { id: "research",    label: "Research" },
+  { id: "think",       label: "Think" },
 ];
 
 function isIOS() { return /iphone|ipad|ipod/i.test(navigator.userAgent); }
@@ -189,7 +189,6 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession, chatM
                   boxShadow: active ? "0 0 10px hsl(193 100% 52% / 0.15)" : "none",
                 }}
               >
-                <span>{m.emoji}</span>
                 <span>{m.label}</span>
               </button>
             );

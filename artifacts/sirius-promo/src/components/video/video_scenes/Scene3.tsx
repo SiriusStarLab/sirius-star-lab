@@ -2,15 +2,15 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 
 const MODES = [
-  { name: 'Guru',       icon: '🔮', color: '#a78bfa' },
-  { name: 'Coach',      icon: '💪', color: '#00C4FF' },
-  { name: 'Scientist',  icon: '🔬', color: '#00E5A0' },
-  { name: 'Sage',       icon: '🧠', color: '#f59e0b' },
-  { name: 'Creative',   icon: '🎨', color: '#f472b6' },
-  { name: 'Friend',     icon: '🤝', color: '#00C4FF' },
-  { name: 'Tutor',      icon: '📚', color: '#00E5A0' },
-  { name: 'Research',   icon: '🔍', color: '#a78bfa' },
-  { name: 'Thinker',    icon: '💡', color: '#f59e0b' },
+  { name: 'Guru',       color: '#a78bfa' },
+  { name: 'Coach',      color: '#00C4FF' },
+  { name: 'Scientist',  color: '#00E5A0' },
+  { name: 'Sage',       color: '#f59e0b' },
+  { name: 'Creative',   color: '#f472b6' },
+  { name: 'Friend',     color: '#00C4FF' },
+  { name: 'Tutor',      color: '#00E5A0' },
+  { name: 'Research',   color: '#a78bfa' },
+  { name: 'Thinker',    color: '#f59e0b' },
 ];
 
 export function Scene3() {
@@ -64,7 +64,6 @@ export function Scene3() {
             animate={phase >= 2 ? { opacity: 1, scale: 1, y: 0 } : { opacity: 0, scale: 0.7, y: 16 }}
             transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1], delay: i * 0.06 }}
           >
-            <span className="text-2xl mb-1">{mode.icon}</span>
             <span className="text-white text-xs font-semibold leading-tight">{mode.name}</span>
           </motion.div>
         ))}
