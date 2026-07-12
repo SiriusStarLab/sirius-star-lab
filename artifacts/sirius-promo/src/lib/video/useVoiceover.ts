@@ -1,11 +1,11 @@
 import { useEffect, useRef } from 'react';
 
 const SCENE_NARRATION: Record<string, string> = {
-  hook:   "What if your AI actually knew you?",
-  modes:  "Nine different modes. It adapts to how you want to think.",
-  memory: "It remembers you. Every conversation, saved.",
-  labs:   "Build it in Star Lab. Dream it in Dream Lab.",
-  outro:  "Sirius. The AI companion you actually deserve.",
+  hook:   "Every other AI forgets you. Sirius never does.",
+  memory: "Your goals, your breakthroughs, your voice — remembered forever. ChatGPT forgets. Claude forgets. Sirius doesn't.",
+  modes:  "Nine specialist minds. One AI. Built for exactly how you want to think.",
+  labs:   "Not a chatbot. A co-founder. Build real projects in Star Lab. Track your dreams in Dream Lab.",
+  outro:  "Nine modes. Remembers everything. Builds real things. Sirius. Start free today.",
 };
 
 export function useVoiceover(enabled: boolean, sceneKey: string) {

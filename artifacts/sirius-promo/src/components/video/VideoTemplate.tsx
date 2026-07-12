@@ -9,11 +9,11 @@ import { Scene4 } from './video_scenes/Scene4';
 import { Scene5 } from './video_scenes/Scene5';
 
 export const SCENE_DURATIONS: Record<string, number> = {
-  hook: 4500,
-  modes: 5000,
-  memory: 4500,
-  labs: 6000,
-  outro: 5000,
+  hook:   5000,
+  memory: 6000,
+  modes:  6000,
+  labs:   6500,
+  outro:  6000,
 };
 
 const SCENE_COMPONENTS: Record<string, React.ComponentType> = {
