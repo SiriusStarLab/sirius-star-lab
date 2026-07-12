@@ -66,11 +66,10 @@ export async function runInvestmentRule(forceReassess = false): Promise<Investme
       const res = await openai.chat.completions.create({
         model: "anthropic/claude-haiku-4.5",
         max_tokens: 60,
-        response_format: { type: "json_object" },
         messages: [
           {
             role: "system",
-            content: `You extract a single investment/capital required figure from text. Return ONLY a JSON object: { "amount": <number in GBP or null if not found> }. The amount should be the TOTAL investment or capital required to build/develop the project — not revenue, not profit, not unit price. If the text mentions a range, use the lower figure. If no investment figure is mentioned return null.`,
+            content: `You extract a single investment/capital required figure from text. Return ONLY valid JSON with no markdown fences: { "amount": <number in GBP or null if not found> }. The amount should be the TOTAL investment or capital required to build/develop the project — not revenue, not profit, not unit price. If the text mentions a range, use the lower figure. If no investment figure is mentioned return {"amount":null}.`,
           },
           {
             role: "user",

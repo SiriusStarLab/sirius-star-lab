@@ -450,7 +450,7 @@ async function streamWithSearch(
     stream: true,
     max_tokens: 4000,
     temperature: 0.7,
-    ...(jsonMode ? { response_format: { type: "json_object" as const } } : {}),
+    // response_format removed — Claude on OpenRouter requires json_schema; system prompt handles JSON
   });
 
   let fullContent = "";
@@ -2327,7 +2327,6 @@ Be brutally specific. Reference real things. No generic advice.`;
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
-      response_format: { type: "json_object" },
       max_tokens: 2000,
       temperature: 0.5,
     });
@@ -2850,17 +2849,17 @@ Return the JSON response as specified. This is for a single project — the oppo
         { role: "system", content: FUNDING_SYSTEM_PROMPT },
         { role: "user", content: userMessage },
       ],
-      response_format: { type: "json_object" },
       temperature: 0.1,
     });
 
     const content = aiResponse.choices[0]?.message?.content;
     if (!content) throw new Error("No content from AI");
 
-    JSON.parse(content); // validate JSON
+    const _contentClean = content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+    JSON.parse(_contentClean); // validate JSON
 
     await db.update(labProjects).set({
-      fundingAnalysis: content,
+      fundingAnalysis: _contentClean,
       fundingStatus: "complete",
       fundingAnalysedAt: new Date(),
       updatedAt: new Date(),
@@ -3866,7 +3865,6 @@ Business Case: ${(p.businessCase || "").slice(0, 300)}
 
     const completion = await openai.chat.completions.create({
       model: "anthropic/claude-sonnet-4.5",
-      response_format: { type: "json_object" },
       messages: [
         {
           role: "system",
@@ -8499,8 +8497,8 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
       const isLastRound = roundCount >= MAX_TOOL_ROUNDS;
 
       const loopController = new AbortController();
-      // First round: 15s (tool selection is fast). Later rounds: 25s (tool results can be larger).
-      let loopTimer = setTimeout(() => loopController.abort(), roundCount === 1 ? 15_000 : 25_000);
+      // First round: 30s (context can be large on first call). Later rounds: 45s (tool results can be large).
+      let loopTimer = setTimeout(() => loopController.abort(), roundCount === 1 ? 30_000 : 45_000);
 
       const loopStream = await openai.chat.completions.create({
         model: "anthropic/claude-sonnet-4.5",
@@ -8518,7 +8516,7 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
       let finishReason = "";
 
       for await (const chunk of loopStream) {
-        clearTimeout(loopTimer); loopTimer = setTimeout(() => loopController.abort(), 20_000);
+        clearTimeout(loopTimer); loopTimer = setTimeout(() => loopController.abort(), 30_000);
         const choice = chunk.choices?.[0];
         if (!choice) continue;
         finishReason = choice.finish_reason || finishReason;
@@ -8818,12 +8816,12 @@ Return ONLY valid JSON, no markdown code blocks.`
       ],
       temperature: 0.3,
       max_tokens: 1500,
-      response_format: { type: "json_object" },
     });
 
     let parsed: any = {};
     try {
-      parsed = JSON.parse(completion.choices[0]?.message?.content || "{}");
+      const _raw = (completion.choices[0]?.message?.content || "{}").replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+      parsed = JSON.parse(_raw);
     } catch {
       parsed = { text: completion.choices[0]?.message?.content || "Analysis complete.", summary: "", keyPoints: [] };
     }
@@ -8893,13 +8891,12 @@ Style guidelines:
 Be authentic, specific to this product, and commercially sharp.`,
         },
       ],
-      response_format: { type: "json_object" },
       temperature: 0.8,
       max_tokens: 3000,
     });
 
     let posts: any = {};
-    try { posts = JSON.parse(completion.choices[0]?.message?.content || "{}"); } catch { /* ignore */ }
+    try { posts = JSON.parse((completion.choices[0]?.message?.content || "{}").replace(/```json\n?/g, "").replace(/```\n?/g, "").trim()); } catch { /* ignore */ }
 
     // Save to project
     await db.update(labProjects).set({ socialPosts: JSON.stringify(posts), launchStatus: "draft", updatedAt: new Date() }).where(eq(labProjects.id, projectId));
@@ -10100,6 +10097,8 @@ router.post("/lab/tts", async (req, res): Promise<void> => {
         "--output_file", tmpFile,
         "--quiet",
       ]);
+      // CRITICAL: drain stdout to prevent pipe buffer deadlock on long text
+      piper.stdout.resume();
       const safe = String(text).slice(0, 2000);
       piper.stdin.write(safe);
       piper.stdin.end();
