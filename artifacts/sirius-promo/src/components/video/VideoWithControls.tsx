@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronDown, ChevronUp, Repeat, Maximize2, Mic, MicOff, Video } from 'lucide-react';
+import { ChevronDown, ChevronUp, Repeat, Maximize2, Music, VolumeX, Video } from 'lucide-react';
 import VideoTemplate, { SCENE_DURATIONS } from './VideoTemplate';
 import { useSceneControls } from '@/lib/video/controls/useSceneControls';
+import { useFuturisticMusic } from '@/lib/video/useFuturisticMusic';
 
 const PROGRESS_TICK_MS = 60;
 
@@ -9,7 +10,7 @@ interface ControlBarProps {
   visible: boolean;
   collapsed: boolean;
   locked: boolean;
-  voiceEnabled: boolean;
+  musicEnabled: boolean;
   sceneKeys: string[];
   activeIndex: number;
   activeDuration: number;
@@ -77,7 +78,7 @@ function ControlBar({
   visible,
   collapsed,
   locked,
-  voiceEnabled,
+  musicEnabled,
   sceneKeys,
   activeIndex,
   activeDuration,
@@ -86,7 +87,7 @@ function ControlBar({
   onToggleLock,
   onJumpTo,
   onToggleCollapsed,
-  onToggleVoice,
+  onToggleMusic,
   onOpenFullscreen,
   onToggleRecord,
 }: ControlBarProps) {
@@ -114,17 +115,17 @@ function ControlBar({
       </button>
 
       <button
-        onClick={onToggleVoice}
+        onClick={onToggleMusic}
         className={`w-12 h-12 flex items-center justify-center transition-colors rounded-lg shrink-0 ${
-          voiceEnabled
+          musicEnabled
             ? 'text-[#00C4FF] bg-[#00C4FF]/15 hover:bg-[#00C4FF]/25'
             : 'text-white/60 hover:text-white hover:bg-white/10'
         }`}
-        title={voiceEnabled ? 'Voiceover: on' : 'Voiceover: off'}
-        aria-label={voiceEnabled ? 'Voiceover: on' : 'Voiceover: off'}
-        aria-pressed={voiceEnabled}
+        title={musicEnabled ? 'Music: on' : 'Music: off'}
+        aria-label={musicEnabled ? 'Music: on' : 'Music: off'}
+        aria-pressed={musicEnabled}
       >
-        {voiceEnabled ? <Mic className="w-6 h-6" /> : <MicOff className="w-6 h-6" />}
+        {musicEnabled ? <Music className="w-6 h-6" /> : <VolumeX className="w-6 h-6" />}
       </button>
 
       <div className="w-px self-stretch bg-white/15" aria-hidden="true" />
@@ -201,11 +202,14 @@ export default function VideoWithControls() {
   const [collapsed, setCollapsed] = useState(false);
   const [hovering, setHovering] = useState(false);
   const [tapPinned, setTapPinned] = useState(false);
-  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [musicEnabled, setMusicEnabled] = useState(true);
   const [audioUnlocked, setAudioUnlocked] = useState(false);
   const [recording, setRecording] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+
+  const activeMusic = musicEnabled && audioUnlocked;
+  useFuturisticMusic(activeMusic);
 
   const handlePointerEnter = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (e.pointerType === 'mouse') setHovering(true);
@@ -272,7 +276,6 @@ export default function VideoWithControls() {
   }, [recording]);
 
   const barVisible = !collapsed || hovering || tapPinned;
-  const activeVoice = voiceEnabled && audioUnlocked;
 
   const handleUnlockAudio = useCallback(() => {
     setAudioUnlocked(true);
@@ -286,20 +289,20 @@ export default function VideoWithControls() {
         key={mountKey}
         durations={durations}
         loop
-        voiceEnabled={activeVoice}
+        voiceEnabled={false}
         onSceneChange={onSceneChange}
       />
 
-      {/* Audio unlock overlay — disappears after first tap */}
+      {/* Music unlock overlay — disappears after first tap */}
       {!audioUnlocked && (
         <button
           onClick={handleUnlockAudio}
           className="absolute inset-0 z-40 flex flex-col items-center justify-start pt-12 w-full h-full bg-transparent cursor-pointer"
-          aria-label="Tap to enable voiceover"
+          aria-label="Tap to play music"
         >
           <div className="flex items-center gap-2 bg-black/60 backdrop-blur-md border border-white/20 rounded-full px-5 py-2.5">
-            <span className="text-lg">🔊</span>
-            <span className="text-white text-sm font-semibold tracking-wide">Tap to enable voiceover</span>
+            <span className="text-lg">🎵</span>
+            <span className="text-white text-sm font-semibold tracking-wide">Tap to play music</span>
           </div>
         </button>
       )}
@@ -317,7 +320,7 @@ export default function VideoWithControls() {
           visible={barVisible}
           collapsed={collapsed}
           locked={locked}
-          voiceEnabled={voiceEnabled}
+          musicEnabled={musicEnabled}
           sceneKeys={sceneKeys}
           activeIndex={activeIndex}
           activeDuration={activeDuration}
@@ -326,7 +329,7 @@ export default function VideoWithControls() {
           onToggleLock={toggleLock}
           onJumpTo={jumpTo}
           onToggleCollapsed={handleToggleCollapsed}
-          onToggleVoice={() => setVoiceEnabled(v => !v)}
+          onToggleMusic={() => setMusicEnabled(m => !m)}
           onOpenFullscreen={handleOpenFullscreen}
           onToggleRecord={handleToggleRecord}
         />

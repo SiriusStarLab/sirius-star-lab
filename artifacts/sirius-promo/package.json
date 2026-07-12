@@ -32,5 +32,8 @@
     "tailwindcss": "catalog:",
     "three": "^0.182.0",
     "vite": "catalog:"
+  },
+  "dependencies": {
+    "tone": "^15.1.22"
   }
 }
