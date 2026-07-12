@@ -48,7 +48,7 @@ export function Scene3() {
         animate={phase >= 1 ? { opacity: 1, y: 0, filter: 'blur(0px)' } : {}}
         transition={{ duration: 0.7 }}
       >
-        10 minds.{' '}
+        9 minds.{' '}
         <span style={{ color: '#00C4FF', textShadow: '0 0 30px rgba(0,196,255,0.6)' }}>
           One AI.
         </span>
