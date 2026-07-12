@@ -6,10 +6,10 @@ export function Scene1() {
 
   useEffect(() => {
     const timers = [
-      setTimeout(() => setPhase(1), 300),
-      setTimeout(() => setPhase(2), 1400),
-      setTimeout(() => setPhase(3), 2600),
-      setTimeout(() => setPhase(4), 3600),
+      setTimeout(() => setPhase(1), 200),
+      setTimeout(() => setPhase(2), 1100),
+      setTimeout(() => setPhase(3), 2000),
+      setTimeout(() => setPhase(4), 3000),
     ];
     return () => timers.forEach(t => clearTimeout(t));
   }, []);
@@ -53,7 +53,7 @@ export function Scene1() {
         animate={phase >= 3 ? { opacity: 1, scale: 1, filter: 'blur(0px)' } : { opacity: 0, scale: 0.88, filter: 'blur(20px)' }}
         transition={{ duration: 1.0, ease: [0.16, 1, 0.3, 1] }}
       >
-        <span className="text-white">SIRIUS</span>
+        <span className="shimmer-heading">SIRIUS</span>
         <br />
         <span className="font-light" style={{ color: '#00C4FF', textShadow: '0 0 40px rgba(0,196,255,0.8), 0 0 80px rgba(0,196,255,0.4)' }}>
           never does.
