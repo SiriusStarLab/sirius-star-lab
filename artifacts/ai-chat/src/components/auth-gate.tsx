@@ -36,9 +36,10 @@ interface AuthGateProps {
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 export function AuthGate({ onAuth }: AuthGateProps) {
-  const [mode, setMode] = useState<"splash" | "login" | "signup">("splash");
+  const savedEmail = localStorage.getItem("sirius_account_email") || "";
+  const [mode, setMode] = useState<"splash" | "login" | "signup">(savedEmail ? "login" : "splash");
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(savedEmail);
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);

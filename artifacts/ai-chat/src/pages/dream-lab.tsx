@@ -998,6 +998,12 @@ export function DreamLabPage() {
   const [themeKey, setThemeKey] = useState<ThemeKey>(() => {
     try { return (localStorage.getItem("dream_theme") as ThemeKey) || "ocean"; } catch { return "ocean"; }
   });
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640);
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 640);
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, []);
   T = THEMES[themeKey];
   const api = useApi();
 
@@ -1107,17 +1113,20 @@ export function DreamLabPage() {
           <OnboardingView onComplete={p => { setProfile(p); setOnboarding(false); }} />
         ) : (
           <>
-            {/* Sidebar — hidden on very small screens, always visible on md+ */}
+            {/* Sidebar + main area */}
             <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
-              <DreamSidebar
-                dreams={dreams}
-                selectedId={selectedDream?.id ?? null}
-                onSelect={setSelectedDream}
-                onNewDream={() => setShowNewDream(true)}
-                profile={profile}
-                themeKey={themeKey}
-                onThemeChange={handleThemeChange}
-              />
+              {/* Hide sidebar on mobile when a dream is open */}
+              {(!isMobile || !selectedDream) && (
+                <DreamSidebar
+                  dreams={dreams}
+                  selectedId={selectedDream?.id ?? null}
+                  onSelect={setSelectedDream}
+                  onNewDream={() => setShowNewDream(true)}
+                  profile={profile}
+                  themeKey={themeKey}
+                  onThemeChange={handleThemeChange}
+                />
+              )}
 
               {selectedDream ? (
                 <DreamConversation
