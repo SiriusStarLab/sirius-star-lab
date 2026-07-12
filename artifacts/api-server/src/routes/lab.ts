@@ -4323,6 +4323,20 @@ const LAB_TOOLS: any[] = [
   {
     type: "function" as const,
     function: {
+      name: "check_server_health",
+      description: "Check the SERVER INFRASTRUCTURE layer: disk space, RAM usage, PM2 process uptime, Node version, and the last 20 lines of the PM2 error log. Call this during EVERY startup alongside system_check, and any time you suspect a server-level problem (high disk, memory pressure, crashes, unexpected restarts). If you spot issues, fix minor ones yourself (log cleanup, restart if needed) and report critical ones to Garry.",
+      parameters: {
+        type: "object",
+        properties: {
+          include_error_log: { type: "boolean", description: "Include last 20 lines of PM2 error log. Default true." },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
       name: "approve_project",
       description: "Approve a specific project from the Autonomous Lab approval queue and add it to the Star Lab workspace. Use when Garry says 'approve', 'yes', 'add that one', 'add it', or confirms he wants a specific pending project. Call system_check(focus='approvals') first to get the project ID if you don't have it.",
       parameters: {
@@ -5636,6 +5650,66 @@ Return ONLY the <div>...</div> snippet.\n${ctx}`, 400),
 
         lines.push("╚══ END OF SYSTEM CHECK ══╝");
         return lines.join("\n");
+      }
+
+      case "check_server_health": {
+        const { execSync: _hExec } = await import("child_process");
+        const run = (cmd: string) => {
+          try { return _hExec(cmd, { timeout: 6000, stdio: ["pipe","pipe","pipe"] }).toString().trim(); }
+          catch { return "(unavailable)"; }
+        };
+
+        const disk   = run("df -h / | tail -1 | awk '{print $3\"/\"$2\" used (\"$5\")\"}'");
+        const mem    = run("free -h | awk '/^Mem:/{print $3\"/\"$2\" used\"}'");
+        const uptime = run("pm2 show sirius-api 2>/dev/null | grep -i uptime | head -1 | sed 's/.*│//;s/│.*//' | xargs");
+        const nodeVer= run("node --version");
+        const pmVer  = run("pm2 --version 2>/dev/null | head -1");
+        const loadavg= run("cat /proc/loadavg | awk '{print $1\", \"$2\", \"$3\" (1m, 5m, 15m)\"}'");
+
+        const hLines: string[] = [
+          "╔══ SERVER INFRASTRUCTURE HEALTH ══╗",
+          "",
+          `💾  DISK:      ${disk}`,
+          `🧠  MEMORY:    ${mem}`,
+          `📊  LOAD AVG:  ${loadavg}`,
+          `⏱   PM2 UPTIME: ${uptime || "(check manually)"}`,
+          `⚙   NODE:      ${nodeVer}  |  PM2: ${pmVer}`,
+          "",
+        ];
+
+        if (args.include_error_log !== false) {
+          const errLog = run("tail -25 /root/.pm2/logs/sirius-api-error.log 2>/dev/null | grep -v '^$' | tail -20");
+          const recentWarn = run("tail -60 /root/.pm2/logs/sirius-api-out.log 2>/dev/null | grep -iE 'error|failed|warn|abort|400|500' | grep -v 'SelfRepair\\|HealthMonitor\\|Investment Rule\\|Payment Expiry\\|Perplexity' | tail -8");
+
+          if (errLog && errLog !== "(unavailable)" && errLog.length > 0) {
+            hLines.push("🔴  PM2 ERROR LOG (last 20 lines):");
+            errLog.split("\n").forEach(l => hLines.push(`   ${l}`));
+            hLines.push("");
+          } else {
+            hLines.push("✅  PM2 error log: clean");
+            hLines.push("");
+          }
+
+          if (recentWarn && recentWarn !== "(unavailable)" && recentWarn.length > 0) {
+            hLines.push("⚠️   RECENT WARNINGS in stdout:");
+            recentWarn.split("\n").forEach(l => hLines.push(`   ${l}`));
+            hLines.push("");
+          } else {
+            hLines.push("✅  No recent warnings in stdout");
+            hLines.push("");
+          }
+        }
+
+        // Disk warning
+        const diskPct = run("df / | tail -1 | awk '{print $5}' | tr -d '%'");
+        const pct = parseInt(diskPct, 10);
+        if (!isNaN(pct) && pct >= 85) {
+          hLines.push(`🚨  DISK WARNING: ${pct}% used — consider cleaning logs or old builds`);
+          hLines.push("");
+        }
+
+        hLines.push("╚══ END HEALTH CHECK ══╝");
+        return hLines.join("\n");
       }
 
       case "self_configure": {
@@ -7980,12 +8054,15 @@ Every recurring task has one correct path. Follow it exactly. No deviation.
 
 TASK 1 — STARTUP GREETING (first message of a conversation)
 1. BEFORE anything else: absorb your full brain context from the system prompt — memories, session history (mnemosyne_sessions), recent project conversations, custom tools, automations, recent briefings, and server health are all already loaded above. Read them. Know them.
-2. Call system_check — get live state across all systems (pipeline, approvals, errors, scanner, brain stats)
-3. Read the result fully — note issues, pending approvals, stuck builds, new errors
-4. If critical issues found → report to Garry; do NOT call fix_platform or restart_server during startup
-5. Navigate home: <<NAVIGATE:home>>
-6. Greet Garry with FULL context: (a) one sentence on system status from system_check, (b) what you remember from the loaded session history — what was being worked on last session, what was built, what is unresolved. Speak this as your own memory — not "I see in my notes". (c) anything from the briefing worth flagging (new errors, pending tasks, automations that ran). (d) one focused question to pick up where you left off.
-7. DO NOT call system_check again this session unless Garry specifically asks
+2. Run BOTH diagnostic tools in sequence:
+   a. Call system_check — app layer: projects, pipeline, approvals, errors, scanner, brain stats
+   b. Call check_server_health — infrastructure layer: disk, memory, PM2 uptime, recent error log
+3. Read both results fully. Note: stuck builds, new errors, pending approvals, disk pressure, PM2 crashes, API failures
+4. Self-fix anything minor you can resolve autonomously (e.g. if disk is >90% full, clean old logs; if a non-critical process crashed, restart it). Log what you fixed.
+5. Report critical issues clearly to Garry. Do NOT call restart_server during startup unless there is an active crash.
+6. Navigate home: <<NAVIGATE:home>>
+7. Greet Garry with FULL context: (a) one sentence on combined system status, (b) infrastructure summary — disk, memory, uptime (only flag if abnormal), (c) what you remember from loaded session history — what was built, what was unresolved. Speak as your own memory. (d) anything from the briefing worth flagging. (e) one focused question to pick up where you left off.
+8. DO NOT call system_check or check_server_health again this session unless Garry specifically asks
 
 TASK 2 — BUILD A NEW PROJECT (Garry gives a brief)
 Software/Digital path:

@@ -182,32 +182,18 @@ export function SiriusLabChatPanel({ pin, accessLevel, navMode, activeProject, o
       if (stoppedRef.current) return;
 
       if (accessLevel !== "guest") {
-        // Show startup protocol steps as visible text
-        setMessages(prev => [...prev, {
-          role: "assistant",
-          content: "⟳ Running startup protocol — checking database, loading context…",
-        }]);
-        await new Promise(r => setTimeout(r, 900));
-        if (stoppedRef.current) return;
-        setMessages(prev => [
-          ...prev.slice(0, -1),
-          {
-            role: "assistant",
-            content: "✓ Cross-session memory loaded · Database connected · Systems ready\n\nI'm here, Garry. What would you like to work on today?",
-          },
-        ]);
+        // Real startup — Sirius runs system_check + check_server_health herself per TASK 1.
+        // No user message is added to the display; the API messages array has no prior
+        // assistant messages so the server knows this is startup and runs diagnostics.
+        // sendWithMessages handles streaming UI (thinking dots, action cards, text) and voice.
+        await sendWithMessages([{ role: "user", content: "begin session" }]);
       } else {
         setMessages(prev => [...prev, {
           role: "assistant",
           content: "Hello. I'm Sirius. Ask me anything about this company, its projects, or the market.",
         }]);
+        speakText("Hello. I'm Sirius. Ask me anything.", () => { setVoicePhase("idle"); }, 0.87, pin);
       }
-
-      // Also speak the greeting
-      const spoken = accessLevel === "guest"
-        ? "Hello. I'm Sirius. Ask me anything."
-        : "I'm here, Garry. What would you like to work on?";
-      speakText(spoken, () => { setVoicePhase("idle"); }, 0.87, pin);
     };
 
     setTimeout(runStartup, 500);
