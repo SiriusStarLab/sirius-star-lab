@@ -201,7 +201,8 @@ export default function VideoWithControls() {
   const [collapsed, setCollapsed] = useState(false);
   const [hovering, setHovering] = useState(false);
   const [tapPinned, setTapPinned] = useState(false);
-  const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [audioUnlocked, setAudioUnlocked] = useState(false);
   const [recording, setRecording] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -271,8 +272,13 @@ export default function VideoWithControls() {
   }, [recording]);
 
   const barVisible = !collapsed || hovering || tapPinned;
+  const activeVoice = voiceEnabled && audioUnlocked;
 
-  if (!isIframed) return <VideoTemplate voiceEnabled={voiceEnabled} />;
+  const handleUnlockAudio = useCallback(() => {
+    setAudioUnlocked(true);
+  }, []);
+
+  if (!isIframed) return <VideoTemplate voiceEnabled={false} />;
 
   return (
     <div className="relative w-full h-screen">
@@ -280,9 +286,24 @@ export default function VideoWithControls() {
         key={mountKey}
         durations={durations}
         loop
-        voiceEnabled={voiceEnabled}
+        voiceEnabled={activeVoice}
         onSceneChange={onSceneChange}
       />
+
+      {/* Audio unlock overlay — disappears after first tap */}
+      {!audioUnlocked && (
+        <button
+          onClick={handleUnlockAudio}
+          className="absolute inset-0 z-40 flex flex-col items-center justify-start pt-12 w-full h-full bg-transparent cursor-pointer"
+          aria-label="Tap to enable voiceover"
+        >
+          <div className="flex items-center gap-2 bg-black/60 backdrop-blur-md border border-white/20 rounded-full px-5 py-2.5">
+            <span className="text-lg">🔊</span>
+            <span className="text-white text-sm font-semibold tracking-wide">Tap to enable voiceover</span>
+          </div>
+        </button>
+      )}
+
       <div
         ref={sensorRef}
         className="absolute bottom-0 left-0 right-0 z-50 flex flex-col justify-end"
