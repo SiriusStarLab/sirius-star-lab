@@ -81,6 +81,13 @@ const MODES = [
     detail: "Sirius uses an extended thinking model that reasons through your question carefully before answering. You can see the full reasoning chain. Best for complex problems that need depth over speed.",
     when: "Complex reasoning, maths, logic, strategy, ethical dilemmas, anything that benefits from careful step-by-step thought",
   },
+  {
+    id: "manifest",
+    label: "Manifest",
+    desc: "Clarify your vision and bring it into being",
+    detail: "Sirius becomes your manifestation guide — helping you get crystal clear on what you want, dissolve the beliefs blocking you, align your emotions with your intention, and build the bridge between vision and reality. Grounded in neuroscience, HeartMath research, and the wisdom of Neville Goddard, Joe Dispenza, and Vedic Sankalpa tradition.",
+    when: "When you want to manifest something specific, clear mental blocks, set powerful intentions, or work through visualisation and scripting",
+  },
 ];
 
 interface ChatInputProps {

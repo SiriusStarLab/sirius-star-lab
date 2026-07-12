@@ -10,7 +10,7 @@ const MODES = [
   { name: 'Friend',     color: '#00C4FF' },
   { name: 'Tutor',      color: '#00E5A0' },
   { name: 'Research',   color: '#a78bfa' },
-  { name: 'Thinker',    color: '#f59e0b' },
+  { name: 'Manifest',   color: '#c084fc' },
 ];
 
 export function Scene3() {

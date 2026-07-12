@@ -65,6 +65,7 @@ const SIDEBAR_MODES = [
   { id: "tutor",       label: "Tutor" },
   { id: "research",    label: "Research" },
   { id: "think",       label: "Think" },
+  { id: "manifest",   label: "Manifest" },
 ];
 
 function isIOS() { return /iphone|ipad|ipod/i.test(navigator.userAgent); }
