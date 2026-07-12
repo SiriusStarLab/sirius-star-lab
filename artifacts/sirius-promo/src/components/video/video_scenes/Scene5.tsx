@@ -93,12 +93,15 @@ export function Scene5() {
         animate={phase >= 3 ? { opacity: 1, y: 0, scale: 1 } : {}}
         transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
       >
-        <div
-          className="w-full py-4 rounded-2xl text-lg font-semibold tracking-wider text-[#0D1E3A] text-center"
-          style={{ background: 'linear-gradient(135deg, #00C4FF, #00E5A0)', boxShadow: '0 0 40px rgba(0,196,255,0.5)' }}
+        <a
+          href="https://sirius-ai.live"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block w-full py-4 rounded-2xl text-lg font-semibold tracking-wider text-[#0D1E3A] text-center"
+          style={{ background: 'linear-gradient(135deg, #00C4FF, #00E5A0)', boxShadow: '0 0 40px rgba(0,196,255,0.5)', textDecoration: 'none' }}
         >
           START FREE TODAY →
-        </div>
+        </a>
         <motion.p
           className="text-white/30 text-xs mt-2"
           initial={{ opacity: 0 }}
