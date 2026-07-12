@@ -100,7 +100,7 @@ export function Scene5() {
           transition={{ duration: 0.5 }}
           style={{ textShadow: '0 0 20px rgba(255,255,255,0.3)' }}
         >
-          Join the revolution — visit us here
+          It's free to join
         </motion.p>
         <motion.a
           href="https://sirius-ai.live"
