@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useVideoPlayer } from '@/lib/video';
+import { useVoiceover } from '@/lib/video/useVoiceover';
 import { Scene1 } from './video_scenes/Scene1';
 import { Scene2 } from './video_scenes/Scene2';
 import { Scene3 } from './video_scenes/Scene3';
@@ -38,13 +39,16 @@ const GLOW_POSITIONS = {
 export default function VideoTemplate({
   durations = SCENE_DURATIONS,
   loop = true,
+  voiceEnabled = false,
   onSceneChange,
 }: {
   durations?: Record<string, number>;
   loop?: boolean;
+  voiceEnabled?: boolean;
   onSceneChange?: (sceneKey: string) => void;
 } = {}) {
   const { currentSceneKey } = useVideoPlayer({ durations, loop });
+  useVoiceover(voiceEnabled, currentSceneKey);
 
   const baseSceneKey = currentSceneKey.replace(/_r[12]$/, '') as keyof typeof SCENE_DURATIONS;
   const sceneIndex = Object.keys(SCENE_DURATIONS).indexOf(baseSceneKey);

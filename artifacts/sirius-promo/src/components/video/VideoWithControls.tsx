@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronDown, ChevronUp, Repeat } from 'lucide-react';
+import { ChevronDown, ChevronUp, Repeat, Maximize2, Mic, MicOff, Video } from 'lucide-react';
 import VideoTemplate, { SCENE_DURATIONS } from './VideoTemplate';
 import { useSceneControls } from '@/lib/video/controls/useSceneControls';
 
@@ -9,13 +9,18 @@ interface ControlBarProps {
   visible: boolean;
   collapsed: boolean;
   locked: boolean;
+  voiceEnabled: boolean;
   sceneKeys: string[];
   activeIndex: number;
   activeDuration: number;
   tick: number;
+  recording: boolean;
   onToggleLock: () => void;
   onJumpTo: (index: number) => void;
   onToggleCollapsed: () => void;
+  onToggleVoice: () => void;
+  onOpenFullscreen: () => void;
+  onToggleRecord: () => void;
 }
 
 function ProgressSegments({
@@ -72,17 +77,22 @@ function ControlBar({
   visible,
   collapsed,
   locked,
+  voiceEnabled,
   sceneKeys,
   activeIndex,
   activeDuration,
   tick,
+  recording,
   onToggleLock,
   onJumpTo,
   onToggleCollapsed,
+  onToggleVoice,
+  onOpenFullscreen,
+  onToggleRecord,
 }: ControlBarProps) {
   return (
     <div
-      className={`flex items-center gap-3 bg-black/50 backdrop-blur-sm px-5 py-4 transition-all duration-200 ease-out ${
+      className={`flex items-center gap-2 bg-black/60 backdrop-blur-sm px-4 py-3 transition-all duration-200 ease-out ${
         visible
           ? 'translate-y-0 opacity-100 pointer-events-auto'
           : 'translate-y-full opacity-0 pointer-events-none'
@@ -91,16 +101,30 @@ function ControlBar({
     >
       <button
         onClick={onToggleLock}
-        className={`w-14 h-14 flex items-center justify-center transition-colors rounded-lg shrink-0 ${
+        className={`w-12 h-12 flex items-center justify-center transition-colors rounded-lg shrink-0 ${
           locked
             ? 'text-white bg-white/15 hover:bg-white/25'
             : 'text-white/60 hover:text-white hover:bg-white/10'
         }`}
-        title={locked ? 'Loop current scene: on' : 'Loop current scene: off'}
-        aria-label={locked ? 'Loop current scene: on' : 'Loop current scene: off'}
+        title={locked ? 'Loop scene: on' : 'Loop scene: off'}
+        aria-label={locked ? 'Loop scene: on' : 'Loop scene: off'}
         aria-pressed={locked}
       >
-        <Repeat className="w-8 h-8" />
+        <Repeat className="w-6 h-6" />
+      </button>
+
+      <button
+        onClick={onToggleVoice}
+        className={`w-12 h-12 flex items-center justify-center transition-colors rounded-lg shrink-0 ${
+          voiceEnabled
+            ? 'text-[#00C4FF] bg-[#00C4FF]/15 hover:bg-[#00C4FF]/25'
+            : 'text-white/60 hover:text-white hover:bg-white/10'
+        }`}
+        title={voiceEnabled ? 'Voiceover: on' : 'Voiceover: off'}
+        aria-label={voiceEnabled ? 'Voiceover: on' : 'Voiceover: off'}
+        aria-pressed={voiceEnabled}
+      >
+        {voiceEnabled ? <Mic className="w-6 h-6" /> : <MicOff className="w-6 h-6" />}
       </button>
 
       <div className="w-px self-stretch bg-white/15" aria-hidden="true" />
@@ -113,18 +137,45 @@ function ControlBar({
         onJumpTo={onJumpTo}
       />
 
-      <div className="text-xl text-white/60 font-mono tabular-nums shrink-0">
+      <div className="text-sm text-white/60 font-mono tabular-nums shrink-0">
         {activeIndex + 1}/{sceneKeys.length}
       </div>
 
+      <div className="w-px self-stretch bg-white/15" aria-hidden="true" />
+
+      <button
+        onClick={onToggleRecord}
+        className={`w-12 h-12 flex items-center justify-center transition-colors rounded-lg shrink-0 ${
+          recording
+            ? 'text-red-400 bg-red-400/15 hover:bg-red-400/25'
+            : 'text-white/60 hover:text-white hover:bg-white/10'
+        }`}
+        title={recording ? 'Stop & download' : 'Record video'}
+        aria-label={recording ? 'Stop & download' : 'Record video'}
+      >
+        <Video className="w-6 h-6" />
+        {recording && (
+          <span className="absolute w-2 h-2 rounded-full bg-red-400 top-2 right-2 animate-pulse" />
+        )}
+      </button>
+
+      <button
+        onClick={onOpenFullscreen}
+        className="w-12 h-12 flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 transition-colors rounded-lg shrink-0"
+        title="Open in new tab"
+        aria-label="Open in new tab"
+      >
+        <Maximize2 className="w-6 h-6" />
+      </button>
+
       <button
         onClick={onToggleCollapsed}
-        className="w-14 h-14 flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 transition-colors rounded-lg shrink-0"
+        className="w-12 h-12 flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 transition-colors rounded-lg shrink-0"
         title={collapsed ? 'Show controls' : 'Hide controls'}
         aria-label={collapsed ? 'Show controls' : 'Hide controls'}
         aria-expanded={!collapsed}
       >
-        {collapsed ? <ChevronUp className="w-10 h-10" /> : <ChevronDown className="w-10 h-10" />}
+        {collapsed ? <ChevronUp className="w-8 h-8" /> : <ChevronDown className="w-8 h-8" />}
       </button>
     </div>
   );
@@ -150,6 +201,10 @@ export default function VideoWithControls() {
   const [collapsed, setCollapsed] = useState(false);
   const [hovering, setHovering] = useState(false);
   const [tapPinned, setTapPinned] = useState(false);
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
 
   const handlePointerEnter = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (e.pointerType === 'mouse') setHovering(true);
@@ -179,9 +234,45 @@ export default function VideoWithControls() {
     return () => document.removeEventListener('pointerdown', onDocPointerDown);
   }, [collapsed, tapPinned]);
 
+  const handleOpenFullscreen = useCallback(() => {
+    window.open(window.location.href, '_blank', 'noopener,noreferrer');
+  }, []);
+
+  const handleToggleRecord = useCallback(async () => {
+    if (recording) {
+      mediaRecorderRef.current?.stop();
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { frameRate: 30 },
+        audio: true,
+      });
+      const recorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9' });
+      chunksRef.current = [];
+      recorder.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      recorder.onstop = () => {
+        stream.getTracks().forEach(t => t.stop());
+        const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'sirius-promo.webm';
+        a.click();
+        URL.revokeObjectURL(url);
+        setRecording(false);
+      };
+      recorder.start();
+      mediaRecorderRef.current = recorder;
+      setRecording(true);
+    } catch {
+      setRecording(false);
+    }
+  }, [recording]);
+
   const barVisible = !collapsed || hovering || tapPinned;
 
-  if (!isIframed) return <VideoTemplate />;
+  if (!isIframed) return <VideoTemplate voiceEnabled={voiceEnabled} />;
 
   return (
     <div className="relative w-full h-screen">
@@ -189,6 +280,7 @@ export default function VideoWithControls() {
         key={mountKey}
         durations={durations}
         loop
+        voiceEnabled={voiceEnabled}
         onSceneChange={onSceneChange}
       />
       <div
@@ -204,13 +296,18 @@ export default function VideoWithControls() {
           visible={barVisible}
           collapsed={collapsed}
           locked={locked}
+          voiceEnabled={voiceEnabled}
           sceneKeys={sceneKeys}
           activeIndex={activeIndex}
           activeDuration={activeDuration}
           tick={tick}
+          recording={recording}
           onToggleLock={toggleLock}
           onJumpTo={jumpTo}
           onToggleCollapsed={handleToggleCollapsed}
+          onToggleVoice={() => setVoiceEnabled(v => !v)}
+          onOpenFullscreen={handleOpenFullscreen}
+          onToggleRecord={handleToggleRecord}
         />
       </div>
     </div>
