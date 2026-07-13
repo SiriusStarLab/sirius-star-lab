@@ -9,6 +9,7 @@ import { PrivacyPage } from "@/pages/privacy";
 import { CheckoutSuccessPage } from "@/pages/checkout-success";
 import { CheckoutCancelPage } from "@/pages/checkout-cancel";
 import { StarLabPage } from "@/pages/star-lab";
+import { CreatorLabPage } from "@/pages/creator-lab";
 import { MarketingPage } from "@/pages/marketing";
 import { DreamLabPage } from "@/pages/dream-lab";
 import { WellbeingPage } from "@/pages/wellbeing";
@@ -42,6 +43,7 @@ function Router() {
       <Route path="/checkout/success" component={CheckoutSuccessPage} />
       <Route path="/checkout/cancel" component={CheckoutCancelPage} />
       <Route path="/star-lab" component={() => <LabAuthGate><StarLabPage /></LabAuthGate>} />
+      <Route path="/creator-lab" component={CreatorLabPage} />
       <Route path="/dream-lab" component={DreamLabPage} />
       <Route path="/wellbeing" component={WellbeingPage} />
       <Route path="/universe" component={UniversePage} />

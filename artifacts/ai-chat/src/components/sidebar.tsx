@@ -367,9 +367,13 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession, chatM
           </span>
         </button>
 
-        {/* Star Lab entry */}
+        {/* Star Lab entry — Garry gets PIN-gated full lab, subscribers get Creator Lab */}
         <button
-          onClick={() => { setLocation("/star-lab"); onClose(); }}
+          onClick={() => {
+            const uid = typeof window !== "undefined" ? localStorage.getItem("sirius_user_id") ?? "" : "";
+            setLocation(uid === "garry" ? "/star-lab" : "/creator-lab");
+            onClose();
+          }}
           className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 relative overflow-hidden group"
           style={{
             background: location === "/star-lab" ? "hsla(193,100%,35%,0.1)" : "hsla(193,100%,35%,0.05)",

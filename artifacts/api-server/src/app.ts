@@ -110,6 +110,7 @@ app.use("/api/lab/projects/:id/render", imageGenRateLimit);
 app.use("/api/lab/auto-scan/trigger", scanTriggerRateLimit);
 
 // Dream Lab AI — 30 AI requests per hour per IP (free feature, protected from abuse)
+app.use("/api/creator-lab/chat", chatRateLimit);
 app.use("/api/dream-lab/sirius-chat", dreamLabAiRateLimit);
 app.use("/api/dream-lab/ideas/:id/sirius", dreamLabAiRateLimit);
 app.use("/api/dream-lab/generate-affirmations", dreamLabAiRateLimit);

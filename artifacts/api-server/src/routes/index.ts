@@ -18,6 +18,7 @@ import paymentRouter from "./payment";
 import intelligenceProxyRouter from "./intelligence-proxy.js";
 import selfModifyRouter from "./self-modify.js";
 import authRouter from "./auth.js";
+import subscriberLabRouter from "./subscriber-lab.js";
 
 const router: IRouter = Router();
 
@@ -40,5 +41,6 @@ router.use(dreamLabRouter);
 router.use(paymentRouter);
 router.use(intelligenceProxyRouter);
 router.use("/lab", selfModifyRouter);
+router.use(subscriberLabRouter);
 
 export default router;
