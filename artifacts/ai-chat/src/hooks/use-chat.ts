@@ -115,7 +115,7 @@ export function useChat(conversationId?: number) {
 
       if (!activeId) {
         const title = content.length > 40 ? content.slice(0, 40) + "..." : content;
-        const newConvo = await createConversation({ data: { title } });
+        const newConvo = await createConversation({ data: { title, userId: getUserId() } });
         activeId = newConvo.id;
 
         // Populate the bridge BEFORE navigation so the new ChatPage instance
