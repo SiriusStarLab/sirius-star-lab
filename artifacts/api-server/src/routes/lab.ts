@@ -25,7 +25,7 @@ import { readSourceFile, deployChange, triggerReload } from "../lib/self-deploy.
 import { loadCrossSessionContext } from "../lib/mnemosyne.js";
 import { summariseSession } from "../lib/session-summarizer.js";
 import { buildStartupBriefing, invalidateBriefingCache } from "../lib/startup-briefing.js";
-import { execInSandbox, writeToSandbox, readFromSandbox, getProjectMemory, saveProjectMemory, gitCheckpoint, runTests, exposePort, closePort } from "../lib/sandbox-manager.js";
+import { execInSandbox, writeToSandbox, readFromSandbox, getProjectMemory, saveProjectMemory, gitCheckpoint, runTests, exposePort, closePort, deployApp, listDeployedApps, stopDeployedApp } from "../lib/sandbox-manager.js";
 
 // Bundle capability marker — printed at startup so esbuild can't tree-shake it.
 // Sirius: to check if a feature is in the running bundle, grep for "SIRIUS_BUNDLE_CAPABILITIES" in the dist/index.cjs.
@@ -4869,6 +4869,44 @@ const LAB_TOOLS: any[] = [
       },
     },
   },
+  {
+    type: "function" as const,
+    function: {
+      name: "sandbox_deploy_app",
+      description: "Deploy an app built in the sandbox to a permanent public URL on Garry's server. Copies files out of the container, starts a PM2 process on the host, and wires up nginx. The app becomes live at https://sandbox.sirius-ai.live/apps/{name}/. Use after building and testing an app in the sandbox.",
+      parameters: {
+        type: "object",
+        properties: {
+          appName: { type: "string", description: "Short URL-safe name for the app (e.g. 'my-api', 'weather-bot')" },
+          startCommand: { type: "string", description: "Command to start the app (e.g. 'node server.js', 'node dist/index.js'). The app must read PORT from environment variables." },
+          sourceDir: { type: "string", description: "Directory inside sandbox to copy (default: /workspace)" },
+        },
+        required: ["appName", "startCommand"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "sandbox_list_apps",
+      description: "List all apps currently deployed from the sandbox to the server. Shows name, URL, and PM2 status for each.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "sandbox_stop_app",
+      description: "Stop and remove a deployed app from the server. Kills the PM2 process and removes the nginx route. The app URL stops working immediately.",
+      parameters: {
+        type: "object",
+        properties: {
+          appName: { type: "string", description: "Name of the app to stop (same name used when deploying)" },
+        },
+        required: ["appName"],
+      },
+    },
+  },
 ];
 
 async function executeLabTool(name: string, args: any, onProgress?: (event: Record<string, unknown>) => void): Promise<string> {
@@ -7928,6 +7966,22 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
         return `✅ SIRIUS_PROJECT.md updated`;
       }
 
+      case "sandbox_deploy_app": {
+        const result = await deployApp("garry", args.appName, args.startCommand, args.sourceDir);
+        return `✅ App deployed and live!\n\nURL: ${result.url}\nPM2 process: ${result.pm2Name}\nPort: ${result.port}\n\nShare this URL with anyone — it's on your server, SSL included.`;
+      }
+
+      case "sandbox_list_apps": {
+        const apps = await listDeployedApps();
+        if (!apps.length) return "No apps currently deployed.";
+        return apps.map(a => `• ${a.name} — ${a.url} [${a.status}]`).join("\n");
+      }
+
+      case "sandbox_stop_app": {
+        await stopDeployedApp(args.appName);
+        return `✅ App "${args.appName}" stopped and removed from the server.`;
+      }
+
       default:
         return `Unknown tool: ${name}`;
     }
@@ -7979,6 +8033,9 @@ const TOOL_META: Record<string, { label: string; color: string; icon: string }> 
   sandbox_run_tests: { label: "Running tests", color: "hsl(155,70%,42%)", icon: "🧪" },
   sandbox_project_memory: { label: "Reading project memory", color: "hsl(280,70%,55%)", icon: "🧠" },
   sandbox_update_memory: { label: "Updating project memory", color: "hsl(280,70%,55%)", icon: "💾" },
+  sandbox_deploy_app: { label: "Deploying app to server", color: "hsl(155,70%,42%)", icon: "🚀" },
+  sandbox_list_apps: { label: "Listing deployed apps", color: "hsl(193,100%,40%)", icon: "📋" },
+  sandbox_stop_app: { label: "Stopping deployed app", color: "hsl(0,75%,55%)", icon: "🛑" },
   create_custom_tool: { label: "Custom tool created", color: "hsl(280,70%,55%)", icon: "🔧" },
   list_custom_tools: { label: "Custom tools loaded", color: "hsl(193,100%,40%)", icon: "🔧" },
   call_custom_tool: { label: "Custom tool running", color: "hsl(155,70%,42%)", icon: "⚡" },

@@ -390,6 +390,110 @@ export async function exposePort(userId: string, port: number): Promise<string> 
   return `https://sandbox.sirius-ai.live/preview/${c.safe}/${port}/`;
 }
 
+const DEPLOY_BASE_DIR    = "/opt/sirius/deployed-apps";
+const NGINX_DEPLOY_DIR   = "/etc/nginx/deployed-apps";
+const DEPLOY_PORT_START  = 5100;
+const DEPLOY_PORT_END    = 5200;
+
+async function findFreeDeployPort(): Promise<number> {
+  for (let port = DEPLOY_PORT_START; port <= DEPLOY_PORT_END; port++) {
+    const { stdout } = await execAsync(
+      `ss -tlnp 2>/dev/null | grep :${port} || echo FREE`
+    ).catch(() => ({ stdout: "FREE" }));
+    if (stdout.includes("FREE")) return port;
+  }
+  throw new Error("No free deploy port available in range 5100-5200");
+}
+
+export interface DeployResult {
+  url: string;
+  port: number;
+  appName: string;
+  pm2Name: string;
+}
+
+export async function deployApp(
+  userId: string,
+  appName: string,
+  startCommand: string,
+  sourceDir: string = "/workspace",
+): Promise<DeployResult> {
+  const c = cfg(userId);
+  const safeName = appName.toLowerCase().replace(/[^a-z0-9-]/g, "-").slice(0, 40);
+  const appDir   = `${DEPLOY_BASE_DIR}/${safeName}`;
+  const pm2Name  = `sirius-app-${safeName}`;
+
+  await ensureSandbox(userId);
+  await mkdir(appDir, { recursive: true });
+  await mkdir(NGINX_DEPLOY_DIR, { recursive: true });
+
+  // Copy files from container to host
+  await execAsync(`docker cp ${c.containerName}:${sourceDir}/. ${appDir}/`);
+
+  // Find a free port
+  const port = await findFreeDeployPort();
+
+  // Start/restart with PM2 — inject PORT env var so the app knows where to listen
+  await execAsync(`pm2 delete ${pm2Name} 2>/dev/null || true`);
+  await execAsync(
+    `pm2 start ${startCommand.split(" ")[0]} --name ${pm2Name} --cwd ${appDir} -- ${startCommand.split(" ").slice(1).join(" ")} 2>/dev/null || ` +
+    `pm2 start "${startCommand}" --name ${pm2Name} --cwd ${appDir} --interpreter bash`,
+    { env: { ...process.env, PORT: String(port) } }
+  ).catch(async () => {
+    // Fallback: use pm2 with env flag
+    await execAsync(
+      `cd ${appDir} && PORT=${port} pm2 start ${startCommand} --name ${pm2Name}`
+    );
+  });
+
+  // Wait briefly for the process to boot
+  await new Promise(r => setTimeout(r, 2000));
+
+  // Write nginx location block
+  const nginxConf = `
+    # Deployed app: ${safeName}
+    location /apps/${safeName}/ {
+        proxy_pass http://127.0.0.1:${port}/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_read_timeout 300s;
+        proxy_buffering off;
+    }
+`;
+  await writeFile(`${NGINX_DEPLOY_DIR}/${safeName}.conf`, nginxConf, "utf-8");
+
+  const { stdout: test } = await execAsync("nginx -t 2>&1").catch(e => ({ stdout: String((e as Error).message) }));
+  if (test.includes("failed")) throw new Error(`Nginx config error: ${test}`);
+  await execAsync("nginx -s reload");
+
+  const url = `https://sandbox.sirius-ai.live/apps/${safeName}/`;
+  return { url, port, appName: safeName, pm2Name };
+}
+
+export async function listDeployedApps(): Promise<Array<{ name: string; url: string; status: string }>> {
+  const { stdout } = await execAsync(
+    `pm2 jlist 2>/dev/null || echo "[]"`
+  ).catch(() => ({ stdout: "[]" }));
+  const list = JSON.parse(stdout) as any[];
+  return list
+    .filter((p: any) => p.name?.startsWith("sirius-app-"))
+    .map((p: any) => ({
+      name: p.name.replace("sirius-app-", ""),
+      url: `https://sandbox.sirius-ai.live/apps/${p.name.replace("sirius-app-", "")}/`,
+      status: p.pm2_env?.status || "unknown",
+    }));
+}
+
+export async function stopDeployedApp(appName: string): Promise<void> {
+  const safeName = appName.toLowerCase().replace(/[^a-z0-9-]/g, "-").slice(0, 40);
+  await execAsync(`pm2 delete sirius-app-${safeName} 2>/dev/null || true`);
+  await execAsync(`rm -f ${NGINX_DEPLOY_DIR}/${safeName}.conf`).catch(() => {});
+  await execAsync("nginx -s reload").catch(() => {});
+}
+
 export async function closePort(userId: string, port: number): Promise<void> {
   const c = cfg(userId);
   const confPath = `${NGINX_PREVIEW_DIR}/${c.safe}-${port}.conf`;
