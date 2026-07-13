@@ -25,6 +25,7 @@ import { readSourceFile, deployChange, triggerReload } from "../lib/self-deploy.
 import { loadCrossSessionContext } from "../lib/mnemosyne.js";
 import { summariseSession } from "../lib/session-summarizer.js";
 import { buildStartupBriefing, invalidateBriefingCache } from "../lib/startup-briefing.js";
+import { execInSandbox, writeToSandbox, readFromSandbox, getProjectMemory, saveProjectMemory, gitCheckpoint, runTests, exposePort, closePort } from "../lib/sandbox-manager.js";
 
 // Bundle capability marker — printed at startup so esbuild can't tree-shake it.
 // Sirius: to check if a feature is in the running bundle, grep for "SIRIUS_BUNDLE_CAPABILITIES" in the dist/index.cjs.
@@ -4761,6 +4762,113 @@ const LAB_TOOLS: any[] = [
       },
     },
   },
+  {
+    type: "function" as const,
+    function: {
+      name: "sandbox_exec",
+      description: "Run a shell command inside Garry's persistent Docker sandbox. Use for installing packages, running servers, building code, running scripts, or any terminal operation. The sandbox persists between calls — files and processes survive. Returns stdout/stderr.",
+      parameters: {
+        type: "object",
+        properties: {
+          command: { type: "string", description: "Shell command to run (bash syntax)" },
+          timeout: { type: "number", description: "Timeout in milliseconds (default 30000, max 120000)" },
+        },
+        required: ["command"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "sandbox_write_file",
+      description: "Write a file into Garry's sandbox workspace. Use to create or update source code, config files, scripts, or any file the sandbox needs.",
+      parameters: {
+        type: "object",
+        properties: {
+          filePath: { type: "string", description: "Path inside sandbox (e.g. 'src/index.js' or '/workspace/app.py')" },
+          content: { type: "string", description: "Full file content to write" },
+        },
+        required: ["filePath", "content"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "sandbox_read_file",
+      description: "Read a file from Garry's sandbox workspace. Use to inspect current code, logs, configs, or build output.",
+      parameters: {
+        type: "object",
+        properties: {
+          filePath: { type: "string", description: "Path inside sandbox to read" },
+        },
+        required: ["filePath"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "sandbox_expose_port",
+      description: "Expose a port from the sandbox so Garry can access a running server in his browser at sandbox.sirius-ai.live/PORT/. Use after starting a dev server or web app inside the sandbox.",
+      parameters: {
+        type: "object",
+        properties: {
+          port: { type: "number", description: "Port number the server is listening on inside the sandbox (e.g. 3000, 5173, 8080)" },
+        },
+        required: ["port"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "sandbox_git_checkpoint",
+      description: "Create a git commit inside the sandbox to checkpoint working code. Use after a feature works, tests pass, or at any 'save point'. Automatically stages all changes.",
+      parameters: {
+        type: "object",
+        properties: {
+          message: { type: "string", description: "Commit message describing what's working" },
+        },
+        required: ["message"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "sandbox_run_tests",
+      description: "Run the test suite in the sandbox and get a pass/fail report. If tests fail, examine the output and fix them. Use after writing code to verify correctness.",
+      parameters: {
+        type: "object",
+        properties: {
+          testCommand: { type: "string", description: "Test command to run (e.g. 'npm test', 'pytest', 'pnpm test'). Defaults to 'npm test'." },
+        },
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "sandbox_project_memory",
+      description: "Read the current SIRIUS_PROJECT.md file — a persistent memory file in the sandbox that tracks what's been built, key decisions, tech stack, and what's broken or TODO. Always call this at the start of a sandbox coding session to orient yourself.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "sandbox_update_memory",
+      description: "Update SIRIUS_PROJECT.md with new information about what's been built, decisions made, or what's next. Call this after meaningful progress — feature complete, bug fixed, major decision made.",
+      parameters: {
+        type: "object",
+        properties: {
+          content: { type: "string", description: "Full updated content of SIRIUS_PROJECT.md" },
+        },
+        required: ["content"],
+      },
+    },
+  },
 ];
 
 async function executeLabTool(name: string, args: any, onProgress?: (event: Record<string, unknown>) => void): Promise<string> {
@@ -7776,6 +7884,50 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
         return `✅ Pushed to GitHub — ${sha ? "updated" : "created"} \`${filePath}\` on branch \`${branch}\`.\nCommit: ${commitUrl}`;
       }
 
+      case "sandbox_exec": {
+        const result = await execInSandbox("garry", args.command, args.timeout);
+        return result.exitCode === 0
+          ? `✅ Exit 0\n${result.stdout}${result.stderr ? `\nstderr:\n${result.stderr}` : ""}`
+          : `⚠ Exit ${result.exitCode}\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`;
+      }
+
+      case "sandbox_write_file": {
+        await writeToSandbox("garry", args.filePath, args.content);
+        return `✅ Written: ${args.filePath}`;
+      }
+
+      case "sandbox_read_file": {
+        const content = await readFromSandbox("garry", args.filePath);
+        return content;
+      }
+
+      case "sandbox_expose_port": {
+        const url = await exposePort("garry", args.port);
+        return `✅ Port ${args.port} exposed — accessible at: ${url}`;
+      }
+
+      case "sandbox_git_checkpoint": {
+        const sha = await gitCheckpoint("garry", args.message);
+        return `✅ Git checkpoint: ${sha}\nMessage: ${args.message}`;
+      }
+
+      case "sandbox_run_tests": {
+        const result = await runTests("garry", args.testCommand);
+        return result.passed
+          ? `✅ Tests passed\n${result.output}`
+          : `❌ Tests failed\n${result.output}`;
+      }
+
+      case "sandbox_project_memory": {
+        const memory = await getProjectMemory("garry");
+        return memory;
+      }
+
+      case "sandbox_update_memory": {
+        await saveProjectMemory("garry", args.content);
+        return `✅ SIRIUS_PROJECT.md updated`;
+      }
+
       default:
         return `Unknown tool: ${name}`;
     }
@@ -7819,6 +7971,14 @@ const TOOL_META: Record<string, { label: string; color: string; icon: string }> 
   create_automation: { label: "Automation created", color: "hsl(155,70%,42%)", icon: "⚡" },
   list_automations: { label: "Automations loaded", color: "hsl(193,100%,40%)", icon: "🔁" },
   toggle_automation: { label: "Automation toggled", color: "hsl(45,90%,50%)", icon: "🔁" },
+  sandbox_exec: { label: "Running in sandbox", color: "hsl(155,70%,42%)", icon: "🐳" },
+  sandbox_write_file: { label: "Writing file to sandbox", color: "hsl(193,100%,40%)", icon: "📝" },
+  sandbox_read_file: { label: "Reading sandbox file", color: "hsl(193,100%,40%)", icon: "📄" },
+  sandbox_expose_port: { label: "Exposing sandbox port", color: "hsl(25,100%,55%)", icon: "🔌" },
+  sandbox_git_checkpoint: { label: "Git checkpoint", color: "hsl(280,70%,55%)", icon: "📌" },
+  sandbox_run_tests: { label: "Running tests", color: "hsl(155,70%,42%)", icon: "🧪" },
+  sandbox_project_memory: { label: "Reading project memory", color: "hsl(280,70%,55%)", icon: "🧠" },
+  sandbox_update_memory: { label: "Updating project memory", color: "hsl(280,70%,55%)", icon: "💾" },
   create_custom_tool: { label: "Custom tool created", color: "hsl(280,70%,55%)", icon: "🔧" },
   list_custom_tools: { label: "Custom tools loaded", color: "hsl(193,100%,40%)", icon: "🔧" },
   call_custom_tool: { label: "Custom tool running", color: "hsl(155,70%,42%)", icon: "⚡" },
