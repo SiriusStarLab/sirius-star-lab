@@ -145,7 +145,7 @@ export default function ChatScreen() {
         ...(kateVoiceRef.current ? { voice: kateVoiceRef.current } : {}),
         rate: 0.95,
         pitch: 1.0,
-        onDone: () => setTimeout(speakNext, 600),
+        onDone: () => { setTimeout(speakNext, 600); },
         onStopped: () => { speechCancelledRef.current = true; },
       });
     };
