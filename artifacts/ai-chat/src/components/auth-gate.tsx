@@ -203,7 +203,9 @@ export function AuthGate({ onAuth }: AuthGateProps) {
             </div>
           </>
         ) : (
-          <div style={{
+          <form
+            onSubmit={e => { e.preventDefault(); submit(); }}
+            style={{
             background: "rgba(10,20,40,0.96)",
             border: "1px solid rgba(0,196,255,0.2)",
             borderRadius: "20px",
@@ -214,6 +216,7 @@ export function AuthGate({ onAuth }: AuthGateProps) {
           }}>
             {/* Close / back button — top right */}
             <button
+              type="button"
               onClick={() => { setMode("splash"); setError(""); }}
               aria-label="Back"
               style={{
@@ -281,7 +284,7 @@ export function AuthGate({ onAuth }: AuthGateProps) {
                 </p>
               )}
 
-              <button style={btnStyle} onClick={submit} disabled={loading}>
+              <button type="submit" style={btnStyle} disabled={loading}>
                 {loading ? "Please wait…" : mode === "signup" ? "Create Account & Enter →" : "Sign In & Enter →"}
               </button>
 
@@ -292,6 +295,7 @@ export function AuthGate({ onAuth }: AuthGateProps) {
               </div>
 
               <button
+                type="button"
                 style={{ ...btnStyle, background: "transparent", border: "none", color: "rgba(100,150,200,0.5)", fontSize: "0.72rem", fontWeight: 400, letterSpacing: "0.06em", padding: "4px 0" }}
                 onClick={() => { setMode(mode === "signup" ? "login" : "signup"); setError(""); }}
               >
@@ -299,7 +303,7 @@ export function AuthGate({ onAuth }: AuthGateProps) {
               </button>
 
             </div>
-          </div>
+          </form>
         )}
 
         <div style={{ display: "flex", gap: "24px", marginTop: "24px", justifyContent: "center" }}>
