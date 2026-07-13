@@ -205,7 +205,7 @@ export function ChatPage() {
             </div>
           ) : isEmpty ? (
             /* ── Welcome screen: Gemini-inspired clean layout ── */
-            <div className="relative min-h-full flex flex-col items-center pb-56 px-5 md:px-8 max-w-2xl mx-auto w-full justify-center">
+            <div className="relative min-h-full flex flex-col items-center pb-16 px-5 md:px-8 max-w-2xl mx-auto w-full justify-center">
 
               {/* Ambient background glow */}
               <div
@@ -272,6 +272,16 @@ export function ChatPage() {
                 <p className="text-base md:text-lg font-medium text-muted-foreground/70">
                   What would you like to do?
                 </p>
+              </motion.div>
+
+              {/* Chat input — embedded in empty state, sits between heading and tagline */}
+              <motion.div
+                initial={{ y: 14, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.25, duration: 0.45, ease: "easeOut" }}
+                className="relative z-10 w-full mb-6"
+              >
+                <ChatInput onSend={handleSend} isTyping={isTyping} onStop={stopStream} voiceMode={voiceMode} onToggleVoice={toggleVoiceMode} externalMode={chatMode} />
               </motion.div>
 
               {/* Add to Home Screen — only on mobile, only when not already installed */}
@@ -342,13 +352,15 @@ export function ChatPage() {
           )}
         </div>
 
-        {/* Input bar */}
-        <div
-          className="absolute bottom-14 left-0 right-0 z-30 pt-10 pb-3 px-4 md:px-8"
-          style={{ background: "linear-gradient(to top, hsl(var(--background)) 60%, transparent)" }}
-        >
-          <ChatInput onSend={handleSend} isTyping={isTyping} onStop={stopStream} voiceMode={voiceMode} onToggleVoice={toggleVoiceMode} externalMode={chatMode} />
-        </div>
+        {/* Input bar — only shown when conversation has messages */}
+        {!isEmpty && (
+          <div
+            className="absolute bottom-14 left-0 right-0 z-30 pt-10 pb-3 px-4 md:px-8"
+            style={{ background: "linear-gradient(to top, hsl(var(--background)) 60%, transparent)" }}
+          >
+            <ChatInput onSend={handleSend} isTyping={isTyping} onStop={stopStream} voiceMode={voiceMode} onToggleVoice={toggleVoiceMode} externalMode={chatMode} />
+          </div>
+        )}
       </div>
 
       <AnimatePresence>
