@@ -1,4 +1,5 @@
 node_modules/
+**/node_modules/
 android/
 .expo/
 dist/
@@ -16,6 +17,9 @@ artifacts/sirius-promo/
 artifacts/new-dimensions/
 attached_assets/
 .local/
-lib/
 *.log
+nohup.out
+package-lock.json
 pnpm-lock.yaml
+ios/build/
+store-metadata/
