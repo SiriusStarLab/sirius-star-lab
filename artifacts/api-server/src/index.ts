@@ -45,7 +45,7 @@ app.listen(port, () => {
   // Payment expiry — downgrade unconfirmed subscribers after 48 hours
   startPaymentExpiryJob();
   console.log("[Payment Expiry] Watching for unconfirmed payments — auto-expire after 48 hours");
-  startHealthMonitor(30);
+  startHealthMonitor(10);
   // Autonomous self-repair — watches PM2 logs, probes endpoints, restarts if needed, notifies Garry
   startSelfRepairEngine(20);
   restoreCustomToolsIfEmpty().catch(e => console.error("[SelfRepair] Restore failed:", e.message));
