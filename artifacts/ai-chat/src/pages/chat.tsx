@@ -344,7 +344,7 @@ export function ChatPage() {
 
         {/* Input bar */}
         <div
-          className="absolute bottom-0 left-0 right-0 z-30 pt-10 pb-5 px-4 md:px-8"
+          className="absolute bottom-6 left-0 right-0 z-30 pt-10 pb-3 px-4 md:px-8"
           style={{ background: "linear-gradient(to top, hsl(var(--background)) 60%, transparent)" }}
         >
           <ChatInput onSend={handleSend} isTyping={isTyping} onStop={stopStream} voiceMode={voiceMode} onToggleVoice={toggleVoiceMode} externalMode={chatMode} />
