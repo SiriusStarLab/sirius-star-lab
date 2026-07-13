@@ -108,6 +108,11 @@ export function CreatorLabPage() {
   const abortRef = useRef<AbortController | null>(null);
   const userId = getUserId();
 
+  // Creator Lab is Garry-only until public launch
+  useEffect(() => {
+    if (userId !== "garry") setLocation("/");
+  }, [userId, setLocation]);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, currentStatus]);

@@ -97,6 +97,16 @@ export async function ensureSandbox(userId: string): Promise<string> {
 
   if (status === "missing") {
     await ensureNetwork();
+    // Hardening for subscriber containers (not applied to Garry's privileged container)
+    const securityFlags = c.privileged ? [] : [
+      "--cap-drop SYS_ADMIN",    // no mount, namespace, kernel changes
+      "--cap-drop NET_ADMIN",    // no iptables/interface manipulation inside container
+      "--cap-drop SYS_PTRACE",   // no process tracing
+      "--cap-drop NET_RAW",      // no raw socket creation
+      "--cap-drop MKNOD",        // no device file creation
+      "--security-opt no-new-privileges", // process can't gain more privs than parent
+    ];
+
     const flags = [
       "docker run -d",
       `--name ${c.containerName}`,
@@ -104,6 +114,7 @@ export async function ensureSandbox(userId: string): Promise<string> {
       `--memory ${c.memory}`,
       `--cpus ${c.cpus}`,
       c.privileged ? "--privileged" : "",
+      ...securityFlags,
       `--volume ${c.volumeName}:/workspace`,
       "--workdir /workspace",
       "--restart unless-stopped",
