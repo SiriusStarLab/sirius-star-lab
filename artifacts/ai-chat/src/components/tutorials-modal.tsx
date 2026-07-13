@@ -178,7 +178,7 @@ const SECTIONS: Section[] = [
         body: "The Free plan gives you 10 messages per day — a great way to explore what Sirius can do. No credit card required to start.",
       },
       {
-        title: "Sirius Plus — £6.99/month",
+        title: "Sirius Plus — £9.99/month",
         body: "Unlimited messages, priority response times, and access to the full Topic Hub. Ideal for everyday use and regular creative or research work.",
       },
       {

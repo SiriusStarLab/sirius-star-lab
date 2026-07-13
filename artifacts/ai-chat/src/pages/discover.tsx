@@ -249,7 +249,7 @@ export function DiscoverPage() {
               <Sparkles className="w-5 h-5" /> Start Free — No Card Needed
             </a>
           </div>
-          <p className="text-white/60 text-xs mt-4">Free plan · Plus from £6.99/month · Cancel anytime</p>
+          <p className="text-white/60 text-xs mt-4">Free plan · Plus from £9.99/month · Cancel anytime</p>
         </div>
       </div>
 

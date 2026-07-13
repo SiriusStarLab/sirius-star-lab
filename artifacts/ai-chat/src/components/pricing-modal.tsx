@@ -51,7 +51,7 @@ export function PricingModal({ isOpen, onClose, currentTier = "free", defaultTie
   }, [isOpen]);
 
   const PRICES = {
-    plus: { amount: "£6.99", label: "Sirius Plus", monthly: "£6.99/month" },
+    plus: { amount: "£9.99", label: "Sirius Plus", monthly: "£9.99/month" },
     pro: { amount: "£14.99", label: "Sirius Pro", monthly: "£14.99/month" },
   };
 
@@ -208,7 +208,7 @@ export function PricingModal({ isOpen, onClose, currentTier = "free", defaultTie
                         </div>
                         <div>
                           <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-                            <span style={{ fontSize: 28, fontWeight: 800, color: "#fff" }}>£6.99</span>
+                            <span style={{ fontSize: 28, fontWeight: 800, color: "#fff" }}>£9.99</span>
                             <span style={{ fontSize: 13, color: "rgba(255,255,255,0.4)" }}>/month</span>
                           </div>
                           <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginTop: 1 }}>Sirius Plus · billed monthly</p>
@@ -232,7 +232,7 @@ export function PricingModal({ isOpen, onClose, currentTier = "free", defaultTie
                           cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                         }}
                       >
-                        <Zap size={15} fill="currentColor" /> Pay £6.99/month by bank transfer
+                        <Zap size={15} fill="currentColor" /> Pay £9.99/month by bank transfer
                       </button>
                     </div>
 
@@ -285,7 +285,7 @@ export function PricingModal({ isOpen, onClose, currentTier = "free", defaultTie
                           Sirius {currentTier === "pro" ? "Pro" : "Plus"} — Active
                         </p>
                         <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>
-                          {currentTier === "pro" ? "Unlimited everything" : "200 messages/day"} · {currentTier === "pro" ? "£14.99" : "£6.99"}/month
+                          {currentTier === "pro" ? "Unlimited everything" : "200 messages/day"} · {currentTier === "pro" ? "£14.99" : "£9.99"}/month
                         </p>
                       </div>
                       <Check size={18} style={{ color: currentTier === "pro" ? "#f59e0b" : "#00d4ff" }} />

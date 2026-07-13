@@ -36,3 +36,31 @@ channel = "stable-25_05"
 [userenv.shared]
 STRIPE_PLUS_LINK = "https://buy.stripe.com/test_9B64gA2NYfNYcti0fm2cg00"
 STRIPE_PRO_LINK = "https://buy.stripe.com/test_eVqcN688icBM3WMgek2cg01"
+
+[[ports]]
+localPort = 8080
+externalPort = 8080
+
+[[ports]]
+localPort = 8081
+externalPort = 8081
+
+[[ports]]
+localPort = 21159
+externalPort = 80
+
+[[ports]]
+localPort = 21692
+externalPort = 3003
+
+[[ports]]
+localPort = 25374
+externalPort = 3001
+
+[[ports]]
+localPort = 26006
+externalPort = 3002
+
+[[ports]]
+localPort = 26045
+externalPort = 3000
