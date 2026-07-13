@@ -173,8 +173,8 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession, chatM
 
       {/* ── Conversation Mode ── */}
       <div className="px-4 pb-1 pt-1">
-        <p className="text-[10px] font-mono font-medium uppercase tracking-[0.2em] mb-2"
-          style={{ color: "hsl(193 100% 52% / 0.4)" }}>Conversation Mode</p>
+        <p className="text-[10px] font-mono font-semibold uppercase tracking-[0.2em] mb-2"
+          style={{ color: "hsl(193 100% 52% / 0.85)" }}>Conversation Mode</p>
         <div className="flex flex-wrap gap-1.5">
           {SIDEBAR_MODES.map(m => {
             const active = chatMode === m.id;
@@ -182,11 +182,11 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession, chatM
               <button
                 key={m.id}
                 onClick={() => { onChatModeChange?.(m.id); onClose(); }}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium transition-all duration-200"
+                className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all duration-200"
                 style={{
-                  background: active ? "hsl(193 100% 52% / 0.14)" : "hsl(193 100% 52% / 0.04)",
-                  border: active ? "1px solid hsl(193 100% 52% / 0.5)" : "1px solid hsl(193 100% 52% / 0.12)",
-                  color: active ? "hsl(193 100% 38%)" : "hsl(193 100% 52% / 0.6)",
+                  background: active ? "hsl(193 100% 52% / 0.18)" : "hsl(193 100% 52% / 0.07)",
+                  border: active ? "1px solid hsl(193 100% 52% / 0.6)" : "1px solid hsl(193 100% 52% / 0.25)",
+                  color: active ? "hsl(193 100% 35%)" : "hsl(193 100% 70%)",
                   boxShadow: active ? "0 0 10px hsl(193 100% 52% / 0.15)" : "none",
                 }}
               >

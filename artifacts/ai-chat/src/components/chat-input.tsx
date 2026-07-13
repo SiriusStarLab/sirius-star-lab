@@ -343,11 +343,11 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
                   setTooltipRect({ left: rect.left + rect.width / 2, bottom: window.innerHeight - rect.top + 8 });
                 }}
                 onMouseLeave={() => { setHoveredModeId(null); setTooltipRect(null); }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium whitespace-nowrap transition-all duration-200 shrink-0"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold whitespace-nowrap transition-all duration-200 shrink-0"
                 style={{
                   background: active ? "hsl(193 100% 52% / 0.12)" : "hsl(210 30% 95%)",
                   border: active ? "1px solid hsl(193 100% 52% / 0.5)" : "1px solid hsl(210 25% 87%)",
-                  color: active ? "hsl(193 100% 35%)" : "hsl(220 20% 52%)",
+                  color: active ? "hsl(193 100% 35%)" : "hsl(220 20% 28%)",
                   boxShadow: active ? "0 0 12px hsl(193 100% 52% / 0.15)" : "none",
                 }}
               >
