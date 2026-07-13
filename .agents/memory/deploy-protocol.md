@@ -28,12 +28,12 @@ project — do not wait to be asked each time.
    (port 2222, key `.local/sirius_deploy.key`), then `pm2 reload sirius-api`.
    See `kamatera-deploy-path.md`.
 3. For ai-chat (frontend) changes: build the frontend
-   (`pnpm --filter @workspace/ai-chat build`), package/sync the built
-   `dist/public` output to the server's frontend directory
-   (`/opt/sirius/frontend` or wherever `app.ts` serves
-   `artifacts/ai-chat/dist/public` from — check server-update.sh /
-   deploy.sh / app.ts's self-update endpoints for the current mechanism),
-   then restart/reload `sirius-api` so it picks up the new static build.
+   (`BASE_PATH=/ PORT=3000 pnpm --filter @workspace/ai-chat run build`),
+   tar the built `artifacts/ai-chat/dist/public` dir, SCP to server,
+   extract to **`/opt/sirius/frontend/`** — this is the EXACT directory
+   nginx serves from (confirmed in /etc/nginx/conf.d/sirius.conf).
+   DO NOT use `/opt/sirius/artifacts/ai-chat/dist/` — nginx does NOT
+   serve from there. That directory exists but is dead/ignored by nginx.
 4. Verify post-deploy: hit the live sirius-ai.live URL (or the relevant
    health-check endpoint) to confirm the fix is actually live, not just
    that the deploy script exited 0.
