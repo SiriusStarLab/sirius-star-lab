@@ -62,6 +62,7 @@ const NAV_LABELS: Record<NavMode, string> = {
 import { speakText, parseSpokenPin, unlockAudio } from "./voice-utils";
 import { LabFloatingChat } from "./LabFloatingChat";
 import { SiriusLabChatPanel } from "./SiriusLabChatPanel";
+import { IOSInstallGuide } from "@/components/pwa-install-prompt";
 
 const INDUSTRIES = [
   "Aerospace", "Agriculture", "AI & ML", "Automotive", "Construction",
@@ -8022,6 +8023,11 @@ export function StarLabPage() {
   const [accessLevel, setAccessLevel] = useState<AccessRole>("owner");
   const [appBuilderPreload, setAppBuilderPreload] = useState<string | null>(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [showInstallGuide, setShowInstallGuide] = useState(false);
+  const isStandaloneApp =
+    typeof window !== "undefined" &&
+    (window.matchMedia("(display-mode: standalone)").matches ||
+      (window.navigator as any).standalone === true);
 
   const userName = typeof window !== "undefined"
     ? (localStorage.getItem("sirius_display_name") || "").trim() || "Garry"
@@ -8724,7 +8730,18 @@ export function StarLabPage() {
                 pin={pin}
               />
             </div>
-            <div className="px-3 pb-3">
+            <div className="px-3 pb-3 space-y-0.5">
+              {!isStandaloneApp && (
+                <button
+                  onClick={() => { setShowInstallGuide(true); setMobileNavOpen(false); }}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-all"
+                  style={{ color: "hsl(193,100%,35%)", background: "transparent" }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "hsla(193,100%,40%,0.08)"; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}>
+                  <Download className="w-3 h-3 flex-shrink-0" />
+                  <span>Add to Home Screen</span>
+                </button>
+              )}
               <button
                 onClick={() => setChangePinOpen(true)}
                 className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-all"
@@ -9204,6 +9221,9 @@ export function StarLabPage() {
           <span className="text-[10px] font-medium">More</span>
         </button>
       </div>
+
+      {/* Install guide */}
+      {showInstallGuide && <IOSInstallGuide onClose={() => setShowInstallGuide(false)} />}
 
       {/* Change PIN modal */}
       {changePinOpen && (
