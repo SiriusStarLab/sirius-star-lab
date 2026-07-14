@@ -14,7 +14,7 @@ import {
   Banknote, CreditCard, ShoppingBag, BarChart3, ArrowRight, FileSearch, Hammer, ClipboardList,
   Brain, MessageSquare, Activity, Target, Building, Mic, MicOff, ShieldAlert, Rocket,
   LayoutDashboard, ArrowLeft, Clock, Award, Layers3, Share, Keyboard, CornerDownLeft, Search,
-  Archive, Paperclip, Image
+  Archive, Paperclip, Image, Menu
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { getApiBase } from "@/lib/api-base";
@@ -8021,6 +8021,7 @@ export function StarLabPage() {
   const [pin, setPin] = useState("");
   const [accessLevel, setAccessLevel] = useState<AccessRole>("owner");
   const [appBuilderPreload, setAppBuilderPreload] = useState<string | null>(null);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const userName = typeof window !== "undefined"
     ? (localStorage.getItem("sirius_display_name") || "").trim() || "Garry"
@@ -8466,8 +8467,20 @@ export function StarLabPage() {
         </div>
       )}
 
+      {/* Mobile sidebar backdrop */}
+      {mobileNavOpen && (
+        <div
+          className="fixed inset-0 z-40 md:hidden"
+          style={{ background: "rgba(0,0,0,0.45)" }}
+          onClick={() => setMobileNavOpen(false)}
+        />
+      )}
+
       {/* SIDEBAR */}
-      <div className="w-56 flex-shrink-0 flex flex-col border-r" style={{ borderColor: "rgba(15,23,42,0.07)", background: "#FFFFFF" }}>
+      <div
+        className={`${mobileNavOpen ? "fixed inset-y-0 left-0 z-50 flex" : "hidden md:flex"} w-64 md:w-56 flex-shrink-0 flex-col border-r`}
+        style={{ borderColor: "rgba(15,23,42,0.07)", background: "#FFFFFF" }}
+      >
         {/* Logo */}
         <div className="p-4 border-b" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
           <div className="flex items-center gap-2.5">
@@ -8521,7 +8534,7 @@ export function StarLabPage() {
                     const Icon = item.icon;
                     const active = navMode === item.id;
                     return (
-                      <button key={item.id} onClick={() => setNavMode(item.id)}
+                      <button key={item.id} onClick={() => { setNavMode(item.id); setMobileNavOpen(false); }}
                         className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg mb-0.5 transition-all text-left"
                         style={{
                           background: active ? cat.bg : "transparent",
@@ -8727,7 +8740,7 @@ export function StarLabPage() {
       </div>
 
       {/* MAIN */}
-      <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden pb-16 md:pb-0">
 
         {/* Global breadcrumb / back bar — shown on every panel except dashboard */}
         {navMode !== "dashboard" && (
@@ -9161,6 +9174,36 @@ export function StarLabPage() {
           setNavMode("projects");
         }}
       />
+
+      {/* Mobile bottom nav bar */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-30 flex border-t"
+        style={{ background: "#FFFFFF", borderColor: "rgba(15,23,42,0.08)", paddingBottom: "env(safe-area-inset-bottom)" }}>
+        {([
+          { id: "dashboard" as NavMode, icon: LayoutDashboard, label: "Home" },
+          { id: "labchat"   as NavMode, icon: MessageSquare,   label: "Chat" },
+          { id: "scout"     as NavMode, icon: Telescope,       label: "Scout" },
+          { id: "projects"  as NavMode, icon: FolderOpen,      label: "Projects" },
+        ] as const).map(tab => {
+          const Icon = tab.icon;
+          const active = navMode === tab.id;
+          return (
+            <button key={tab.id}
+              onClick={() => setNavMode(tab.id)}
+              className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2"
+              style={{ color: active ? "hsl(193,100%,35%)" : "rgba(15,23,42,0.35)" }}>
+              <Icon className="w-5 h-5" />
+              <span className="text-[10px] font-medium">{tab.label}</span>
+            </button>
+          );
+        })}
+        <button
+          onClick={() => setMobileNavOpen(true)}
+          className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2"
+          style={{ color: "rgba(15,23,42,0.35)" }}>
+          <Menu className="w-5 h-5" />
+          <span className="text-[10px] font-medium">More</span>
+        </button>
+      </div>
 
       {/* Change PIN modal */}
       {changePinOpen && (
