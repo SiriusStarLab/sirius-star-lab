@@ -11,6 +11,7 @@ import { CheckoutCancelPage } from "@/pages/checkout-cancel";
 import { StarLabPage } from "@/pages/star-lab";
 import { CreatorLabPage } from "@/pages/creator-lab";
 import { MarketingPage } from "@/pages/marketing";
+import { PricingPage } from "@/pages/pricing";
 import { DreamLabPage } from "@/pages/dream-lab";
 import { WellbeingPage } from "@/pages/wellbeing";
 import { UniversePage } from "@/pages/universe";
@@ -51,7 +52,7 @@ function Router() {
       <Route path="/learn" component={LearnPage} />
       <Route path="/why-sirius" component={MarketingPage} />
       <Route path="/agency" component={MarketingPage} />
-      <Route path="/pricing" component={MarketingPage} />
+      <Route path="/pricing" component={PricingPage} />
       <Route path="/compare" component={ComparePage} />
       <Route path="/discover" component={DiscoverPage} />
       {/*
@@ -70,14 +71,25 @@ function isLocallyAuthenticated(): boolean {
   return !!userId && (userId.startsWith("acct_") || userId === "garry");
 }
 
+const PUBLIC_PATHS = ["/pricing", "/checkout-success", "/checkout/success", "/checkout-cancel", "/checkout/cancel", "/terms", "/privacy"];
+
+function isPublicRoute(): boolean {
+  const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+  const path = window.location.pathname.replace(base, "") || "/";
+  return PUBLIC_PATHS.some(p => path === p || path.startsWith(p + "?") || path.startsWith(p + "/"));
+}
+
 function App() {
+  const isPublic = isPublicRoute();
+
   // Start authenticated if localStorage has a valid userId (fast path, same device)
   const [authed, setAuthed] = useState(() => isLocallyAuthenticated());
-  const [sessionChecked, setSessionChecked] = useState(() => isLocallyAuthenticated());
+  // Public pages skip the session-check spinner entirely
+  const [sessionChecked, setSessionChecked] = useState(() => isLocallyAuthenticated() || isPublic);
 
   useEffect(() => {
-    // Already authed via localStorage — no need to hit the server
-    if (authed) return;
+    // Already authed or on a public page — no need to hit the server
+    if (authed || isPublic) return;
 
     // Try to restore from server-side session cookie (cross-device / cleared localStorage)
     fetch(`${BASE}/api/auth/me`, { credentials: "include" })
@@ -93,7 +105,7 @@ function App() {
       .finally(() => setSessionChecked(true));
   }, []);
 
-  // Brief loading state while we check the session cookie
+  // Brief loading state while we check the session cookie (never shown on public pages)
   if (!sessionChecked) {
     return (
       <div style={{
@@ -107,10 +119,18 @@ function App() {
     );
   }
 
-  if (!authed) {
-    return <AuthGate onAuth={(userId) => {
-      setAuthed(true);
-    }} />;
+  if (!authed && !isPublic) {
+    return <AuthGate onAuth={() => setAuthed(true)} />;
+  }
+
+  if (!authed && isPublic) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+          <Router />
+        </WouterRouter>
+      </QueryClientProvider>
+    );
   }
 
   return (

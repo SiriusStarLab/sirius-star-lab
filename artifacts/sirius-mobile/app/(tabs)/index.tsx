@@ -8,11 +8,14 @@ import {
   FlatList,
   Image,
   KeyboardAvoidingView,
+  Linking,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -91,6 +94,8 @@ export default function ChatScreen() {
   const [voiceMode, setVoiceMode] = useState(true);
   const [actionSteps, setActionSteps] = useState<ActionStep[]>([]);
   const [stepsExpanded, setStepsExpanded] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [hitLimitTier, setHitLimitTier] = useState<"free" | "plus">("free");
 
   const promptHandledRef = useRef<string | undefined>(undefined);
   const convoHandledRef = useRef<string | undefined>(undefined);
@@ -192,16 +197,13 @@ export default function ChatScreen() {
       );
 
       if (response.status === 429) {
-        const limitMsg = Platform.OS === "ios"
-          ? "You've reached your daily message limit. It resets at midnight — come back tomorrow."
-          : (() => {
-              const errData = {};
-              const tier = (errData as any)?.tier ?? "free";
-              return tier === "free"
-                ? "You've reached your 30 free messages today. Upgrade to Plus for 200/day, or Pro for unlimited."
-                : "You've reached your daily message limit. Upgrade to Pro for unlimited messages.";
-            })();
-        setMessages(prev => [...prev, { id: generateId(), role: "assistant" as const, content: limitMsg }]);
+        let tier: "free" | "plus" = "free";
+        try {
+          const errData = await response.json();
+          if (errData?.tier === "plus") tier = "plus";
+        } catch {}
+        setHitLimitTier(tier);
+        setShowUpgradeModal(true);
         setIsStreaming(false);
         setShowTyping(false);
         return;
@@ -401,12 +403,86 @@ export default function ChatScreen() {
     setStepsExpanded(false);
   }, []);
 
+  const UPGRADE_URL = "https://sirius-ai.live/pricing";
+
   return (
     <KeyboardAvoidingView
       style={[styles.root, { backgroundColor: Colors.background }]}
       behavior="padding"
       keyboardVerticalOffset={0}
     >
+      {/* ── Upgrade modal ── */}
+      <Modal
+        visible={showUpgradeModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowUpgradeModal(false)}
+      >
+        <View style={upgradeStyles.overlay}>
+          <View style={upgradeStyles.sheet}>
+            {/* Glow blob */}
+            <View style={upgradeStyles.glow} pointerEvents="none" />
+
+            {/* Header */}
+            <View style={upgradeStyles.header}>
+              <View style={upgradeStyles.orbWrap}>
+                <View style={upgradeStyles.orb}>
+                  <Text style={{ fontSize: 22 }}>⚡</Text>
+                </View>
+              </View>
+              <Text style={upgradeStyles.title}>
+                {hitLimitTier === "plus" ? "Daily limit reached" : "You've used your 30 free messages"}
+              </Text>
+              <Text style={upgradeStyles.subtitle}>
+                {hitLimitTier === "plus"
+                  ? "Upgrade to Pro for unlimited messages every day."
+                  : "Upgrade for more messages — or come back tomorrow when it resets."}
+              </Text>
+            </View>
+
+            {/* Plans */}
+            {hitLimitTier === "free" && (
+              <View style={upgradeStyles.planCard}>
+                <View style={upgradeStyles.planRow}>
+                  <View>
+                    <Text style={upgradeStyles.planName}>Plus</Text>
+                    <Text style={upgradeStyles.planDesc}>200 messages/day · image gen · memory</Text>
+                  </View>
+                  <Text style={[upgradeStyles.planPrice, { color: "hsl(193,100%,55%)" }]}>£9.99<Text style={upgradeStyles.planPer}>/mo</Text></Text>
+                </View>
+              </View>
+            )}
+            <View style={upgradeStyles.planCard}>
+              <View style={upgradeStyles.planRow}>
+                <View>
+                  <Text style={upgradeStyles.planName}>Pro</Text>
+                  <Text style={upgradeStyles.planDesc}>Unlimited messages · priority speed</Text>
+                </View>
+                <Text style={[upgradeStyles.planPrice, { color: "hsl(45,100%,55%)" }]}>£19.99<Text style={upgradeStyles.planPer}>/mo</Text></Text>
+              </View>
+            </View>
+
+            {/* CTA */}
+            <TouchableOpacity
+              style={upgradeStyles.ctaBtn}
+              activeOpacity={0.82}
+              onPress={() => {
+                setShowUpgradeModal(false);
+                Linking.openURL(UPGRADE_URL);
+              }}
+            >
+              <Text style={upgradeStyles.ctaText}>See plans at sirius-ai.live →</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={upgradeStyles.dismissBtn}
+              onPress={() => setShowUpgradeModal(false)}
+            >
+              <Text style={upgradeStyles.dismissText}>Maybe later</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
       {messages.length > 0 && (
         <View style={[styles.chatHeader, { paddingTop: topPad }]}>
           <Pressable
@@ -887,5 +963,127 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.text,
     fontFamily: "Inter_500Medium",
+  },
+});
+
+const upgradeStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(4,8,26,0.85)",
+    justifyContent: "flex-end",
+    alignItems: "center",
+  },
+  sheet: {
+    width: "100%",
+    backgroundColor: "#0a0f1e",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: 28,
+    paddingBottom: 40,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(0,212,255,0.15)",
+    overflow: "hidden",
+  },
+  glow: {
+    position: "absolute",
+    top: -60,
+    left: "50%",
+    marginLeft: -150,
+    width: 300,
+    height: 200,
+    borderRadius: 150,
+    backgroundColor: "transparent",
+    // @ts-ignore
+    boxShadow: "0 0 80px 40px rgba(0,212,255,0.08)",
+  },
+  header: {
+    alignItems: "center",
+    marginBottom: 22,
+  },
+  orbWrap: {
+    marginBottom: 16,
+  },
+  orb: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: "rgba(0,212,255,0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(0,212,255,0.25)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#ffffff",
+    textAlign: "center",
+    marginBottom: 8,
+    fontFamily: "Inter_700Bold",
+  },
+  subtitle: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.45)",
+    textAlign: "center",
+    lineHeight: 21,
+    fontFamily: "Inter_400Regular",
+  },
+  planCard: {
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    padding: 16,
+    marginBottom: 10,
+  },
+  planRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  planName: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#fff",
+    fontFamily: "Inter_700Bold",
+    marginBottom: 3,
+  },
+  planDesc: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.35)",
+    fontFamily: "Inter_400Regular",
+  },
+  planPrice: {
+    fontSize: 22,
+    fontWeight: "800",
+    fontFamily: "Inter_700Bold",
+  },
+  planPer: {
+    fontSize: 12,
+    fontWeight: "400",
+    color: "rgba(255,255,255,0.35)",
+  },
+  ctaBtn: {
+    backgroundColor: "hsl(193,100%,42%)",
+    borderRadius: 14,
+    paddingVertical: 15,
+    alignItems: "center",
+    marginTop: 6,
+    marginBottom: 10,
+  },
+  ctaText: {
+    color: "#04081a",
+    fontSize: 15,
+    fontWeight: "700",
+    fontFamily: "Inter_700Bold",
+  },
+  dismissBtn: {
+    alignItems: "center",
+    paddingVertical: 8,
+  },
+  dismissText: {
+    color: "rgba(255,255,255,0.25)",
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
   },
 });
