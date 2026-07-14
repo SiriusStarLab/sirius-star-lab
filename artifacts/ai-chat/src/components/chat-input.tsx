@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, KeyboardEvent, useState, useCallback } from "react";
-import { Send, Square, Mic, MicOff, X, Loader2, Zap, FileText, ImageIcon, HelpCircle, Volume2, VolumeX, Keyboard } from "lucide-react";
+import { Send, Square, Mic, MicOff, X, Loader2, Zap, FileText, ImageIcon, HelpCircle, Volume2, VolumeX, Keyboard, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useSubscription } from "@/hooks/use-subscription";
@@ -119,6 +119,8 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
   const [hoveredModeId, setHoveredModeId] = useState<string | null>(null);
   const [tooltipRect, setTooltipRect] = useState<{ left: number; bottom: number } | null>(null);
   const modeBarRef = useRef<HTMLDivElement>(null);
+  const attachMenuRef = useRef<HTMLDivElement>(null);
+  const [showAttachMenu, setShowAttachMenu] = useState(false);
   const { status } = useSubscription();
   const userId = getUserId();
 
@@ -142,6 +144,18 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
     }, 5000);
     return () => clearInterval(iv);
   }, []);
+
+  // Close attach menu when clicking outside
+  useEffect(() => {
+    if (!showAttachMenu) return;
+    const handler = (e: MouseEvent) => {
+      if (attachMenuRef.current && !attachMenuRef.current.contains(e.target as Node)) {
+        setShowAttachMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showAttachMenu]);
 
   // Mode bar scroll indicator — show fade when more modes are hidden to the right
   useEffect(() => {
@@ -283,7 +297,7 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
   // Show upgrade wall when daily limit is hit
   if (status.dailyLimit !== null && !status.canSendMessage) {
     return (
-      <div className="relative w-full max-w-3xl mx-auto">
+      <div className="relative w-full max-w-4xl mx-auto">
         <div
           style={{
             borderRadius: 18,
@@ -325,7 +339,7 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
   }
 
   return (
-    <div className="relative w-full max-w-3xl mx-auto">
+    <div className="relative w-full max-w-4xl mx-auto">
 
       {/* Mode selector — hidden when mode is controlled externally (via sidebar) */}
       <div className="flex items-center gap-1.5 mb-1.5" style={{ display: externalMode ? "none" : undefined }}>
@@ -509,34 +523,60 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
             opacity: (input || imageBase64) ? 1 : 0
           }} />
 
-        {/* Attachment tab buttons */}
-        <div className="flex-shrink-0 self-end mb-2.5 ml-2.5 flex items-center gap-1.5">
+        {/* Attachment "+" button */}
+        <div className="relative flex-shrink-0 self-end mb-2.5 ml-3" ref={attachMenuRef}>
           <button
-            onClick={() => imageInputRef.current?.click()}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all duration-200"
+            onClick={() => setShowAttachMenu(v => !v)}
+            className="flex items-center justify-center w-8 h-8 rounded-full transition-all duration-200"
             style={{
-              background: imageBase64 ? "hsl(193 100% 52% / 0.18)" : "hsl(210 25% 94%)",
-              color: imageBase64 ? "hsl(193 100% 35%)" : "hsl(220 14% 45%)",
-              border: imageBase64 ? "1px solid hsl(193 100% 52% / 0.4)" : "1px solid hsl(210 25% 87%)",
+              background: (imageBase64 || documentBase64)
+                ? "hsl(193 100% 52% / 0.18)"
+                : showAttachMenu ? "hsl(210 25% 89%)" : "hsl(210 25% 94%)",
+              border: (imageBase64 || documentBase64)
+                ? "1px solid hsl(193 100% 52% / 0.4)"
+                : "1px solid hsl(210 25% 87%)",
+              color: (imageBase64 || documentBase64) ? "hsl(193 100% 35%)" : "hsl(220 14% 35%)",
+              transform: showAttachMenu ? "rotate(45deg)" : "rotate(0deg)",
             }}
-            title="Attach an image"
+            title="Attach a file"
           >
-            <ImageIcon size={12} />
-            <span className="hidden sm:inline">Image</span>
+            <Plus size={16} strokeWidth={2.5} />
           </button>
-          <button
-            onClick={() => docInputRef.current?.click()}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all duration-200"
-            style={{
-              background: documentBase64 ? "hsl(193 100% 52% / 0.18)" : "hsl(210 25% 94%)",
-              color: documentBase64 ? "hsl(193 100% 35%)" : "hsl(220 14% 45%)",
-              border: documentBase64 ? "1px solid hsl(193 100% 52% / 0.4)" : "1px solid hsl(210 25% 87%)",
-            }}
-            title="Attach a document, code file, or data file"
-          >
-            <FileText size={12} />
-            <span className="hidden sm:inline">Document</span>
-          </button>
+
+          {/* Popup menu */}
+          {showAttachMenu && (
+            <div
+              className="absolute bottom-10 left-0 z-50 rounded-2xl overflow-hidden"
+              style={{
+                background: "hsl(0 0% 100%)",
+                border: "1px solid hsl(210 20% 88%)",
+                boxShadow: "0 8px 40px rgba(0,0,0,0.13), 0 2px 8px rgba(0,0,0,0.06)",
+                minWidth: 176,
+              }}
+            >
+              <button
+                onClick={() => { imageInputRef.current?.click(); setShowAttachMenu(false); }}
+                className="w-full flex items-center gap-3 px-4 py-3 text-[13.5px] font-medium transition-all duration-150 hover:bg-slate-50 active:bg-slate-100"
+                style={{ color: "hsl(220 15% 18%)" }}
+              >
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "hsl(210 25% 94%)" }}>
+                  <ImageIcon size={14} style={{ color: "hsl(220 14% 38%)" }} />
+                </div>
+                Photo / Image
+              </button>
+              <div style={{ height: 1, background: "hsl(210 20% 93%)", margin: "0 12px" }} />
+              <button
+                onClick={() => { docInputRef.current?.click(); setShowAttachMenu(false); }}
+                className="w-full flex items-center gap-3 px-4 py-3 text-[13.5px] font-medium transition-all duration-150 hover:bg-slate-50 active:bg-slate-100"
+                style={{ color: "hsl(220 15% 18%)" }}
+              >
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "hsl(210 25% 94%)" }}>
+                  <FileText size={14} style={{ color: "hsl(220 14% 38%)" }} />
+                </div>
+                Document / File
+              </button>
+            </div>
+          )}
         </div>
         <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageSelect} />
         <input ref={docInputRef} type="file" accept=".pdf,.docx,.doc,.txt,.csv,.md,.json,.py,.js,.ts,.tsx,.jsx,.java,.cpp,.c,.h,.cs,.go,.rs,.php,.rb,.swift,.kt,.vue,.html,.css,.scss,.sql,.sh,.bash,.yml,.yaml,.toml,.xml,.env,.gitignore,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,text/plain,text/csv,text/markdown,application/json" className="hidden" onChange={handleDocSelect} />

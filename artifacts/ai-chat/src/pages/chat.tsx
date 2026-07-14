@@ -98,7 +98,15 @@ export function ChatPage() {
   }, [conversationId]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const container = scrollContainerRef.current;
+    const end = messagesEndRef.current;
+    if (!container || !end) return;
+    const isStreaming = messages.some(m => m.isStreaming);
+    const distFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+    // During streaming use instant scroll to avoid jank; smooth only when done
+    if (distFromBottom < 220 || isStreaming) {
+      end.scrollIntoView({ behavior: isStreaming ? "auto" : "smooth" });
+    }
   }, [messages, isTyping]);
 
   const toggleVoiceMode = () => {
@@ -205,7 +213,7 @@ export function ChatPage() {
             </div>
           ) : isEmpty ? (
             /* ── Welcome screen: Gemini-inspired clean layout ── */
-            <div className="relative min-h-full flex flex-col items-center pb-16 px-5 md:px-8 max-w-2xl mx-auto w-full justify-center">
+            <div className="relative min-h-full flex flex-col items-center pb-16 px-5 md:px-8 max-w-3xl mx-auto w-full justify-center">
 
               {/* Ambient background glow */}
               <div

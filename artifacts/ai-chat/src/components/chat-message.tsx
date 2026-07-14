@@ -157,7 +157,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
           </span>
 
           <div className={cn(
-            "text-[15px] md:text-[16px] leading-[1.75] break-words font-[430]",
+            "text-[15px] md:text-[16px] leading-[1.75] break-words font-[500]",
             isUser
               ? "px-4 py-3 rounded-xl rounded-tr-sm text-white"
               : "text-foreground prose prose-base max-w-full"
