@@ -5149,8 +5149,19 @@ function DashboardPanel({ projects, pin, onNavigate, onOpenProject }: {
   onOpenProject: (p: Project) => void;
 }) {
   const hour = new Date().getHours();
-  const timeGreet = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
-  const today = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  const timeGreet = hour < 5 ? "Still up," : hour < 12 ? "Good morning," : hour < 18 ? "Good afternoon," : "Good evening,";
+  const today = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
+
+  // Pull last Sirius message for the "alive" card
+  const lastSiriusMsg = (() => {
+    try {
+      const msgs = JSON.parse(localStorage.getItem("lab_chat_owner") || "[]");
+      const last = [...msgs].reverse().find((m: any) => m.role === "assistant" && m.content);
+      if (!last) return null;
+      const clean = last.content.replace(/!\[.*?\]\(.*?\)/g, "").replace(/[#*`>_~]/g, "").replace(/\s+/g, " ").trim();
+      return clean.length > 10 ? clean.slice(0, 180) : null;
+    } catch { return null; }
+  })();
 
   // Compute stats from projects
   const activeProjects   = projects.filter(p => p.status === "active" || !p.status);
@@ -5199,279 +5210,224 @@ function DashboardPanel({ projects, pin, onNavigate, onOpenProject }: {
     return () => clearInterval(iv);
   }, []);
 
-  const STATS = [
-    { label: "Projects",         value: projects.length,     color: "hsl(193,100%,40%)", icon: FolderOpen,       action: () => onNavigate("projects") },
-    { label: "Active",           value: activeProjects.length, color: "hsl(155,70%,45%)", icon: Activity,        action: () => onNavigate("projects") },
-    { label: "Pending Approval", value: pendingApprovals.length, color: pendingApprovals.length > 0 ? "hsl(25,90%,60%)" : "rgba(15,23,42,0.55)", icon: ClipboardList, action: () => onNavigate("autolab") },
-    { label: "Funding Opps",     value: totalFundingOpps,    color: "hsl(155,70%,45%)", icon: BadgeCheck,        action: () => onNavigate("grants") },
-    { label: "Drafted Apps",     value: totalDrafted,        color: "hsl(45,100%,50%)", icon: FileText,          action: () => onNavigate("grants") },
-  ];
-
-  const QUICK_ACTIONS: { icon: React.ElementType; label: string; desc: string; color: string; mode: NavMode; featured?: boolean }[] = [
-    { icon: Rocket,        label: "App Builder",        desc: "Build apps with AI agents",     color: "hsl(155,70%,42%)", mode: "appbuilder", featured: true },
-    { icon: MessageSquare, label: "Chat with Sirius",   desc: "Your intelligence partner",     color: "hsl(193,100%,38%)", mode: "labchat"   },
-    { icon: FolderOpen,    label: "Projects",            desc: "Open your R&D workspace",       color: "hsl(193,100%,32%)", mode: "projects"  },
-    { icon: Telescope,     label: "Market Scout",        desc: "Scan for opportunities",         color: "hsl(45,100%,42%)", mode: "scout"     },
-    { icon: BadgeCheck,    label: "Funding Radar",       desc: `${totalFundingOpps} open opps`,  color: "hsl(155,70%,45%)", mode: "grants"    },
-    { icon: Cpu,           label: "Autonomous Lab",      desc: `${pendingApprovals.length} pending`, color: "hsl(193,100%,40%)", mode: "autolab" },
-    { icon: Atom,          label: "AI Intelligence",     desc: "Live strategic feed",             color: "hsl(210,80%,55%)", mode: "feed"      },
-    { icon: Bot,           label: "Bot Lab",             desc: "Design AI automations",           color: "hsl(280,70%,55%)", mode: "botlab"    },
+  const QUICK_ACTIONS: { icon: React.ElementType; label: string; desc: string; color: string; mode: NavMode }[] = [
+    { icon: MessageSquare, label: "Chat with Sirius",  desc: "Your intelligence partner",       color: "hsl(193,100%,45%)", mode: "labchat"    },
+    { icon: Rocket,        label: "App Builder",       desc: "Build apps with AI agents",       color: "hsl(155,70%,45%)",  mode: "appbuilder" },
+    { icon: Telescope,     label: "Market Scout",      desc: "Scan for opportunities",           color: "hsl(45,100%,48%)",  mode: "scout"      },
+    { icon: FolderOpen,    label: "Projects",          desc: "Open your R&D workspace",         color: "hsl(226,70%,55%)",  mode: "projects"   },
+    { icon: BadgeCheck,    label: "Funding Radar",     desc: `${totalFundingOpps} open opps`,   color: "hsl(155,70%,45%)",  mode: "grants"     },
+    { icon: Cpu,           label: "Autonomous Lab",    desc: `${pendingApprovals.length} pending`, color: "hsl(280,60%,58%)", mode: "autolab"  },
+    { icon: Atom,          label: "AI Intelligence",   desc: "Live strategic feed",               color: "hsl(210,80%,58%)", mode: "feed"       },
+    { icon: BookOpen,      label: "Deep Research",     desc: "Multi-source deep dives",           color: "hsl(45,90%,48%)",  mode: "research"   },
   ];
 
   return (
-    <div className="flex-1 overflow-y-auto" style={{ background: "#F8FAFC" }}>
-      {/* Header */}
-      <div className="px-8 pt-8 pb-6" style={{ borderBottom: "1px solid rgba(15,23,42,0.07)", background: "#FFFFFF" }}>
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-xs font-mono mb-1" style={{ color: "rgba(15,23,42,0.55)", letterSpacing: "0.15em" }}>{today.toUpperCase()}</p>
-            <h1 className="text-slate-800 font-bold text-2xl mb-1">{timeGreet}, Garry.</h1>
+    <div className="flex-1 overflow-y-auto" style={{ background: "#EEF2F7" }}>
+
+      {/* ── DARK HERO ── */}
+      <div className="relative overflow-hidden" style={{
+        background: "linear-gradient(160deg, #04081a 0%, #070d20 55%, #050e1b 100%)",
+      }}>
+        {/* Star field */}
+        <div className="absolute inset-0 pointer-events-none" style={{
+          backgroundImage: `radial-gradient(circle, rgba(0,212,255,0.07) 1px, transparent 1px),
+                            radial-gradient(circle, rgba(255,255,255,0.03) 1px, transparent 1px)`,
+          backgroundSize: "56px 56px, 28px 28px",
+          backgroundPosition: "0 0, 14px 14px",
+        }} />
+        {/* Ambient cyan glow top-left */}
+        <div className="absolute pointer-events-none" style={{
+          top: -80, left: -80, width: 340, height: 340,
+          background: "radial-gradient(circle, hsla(193,100%,45%,0.13) 0%, transparent 65%)",
+        }} />
+        {/* Ambient purple glow bottom-right */}
+        <div className="absolute pointer-events-none" style={{
+          bottom: -60, right: -60, width: 260, height: 260,
+          background: "radial-gradient(circle, hsla(226,70%,55%,0.1) 0%, transparent 65%)",
+        }} />
+
+        <div className="relative px-5 pt-6 pb-5 md:px-8 md:pt-8 md:pb-6">
+          {/* Status bar */}
+          <div className="flex items-center justify-between mb-5">
+            <span className="text-[10px] font-mono tracking-[0.18em] uppercase" style={{ color: "rgba(255,255,255,0.25)" }}>{today}</span>
+            <div className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "hsl(155,70%,55%)" }} />
+              <span className="text-[10px] font-mono tracking-wider" style={{ color: "hsl(155,65%,50%)" }}>SIRIUS ONLINE</span>
+            </div>
           </div>
-          <div className="flex items-center gap-2 text-xs" style={{ color: "rgba(15,23,42,0.6)" }}>
-            <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "hsl(155,70%,55%)" }} />
-            All systems online
+
+          {/* Greeting row */}
+          <div className="flex items-start justify-between gap-4 mb-5">
+            <div>
+              <h1 style={{
+                color: "rgba(255,255,255,0.95)",
+                fontFamily: "Outfit, sans-serif", fontWeight: 700,
+                fontSize: "clamp(24px,5vw,34px)", lineHeight: 1.12, marginBottom: 8,
+              }}>
+                {timeGreet}<br />Garry.
+              </h1>
+              <p style={{ color: "rgba(255,255,255,0.32)", fontSize: 13, fontFamily: "Outfit, sans-serif" }}>
+                {activeProjects.length} active project{activeProjects.length !== 1 ? "s" : ""}
+                {totalFundingOpps > 0 ? ` · ${totalFundingOpps} funding opps` : ""}
+                {pipelineStatus?.currentlyBuilding ? " · building now" : ""}
+              </p>
+            </div>
+
+            {/* Desktop: Sirius orb */}
+            <div className="hidden md:flex flex-col items-center gap-2 flex-shrink-0">
+              <div style={{ position: "relative", width: 60, height: 60 }}>
+                <div style={{
+                  position: "absolute", inset: -10, borderRadius: "50%",
+                  background: "radial-gradient(circle, hsla(193,100%,50%,0.22) 0%, transparent 70%)",
+                  animation: "sirius-glow 2.4s ease-in-out infinite",
+                }} />
+                <div style={{
+                  width: 60, height: 60, borderRadius: "50%",
+                  background: "linear-gradient(135deg, hsl(193,100%,28%), hsl(226,70%,38%))",
+                  border: "1.5px solid rgba(0,212,255,0.35)",
+                  boxShadow: "0 0 28px hsla(193,100%,50%,0.28), inset 0 1px 0 rgba(255,255,255,0.08)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  <Star style={{ width: 24, height: 24, color: "rgba(255,255,255,0.9)" }} />
+                </div>
+              </div>
+            </div>
+
+            {/* Mobile: Tap-to-talk orb */}
+            <button
+              className="md:hidden flex flex-col items-center gap-1.5 flex-shrink-0"
+              onClick={() => onNavigate("labchat")}
+              style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+              <div style={{ position: "relative" }}>
+                <div style={{
+                  position: "absolute", inset: -12, borderRadius: "50%",
+                  background: "radial-gradient(circle, hsla(193,100%,50%,0.28) 0%, transparent 70%)",
+                  animation: "sirius-glow 2.4s ease-in-out infinite",
+                }} />
+                <div style={{
+                  width: 68, height: 68, borderRadius: "50%",
+                  background: "linear-gradient(135deg, hsl(193,100%,28%), hsl(226,70%,38%))",
+                  border: "1.5px solid rgba(0,212,255,0.45)",
+                  boxShadow: "0 0 36px hsla(193,100%,50%,0.38)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  <Mic style={{ width: 26, height: 26, color: "rgba(255,255,255,0.95)" }} />
+                </div>
+              </div>
+              <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, fontFamily: "Outfit, sans-serif", fontWeight: 500, letterSpacing: "0.04em" }}>Talk to Sirius</span>
+            </button>
+          </div>
+
+          {/* Last Sirius message — ambient presence card */}
+          {lastSiriusMsg && (
+            <button
+              onClick={() => onNavigate("labchat")}
+              className="w-full text-left rounded-2xl px-4 py-3 mb-4 transition-all"
+              style={{ background: "rgba(255,255,255,0.045)", border: "1px solid rgba(0,212,255,0.13)", backdropFilter: "blur(6px)" }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.08)"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.045)"; }}>
+              <div className="flex items-start gap-3">
+                <div style={{
+                  width: 22, height: 22, borderRadius: "50%", flexShrink: 0, marginTop: 1,
+                  background: "linear-gradient(135deg, hsl(193,100%,28%), hsl(226,70%,38%))",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  <Star style={{ width: 11, height: 11, color: "white" }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p style={{ color: "rgba(0,212,255,0.55)", fontSize: 9, fontFamily: "Outfit, sans-serif", fontWeight: 700, letterSpacing: "0.12em", marginBottom: 3, textTransform: "uppercase" }}>Sirius said recently</p>
+                  <p style={{ color: "rgba(255,255,255,0.65)", fontSize: 12.5, fontFamily: "Outfit, sans-serif", lineHeight: 1.55 }}
+                    className="line-clamp-2">
+                    {lastSiriusMsg}{lastSiriusMsg.length >= 180 ? "…" : ""}
+                  </p>
+                </div>
+                <ArrowRight style={{ width: 13, height: 13, color: "rgba(0,212,255,0.4)", flexShrink: 0, marginTop: 4 }} />
+              </div>
+            </button>
+          )}
+
+          {/* Stats strip */}
+          <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
+            {[
+              { label: "Projects",  value: projects.length,         color: "hsl(193,100%,52%)", icon: FolderOpen,    action: () => onNavigate("projects") },
+              { label: "Active",    value: activeProjects.length,   color: "hsl(155,70%,56%)",  icon: Activity,      action: () => onNavigate("projects") },
+              { label: "Funding",   value: totalFundingOpps,        color: totalFundingOpps > 0 ? "hsl(155,70%,56%)" : "rgba(255,255,255,0.3)", icon: BadgeCheck, action: () => onNavigate("grants") },
+              { label: "Drafted",   value: totalDrafted,            color: "hsl(45,100%,56%)",  icon: FileText,      action: () => onNavigate("grants") },
+              { label: "Pending",   value: pendingApprovals.length, color: pendingApprovals.length > 0 ? "hsl(25,90%,65%)" : "rgba(255,255,255,0.3)", icon: ClipboardList, action: () => onNavigate("autolab") },
+            ].map(s => {
+              const Icon = s.icon;
+              return (
+                <button key={s.label} onClick={s.action}
+                  className="flex items-center gap-2 rounded-xl px-3 py-2 flex-shrink-0 transition-all active:scale-95"
+                  style={{ background: "rgba(255,255,255,0.055)", border: "1px solid rgba(255,255,255,0.09)" }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.1)"; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.055)"; }}>
+                  <Icon style={{ width: 12, height: 12, color: s.color, flexShrink: 0 }} />
+                  <span style={{ color: s.color, fontFamily: "Outfit, sans-serif", fontWeight: 700, fontSize: 14, lineHeight: 1 }}>{s.value}</span>
+                  <span style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Outfit, sans-serif", fontWeight: 500, fontSize: 10.5 }}>{s.label}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
 
-      <div className="px-8 py-6 space-y-7">
-        {/* Stats row */}
-        <div className="grid grid-cols-5 gap-3">
-          {STATS.map(s => {
-            const Icon = s.icon;
-            return (
-              <button key={s.label} onClick={s.action}
-                className="rounded-2xl p-4 text-left transition-all hover:scale-[1.02] active:scale-[0.98]"
-                style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.07)", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
-                <div className="flex items-center justify-between mb-3">
-                  <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: `${s.color}14` }}>
-                    <Icon className="w-4 h-4" style={{ color: s.color }} />
-                  </div>
-                  <ArrowRight className="w-3.5 h-3.5" style={{ color: "rgba(15,23,42,0.5)" }} />
-                </div>
-                <p className="text-2xl font-bold" style={{ color: s.value > 0 ? s.color : "rgba(15,23,42,0.25)" }}>{s.value}</p>
-                <p className="text-xs mt-0.5" style={{ color: "rgba(15,23,42,0.4)" }}>{s.label}</p>
-              </button>
-            );
-          })}
-        </div>
+      <div className="px-4 py-5 md:px-7 md:py-6 space-y-4">
 
-        {/* App Builder Hero Spotlight */}
-        <div className="rounded-2xl overflow-hidden relative" style={{ background: "linear-gradient(135deg, hsl(155,70%,42%) 0%, hsl(193,100%,38%) 100%)", boxShadow: "0 4px 20px hsla(155,70%,42%,0.25)" }}>
-          <div className="absolute inset-0 opacity-10" style={{ backgroundImage: "radial-gradient(circle at 80% 50%, white 0%, transparent 60%)" }} />
-          <div className="relative px-6 py-5 flex items-center justify-between">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-white text-sm font-bold opacity-90">App Builder</span>
-                <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ background: "rgba(255,255,255,0.2)", color: "white" }}>Code Intelligence</span>
-              </div>
-              <p className="text-white font-semibold text-lg leading-tight mb-1">Build any app with 9-phase AI agents</p>
-              <p className="text-sm opacity-75" style={{ color: "white" }}>Live web search · checkpoints · virtual browser testing · rollback</p>
+        {/* Live build alert */}
+        {pipelineStatus?.currentlyBuilding && (
+          <button onClick={() => onNavigate("autolab")}
+            className="w-full flex items-center gap-3 p-4 rounded-2xl text-left transition-all"
+            style={{ background: "linear-gradient(135deg,hsla(155,70%,42%,0.09),hsla(193,100%,40%,0.07))", border: "1px solid hsla(155,70%,42%,0.28)" }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "linear-gradient(135deg,hsla(155,70%,42%,0.15),hsla(193,100%,40%,0.12))"; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "linear-gradient(135deg,hsla(155,70%,42%,0.09),hsla(193,100%,40%,0.07))"; }}>
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "hsla(155,70%,42%,0.18)" }}>
+              <Loader2 className="w-4 h-4 animate-spin" style={{ color: "hsl(155,70%,48%)" }} />
             </div>
-            <div className="flex items-center gap-3 flex-shrink-0 ml-6">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-white">9</div>
-                <div className="text-[10px] opacity-60 text-white">phases</div>
-              </div>
-              <div className="w-px h-8 opacity-20" style={{ background: "white" }} />
-              <div className="text-center">
-                <div className="text-2xl font-bold text-white">6</div>
-                <div className="text-[10px] opacity-60 text-white">agents</div>
-              </div>
-              <div className="w-px h-8 opacity-20" style={{ background: "white" }} />
-              <div className="text-center">
-                <div className="text-2xl font-bold text-white">∞</div>
-                <div className="text-[10px] opacity-60 text-white">stacks</div>
-              </div>
-              <button onClick={() => onNavigate("appbuilder")}
-                className="ml-4 flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-105 active:scale-95"
-                style={{ background: "rgba(255,255,255,0.95)", color: "hsl(155,70%,35%)" }}>
-                <Rocket className="w-4 h-4" /> Launch
-              </button>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-sm text-slate-800">Sirius is building right now</p>
+              <p className="text-xs text-slate-400 truncate">{pipelineStatus.currentlyBuilding.name}{pipelineStatus.queued > 0 ? ` · ${pipelineStatus.queued} queued` : ""}</p>
             </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-5">
-          {/* Recent Projects */}
-          <div className="rounded-2xl overflow-hidden" style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.07)" }}>
-            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid rgba(15,23,42,0.06)" }}>
-              <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4" style={{ color: "hsl(193,100%,40%)" }} />
-                <span className="text-slate-800 font-semibold text-sm">Recent Projects</span>
-              </div>
-              <button onClick={() => onNavigate("projects")} className="text-xs transition-opacity hover:opacity-75" style={{ color: "hsl(193,100%,45%)" }}>
-                View all →
-              </button>
-            </div>
-            <div className="p-3">
-              {recentProjects.length === 0 && (
-                <p className="text-center py-6 text-sm" style={{ color: "rgba(15,23,42,0.55)" }}>No projects yet</p>
-              )}
-              {recentProjects.map(p => {
-                const updatedAgo = (() => {
-                  const diff = Date.now() - new Date(p.updatedAt).getTime();
-                  const mins = Math.floor(diff / 60000);
-                  const hrs = Math.floor(mins / 60);
-                  const days = Math.floor(hrs / 24);
-                  if (days > 0) return `${days}d ago`;
-                  if (hrs > 0) return `${hrs}h ago`;
-                  return `${Math.max(1, mins)}m ago`;
-                })();
-                const fundingCount = (() => { try { return JSON.parse(p.fundingAnalysis || "{}").opportunities?.[0]?.matches?.length ?? 0; } catch { return 0; } })();
-                return (
-                  <div key={p.id} onClick={() => { onOpenProject(p); onNavigate("projects"); }}
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all mb-0.5"
-                    style={{ border: "1px solid transparent" }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#F8FAFC"; (e.currentTarget as HTMLElement).style.borderColor = "rgba(15,23,42,0.07)"; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.borderColor = "transparent"; }}>
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "hsla(193,100%,35%,0.1)" }}>
-                      <FolderOpen className="w-4 h-4" style={{ color: "hsl(193,100%,40%)" }} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-slate-800 text-sm font-medium truncate">{p.name}</p>
-                      <p className="text-xs truncate" style={{ color: "rgba(15,23,42,0.6)" }}>{p.industry} · {updatedAgo}</p>
-                    </div>
-                    {p.aiArchLinked === "linked" && (
-                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: "hsla(210,80%,55%,0.1)", color: "hsl(210,80%,55%)", border: "1px solid hsla(210,80%,55%,0.2)" }}>
-                        AI ARCH
-                      </span>
-                    )}
-                    {fundingCount > 0 && (
-                      <span className="text-xs px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: "hsla(155,70%,45%,0.1)", color: "hsl(155,70%,45%)" }}>
-                        {fundingCount} funding
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Top Funding Opportunities */}
-          <div className="rounded-2xl overflow-hidden" style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.07)" }}>
-            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid rgba(15,23,42,0.06)" }}>
-              <div className="flex items-center gap-2">
-                <Award className="w-4 h-4" style={{ color: "hsl(155,70%,45%)" }} />
-                <span className="text-slate-800 font-semibold text-sm">Top Funding Opportunities</span>
-                {strongFunding > 0 && (
-                  <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: "hsla(155,70%,45%,0.1)", color: "hsl(155,70%,55%)" }}>{strongFunding} strong</span>
-                )}
-              </div>
-              <button onClick={() => onNavigate("grants")} className="text-xs transition-opacity hover:opacity-75" style={{ color: "hsl(155,70%,45%)" }}>
-                View all →
-              </button>
-            </div>
-            <div className="p-3">
-              {allFundingMatches.length === 0 && (
-                <div className="py-6 text-center">
-                  <p className="text-sm mb-1" style={{ color: "rgba(15,23,42,0.55)" }}>No funding data yet</p>
-                  <button onClick={() => onNavigate("grants")} className="text-xs transition-opacity hover:opacity-75" style={{ color: "hsl(155,70%,45%)" }}>Run Funding Radar →</button>
-                </div>
-              )}
-              {allFundingMatches.slice(0, 5).map((m, i) => (
-                <div key={i} onClick={() => onNavigate("grants")}
-                  className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl cursor-pointer transition-all mb-0.5"
-                  style={{ border: "1px solid transparent" }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#F8FAFC"; (e.currentTarget as HTMLElement).style.borderColor = "rgba(15,23,42,0.07)"; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.borderColor = "transparent"; }}>
-                  <div className="w-2 h-2 rounded-full flex-shrink-0 mt-1.5" style={{ background: m.matchStrength === "strong" ? "hsl(155,70%,55%)" : "hsl(45,100%,55%)" }} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-slate-800 text-xs font-semibold truncate">{m.scheme}</p>
-                    <p className="text-xs truncate" style={{ color: "rgba(15,23,42,0.6)" }}>{m.projectName} · {m.amount}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Live Pipeline Status — what Sirius is building right now */}
-        {pipelineStatus && (
-          <div className="rounded-2xl overflow-hidden" style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.07)", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
-            <div className="flex items-center justify-between px-5 py-3.5" style={{ borderBottom: "1px solid rgba(15,23,42,0.06)", background: "hsla(193,100%,40%,0.03)" }}>
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: pipelineStatus.currentlyBuilding ? "hsl(155,70%,55%)" : "rgba(15,23,42,0.2)" }} />
-                <span className="text-slate-800 font-semibold text-sm">Autonomous Build Pipeline</span>
-                {pipelineStatus.currentlyBuilding && (
-                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ background: "hsla(155,70%,42%,0.12)", color: "hsl(155,70%,38%)" }}>LIVE</span>
-                )}
-              </div>
-              <button onClick={() => onNavigate("autolab")} className="text-xs transition-opacity hover:opacity-75" style={{ color: "hsl(193,100%,45%)" }}>
-                View Lab →
-              </button>
-            </div>
-            <div className="px-5 py-4">
-              <div className="grid grid-cols-3 gap-4 mb-4">
-                <div className="rounded-xl p-3 text-center" style={{ background: "hsla(155,70%,42%,0.06)", border: "1px solid hsla(155,70%,42%,0.15)" }}>
-                  <p className="text-lg font-bold" style={{ color: "hsl(155,70%,38%)" }}>{pipelineStatus.queued.toLocaleString()}</p>
-                  <p className="text-xs mt-0.5" style={{ color: "rgba(15,23,42,0.5)" }}>Queued to build</p>
-                </div>
-                <div className="rounded-xl p-3 text-center" style={{ background: "hsla(193,100%,40%,0.06)", border: "1px solid hsla(193,100%,40%,0.15)" }}>
-                  <p className="text-lg font-bold" style={{ color: "hsl(193,100%,38%)" }}>{pipelineStatus.currentlyBuilding ? 1 : 0}</p>
-                  <p className="text-xs mt-0.5" style={{ color: "rgba(15,23,42,0.5)" }}>Building now</p>
-                </div>
-                <div className="rounded-xl p-3 text-center" style={{ background: "hsla(155,70%,45%,0.06)", border: "1px solid hsla(155,70%,45%,0.15)" }}>
-                  <p className="text-lg font-bold" style={{ color: "hsl(155,70%,38%)" }}>{pipelineStatus.launchReady?.length ?? 0}</p>
-                  <p className="text-xs mt-0.5" style={{ color: "rgba(15,23,42,0.5)" }}>Launch-ready</p>
-                </div>
-              </div>
-              {pipelineStatus.currentlyBuilding ? (
-                <div className="flex items-center gap-3 p-3 rounded-xl" style={{ background: "hsla(155,70%,42%,0.06)", border: "1px solid hsla(155,70%,42%,0.12)" }}>
-                  <div className="flex-shrink-0">
-                    <Loader2 className="w-4 h-4 animate-spin" style={{ color: "hsl(155,70%,45%)" }} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-slate-500 mb-0.5">Currently building</p>
-                    <p className="text-sm font-semibold text-slate-800 truncate">{pipelineStatus.currentlyBuilding.name}</p>
-                  </div>
-                  <span className="text-xs px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: "hsla(155,70%,42%,0.15)", color: "hsl(155,70%,38%)" }}>AI Agents Active</span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-3 p-3 rounded-xl" style={{ background: "rgba(15,23,42,0.03)", border: "1px solid rgba(15,23,42,0.07)" }}>
-                  <Activity className="w-4 h-4 flex-shrink-0" style={{ color: "rgba(15,23,42,0.3)" }} />
-                  <p className="text-sm text-slate-400">Pipeline idle — {pipelineStatus.queued.toLocaleString()} projects queued</p>
-                </div>
-              )}
-              {(pipelineStatus.launchReady?.length ?? 0) > 0 && (
-                <div className="mt-3">
-                  <p className="text-xs font-medium text-slate-400 mb-2">Ready to launch</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {pipelineStatus.launchReady.slice(0, 6).map(p => (
-                      <span key={p.id} className="text-xs px-2 py-1 rounded-lg" style={{ background: "hsla(193,100%,40%,0.08)", color: "hsl(193,100%,35%)", border: "1px solid hsla(193,100%,40%,0.15)" }}>
-                        {p.name.length > 28 ? p.name.slice(0, 28) + "…" : p.name}
-                      </span>
-                    ))}
-                    {(pipelineStatus.launchReady?.length ?? 0) > 6 && (
-                      <span className="text-xs px-2 py-1 rounded-lg" style={{ background: "rgba(15,23,42,0.05)", color: "rgba(15,23,42,0.5)" }}>
-                        +{(pipelineStatus.launchReady?.length ?? 0) - 6} more
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+            <ArrowRight className="w-4 h-4 flex-shrink-0" style={{ color: "hsl(155,70%,48%)" }} />
+          </button>
         )}
 
-        {/* Quick Actions */}
+        {/* Pending approvals */}
+        {pendingApprovals.length > 0 && (
+          <button onClick={() => onNavigate("autolab")}
+            className="w-full flex items-center gap-3 p-4 rounded-2xl text-left transition-all"
+            style={{ background: "hsla(25,90%,55%,0.07)", border: "1px solid hsla(25,90%,55%,0.22)" }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "hsla(25,90%,55%,0.12)"; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "hsla(25,90%,55%,0.07)"; }}>
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "hsla(25,90%,55%,0.16)" }}>
+              <ClipboardList className="w-4 h-4" style={{ color: "hsl(25,90%,58%)" }} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-sm text-slate-800">{pendingApprovals.length} project{pendingApprovals.length !== 1 ? "s" : ""} awaiting approval</p>
+              <p className="text-xs text-slate-400">Autonomous Lab has new opportunities to review</p>
+            </div>
+            <ArrowRight className="w-4 h-4 flex-shrink-0" style={{ color: "hsl(25,90%,58%)" }} />
+          </button>
+        )}
+
+        {/* Quick Access */}
         <div>
-          <p className="text-xs font-mono mb-3" style={{ color: "rgba(15,23,42,0.55)", letterSpacing: "0.15em" }}>QUICK ACTIONS</p>
-          <div className="grid grid-cols-4 gap-3">
+          <p className="text-[10px] font-mono font-bold tracking-[0.2em] mb-3" style={{ color: "rgba(15,23,42,0.28)" }}>QUICK ACCESS</p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
             {QUICK_ACTIONS.map(a => {
               const Icon = a.icon;
               return (
                 <button key={a.mode} onClick={() => onNavigate(a.mode)}
-                  className="flex items-center gap-3 p-4 rounded-2xl text-left transition-all hover:scale-[1.02] active:scale-[0.98]"
+                  className="flex items-center gap-3 p-3.5 rounded-2xl text-left transition-all hover:scale-[1.02] active:scale-[0.97]"
                   style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.07)", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = `${a.color}40`; (e.currentTarget as HTMLElement).style.background = `${a.color}06`; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "rgba(15,23,42,0.07)"; (e.currentTarget as HTMLElement).style.background = "#FFFFFF"; }}>
-                  <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${a.color}14` }}>
-                    <Icon className="w-4.5 h-4.5" style={{ color: a.color, width: 18, height: 18 }} />
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = `${a.color}55`; (e.currentTarget as HTMLElement).style.boxShadow = `0 3px 14px ${a.color}1a`; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "rgba(15,23,42,0.07)"; (e.currentTarget as HTMLElement).style.boxShadow = "0 1px 4px rgba(0,0,0,0.04)"; }}>
+                  <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${a.color}16` }}>
+                    <Icon style={{ width: 15, height: 15, color: a.color }} />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-slate-800 font-semibold text-sm leading-tight">{a.label}</p>
-                    <p className="text-xs leading-tight mt-0.5 truncate" style={{ color: "rgba(15,23,42,0.6)" }}>{a.desc}</p>
+                    <p className="text-slate-800 font-semibold text-xs leading-snug">{a.label}</p>
+                    <p className="text-[11px] mt-0.5 truncate" style={{ color: "rgba(15,23,42,0.4)" }}>{a.desc}</p>
                   </div>
                 </button>
               );
@@ -5479,24 +5435,122 @@ function DashboardPanel({ projects, pin, onNavigate, onOpenProject }: {
           </div>
         </div>
 
-        {/* Pending Approvals alert */}
-        {pendingApprovals.length > 0 && (
-          <div onClick={() => onNavigate("autolab")}
-            className="flex items-center gap-4 p-4 rounded-2xl cursor-pointer transition-all"
-            style={{ background: "hsla(25,90%,55%,0.07)", border: "1px solid hsla(25,90%,55%,0.2)" }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "hsla(25,90%,55%,0.12)"; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "hsla(25,90%,55%,0.07)"; }}>
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "hsla(25,90%,55%,0.15)" }}>
-              <ClipboardList className="w-5 h-5" style={{ color: "hsl(25,90%,55%)" }} />
+        {/* Recent Projects + Funding side by side */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Recent Projects */}
+          <div className="rounded-2xl overflow-hidden" style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.07)", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+            <div className="flex items-center justify-between px-5 py-3.5" style={{ borderBottom: "1px solid rgba(15,23,42,0.06)" }}>
+              <div className="flex items-center gap-2">
+                <Clock className="w-3.5 h-3.5" style={{ color: "hsl(193,100%,40%)" }} />
+                <span className="text-slate-800 font-semibold text-sm">Recent Projects</span>
+              </div>
+              <button onClick={() => onNavigate("projects")} className="text-xs font-medium transition-opacity hover:opacity-70" style={{ color: "hsl(193,100%,40%)" }}>View all →</button>
             </div>
-            <div className="flex-1">
-              <p className="text-slate-800 font-semibold text-sm">{pendingApprovals.length} project{pendingApprovals.length !== 1 ? "s" : ""} awaiting your approval</p>
-              <p className="text-xs" style={{ color: "rgba(15,23,42,0.45)" }}>The Autonomous Lab has identified new opportunities — review and approve to add them to your workspace</p>
+            <div className="p-2">
+              {recentProjects.length === 0 && (
+                <p className="text-center py-6 text-sm" style={{ color: "rgba(15,23,42,0.3)" }}>No projects yet</p>
+              )}
+              {recentProjects.map(p => {
+                const diff = Date.now() - new Date(p.updatedAt).getTime();
+                const mins = Math.floor(diff / 60000), hrs = Math.floor(mins / 60), days = Math.floor(hrs / 24);
+                const ago = days > 0 ? `${days}d ago` : hrs > 0 ? `${hrs}h ago` : `${Math.max(1, mins)}m ago`;
+                return (
+                  <div key={p.id} onClick={() => { onOpenProject(p); onNavigate("projects"); }}
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all"
+                    style={{ border: "1px solid transparent" }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#F6F9FC"; (e.currentTarget as HTMLElement).style.borderColor = "rgba(15,23,42,0.07)"; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.borderColor = "transparent"; }}>
+                    <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "hsla(193,100%,35%,0.09)" }}>
+                      <FolderOpen style={{ width: 13, height: 13, color: "hsl(193,100%,40%)" }} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-slate-800 text-sm font-medium truncate">{p.name}</p>
+                      <p className="text-xs truncate" style={{ color: "rgba(15,23,42,0.42)" }}>{p.industry} · {ago}</p>
+                    </div>
+                    {p.aiArchLinked === "linked" && (
+                      <span className="text-[9px] font-mono px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: "hsla(210,80%,55%,0.1)", color: "hsl(210,80%,55%)", border: "1px solid hsla(210,80%,55%,0.18)" }}>AI</span>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-            <ArrowRight className="w-4 h-4 flex-shrink-0" style={{ color: "hsl(25,90%,55%)" }} />
+          </div>
+
+          {/* Funding Radar */}
+          <div className="rounded-2xl overflow-hidden" style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.07)", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+            <div className="flex items-center justify-between px-5 py-3.5" style={{ borderBottom: "1px solid rgba(15,23,42,0.06)" }}>
+              <div className="flex items-center gap-2">
+                <BadgeCheck className="w-3.5 h-3.5" style={{ color: "hsl(155,70%,45%)" }} />
+                <span className="text-slate-800 font-semibold text-sm">Funding Radar</span>
+                {strongFunding > 0 && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: "hsla(155,70%,45%,0.1)", color: "hsl(155,70%,50%)" }}>{strongFunding} strong</span>
+                )}
+              </div>
+              <button onClick={() => onNavigate("grants")} className="text-xs font-medium transition-opacity hover:opacity-70" style={{ color: "hsl(155,70%,45%)" }}>View all →</button>
+            </div>
+            <div className="p-2">
+              {allFundingMatches.length === 0 ? (
+                <div className="py-6 text-center">
+                  <p className="text-sm mb-2" style={{ color: "rgba(15,23,42,0.3)" }}>No funding data yet</p>
+                  <button onClick={() => onNavigate("grants")} className="text-xs font-semibold" style={{ color: "hsl(155,70%,45%)" }}>Run Funding Radar →</button>
+                </div>
+              ) : allFundingMatches.slice(0, 5).map((m, i) => (
+                <div key={i} onClick={() => onNavigate("grants")}
+                  className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl cursor-pointer transition-all"
+                  style={{ border: "1px solid transparent" }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#F6F9FC"; (e.currentTarget as HTMLElement).style.borderColor = "rgba(15,23,42,0.07)"; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.borderColor = "transparent"; }}>
+                  <div className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-2" style={{ background: m.matchStrength === "strong" ? "hsl(155,70%,55%)" : "hsl(45,100%,55%)" }} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-slate-800 text-xs font-semibold truncate">{m.scheme}</p>
+                    <p className="text-xs truncate" style={{ color: "rgba(15,23,42,0.42)" }}>{m.projectName} · {m.amount}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Pipeline idle info — only when not building but has queued/ready */}
+        {pipelineStatus && !pipelineStatus.currentlyBuilding && (pipelineStatus.queued > 0 || (pipelineStatus.launchReady?.length ?? 0) > 0) && (
+          <div className="rounded-2xl overflow-hidden" style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.07)" }}>
+            <div className="flex items-center justify-between px-5 py-3.5" style={{ borderBottom: "1px solid rgba(15,23,42,0.06)" }}>
+              <div className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full" style={{ background: "rgba(15,23,42,0.18)" }} />
+                <span className="text-slate-800 font-semibold text-sm">Build Pipeline</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: "rgba(15,23,42,0.05)", color: "rgba(15,23,42,0.35)" }}>idle</span>
+              </div>
+              <button onClick={() => onNavigate("autolab")} className="text-xs font-medium" style={{ color: "hsl(193,100%,40%)" }}>View Lab →</button>
+            </div>
+            <div className="px-5 py-4 flex items-center gap-6 flex-wrap">
+              <div>
+                <p className="text-lg font-bold text-slate-700">{pipelineStatus.queued.toLocaleString()}</p>
+                <p className="text-xs text-slate-400">Queued</p>
+              </div>
+              <div>
+                <p className="text-lg font-bold" style={{ color: "hsl(155,70%,45%)" }}>{pipelineStatus.launchReady?.length ?? 0}</p>
+                <p className="text-xs text-slate-400">Launch-ready</p>
+              </div>
+              {(pipelineStatus.launchReady?.length ?? 0) > 0 && (
+                <div className="flex flex-wrap gap-1.5 flex-1">
+                  {pipelineStatus.launchReady.slice(0, 4).map(p => (
+                    <span key={p.id} className="text-xs px-2 py-0.5 rounded-lg" style={{ background: "hsla(193,100%,40%,0.08)", color: "hsl(193,100%,35%)", border: "1px solid hsla(193,100%,40%,0.15)" }}>
+                      {p.name.length > 22 ? p.name.slice(0, 22) + "…" : p.name}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
+
+      <style>{`
+        @keyframes sirius-glow {
+          0%, 100% { transform: scale(1); opacity: 0.7; }
+          50%       { transform: scale(1.35); opacity: 0; }
+        }
+      `}</style>
     </div>
   );
 }
