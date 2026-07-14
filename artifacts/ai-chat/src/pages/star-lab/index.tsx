@@ -9206,6 +9206,7 @@ export function StarLabPage() {
           return (
             <button key={tab.id}
               onClick={() => setNavMode(tab.id)}
+              title={tab.label}
               className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2"
               style={{ color: active ? "hsl(193,100%,35%)" : "rgba(15,23,42,0.35)" }}>
               <Icon className="w-5 h-5" />
@@ -9215,6 +9216,7 @@ export function StarLabPage() {
         })}
         <button
           onClick={() => setMobileNavOpen(true)}
+          title="More navigation · Add to Home Screen"
           className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2"
           style={{ color: "rgba(15,23,42,0.35)" }}>
           <Menu className="w-5 h-5" />
