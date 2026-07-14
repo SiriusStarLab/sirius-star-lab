@@ -1,5 +1,6 @@
-node_modules/
-**/node_modules/
+node_modules
+**/node_modules
+artifacts/sirius-mobile/node_modules
 android/
 .expo/
 dist/
@@ -21,5 +22,4 @@ attached_assets/
 nohup.out
 package-lock.json
 pnpm-lock.yaml
-ios/build/
 store-metadata/
