@@ -764,7 +764,10 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
             onClick={() => {
               if (voicePhase === "listening") { stopListeningNow(); }
               else if (voicePhase === "speaking") { window.speechSynthesis?.cancel(); setVoicePhase("idle"); }
-              else if (!streaming) { startListeningLoop(); }
+              else if (!streaming) {
+                if (chatInputMode === "keyboard") switchChatMode("voice");
+                else startListeningLoop();
+              }
             }}
             title={voicePhase === "listening" ? "Stop listening" : "Tap to speak"}
             className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 transition-all active:scale-95"

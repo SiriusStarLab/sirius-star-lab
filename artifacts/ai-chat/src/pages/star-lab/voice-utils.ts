@@ -190,9 +190,9 @@ function _speakBrowser(text: string, onDone?: () => void, rate = 0.87) {
   ];
 
   const FEMALE_ORDER = [
-    "Microsoft Sonia","Microsoft Libby","Microsoft Maisie","Microsoft Hazel",
+    "Microsoft Jenny","Microsoft Sonia","Microsoft Libby","Microsoft Maisie","Microsoft Hazel",
     "Google UK English Female","Serena","Moira",
-    "Microsoft Aria","Microsoft Jenny","Karen","Samantha",
+    "Microsoft Aria","Karen","Samantha",
     "Microsoft Nora","Microsoft Clara","Microsoft Mia","Microsoft Leah",
     "Microsoft Susan","Microsoft Zira","Victoria","Fiona","Tessa","Google US English",
   ];
