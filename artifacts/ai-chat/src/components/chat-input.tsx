@@ -130,6 +130,7 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -504,7 +505,7 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
 
       {/* Input box */}
       <div
-        className="relative flex items-end w-full rounded-xl overflow-hidden transition-all duration-300"
+        className="relative flex items-end w-full rounded-xl transition-all duration-300"
         style={{
           background: "hsl(0 0% 100% / 0.95)",
           backdropFilter: "blur(20px)",
@@ -546,28 +547,41 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
           {/* Popup menu */}
           {showAttachMenu && (
             <div
-              className="absolute bottom-10 left-0 z-50 rounded-2xl overflow-hidden"
+              className="absolute z-50 rounded-2xl overflow-hidden"
               style={{
+                bottom: "calc(100% + 8px)",
+                left: 0,
                 background: "hsl(0 0% 100%)",
                 border: "1px solid hsl(210 20% 88%)",
-                boxShadow: "0 8px 40px rgba(0,0,0,0.13), 0 2px 8px rgba(0,0,0,0.06)",
-                minWidth: 176,
+                boxShadow: "0 8px 40px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.08)",
+                minWidth: 200,
               }}
             >
               <button
+                onClick={() => { cameraInputRef.current?.click(); setShowAttachMenu(false); }}
+                className="w-full flex items-center gap-3 px-4 py-3.5 text-[13.5px] font-medium transition-all duration-150 hover:bg-slate-50 active:bg-slate-100"
+                style={{ color: "hsl(220 15% 18%)" }}
+              >
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "hsl(210 25% 94%)" }}>
+                  <span style={{ fontSize: 15 }}>📷</span>
+                </div>
+                Take Photo
+              </button>
+              <div style={{ height: 1, background: "hsl(210 20% 93%)", margin: "0 12px" }} />
+              <button
                 onClick={() => { imageInputRef.current?.click(); setShowAttachMenu(false); }}
-                className="w-full flex items-center gap-3 px-4 py-3 text-[13.5px] font-medium transition-all duration-150 hover:bg-slate-50 active:bg-slate-100"
+                className="w-full flex items-center gap-3 px-4 py-3.5 text-[13.5px] font-medium transition-all duration-150 hover:bg-slate-50 active:bg-slate-100"
                 style={{ color: "hsl(220 15% 18%)" }}
               >
                 <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "hsl(210 25% 94%)" }}>
                   <ImageIcon size={14} style={{ color: "hsl(220 14% 38%)" }} />
                 </div>
-                Photo / Image
+                Photo from Gallery
               </button>
               <div style={{ height: 1, background: "hsl(210 20% 93%)", margin: "0 12px" }} />
               <button
                 onClick={() => { docInputRef.current?.click(); setShowAttachMenu(false); }}
-                className="w-full flex items-center gap-3 px-4 py-3 text-[13.5px] font-medium transition-all duration-150 hover:bg-slate-50 active:bg-slate-100"
+                className="w-full flex items-center gap-3 px-4 py-3.5 text-[13.5px] font-medium transition-all duration-150 hover:bg-slate-50 active:bg-slate-100"
                 style={{ color: "hsl(220 15% 18%)" }}
               >
                 <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "hsl(210 25% 94%)" }}>
@@ -579,6 +593,7 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
           )}
         </div>
         <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageSelect} />
+        <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleImageSelect} />
         <input ref={docInputRef} type="file" accept=".pdf,.docx,.doc,.txt,.csv,.md,.json,.py,.js,.ts,.tsx,.jsx,.java,.cpp,.c,.h,.cs,.go,.rs,.php,.rb,.swift,.kt,.vue,.html,.css,.scss,.sql,.sh,.bash,.yml,.yaml,.toml,.xml,.env,.gitignore,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,text/plain,text/csv,text/markdown,application/json" className="hidden" onChange={handleDocSelect} />
 
         <Textarea
