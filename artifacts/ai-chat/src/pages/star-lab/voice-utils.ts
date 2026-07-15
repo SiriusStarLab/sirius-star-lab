@@ -199,7 +199,7 @@ function _speakBrowser(text: string, onDone?: () => void, rate = 0.87) {
 
   const pickVoice = () => {
     const v = window.speechSynthesis.getVoices();
-    const byName = v.find(x => FEMALE_ORDER.includes(x.name));
+    const byName = FEMALE_ORDER.map(name => v.find(x => x.name === name)).find(Boolean);
     if (byName) return byName;
     return (
       v.find(x => x.lang.startsWith("en-GB") && !KNOWN_MALE.includes(x.name) && !x.name.toLowerCase().includes("male")) ||
