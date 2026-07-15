@@ -98,6 +98,9 @@ export default function ChatScreen() {
   const [stepsExpanded, setStepsExpanded] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [hitLimitTier, setHitLimitTier] = useState<"free" | "plus">("free");
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyList, setHistoryList] = useState<Array<{ id: number; title: string; createdAt: string }>>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const promptHandledRef = useRef<string | undefined>(undefined);
   const convoHandledRef = useRef<string | undefined>(undefined);
@@ -436,6 +439,51 @@ export default function ChatScreen() {
     setStepsExpanded(false);
   }, []);
 
+  const openHistory = useCallback(async () => {
+    setShowHistory(true);
+    setHistoryLoading(true);
+    try {
+      const uid = userId || (await getUserId());
+      const convos = await fetchConversations(uid);
+      const filtered = (convos || [])
+        .filter((c: { title?: string }) => c.title !== "health check" && c.title !== "probe")
+        .sort((a: { createdAt: string }, b: { createdAt: string }) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        )
+        .slice(0, 50);
+      setHistoryList(filtered);
+    } catch {
+      setHistoryList([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [userId]);
+
+  const loadConversation = useCallback(async (id: number) => {
+    setShowHistory(false);
+    stopSpeech();
+    setMessages([]);
+    setIsStreaming(false);
+    setShowTyping(false);
+    setActionSteps([]);
+    try {
+      const base = getApiBase();
+      const uid = userId || (await getUserId());
+      const qs = uid ? `?userId=${encodeURIComponent(uid)}` : "";
+      const res = await fetch(`${base}openai/conversations/${id}${qs}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const msgs: Message[] = (data.messages ?? []).map((m: DBMessage) => ({
+        id: String(m.id),
+        role: m.role as "user" | "assistant",
+        content: m.content,
+      }));
+      if (msgs.length === 0) return;
+      setMessages(msgs);
+      setConversationId(id);
+    } catch {}
+  }, [userId, stopSpeech]);
+
   const UPGRADE_URL = "https://sirius-ai.live/pricing";
 
   return (
@@ -516,6 +564,47 @@ export default function ChatScreen() {
           </View>
         </View>
       </Modal>
+      {/* ── History modal ── */}
+      <Modal
+        visible={showHistory}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowHistory(false)}
+      >
+        <View style={histStyles.overlay}>
+          <View style={histStyles.sheet}>
+            <View style={histStyles.headerRow}>
+              <Text style={histStyles.title}>Past conversations</Text>
+              <Pressable onPress={() => setShowHistory(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Feather name="x" size={22} color={Colors.textMuted} />
+              </Pressable>
+            </View>
+            {historyLoading ? (
+              <Text style={histStyles.empty}>Loading…</Text>
+            ) : historyList.length === 0 ? (
+              <Text style={histStyles.empty}>No conversations yet.</Text>
+            ) : (
+              <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
+                {historyList.map(c => {
+                  const d = new Date(c.createdAt);
+                  const label = d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+                  return (
+                    <Pressable
+                      key={c.id}
+                      onPress={() => loadConversation(c.id)}
+                      style={({ pressed }) => [histStyles.item, pressed && { opacity: 0.6 }]}
+                    >
+                      <Text style={histStyles.itemTitle} numberOfLines={1}>{c.title || "Untitled"}</Text>
+                      <Text style={histStyles.itemDate}>{label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
+
       {messages.length > 0 && (
         <View style={[styles.chatHeader, { paddingTop: topPad }]}>
           <Pressable
@@ -526,14 +615,24 @@ export default function ChatScreen() {
             <Feather name="chevron-left" size={22} color={Colors.primary} />
             <Text style={styles.backBtnText}>Home</Text>
           </Pressable>
-          <Pressable
-            onPress={handleNewChat}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            style={({ pressed }) => [styles.newChatBtn, pressed && { opacity: 0.6 }]}
-          >
-            <Feather name="edit" size={18} color={Colors.primary} />
-            <Text style={styles.newChatText}>New chat</Text>
-          </Pressable>
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <Pressable
+              onPress={openHistory}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              style={({ pressed }) => [styles.newChatBtn, pressed && { opacity: 0.6 }]}
+            >
+              <Feather name="clock" size={16} color={Colors.primary} />
+              <Text style={styles.newChatText}>History</Text>
+            </Pressable>
+            <Pressable
+              onPress={handleNewChat}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              style={({ pressed }) => [styles.newChatBtn, pressed && { opacity: 0.6 }]}
+            >
+              <Feather name="edit" size={16} color={Colors.primary} />
+              <Text style={styles.newChatText}>New chat</Text>
+            </Pressable>
+          </View>
         </View>
       )}
       {messages.length === 0 ? (
@@ -599,6 +698,15 @@ export default function ChatScreen() {
               </Pressable>
             ))}
           </ScrollView>
+
+          {/* History */}
+          <Pressable
+            onPress={openHistory}
+            style={({ pressed }) => [styles.surpriseBtn, { backgroundColor: "rgba(0,180,216,0.12)", marginBottom: 10 }, pressed && { opacity: 0.8 }]}
+          >
+            <Feather name="clock" size={16} color={Colors.primary} />
+            <Text style={[styles.surpriseBtnText, { color: Colors.primary }]}>Past conversations</Text>
+          </Pressable>
 
           {/* Surprise me */}
           <Pressable
@@ -1117,6 +1225,57 @@ const upgradeStyles = StyleSheet.create({
   dismissText: {
     color: "rgba(255,255,255,0.25)",
     fontSize: 13,
+    fontFamily: "Inter_400Regular",
+  },
+});
+
+const histStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    justifyContent: "flex-end",
+  },
+  sheet: {
+    backgroundColor: "#07111f",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderWidth: 1,
+    borderColor: "rgba(0,180,216,0.15)",
+    padding: 24,
+    maxHeight: "80%",
+  },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 20,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#ffffff",
+    fontFamily: "Inter_700Bold",
+  },
+  empty: {
+    color: "rgba(255,255,255,0.35)",
+    textAlign: "center",
+    paddingVertical: 40,
+    fontFamily: "Inter_400Regular",
+  },
+  item: {
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.06)",
+  },
+  itemTitle: {
+    fontSize: 15,
+    color: "#ffffff",
+    fontFamily: "Inter_500Medium",
+    marginBottom: 3,
+  },
+  itemDate: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.35)",
     fontFamily: "Inter_400Regular",
   },
 });
