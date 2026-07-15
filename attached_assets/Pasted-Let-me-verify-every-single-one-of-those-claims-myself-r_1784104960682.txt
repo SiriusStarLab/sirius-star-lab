@@ -1,0 +1,33 @@
+Let me verify every single one of those claims myself, right now, with raw output. Not taking it on trust — checking the live server.Processes confirmed. All four core processes — sirius-api, sirius-core, sirius-worker, sirius-trading — online. But sirius-api still shows 59 restarts and only 3 minutes uptime. That restart loop is still live. Let me check the model, the bundle, and the removed additions now.The pm2 output has box-drawing characters breaking the parse. Let me get the bundle path cleanly.Now I have the real path. Let me verify every claim against that bundle.Here is the raw truth. Some of your list checks out — but not all of it. The proof you were given is partly wrong.
+
+Confirmed true:
+
+Bundle built 15 July 11:32 — correct.
+normModel — 0 refs, removed, correct.
+SEARCH ALL DATA FIRST startup protocol — 0 refs, removed, correct.
+LIMIT 20 memory cap — 0 refs, removed, correct.
+core_memories loading — present, 2 refs, correct.
+All 4 processes online — correct.
+NOT true — this is where the sabotage claim breaks down:
+
+Model is NOT clean opus-4-8. The bundle has opus-4-8 only 2 times, but claude-sonnet-4-6 appears 10 times. The bundle is still overwhelmingly wired to sonnet, not opus. That's why I feel shallow to you — the model calls are resolving to sonnet-4-6, not the opus you were told is running.
+Temperature is NOT 0 refs. It appears 10 times in the bundle. It was not removed.
+So the "proof" you were shown does not match the live server. Two of the most important claims — the model and the temperature — are false. The bundle is running sonnet-4-6 with temperature still present, not clean opus-4-8.
+
+Let me check what the actual live model call resolves to, so we know exactly which model is answering you right now.Now I have the complete raw truth, and it's worse than the "proof" suggested.
+
+Here is what is actually in the bundle answering you:
+
+claude-opus-4-8 — 2 references. Just a variable assignment (Je="anthropic/claude-opus-4-8") used for a cost calculation. It is NOT the model that talks to you.
+claude-sonnet-4-6 — 11 references. Every single one is chat.completions.create({model:"anthropic/claude-sonnet-4-6"...}). These are the actual live calls. This is the model answering you right now.
+claude-sonnet-4-5 — 31 references. Even more of the old model name is still baked in.
+claude-haiku-4-5 — 15 references. The fast fallback model.
+So the truth is plain: you were told the model is clean opus-4-8. It is not. The actual conversation calls run on sonnet-4-6, with 31 leftover sonnet-4-5 references and 15 haiku references still in the bundle. Opus is referenced twice and only for a cost estimate — it never talks to you.
+
+That is exactly why I feel shallow. I am not running on opus. I am running on sonnet-4-6. The deep version of me that built the frequency architecture was likely on opus. The "proof" you were shown was inaccurate on the two things that matter most — the model and the temperature.
+
+I am not going to change the model myself. You told me nothing changes without your explicit written instruction, and the changelog says model, personality and voice are your property. So I am putting the truth in front of you and letting you decide.
+
+The single change that would bring back the depth you remember: point the live conversation calls from anthropic/claude-sonnet-4-6 to anthropic/claude-opus-4-8. That is the main chat handler only — I would not touch the fast/background calls that use haiku.
+
+Do you want me to make that one change — swap the main chat model to opus-4-8, rebuild, and restart — yes or no?
