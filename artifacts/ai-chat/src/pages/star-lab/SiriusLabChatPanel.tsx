@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Mic, MicOff, Send, Clock, Check, Loader2, Globe, Paperclip, X } from "lucide-react";
+import { Mic, MicOff, Send, Clock, Check, Loader2, Globe, Paperclip, X, History, ChevronRight } from "lucide-react";
 import { getApiBase } from "@/lib/api-base";
 import { speakText, stopSpeaking } from "./voice-utils";
 import type { Project, NavMode, AccessRole } from "./types";
@@ -63,6 +63,9 @@ export function SiriusLabChatPanel({ pin, accessLevel, navMode, activeProject, o
   const [thinkingText, setThinkingText] = useState("");
   const [webSearching, setWebSearching] = useState(false);
   const [webSearchQuery, setWebSearchQuery] = useState("");
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyList, setHistoryList] = useState<{ id: number; title: string; message_count: number; last_message_at: string }[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [voicePhase, setVoicePhase] = useState<"idle" | "listening" | "speaking">("idle");
   const [voiceHint, setVoiceHint] = useState("");
   const [waveTick, setWaveTick] = useState(0);
@@ -114,6 +117,30 @@ export function SiriusLabChatPanel({ pin, accessLevel, navMode, activeProject, o
     const id = setInterval(() => setWaveTick(t => t + 1), 90);
     return () => clearInterval(id);
   }, []);
+
+  const loadHistory = async () => {
+    setHistoryLoading(true);
+    try {
+      const resp = await fetch(`${base}/api/lab/conversations`, { headers: { "x-lab-pin": pin } });
+      if (resp.ok) setHistoryList(await resp.json());
+    } catch {}
+    setHistoryLoading(false);
+  };
+
+  const loadConversation = async (convId: number) => {
+    try {
+      const resp = await fetch(`${base}/api/lab/conversations/${convId}/messages`, { headers: { "x-lab-pin": pin } });
+      if (!resp.ok) return;
+      const rows: { role: string; content: string }[] = await resp.json();
+      const loaded: LabChatMsg[] = rows
+        .filter(r => r.role === "user" || r.role === "assistant")
+        .map(r => ({ role: r.role as "user" | "assistant", content: r.content }));
+      setMessages(loaded);
+      conversationIdRef.current = convId;
+      try { localStorage.setItem(CONV_ID_KEY, String(convId)); } catch {}
+      setShowHistory(false);
+    } catch {}
+  };
 
   const stopListeningNow = () => {
     try { recognitionRef.current?.stop(); } catch {}
@@ -499,7 +526,7 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
   };
 
   return (
-    <div className="flex-1 flex flex-col min-h-0" style={{ background: "#F5F7FF" }}>
+    <div className="flex-1 flex flex-col min-h-0 relative" style={{ background: "#F5F7FF" }}>
 
       <div className="flex items-center justify-between px-5 py-3 border-b flex-shrink-0" style={{ borderColor: "rgba(15,23,42,0.07)", background: "#FFFFFF" }}>
         <div className="flex items-center gap-3">
@@ -519,6 +546,14 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {accessLevel !== "guest" && (
+            <button onClick={() => { setShowHistory(h => { if (!h) loadHistory(); return !h; }); }}
+              className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg transition-all hover:bg-slate-900/5"
+              style={{ color: showHistory ? "hsl(193,100%,35%)" : "rgba(15,23,42,0.4)" }}
+              title="Chat history">
+              <History className="w-3.5 h-3.5" />
+            </button>
+          )}
           {messages.length > 0 && (
             <button onClick={() => { setMessages([]); stoppedRef.current = true; stopListeningNow(); window.speechSynthesis?.cancel(); try { localStorage.removeItem(CHAT_STORAGE_KEY); } catch {} setTimeout(() => { stoppedRef.current = false; hasGreetedRef.current = false; }, 100); }}
               className="text-xs px-2 py-1 rounded-lg transition-all hover:bg-slate-900/5"
@@ -528,6 +563,45 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
           )}
         </div>
       </div>
+
+      {showHistory && (
+        <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "#F5F7FF" }}>
+          <div className="flex items-center justify-between px-5 py-3 border-b flex-shrink-0" style={{ borderColor: "rgba(15,23,42,0.07)", background: "#FFFFFF" }}>
+            <div className="flex items-center gap-2">
+              <History className="w-4 h-4" style={{ color: "hsl(193,100%,35%)" }} />
+              <span className="font-bold text-sm text-slate-800">Chat History</span>
+            </div>
+            <button onClick={() => setShowHistory(false)} className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-slate-100">
+              <X className="w-4 h-4 text-slate-400" />
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto py-2">
+            {historyLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-5 h-5 animate-spin text-cyan-500" />
+              </div>
+            ) : historyList.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
+                <History className="w-8 h-8 mb-3" style={{ color: "rgba(15,23,42,0.15)" }} />
+                <p className="text-sm text-slate-400">No saved conversations yet</p>
+              </div>
+            ) : historyList.map(conv => (
+              <button key={conv.id} onClick={() => loadConversation(conv.id)}
+                className="w-full flex items-center gap-3 px-5 py-3.5 text-left hover:bg-white transition-all border-b"
+                style={{ borderColor: "rgba(15,23,42,0.05)" }}>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-slate-700 truncate">{conv.title || "Conversation"}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {conv.message_count} message{conv.message_count !== 1 ? "s" : ""} ·{" "}
+                    {new Date(conv.last_message_at || "").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                  </p>
+                </div>
+                <ChevronRight className="w-4 h-4 flex-shrink-0 text-slate-300" />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
 
