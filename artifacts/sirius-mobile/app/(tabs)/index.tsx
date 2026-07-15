@@ -29,8 +29,10 @@ import { useApp } from "@/context/AppContext";
 import {
   Message,
   createConversation,
+  fetchConversations,
   generateId,
   getApiBase,
+  getUserId,
 } from "@/lib/api";
 
 interface DBMessage {
@@ -349,6 +351,37 @@ export default function ChatScreen() {
       setTimeout(() => handleSend(params.prompt!), 200);
     }
   }, [params.prompt, handleSend, isStreaming]);
+
+  // Auto-load the most recent conversation on startup
+  useEffect(() => {
+    if (params.conversationId || params.prompt) return; // handled by other effects
+    (async () => {
+      try {
+        const uid = userId || (await getUserId());
+        const convos = await fetchConversations(uid);
+        if (!convos || convos.length === 0) return;
+        const latest = convos.sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        )[0];
+        // Skip probe/health-check conversations
+        if (!latest || latest.title === "health check" || latest.title === "probe") return;
+        const base = getApiBase();
+        const qs = uid ? `?userId=${encodeURIComponent(uid)}` : "";
+        const res = await fetch(`${base}openai/conversations/${latest.id}${qs}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const msgs: Message[] = (data.messages ?? []).map((m: DBMessage) => ({
+          id: String(m.id),
+          role: m.role as "user" | "assistant",
+          content: m.content,
+        }));
+        if (msgs.length === 0) return;
+        setMessages(msgs);
+        setConversationId(latest.id);
+      } catch {}
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const convoIdParam = params.conversationId;
