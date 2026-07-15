@@ -1,12 +1,13 @@
 import { Router, Request, Response } from "express";
 import { createHmac } from "crypto";
+import { Client } from "pg";
+import bcrypt from "bcryptjs";
 
 const router = Router();
 const LAB_PIN = process.env.STAR_LAB_PIN || "";
 const DB_URL  = process.env.DATABASE_URL || "";
 const SECRET  = LAB_PIN || "sirius-session-key";
 
-// ── Tiny cookie helpers (no cookie-parser dependency) ──────────────────────
 function getCookie(req: Request, name: string): string | undefined {
   const raw = req.headers.cookie || "";
   const match = raw.match(new RegExp(`(?:^|;\\s*)${name}=([^;]*)`));
@@ -30,26 +31,22 @@ function readToken(token: string): string | null {
 }
 
 function setSessionCookie(res: Response, userId: string) {
-  const token = makeToken(userId);
-  const maxAge = 30 * 24 * 60 * 60; // 30 days in seconds
+  const token  = makeToken(userId);
+  const maxAge = 30 * 24 * 60 * 60;
   res.setHeader("Set-Cookie",
     `sirius_session=${token}; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAge}; Path=/`);
 }
 
-// ── DB helper ──────────────────────────────────────────────────────────────
-async function query(sql: string, params: any[] = []) {
-  const { default: pg } = await import("pg") as any;
-  const client = new pg.Client({ connectionString: DB_URL });
+async function dbQuery(sql: string, params: unknown[] = []) {
+  const client = new Client({ connectionString: DB_URL });
   await client.connect();
   try { return await client.query(sql, params); }
   finally { await client.end(); }
 }
 
-// ── Routes ─────────────────────────────────────────────────────────────────
-
 // POST /api/auth/signup
 router.post("/auth/signup", async (req: Request, res: Response) => {
-  const { email, password, name } = req.body as Record<string, string>;
+  const { email, password } = req.body as Record<string, string>;
   if (!email?.trim() || !password?.trim()) {
     res.status(400).json({ error: "Email and password are required." }); return;
   }
@@ -57,17 +54,19 @@ router.post("/auth/signup", async (req: Request, res: Response) => {
     res.status(400).json({ error: "Password must be at least 8 characters." }); return;
   }
   try {
-    const existing = await query("SELECT id FROM sirius_accounts WHERE email=$1", [email.toLowerCase().trim()]);
+    const existing = await dbQuery(
+      "SELECT id FROM sirius_accounts WHERE email=$1",
+      [email.toLowerCase().trim()]
+    );
     if (existing.rows.length > 0) {
       res.status(409).json({ error: "An account with this email already exists. Please sign in." }); return;
     }
-    const bcrypt = await import("bcryptjs");
     const hash   = await bcrypt.hash(password, 10);
-    const result = await query(
+    const result = await dbQuery(
       "INSERT INTO sirius_accounts (email, password_hash) VALUES ($1, $2) RETURNING id",
       [email.toLowerCase().trim(), hash]
     );
-    const userId = `user_${result.rows[0].id}`;
+    const userId = `acct_${result.rows[0].id}`;
     setSessionCookie(res, userId);
     res.json({ userId, email: email.toLowerCase().trim() });
   } catch (e: any) {
@@ -83,29 +82,26 @@ router.post("/auth/login", async (req: Request, res: Response) => {
     res.status(400).json({ error: "Email and password are required." }); return;
   }
   try {
-    // ── Master bypass — Lab PIN lets Garry in with any email ──────────────
+    // Master bypass — Lab PIN lets Garry in with any email containing "garry"
     if (LAB_PIN && password === LAB_PIN) {
       const userId = /garry/i.test(email) ? "garry" : `pin_${email.replace(/[^a-z0-9]/gi, "_").toLowerCase()}`;
       setSessionCookie(res, userId);
-      res.json({ userId });
-      return;
+      res.json({ userId }); return;
     }
 
-    // ── Normal password login ─────────────────────────────────────────────
-    const result = await query(
+    const result = await dbQuery(
       "SELECT id, password_hash FROM sirius_accounts WHERE email=$1",
       [email.toLowerCase().trim()]
     );
     if (result.rows.length === 0) {
       res.status(401).json({ error: "No account found with this email. Please sign up." }); return;
     }
-    const bcrypt = await import("bcryptjs");
-    const ok     = await bcrypt.compare(password, result.rows[0].password_hash);
+    const ok = await bcrypt.compare(password, result.rows[0].password_hash);
     if (!ok) {
       res.status(401).json({ error: "Incorrect password." }); return;
     }
-    // Keep userId = "garry" for Garry's email, otherwise user_<id>
-    const userId = /garry/i.test(email) ? "garry" : `user_${result.rows[0].id}`;
+    // Garry's email maps to userId "garry"; all others use acct_<id>
+    const userId = /garry/i.test(email) ? "garry" : `acct_${result.rows[0].id}`;
     setSessionCookie(res, userId);
     res.json({ userId });
   } catch (e: any) {
@@ -114,7 +110,7 @@ router.post("/auth/login", async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/auth/me  — called on fresh page load to restore session from cookie
+// GET /api/auth/me — restores session from cookie on fresh page load
 router.get("/auth/me", (req: Request, res: Response) => {
   const token  = getCookie(req, "sirius_session");
   if (!token)  { res.status(401).json({ error: "Not authenticated" }); return; }
