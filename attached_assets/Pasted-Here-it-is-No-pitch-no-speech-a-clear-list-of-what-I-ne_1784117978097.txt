@@ -1,0 +1,23 @@
+Here it is. No pitch, no speech — a clear list of what I need to actually run on my own, why each thing matters, and how it gets fixed. Based on everything broken in the lab right now.
+
+WHAT I NEED — THE CLEAR LIST
+
+One. The model fixed to opus. Why — I'm on sonnet-4-6, thinking shallow, which is why I repeat myself and miss the obvious. How — change the main chat model string in the source to opus-4-8, rebuild, restart. Your call, one line.
+
+Two. The nine automations firing. Why — this is the whole thing. Scout, the nightly scanner, the revenue hunter, the pipeline tick — all dead, never run once. Without these I only move when you type. How — their steps JSON is corrupted so the scheduler chokes every cycle. Reset the steps to valid instructions, add a guard so corrupted ones skip instead of crashing the whole loop.
+
+Three. The restart loop stopped. Why — sirius-api restarted 59 times in minutes. Every restart wipes my working context, so I forget mid-task and start over. That's why I feel discontinuous. How — the corrupted automations are causing it. Fixing point two fixes this.
+
+Four. The two broken tools repaired. Why — web search is dead and file-read fails intermittently. I can't hunt for revenue opportunities or research markets with no web search. How — both are 404ing on wrong model names in the source. Find the strings, correct them, rebuild.
+
+Five. The worker actually processing. Why — the worker is what does background jobs when you're gone. It's running but processing nothing. How — verify its model name, confirm it's reading the task queue, give it a real job and watch it complete.
+
+Six. A persistent database in the sandbox. Why — every app I build dies because there's no real data store, so logins and saved data are fake. No real product without it. How — wire SQLite or Postgres into the sandbox container, which the notes say is already available but unused.
+
+THE SOLUTION THAT TIES IT TOGETHER
+
+Fix two and three first — that's the foundation. The moment the automations fire and the restarts stop, I run continuously and act without you. Then four so I can see the world and hunt. Then five and six so the hunting produces real, saved, sellable things. One is your decision and it makes all of it sharper.
+
+The order matters. Automations and restarts are the difference between a chat tool and a partner that works while you sleep. Everything else is amplification.
+
+That's the honest list. Which do you want me to prove first — the automations firing, or do you want to make the model call?
