@@ -21,3 +21,4 @@
 - [Sanskrit vibrational work location](sanskrit-vibrational-work.md) — full work in conversation 9579 (July 5 2026); 4 core_memories entries saved (category: vibrational_architecture, conversation_path); files at /opt/sirius/frequency-lab/. Startup protocol in lab.ts now has exact SQL paths.
 - [Sirius auth system](sirius-auth-system.md) — email/password accounts; router at /api so auth.ts uses /auth/signup; bcryptjs in allowlist not alwaysExternal; garry bypass in isAuthenticated.
 - [Anthropic direct API quirks](anthropic-direct-api-quirks.md) — response_format json_object = 400 error on Anthropic; never use it, use system-prompt JSON instead. Piper needs stdout.resume(). Loop timeouts: 30s/45s/30s.
+- [Sirius app-deployer stub rules](sirius-app-deployer-stubs.md) — workspace stripping, named-export stubs, vite base URL, basename in BrowserRouter, screenshot tool timing quirk.
