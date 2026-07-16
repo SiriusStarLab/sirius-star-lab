@@ -23,7 +23,8 @@ cd /opt/sirius/artifacts/api-server && pnpm run build
 # 2. Pre-set baseline hash BEFORE restart (prevents Guardian from seeing a mismatch)
 NEW_HASH=$(sha256sum dist/index.cjs | cut -d" " -f1)
 BASELINE="{\"model\":\"anthropic/claude-opus-4.8\",\"hash\":\"$NEW_HASH\",\"savedAt\":\"$(date -u +%Y-%m-%dT%H:%M:%S.000Z)\"}"
-PGPASSWORD="Sirius2026Secure!" psql -U sirius -h 127.0.0.1 -d siriusdb -c \
+# DB credentials are in $PGPASSWORD env var on the server (do not hardcode)
+psql -U sirius -h 127.0.0.1 -d siriusdb -c \
   "INSERT INTO sirius_config (key, value) VALUES ('mission_baseline', '$BASELINE') ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;"
 
 # 3. Reload from ecosystem.config.json (not plain restart — picks up new env vars)
