@@ -157,20 +157,25 @@ Return ONLY valid JSON — no markdown, no explanation:
     const today = new Date().toISOString().split("T")[0];
 
     // Save to mnemosyne_sessions
-    // key_themes, decisions_made, things_built are text[] — wrap strings in single-element arrays
-    const toTextArray = (v: any): string[] => {
-      if (Array.isArray(v)) return v.map(String).filter(Boolean);
-      if (typeof v === "string" && v.trim()) return [v.trim()];
-      return [];
+    // Convert JS arrays to PostgreSQL array literal strings e.g. {"item1","item2"}
+    const toPgArray = (v: any): string => {
+      const arr: string[] = Array.isArray(v)
+        ? v.map(String).filter(Boolean)
+        : (typeof v === "string" && v.trim() ? [v.trim()] : []);
+      if (arr.length === 0) return "{}";
+      return "{" + arr.map(s =>
+        '"' + s.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, " ").slice(0, 500) + '"'
+      ).join(",") + "}";
     };
+
     await db.execute(sql`
       INSERT INTO mnemosyne_sessions
         (session_date, key_themes, decisions_made, things_built, emotional_tone, progress_made, significance)
       VALUES (
-        ${today}::date,
-        ${toTextArray(summary.key_themes)}::text[],
-        ${toTextArray(summary.decisions_made || "None")}::text[],
-        ${toTextArray(summary.things_built || "None")}::text[],
+        ${today}::timestamp,
+        ${toPgArray(summary.key_themes)}::text[],
+        ${toPgArray(summary.decisions_made || "None")}::text[],
+        ${toPgArray(summary.things_built || "None")}::text[],
         ${summary.emotional_tone || "neutral"},
         ${summary.progress_made || ""},
         ${summary.significance || "medium"}
