@@ -16,6 +16,10 @@ bash .local/eas-build.sh
 
 The script at `.local/eas-build.sh` handles everything: archive → SCP → yarn install on server → EAS build.
 
+**Note:** `scp` uses `-P` (capital) for port, `ssh` uses `-p` (lowercase). The script has `SCP_OPTS` and `SSH_OPTS` as separate vars for this reason. Do not merge them or the SCP step fails silently.
+
+**Note:** EXPO_TOKEN is NOT stored in the server's ecosystem.config.json or PM2 env. It lives only in Replit secrets. The script passes `$EXPO_TOKEN` from Replit into the remote SSH command. This works as long as Replit's secret is set.
+
 ### Manual steps if script fails
 ```bash
 # 1. Archive
