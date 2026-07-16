@@ -199,7 +199,7 @@ export default function OnboardingScreen() {
         </Animated.View>
       )}
 
-      {/* AI Data Consent — required before entering app */}
+      {/* AI Data Consent — required before entering app (Apple §5.1.1 / §5.1.2) */}
       {showAiConsent && (
         <Animated.View style={[styles.nameContainer, { opacity: consentAnim }]}>
           <View style={styles.nameInner}>
@@ -208,27 +208,51 @@ export default function OnboardingScreen() {
             </View>
 
             <Text style={styles.title}>Your data & privacy</Text>
+            <Text style={[styles.consentSubtitle]}>
+              Please read before continuing
+            </Text>
 
             <View style={styles.consentBox}>
-              <Text style={styles.consentText}>
-                Sirius sends your conversation messages to third-party AI providers —
-                including <Text style={styles.consentBold}>Anthropic</Text> and{" "}
-                <Text style={styles.consentBold}>OpenAI</Text> — to generate
-                responses.
+              <Text style={[styles.consentText, { fontWeight: "600", marginBottom: 10 }]}>
+                Sirius shares the following data with third-party AI providers to generate responses:
               </Text>
+
+              {[
+                "Your conversation messages (text you type or speak)",
+                "Any images or documents you attach to messages",
+                "Mood check-in selections you make in the Explore tab",
+              ].map((item, i) => (
+                <View key={i} style={{ flexDirection: "row", marginBottom: 6 }}>
+                  <Text style={[styles.consentText, { color: "#a78bfa", marginRight: 8 }]}>•</Text>
+                  <Text style={[styles.consentText, { flex: 1 }]}>{item}</Text>
+                </View>
+              ))}
+
               <Text style={[styles.consentText, { marginTop: 12 }]}>
-                Your messages may be processed on their servers. Please do not
-                share sensitive financial, medical, or private personal data in
-                conversations.
+                This data is sent to:{"  "}
+                <Text style={styles.consentBold}>Anthropic</Text> (Claude AI) and{"  "}
+                <Text style={styles.consentBold}>OpenAI</Text>.
+                It may be processed on their servers in the United States.
               </Text>
+
               <Text style={[styles.consentText, { marginTop: 12 }]}>
-                By tapping <Text style={styles.consentBold}>I agree & continue</Text>,
-                you consent to this data processing as described in our{" "}
+                This data is used solely to generate your AI responses. It is not used for advertising. Please do not share sensitive financial or medical information.
+              </Text>
+
+              <Text style={[styles.consentText, { marginTop: 12 }]}>
+                By tapping <Text style={styles.consentBold}>I consent & continue</Text>, you give permission for this data to be shared as described in our{" "}
                 <Text
                   style={styles.consentLink}
                   onPress={() => Linking.openURL("https://sirius-ai.live/privacy")}
                 >
                   Privacy Policy
+                </Text>
+                {" "}and{" "}
+                <Text
+                  style={styles.consentLink}
+                  onPress={() => Linking.openURL("https://sirius-ai.live/terms")}
+                >
+                  Terms of Use
                 </Text>
                 .
               </Text>
@@ -314,7 +338,7 @@ export default function OnboardingScreen() {
             style={({ pressed }) => [styles.ctaConsent, pressed && { opacity: 0.8 }]}
           >
             <Feather name="check" size={18} color={Colors.background} />
-            <Text style={styles.ctaText}>I agree &amp; continue</Text>
+            <Text style={styles.ctaText}>I consent &amp; continue</Text>
           </Pressable>
           <Pressable
             onPress={() => Linking.openURL("https://sirius-ai.live/privacy")}
@@ -406,6 +430,14 @@ const styles = StyleSheet.create({
   },
 
   /* ── AI Consent ── */
+  consentSubtitle: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 13,
+    color: Colors.textMuted,
+    marginTop: 4,
+    marginBottom: 16,
+    textAlign: "center",
+  },
   consentBox: {
     backgroundColor: Colors.surface,
     borderRadius: 16,

@@ -468,6 +468,18 @@ export default function SettingsScreen() {
               <ActivityIndicator color={Colors.primary} />
               <Text style={styles.iapLoadingText}>Loading subscription options…</Text>
             </View>
+          ) : !subscription.plusPackage && !subscription.proPackage ? (
+            <View style={styles.iapLoadingWrap}>
+              <Text style={[styles.iapLoadingText, { textAlign: "center", lineHeight: 20 }]}>
+                Subscription options are not available right now.{"\n"}Please check your connection and try again, or manage your subscription in Apple Settings.
+              </Text>
+              <Pressable
+                onPress={() => Linking.openURL("https://apps.apple.com/account/subscriptions")}
+                style={[styles.restoreBtn, { marginTop: 12 }]}
+              >
+                <Text style={styles.restoreBtnText}>Open Apple Settings</Text>
+              </Pressable>
+            </View>
           ) : (
             <>
               {subscription.plusPackage ? (
