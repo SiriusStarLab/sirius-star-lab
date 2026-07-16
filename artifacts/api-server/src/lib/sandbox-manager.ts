@@ -107,6 +107,14 @@ export async function ensureSandbox(userId: string): Promise<string> {
       "--security-opt no-new-privileges", // process can't gain more privs than parent
     ];
 
+    // Pass AI credentials so apps inside the sandbox can call OpenRouter
+    const envFlags = [
+      process.env.OPENROUTER_API_KEY              ? `-e OPENROUTER_API_KEY=${process.env.OPENROUTER_API_KEY}`                           : "",
+      process.env.AI_INTEGRATIONS_OPENAI_BASE_URL ? `-e AI_INTEGRATIONS_OPENAI_BASE_URL=${process.env.AI_INTEGRATIONS_OPENAI_BASE_URL}` : "",
+      process.env.AI_INTEGRATIONS_OPENAI_API_KEY  ? `-e AI_INTEGRATIONS_OPENAI_API_KEY=${process.env.AI_INTEGRATIONS_OPENAI_API_KEY}`   : "",
+      process.env.AI_INTEGRATIONS_OPENAI_MODEL    ? `-e AI_INTEGRATIONS_OPENAI_MODEL=${process.env.AI_INTEGRATIONS_OPENAI_MODEL}`       : "",
+    ].filter(Boolean);
+
     const flags = [
       "docker run -d",
       `--name ${c.containerName}`,
@@ -115,6 +123,7 @@ export async function ensureSandbox(userId: string): Promise<string> {
       `--cpus ${c.cpus}`,
       c.privileged ? "--privileged" : "",
       ...securityFlags,
+      ...envFlags,
       `--volume ${c.volumeName}:/workspace`,
       "--workdir /workspace",
       "--restart unless-stopped",
@@ -238,8 +247,19 @@ export async function initWorkspace(userId: string): Promise<void> {
     `docker exec ${name} sh -c "cd /workspace && git init -q 2>/dev/null || true"`,
     { timeout: 10000 }
   ).catch(() => {});
-  // Create SIRIUS_PROJECT.md if it doesn't exist
+  // Write .env with AI credentials so apps can use dotenv
   const c = cfg(userId);
+  const envLines = [
+    process.env.OPENROUTER_API_KEY              ? `OPENROUTER_API_KEY=${process.env.OPENROUTER_API_KEY}`                           : "",
+    process.env.AI_INTEGRATIONS_OPENAI_BASE_URL ? `AI_INTEGRATIONS_OPENAI_BASE_URL=${process.env.AI_INTEGRATIONS_OPENAI_BASE_URL}` : "",
+    process.env.AI_INTEGRATIONS_OPENAI_API_KEY  ? `AI_INTEGRATIONS_OPENAI_API_KEY=${process.env.AI_INTEGRATIONS_OPENAI_API_KEY}`   : "",
+    process.env.AI_INTEGRATIONS_OPENAI_MODEL    ? `AI_INTEGRATIONS_OPENAI_MODEL=${process.env.AI_INTEGRATIONS_OPENAI_MODEL}`       : "",
+  ].filter(Boolean).join("\n");
+  if (envLines) {
+    await writeFile(join(c.volumeHostPath, ".env"), envLines + "\n", "utf-8").catch(() => {});
+  }
+
+  // Create SIRIUS_PROJECT.md if it doesn't exist
   const memPath = join(c.volumeHostPath, "SIRIUS_PROJECT.md");
   try {
     await readFile(memPath, "utf-8");
