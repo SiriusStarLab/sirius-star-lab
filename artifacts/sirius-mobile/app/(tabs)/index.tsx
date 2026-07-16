@@ -170,7 +170,7 @@ export default function ChatScreen() {
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : tabBarHeight;
 
-  const handleSend = useCallback(async (text: string, imageBase64?: string) => {
+  const handleSend = useCallback(async (text: string, imageBase64?: string, documentBase64?: string, documentName?: string) => {
     if (isStreaming) return;
 
     const userMsg: Message = { id: generateId(), role: "user", content: text, uploadedImageBase64: imageBase64 };
@@ -183,7 +183,8 @@ export default function ChatScreen() {
     try {
       let activeId = conversationId;
       if (!activeId) {
-        const convo = await createConversation(text.slice(0, 60), userId ?? undefined);
+        const title = text.trim() ? text.slice(0, 60) : (documentName ?? "Attachment");
+        const convo = await createConversation(title, userId ?? undefined);
         activeId = convo.id;
         setConversationId(activeId);
       }
@@ -201,6 +202,8 @@ export default function ChatScreen() {
             content: text,
             userId: userId ?? undefined,
             imageBase64: imageBase64 ?? undefined,
+            documentBase64: documentBase64 ?? undefined,
+            documentName: documentName ?? undefined,
           }),
         }
       );

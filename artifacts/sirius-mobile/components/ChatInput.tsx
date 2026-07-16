@@ -1,4 +1,5 @@
 import { Audio } from "expo-av";
+import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system";
 import * as ImagePicker from "expo-image-picker";
 import { Feather } from "@expo/vector-icons";
@@ -21,7 +22,7 @@ import Colors from "@/constants/colors";
 import { getApiBase } from "@/lib/api";
 
 interface Props {
-  onSend: (text: string, imageBase64?: string) => void;
+  onSend: (text: string, imageBase64?: string, documentBase64?: string, documentName?: string) => void;
   disabled?: boolean;
   placeholder?: string;
   voiceMode?: boolean;
@@ -34,17 +35,27 @@ export function ChatInput({ onSend, disabled = false, placeholder = "Message Sir
   const [text, setText] = useState("");
   const [voiceState, setVoiceState] = useState<VoiceState>("idle");
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedDocBase64, setSelectedDocBase64] = useState<string | null>(null);
+  const [selectedDocName, setSelectedDocName] = useState<string | null>(null);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const inputRef = useRef<TextInput>(null);
   const recordingRef = useRef<Audio.Recording | null>(null);
 
+  const clearAttachments = () => {
+    setSelectedImage(null);
+    setSelectedDocBase64(null);
+    setSelectedDocName(null);
+  };
+
   const handleSend = () => {
     const trimmed = text.trim();
-    if (!trimmed && !selectedImage || disabled) return;
+    if (!trimmed && !selectedImage && !selectedDocBase64 || disabled) return;
     const imgToSend = selectedImage;
+    const docB64 = selectedDocBase64;
+    const docName = selectedDocName;
     setText("");
-    setSelectedImage(null);
-    onSend(trimmed, imgToSend ?? undefined);
+    clearAttachments();
+    onSend(trimmed, imgToSend ?? undefined, docB64 ?? undefined, docName ?? undefined);
     inputRef.current?.focus();
   };
 
@@ -65,6 +76,8 @@ export function ChatInput({ onSend, disabled = false, placeholder = "Message Sir
         if (asset.base64) {
           const mime = asset.mimeType || "image/jpeg";
           setSelectedImage(`data:${mime};base64,${asset.base64}`);
+          setSelectedDocBase64(null);
+          setSelectedDocName(null);
         }
       }
     } catch (err) {
@@ -88,10 +101,37 @@ export function ChatInput({ onSend, disabled = false, placeholder = "Message Sir
         if (asset.base64) {
           const mime = asset.mimeType || "image/jpeg";
           setSelectedImage(`data:${mime};base64,${asset.base64}`);
+          setSelectedDocBase64(null);
+          setSelectedDocName(null);
         }
       }
     } catch (err) {
       console.error("Camera failed", err);
+    }
+  };
+
+  const pickDocument = async () => {
+    setShowAttachMenu(false);
+    if (disabled) return;
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ["application/pdf", "text/plain", "text/markdown",
+               "application/msword",
+               "application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+      if (result.canceled || !result.assets || result.assets.length === 0) return;
+      const asset = result.assets[0];
+      if (!asset.uri) return;
+      const base64 = await FileSystem.readAsStringAsync(asset.uri, {
+        encoding: "base64" as any,
+      });
+      setSelectedDocBase64(base64);
+      setSelectedDocName(asset.name ?? "document");
+      setSelectedImage(null);
+    } catch (err) {
+      console.error("Document picker failed", err);
     }
   };
 
@@ -138,8 +178,8 @@ export function ChatInput({ onSend, disabled = false, placeholder = "Message Sir
         const data = await resp.json();
         const transcript: string = data.text || "";
         if (transcript.trim()) {
-          onSend(transcript.trim(), selectedImage ?? undefined);
-          setSelectedImage(null);
+          onSend(transcript.trim(), selectedImage ?? undefined, selectedDocBase64 ?? undefined, selectedDocName ?? undefined);
+          clearAttachments();
         }
       }
     } catch (err) {
@@ -155,7 +195,8 @@ export function ChatInput({ onSend, disabled = false, placeholder = "Message Sir
   };
 
   const isVoiceBusy = voiceState !== "idle";
-  const showSend = (text.trim().length > 0 || !!selectedImage) && !isVoiceBusy;
+  const hasAttachment = !!selectedImage || !!selectedDocBase64;
+  const showSend = (text.trim().length > 0 || hasAttachment) && !isVoiceBusy;
 
   return (
     <View style={styles.wrapper}>
@@ -197,6 +238,21 @@ export function ChatInput({ onSend, disabled = false, placeholder = "Message Sir
                     <Text style={styles.menuSub}>Pick an existing photo</Text>
                   </View>
                 </Pressable>
+
+                <View style={styles.menuDivider} />
+
+                <Pressable
+                  onPress={pickDocument}
+                  style={({ pressed }) => [styles.menuItem, pressed && styles.menuItemPressed]}
+                >
+                  <View style={styles.menuIcon}>
+                    <Feather name="file-text" size={20} color={Colors.primary} />
+                  </View>
+                  <View style={styles.menuTextWrap}>
+                    <Text style={styles.menuLabel}>Attach Document</Text>
+                    <Text style={styles.menuSub}>PDF, Word, or text file</Text>
+                  </View>
+                </Pressable>
               </View>
             </TouchableWithoutFeedback>
           </View>
@@ -215,6 +271,23 @@ export function ChatInput({ onSend, disabled = false, placeholder = "Message Sir
               <Feather name="x" size={12} color="#fff" />
             </Pressable>
             <Text style={styles.imagePreviewLabel}>Image ready — Sirius will analyse it</Text>
+          </View>
+        )}
+
+        {/* Document preview strip */}
+        {selectedDocName && (
+          <View style={styles.docPreviewRow}>
+            <View style={styles.docIcon}>
+              <Feather name="file-text" size={18} color={Colors.primary} />
+            </View>
+            <Text style={styles.docPreviewName} numberOfLines={1}>{selectedDocName}</Text>
+            <Pressable
+              onPress={() => { setSelectedDocBase64(null); setSelectedDocName(null); }}
+              style={styles.docRemoveBtn}
+              hitSlop={10}
+            >
+              <Feather name="x" size={14} color={Colors.textDim} />
+            </Pressable>
           </View>
         )}
 
@@ -437,6 +510,39 @@ const styles = StyleSheet.create({
     color: Colors.textDim,
     fontFamily: "Inter_400Regular",
     marginLeft: 4,
+  },
+
+  /* ── Document preview ── */
+  docPreviewRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 8,
+    paddingHorizontal: 4,
+    backgroundColor: `${Colors.primary}0D`,
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingRight: 10,
+    borderWidth: 1,
+    borderColor: `${Colors.primary}20`,
+  },
+  docIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: `${Colors.primary}18`,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  docPreviewName: {
+    flex: 1,
+    color: Colors.text,
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
+  },
+  docRemoveBtn: {
+    flexShrink: 0,
   },
 
   /* ── Input row ── */

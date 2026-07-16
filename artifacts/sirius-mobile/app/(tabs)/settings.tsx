@@ -190,7 +190,7 @@ export default function SettingsScreen() {
                 PROFILE_KEY,
                 "onboarding_complete",
               ]);
-              router.replace("/onboarding");
+              router.replace("/login");
             } catch {
               setDeletingAccount(false);
               Alert.alert(
@@ -615,6 +615,28 @@ export default function SettingsScreen() {
           icon="flag"
           label="Report a Content Issue"
           onPress={handleReportContent}
+        />
+        <SettingRow
+          icon="log-out"
+          label="Sign Out"
+          onPress={() => {
+            Alert.alert(
+              "Sign Out",
+              "You'll need to sign in again to access your conversations.",
+              [
+                { text: "Cancel", style: "cancel" },
+                {
+                  text: "Sign Out",
+                  style: "destructive",
+                  onPress: async () => {
+                    await AsyncStorage.multiRemove([USER_ID_KEY, PROFILE_KEY]);
+                    router.replace("/login");
+                  },
+                },
+              ]
+            );
+          }}
+          danger
         />
         <SettingRow
           icon="trash-2"

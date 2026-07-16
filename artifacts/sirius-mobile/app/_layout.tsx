@@ -17,6 +17,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider } from "@/context/AppContext";
 import Colors from "@/constants/colors";
 import { initializeRevenueCat, SubscriptionProvider } from "@/lib/revenuecat";
+import { USER_ID_KEY } from "@/lib/api";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -39,6 +40,14 @@ function RootLayoutNav() {
       }}
     >
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen
+        name="login"
+        options={{
+          headerShown: false,
+          animation: "fade",
+          gestureEnabled: false,
+        }}
+      />
       <Stack.Screen
         name="onboarding"
         options={{
@@ -66,16 +75,24 @@ export default function RootLayout() {
     if (navigationReady.current) return;
     navigationReady.current = true;
 
-    // Keep splash visible during the AsyncStorage check so there's no tabs flash
-    AsyncStorage.getItem(ONBOARDING_KEY).then((done) => {
-      if (!done) {
-        router.replace("/onboarding");
+    (async () => {
+      try {
+        const userId = await AsyncStorage.getItem(USER_ID_KEY);
+        if (!userId) {
+          router.replace("/login");
+          return;
+        }
+        const onboardingDone = await AsyncStorage.getItem(ONBOARDING_KEY);
+        if (!onboardingDone) {
+          router.replace("/onboarding");
+        }
+        // userId exists and onboarding done — stay on (tabs) (default route)
+      } catch {
+        // AsyncStorage unavailable — proceed normally
+      } finally {
+        SplashScreen.hideAsync();
       }
-    }).catch(() => {
-      // AsyncStorage unavailable — proceed to app normally
-    }).finally(() => {
-      SplashScreen.hideAsync();
-    });
+    })();
   }, [fontsLoaded, fontError]);
 
   if (!fontsLoaded && !fontError) return null;

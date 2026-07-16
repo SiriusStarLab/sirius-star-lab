@@ -61,13 +61,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
 
   const initUser = useCallback(async () => {
-    let stored = await AsyncStorage.getItem(USER_ID_KEY);
-    if (!stored) {
-      stored = `mobile-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      await AsyncStorage.setItem(USER_ID_KEY, stored);
+    const stored = await AsyncStorage.getItem(USER_ID_KEY);
+    if (stored) {
+      setUserId(stored);
     }
-    setUserId(stored);
-    return stored;
+    return stored ?? null;
   }, []);
 
   const refreshProfile = useCallback(async () => {
@@ -80,6 +78,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     const id = userId || (await initUser());
+    if (!id) return;
     try {
       const data = await fetchSubscription(id);
       setProfile(data);
@@ -116,6 +115,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
       try {
         const id = await initUser();
+        if (!id) { setLoading(false); return; }
         const data = await fetchSubscription(id);
         setProfile(data);
       } catch {
