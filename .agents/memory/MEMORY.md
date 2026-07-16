@@ -4,7 +4,7 @@
 - [Sirius Intelligence Layer](sirius-intelligence-layer.md) — Docker service on port 3001, deploy pattern, Garry's userId="garry", DB tables, context sync hook locations.
 - [Sirius Self-Modification System](sirius-self-modify.md) — review gate, protected files, deploy pipeline, Star Lab tool names, fetch-not-openai rule.
 - [Sirius server self-build pipeline](sirius-server-self-build.md) — what files were missing on the server and how the build.ts was fixed for server-side self-rebuild.
-- [Lab.ts agentic loop](lab-agentic-loop.md) — Round 1 timeout 15s was too short for Opus on large contexts; fixed to 60s/45s/30s. Detect recurrence via openrouter_requests.log — if only round:1 appears, timeout is aborting again.
+- [Lab.ts agentic loop](lab-agentic-loop.md) — Round 1 timeout must be 90s (3000+ memories = huge context, >30s to first token). Rolling timer 45s. MAX_TOOL_ROUNDS=25. If tools don't fire, timeout is aborting round 1.
 - [Sirius context budget](sirius-context-budget.md) — prompt hit 223K tokens with claude-haiku-4.5's 200K limit; caps: memories 4K chars, cross-session 8 msgs/600 chars each, selfConfigBlock 2K chars.
 - [Sirius self-repair guardrails](sirius-self-repair-guardrails.md) — autonomous restarts broke every session; cooldown + system prompt rewrite deployed.
 - [Stripe on web vs iOS](payments-not-stripe.md) — Stripe IS valid for web subscriptions; forbidden for iOS IAP (Apple 3.1.1). LIVE keys set, no products created yet.
@@ -21,5 +21,5 @@
 - [Sirius live state block](sirius-live-state-block.md) — injected into ownerSystemPrompt at session start; queries sirius_automations + sirius_tasks (NOT automations/background_jobs); ecosystem AI_INTEGRATIONS_OPENAI_MODEL must be opus-4-8.
 - [Sanskrit vibrational work location](sanskrit-vibrational-work.md) — full work in conversation 9579 (July 5 2026); 4 core_memories entries saved (category: vibrational_architecture, conversation_path); files at /opt/sirius/frequency-lab/. Startup protocol in lab.ts now has exact SQL paths.
 - [Sirius auth system](sirius-auth-system.md) — email/password accounts; router at /api so auth.ts uses /auth/signup; bcryptjs in allowlist not alwaysExternal; garry bypass in isAuthenticated.
-- [Anthropic direct API quirks](anthropic-direct-api-quirks.md) — response_format json_object = 400 error on Anthropic; never use it, use system-prompt JSON instead. Piper needs stdout.resume(). Loop timeouts: 30s/45s/30s.
+- [Anthropic direct API quirks](anthropic-direct-api-quirks.md) — response_format json_object = 400 error on Anthropic/OpenRouter Claude models; never use it. Piper needs stdout.resume(). ANTHROPIC_API_KEY must be empty string in ecosystem to force OpenRouter fallback.
 - [Sirius app-deployer stub rules](sirius-app-deployer-stubs.md) — workspace stripping, named-export stubs, vite base URL, basename in BrowserRouter, screenshot tool timing quirk.

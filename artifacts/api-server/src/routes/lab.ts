@@ -8844,8 +8844,8 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
       const isLastRound = roundCount >= MAX_TOOL_ROUNDS;
 
       const loopController = new AbortController();
-      // First round: 30s (context can be large on first call). Later rounds: 45s (tool results can be large).
-      let loopTimer = setTimeout(() => loopController.abort(), roundCount === 1 ? 30_000 : 45_000);
+      // First round: 90s (system prompt + memories can be very large). Later rounds: 60s.
+      let loopTimer = setTimeout(() => loopController.abort(), roundCount === 1 ? 90_000 : 60_000);
 
       const loopStream = await openai.chat.completions.create({
         model: "anthropic/claude-sonnet-4.5",
@@ -8853,8 +8853,7 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
         // Last round: force a plain text response — no more tool calls allowed
         ...(isLastRound ? {} : { tools: activeTools, tool_choice: "auto" }),
         temperature: 0.75,
-        // First round needs fewer tokens (just picking tools). Later rounds need room to write.
-        max_tokens: roundCount === 1 ? 2000 : 8000,
+        max_tokens: 8000,
         stream: true,
       }, { signal: loopController.signal });
 
@@ -8863,7 +8862,7 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
       let finishReason = "";
 
       for await (const chunk of loopStream) {
-        clearTimeout(loopTimer); loopTimer = setTimeout(() => loopController.abort(), 30_000);
+        clearTimeout(loopTimer); loopTimer = setTimeout(() => loopController.abort(), 45_000);
         const choice = chunk.choices?.[0];
         if (!choice) continue;
         finishReason = choice.finish_reason || finishReason;
