@@ -1448,12 +1448,15 @@ LOOP PREVENTION: If you have already called a tool and received its result, do N
 
       const toolResults: any[] = [];
 
+      const say = (text: string) => res.write(`data: ${JSON.stringify({ content: text })}\n\n`);
+
       for (const tc of toolCalls) {
         let args: any = {};
         try { args = JSON.parse(tc.arguments); } catch { /* ignore */ }
 
         if (tc.name === "search_web") {
           const { query } = args;
+          say(`\n\n🔍 *Searching: "${query}"*\n`);
           res.write(`data: ${JSON.stringify({ type: "searching", query })}\n\n`);
           try {
             const sonarRes = await openai.chat.completions.create({
@@ -1462,38 +1465,48 @@ LOOP PREVENTION: If you have already called a tool and received its result, do N
               max_tokens: 1200,
             } as any) as any;
             const sonarText = sonarRes.choices?.[0]?.message?.content ?? "No results.";
+            say(`✅ *Search complete — got results*\n`);
             toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: `Search results for "${query}":\n\n${sonarText}` });
           } catch {
+            say(`⚠️ *Search failed — using training knowledge*\n`);
             toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: "Search failed. Use your training knowledge." });
           }
 
         } else if (tc.name === "read_source_file") {
           const { path } = args;
+          say(`\n\n📄 *Reading: ${path}*\n`);
           res.write(`data: ${JSON.stringify({ type: "reading_file", path })}\n\n`);
           try {
             const content = await readSourceFile(path);
+            say(`✅ *File loaded — ${content.split("\n").length} lines*\n`);
             toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: `File: ${path}\n\`\`\`typescript\n${content}\n\`\`\`` });
           } catch (e: any) {
+            say(`❌ *Could not read ${path}: ${e.message}*\n`);
             toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: `Error reading ${path}: ${e.message}` });
           }
 
         } else if (tc.name === "server_diagnostic") {
           const { command, arg } = args;
+          say(`\n\n🖥️ *Running diagnostic: ${command}${arg ? ` (${arg})` : ""}*\n`);
           res.write(`data: ${JSON.stringify({ type: "running_diagnostic", command })}\n\n`);
           const result = await runServerDiagnostic(command, arg);
+          say(`✅ *Diagnostic complete*\n`);
           toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: result });
 
         } else if (tc.name === "execute_code") {
           const { code, language } = args;
+          say(`\n\n⚙️ *Running ${language} code in sandbox*\n`);
           res.write(`data: ${JSON.stringify({ type: "executing_code", language })}\n\n`);
           const result = await executeCode(code, language);
           const output = result.success
             ? `Output:\n${result.stdout}${result.stderr ? `\nStderr:\n${result.stderr}` : ""}`
             : `Execution failed: ${result.error}\n${result.stderr}`;
+          say(result.success ? `✅ *Code ran successfully*\n` : `❌ *Execution failed*\n`);
           toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: output });
 
         } else if (tc.name === "propose_code_change") {
           const { filePath, newContent, description } = args;
+          say(`\n\n🔧 *Proposing change to ${filePath}*\n⏳ *Running review → build → deploy pipeline...*\n`);
           res.write(`data: ${JSON.stringify({ type: "proposing_change", filePath })}\n\n`);
           const apiKey = process.env.ANTHROPIC_API_KEY || process.env.OPENROUTER_API_KEY || "";
           const result = await deployChange({ filePath, newContent, description, apiKey });
@@ -1502,6 +1515,7 @@ LOOP PREVENTION: If you have already called a tool and received its result, do N
             ? `✅ DEPLOYED: ${result.reviewSummary || description}. Sirius reloading in ~3 seconds.`
             : `❌ REJECTED at [${result.stage}]: ${result.message}${result.typecheckErrors ? `\n\nTypeScript errors:\n${result.typecheckErrors}` : ""}${result.reviewConcerns?.length ? `\n\nReviewer concerns:\n${result.reviewConcerns.join("\n")}` : ""}`;
 
+          say(result.success ? `✅ *Deployed successfully — reloading*\n` : `❌ *Rejected at [${result.stage}]*\n`);
           res.write(`data: ${JSON.stringify({ type: "deploy_result", success: result.success, stage: result.stage })}\n\n`);
           toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: resultMsg });
 
@@ -1511,6 +1525,7 @@ LOOP PREVENTION: If you have already called a tool and received its result, do N
 
         } else if (tc.name === "patch_source_file") {
           const { filePath, oldString, newString, description } = args;
+          say(`\n\n🩹 *Patching ${filePath}*\n⏳ *Running review → build → deploy pipeline...*\n`);
           res.write(`data: ${JSON.stringify({ type: "proposing_change", filePath })}\n\n`);
           const apiKey = process.env.ANTHROPIC_API_KEY || process.env.OPENROUTER_API_KEY || "";
           const result = await patchSourceFile({ filePath, oldString, newString, description, apiKey });
@@ -1519,6 +1534,7 @@ LOOP PREVENTION: If you have already called a tool and received its result, do N
             ? `✅ PATCHED & DEPLOYED: ${result.reviewSummary || description}. Sirius reloading in ~3 seconds.`
             : `❌ PATCH REJECTED at [${result.stage}]: ${result.message}${result.typecheckErrors ? `\n\nTypeScript errors:\n${result.typecheckErrors}` : ""}${result.reviewConcerns?.length ? `\n\nReviewer concerns:\n${result.reviewConcerns.join("\n")}` : ""}`;
 
+          say(result.success ? `✅ *Patch deployed — reloading*\n` : `❌ *Patch rejected at [${result.stage}]*\n`);
           res.write(`data: ${JSON.stringify({ type: "deploy_result", success: result.success, stage: result.stage })}\n\n`);
           toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: resultMsg });
 
@@ -1528,6 +1544,7 @@ LOOP PREVENTION: If you have already called a tool and received its result, do N
 
         } else if (tc.name === "generate_image") {
           const { prompt } = args;
+          say(`\n\n🎨 *Generating image...*\n`);
           console.log(`[owner-loop] generate_image called — prompt: "${String(prompt).slice(0, 80)}"`);
           res.write(`data: ${JSON.stringify({ type: "action", label: "Generating image…", icon: "🎨", color: "hsl(280,80%,55%)" })}\n\n`);
           try {
@@ -1538,6 +1555,7 @@ LOOP PREVENTION: If you have already called a tool and received its result, do N
             toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: `Image generated successfully and displayed to Garry.` });
           } catch (imgErr: any) {
             console.error("[image] generate_image tool failed:", imgErr?.message);
+            say(`❌ *Image generation failed*\n`);
             res.write(`data: ${JSON.stringify({ type: "image_error", message: "Image generation failed — please try again." })}\n\n`);
             toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: `Image generation failed: ${imgErr?.message}` });
           }
