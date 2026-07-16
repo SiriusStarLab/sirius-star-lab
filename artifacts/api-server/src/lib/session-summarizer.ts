@@ -172,7 +172,7 @@ Return ONLY valid JSON — no markdown, no explanation:
       INSERT INTO mnemosyne_sessions
         (session_date, key_themes, decisions_made, things_built, emotional_tone, progress_made, significance)
       VALUES (
-        ${today}::timestamp,
+        ${today}::date,
         ${toPgArray(summary.key_themes)}::text[],
         ${toPgArray(summary.decisions_made || "None")}::text[],
         ${toPgArray(summary.things_built || "None")}::text[],
@@ -180,6 +180,13 @@ Return ONLY valid JSON — no markdown, no explanation:
         ${summary.progress_made || ""},
         ${summary.significance || "medium"}
       )
+      ON CONFLICT (session_date) DO UPDATE SET
+        key_themes = EXCLUDED.key_themes,
+        decisions_made = EXCLUDED.decisions_made,
+        things_built = EXCLUDED.things_built,
+        emotional_tone = EXCLUDED.emotional_tone,
+        progress_made = EXCLUDED.progress_made,
+        significance = EXCLUDED.significance
     `);
 
     // Save new ideas → dream_lab_ideas

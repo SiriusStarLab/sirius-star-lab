@@ -1,5 +1,6 @@
 import { db, siriusAutomations, siriusCustomTools, siriusConfig, siriusErrors } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 
 // ── Cron helper — returns true if it's time to run based on trigger config ──
 function shouldRunNow(triggerConfig: string, lastRunAt: Date | null): boolean {
@@ -19,9 +20,17 @@ async function executeStep(step: any): Promise<string> {
   try {
     if (step.type === "http") {
       const { url, method = "GET", headers = {}, body } = step;
+      // Automatically inject the Lab PIN for internal localhost calls so automations
+      // don't trip the security rate-limiter (was causing Automation #9 to accumulate
+      // PIN failures and trigger a 10-minute IP ban every cycle)
+      const isLocalhost = url.startsWith("http://localhost") || url.startsWith("http://127.0.0.1");
+      const labPin = process.env.STAR_LAB_PIN || "";
+      const autoHeaders = isLocalhost && labPin
+        ? { "x-lab-pin": labPin }
+        : {};
       const res = await fetch(url, {
         method,
-        headers: { "Content-Type": "application/json", ...headers },
+        headers: { "Content-Type": "application/json", ...autoHeaders, ...headers },
         body: body ? JSON.stringify(body) : undefined,
       });
       const text = await res.text();
@@ -131,6 +140,24 @@ export async function resolveSiriusError(id: number, note: string): Promise<bool
     .where(eq(siriusErrors.id, id))
     .returning({ id: siriusErrors.id });
   return updated.length > 0;
+}
+
+// ── DB migration — ensures sirius_automations table has all required columns ──
+export async function migrateAutomationsTable(): Promise<void> {
+  try {
+    // Add any new columns if they don't exist (safe to call repeatedly)
+    await db.execute(sql`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+          WHERE table_name='sirius_automations' AND column_name='last_run_result') THEN
+          ALTER TABLE sirius_automations ADD COLUMN last_run_result text;
+        END IF;
+      END $$;
+    `);
+    console.log("[Sirius Automations] Table migration complete");
+  } catch (err: any) {
+    console.error("[Sirius Automations] Migration warning:", err?.message);
+  }
 }
 
 // ── Background automation tick — call every 60 seconds ───────────────────────
