@@ -7,11 +7,13 @@ import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
   Image,
+  Modal,
   Platform,
   Pressable,
   StyleSheet,
   Text,
   TextInput,
+  TouchableWithoutFeedback,
   View,
 } from "react-native";
 
@@ -32,6 +34,7 @@ export function ChatInput({ onSend, disabled = false, placeholder = "Message Sir
   const [text, setText] = useState("");
   const [voiceState, setVoiceState] = useState<VoiceState>("idle");
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [showAttachMenu, setShowAttachMenu] = useState(false);
   const inputRef = useRef<TextInput>(null);
   const recordingRef = useRef<Audio.Recording | null>(null);
 
@@ -45,7 +48,8 @@ export function ChatInput({ onSend, disabled = false, placeholder = "Message Sir
     inputRef.current?.focus();
   };
 
-  const pickImage = async () => {
+  const pickFromLibrary = async () => {
+    setShowAttachMenu(false);
     if (disabled) return;
     try {
       const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -65,6 +69,29 @@ export function ChatInput({ onSend, disabled = false, placeholder = "Message Sir
       }
     } catch (err) {
       console.error("Image picker failed", err);
+    }
+  };
+
+  const takePhoto = async () => {
+    setShowAttachMenu(false);
+    if (disabled) return;
+    try {
+      const { granted } = await ImagePicker.requestCameraPermissionsAsync();
+      if (!granted) return;
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: false,
+        quality: 0.8,
+        base64: true,
+      });
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        if (asset.base64) {
+          const mime = asset.mimeType || "image/jpeg";
+          setSelectedImage(`data:${mime};base64,${asset.base64}`);
+        }
+      }
+    } catch (err) {
+      console.error("Camera failed", err);
     }
   };
 
@@ -131,157 +158,253 @@ export function ChatInput({ onSend, disabled = false, placeholder = "Message Sir
   const showSend = (text.trim().length > 0 || !!selectedImage) && !isVoiceBusy;
 
   return (
-    <View style={styles.container}>
-      {/* Image preview strip */}
-      {selectedImage && (
-        <View style={styles.imagePreviewRow}>
-          <Image source={{ uri: selectedImage }} style={styles.imagePreview} />
-          <Pressable
-            onPress={() => setSelectedImage(null)}
-            style={styles.imageRemoveBtn}
-          >
-            <Feather name="x" size={12} color="#fff" />
-          </Pressable>
-          <Text style={styles.imagePreviewLabel}>Image ready — Sirius will analyse it</Text>
-        </View>
-      )}
-      <View style={styles.inputRow}>
-        {/* Image picker button */}
-        {!isVoiceBusy && (
-          <Pressable
-            onPress={pickImage}
-            style={({ pressed }) => [
-              styles.actionBtn,
-              styles.imageBtnIdle,
-              selectedImage && styles.imageBtnActive,
-              pressed && { opacity: 0.7 },
-            ]}
-            testID="image-button"
-          >
-            <Feather
-              name="image"
-              size={16}
-              color={selectedImage ? Colors.primary : Colors.textDim}
-            />
-          </Pressable>
-        )}
+    <View style={styles.wrapper}>
+      {/* Attach bubble menu — rendered as Modal so it floats above everything */}
+      <Modal
+        visible={showAttachMenu}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowAttachMenu(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setShowAttachMenu(false)}>
+          <View style={styles.menuOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.menuBubble}>
+                <Pressable
+                  onPress={takePhoto}
+                  style={({ pressed }) => [styles.menuItem, pressed && styles.menuItemPressed]}
+                >
+                  <View style={styles.menuIcon}>
+                    <Feather name="camera" size={20} color={Colors.primary} />
+                  </View>
+                  <View style={styles.menuTextWrap}>
+                    <Text style={styles.menuLabel}>Take Photo</Text>
+                    <Text style={styles.menuSub}>Open camera</Text>
+                  </View>
+                </Pressable>
 
-        {isVoiceBusy ? (
-          <View style={styles.voiceStatus}>
-            {voiceState === "recording" ? (
-              <>
-                <View style={styles.recordingDot} />
-                <Text style={styles.voiceStatusText}>Listening…</Text>
-              </>
-            ) : (
-              <>
-                <ActivityIndicator size="small" color={Colors.primary} />
-                <Text style={styles.voiceStatusText}>Transcribing…</Text>
-              </>
-            )}
+                <View style={styles.menuDivider} />
+
+                <Pressable
+                  onPress={pickFromLibrary}
+                  style={({ pressed }) => [styles.menuItem, pressed && styles.menuItemPressed]}
+                >
+                  <View style={styles.menuIcon}>
+                    <Feather name="image" size={20} color={Colors.primary} />
+                  </View>
+                  <View style={styles.menuTextWrap}>
+                    <Text style={styles.menuLabel}>Choose from Library</Text>
+                    <Text style={styles.menuSub}>Pick an existing photo</Text>
+                  </View>
+                </Pressable>
+              </View>
+            </TouchableWithoutFeedback>
           </View>
-        ) : (
-          <TextInput
-            ref={inputRef}
-            style={styles.input}
-            value={text}
-            onChangeText={setText}
-            placeholder={placeholder}
-            placeholderTextColor={Colors.textDim}
-            multiline
-            maxLength={4000}
-            blurOnSubmit={false}
-            onSubmitEditing={handleSend}
-            returnKeyType="send"
-            selectionColor={Colors.primary}
-          />
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      <View style={styles.container}>
+        {/* Image preview strip */}
+        {selectedImage && (
+          <View style={styles.imagePreviewRow}>
+            <Image source={{ uri: selectedImage }} style={styles.imagePreview} />
+            <Pressable
+              onPress={() => setSelectedImage(null)}
+              style={styles.imageRemoveBtn}
+            >
+              <Feather name="x" size={12} color="#fff" />
+            </Pressable>
+            <Text style={styles.imagePreviewLabel}>Image ready — Sirius will analyse it</Text>
+          </View>
         )}
 
-        {/* Keyboard / type button — focuses the input and brings up native keyboard */}
-        {!isVoiceBusy && (
-          <Pressable
-            onPress={() => inputRef.current?.focus()}
-            style={({ pressed }) => [
-              styles.actionBtn,
-              styles.keyboardBtn,
-              pressed && { opacity: 0.7 },
-            ]}
-            testID="keyboard-button"
-          >
-            <Feather name="edit-2" size={16} color={Colors.textDim} />
-          </Pressable>
-        )}
-
-        {onToggleVoice && !isVoiceBusy && (
-          <Pressable
-            onPress={onToggleVoice}
-            style={({ pressed }) => [
-              styles.actionBtn,
-              voiceMode ? styles.speakerBtnActive : styles.speakerBtnIdle,
-              pressed && { opacity: 0.75 },
-            ]}
-            testID="speaker-button"
-          >
-            <Feather
-              name={voiceMode ? "volume-2" : "volume-x"}
-              size={18}
-              color={voiceMode ? Colors.primary : Colors.textDim}
-            />
-          </Pressable>
-        )}
-
-        {showSend ? (
-          <Pressable
-            onPress={handleSend}
-            disabled={disabled}
-            style={({ pressed }) => [
-              styles.actionBtn,
-              styles.sendBtnActive,
-              pressed && { opacity: 0.8, transform: [{ scale: 0.95 }] },
-            ]}
-            testID="send-button"
-          >
-            {disabled ? (
-              <ActivityIndicator size="small" color={Colors.primary} />
-            ) : (
-              <Feather name="send" size={18} color={Colors.background} />
-            )}
-          </Pressable>
-        ) : (
-          <Pressable
-            onPress={handleMicPress}
-            disabled={disabled && voiceState === "idle"}
-            style={({ pressed }) => [
-              styles.actionBtn,
-              voiceState === "recording" ? styles.micBtnRecording : styles.micBtnIdle,
-              pressed && voiceState === "idle" && { opacity: 0.8, transform: [{ scale: 0.95 }] },
-            ]}
-            testID="mic-button"
-          >
-            {voiceState === "transcribing" ? (
-              <ActivityIndicator size="small" color={Colors.primary} />
-            ) : (
+        <View style={styles.inputRow}>
+          {/* + Attach button */}
+          {!isVoiceBusy && (
+            <Pressable
+              onPress={() => setShowAttachMenu(true)}
+              style={({ pressed }) => [
+                styles.actionBtn,
+                styles.plusBtn,
+                showAttachMenu && styles.plusBtnActive,
+                pressed && { opacity: 0.7 },
+              ]}
+              testID="attach-button"
+            >
               <Feather
-                name={voiceState === "recording" ? "square" : "mic"}
+                name="plus"
                 size={18}
-                color={voiceState === "recording" ? "#fff" : Colors.primary}
+                color={showAttachMenu ? Colors.primary : Colors.textDim}
               />
-            )}
-          </Pressable>
-        )}
+            </Pressable>
+          )}
+
+          {isVoiceBusy ? (
+            <View style={styles.voiceStatus}>
+              {voiceState === "recording" ? (
+                <>
+                  <View style={styles.recordingDot} />
+                  <Text style={styles.voiceStatusText}>Listening…</Text>
+                </>
+              ) : (
+                <>
+                  <ActivityIndicator size="small" color={Colors.primary} />
+                  <Text style={styles.voiceStatusText}>Transcribing…</Text>
+                </>
+              )}
+            </View>
+          ) : (
+            <TextInput
+              ref={inputRef}
+              style={styles.input}
+              value={text}
+              onChangeText={setText}
+              placeholder={placeholder}
+              placeholderTextColor={Colors.textDim}
+              multiline
+              maxLength={4000}
+              blurOnSubmit={false}
+              onSubmitEditing={handleSend}
+              returnKeyType="send"
+              selectionColor={Colors.primary}
+            />
+          )}
+
+          {onToggleVoice && !isVoiceBusy && (
+            <Pressable
+              onPress={onToggleVoice}
+              style={({ pressed }) => [
+                styles.actionBtn,
+                voiceMode ? styles.speakerBtnActive : styles.speakerBtnIdle,
+                pressed && { opacity: 0.75 },
+              ]}
+              testID="speaker-button"
+            >
+              <Feather
+                name={voiceMode ? "volume-2" : "volume-x"}
+                size={18}
+                color={voiceMode ? Colors.primary : Colors.textDim}
+              />
+            </Pressable>
+          )}
+
+          {showSend ? (
+            <Pressable
+              onPress={handleSend}
+              disabled={disabled}
+              style={({ pressed }) => [
+                styles.actionBtn,
+                styles.sendBtnActive,
+                pressed && { opacity: 0.8, transform: [{ scale: 0.95 }] },
+              ]}
+              testID="send-button"
+            >
+              {disabled ? (
+                <ActivityIndicator size="small" color={Colors.primary} />
+              ) : (
+                <Feather name="send" size={18} color={Colors.background} />
+              )}
+            </Pressable>
+          ) : (
+            <Pressable
+              onPress={handleMicPress}
+              disabled={disabled && voiceState === "idle"}
+              style={({ pressed }) => [
+                styles.actionBtn,
+                voiceState === "recording" ? styles.micBtnRecording : styles.micBtnIdle,
+                pressed && voiceState === "idle" && { opacity: 0.8, transform: [{ scale: 0.95 }] },
+              ]}
+              testID="mic-button"
+            >
+              {voiceState === "transcribing" ? (
+                <ActivityIndicator size="small" color={Colors.primary} />
+              ) : (
+                <Feather
+                  name={voiceState === "recording" ? "square" : "mic"}
+                  size={18}
+                  color={voiceState === "recording" ? "#fff" : Colors.primary}
+                />
+              )}
+            </Pressable>
+          )}
+        </View>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  wrapper: {
+    backgroundColor: Colors.background,
+  },
   container: {
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: Colors.background,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
   },
+
+  /* ── Attach bubble modal ── */
+  menuOverlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+    paddingBottom: Platform.OS === "ios" ? 120 : 90,
+    paddingHorizontal: 16,
+    backgroundColor: "rgba(0,0,0,0.35)",
+  },
+  menuBubble: {
+    backgroundColor: "#1a1f36",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "rgba(100,120,200,0.25)",
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 20,
+    elevation: 12,
+  },
+  menuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    gap: 16,
+  },
+  menuItemPressed: {
+    backgroundColor: "rgba(255,255,255,0.05)",
+  },
+  menuIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: `${Colors.primary}18`,
+    borderWidth: 1,
+    borderColor: `${Colors.primary}30`,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  menuTextWrap: {
+    flex: 1,
+  },
+  menuLabel: {
+    color: "#fff",
+    fontSize: 16,
+    fontFamily: "Inter_600SemiBold",
+  },
+  menuSub: {
+    color: "rgba(160,170,210,0.7)",
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    marginTop: 2,
+  },
+  menuDivider: {
+    height: 1,
+    backgroundColor: "rgba(100,120,200,0.12)",
+    marginHorizontal: 20,
+  },
+
+  /* ── Image preview ── */
   imagePreviewRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -314,6 +437,8 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     marginLeft: 4,
   },
+
+  /* ── Input row ── */
   inputRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -361,6 +486,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  plusBtn: {
+    backgroundColor: "transparent",
+  },
+  plusBtnActive: {
+    backgroundColor: `${Colors.primary}18`,
+    borderWidth: 1,
+    borderColor: `${Colors.primary}30`,
+  },
   sendBtnActive: {
     backgroundColor: Colors.primary,
   },
@@ -379,16 +512,5 @@ const styles = StyleSheet.create({
   },
   speakerBtnIdle: {
     backgroundColor: "transparent",
-  },
-  keyboardBtn: {
-    backgroundColor: "transparent",
-  },
-  imageBtnIdle: {
-    backgroundColor: "transparent",
-  },
-  imageBtnActive: {
-    backgroundColor: `${Colors.primary}20`,
-    borderWidth: 1,
-    borderColor: `${Colors.primary}40`,
   },
 });
