@@ -8850,8 +8850,10 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
       const loopStream = await openai.chat.completions.create({
         model: "anthropic/claude-sonnet-4.5",
         messages: loopMessages,
-        // Last round: force a plain text response — no more tool calls allowed
-        ...(isLastRound ? {} : { tools: activeTools, tool_choice: "auto" }),
+        // Last round: force plain text. Round 1: force tool call. Other rounds: auto.
+        ...(isLastRound
+          ? {}
+          : { tools: activeTools, tool_choice: roundCount === 1 ? "required" : "auto" }),
         temperature: 0.75,
         max_tokens: 8000,
         stream: true,
