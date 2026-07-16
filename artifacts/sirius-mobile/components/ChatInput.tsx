@@ -169,7 +169,7 @@ export function ChatInput({ onSend, disabled = false, placeholder = "Message Sir
         <TouchableWithoutFeedback onPress={() => setShowAttachMenu(false)}>
           <View style={styles.menuOverlay}>
             <TouchableWithoutFeedback>
-              <View style={styles.menuBubble}>
+              <View style={styles.menuBubble} onStartShouldSetResponder={() => true}>
                 <Pressable
                   onPress={takePhoto}
                   style={({ pressed }) => [styles.menuItem, pressed && styles.menuItemPressed]}
@@ -347,12 +347,13 @@ const styles = StyleSheet.create({
   /* ── Attach bubble modal ── */
   menuOverlay: {
     flex: 1,
-    justifyContent: "flex-end",
-    paddingBottom: Platform.OS === "ios" ? 120 : 90,
-    paddingHorizontal: 16,
-    backgroundColor: "rgba(0,0,0,0.35)",
+    backgroundColor: "rgba(0,0,0,0.5)",
   },
   menuBubble: {
+    position: "absolute",
+    bottom: Platform.OS === "ios" ? 100 : 80,
+    left: 16,
+    right: 16,
     backgroundColor: "#1a1f36",
     borderRadius: 18,
     borderWidth: 1,
