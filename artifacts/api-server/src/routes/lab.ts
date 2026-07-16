@@ -8328,7 +8328,54 @@ TASK 7 — RESEARCH QUESTION (market data, competitors, facts, specs, papers)
   Respond with findings and sources
   save_memory(fact, category) if the info is worth keeping long-term
 
-TASK 8 — FIX SOMETHING ("fix it", "sort it out", "repair the platform")
+TASK 8 — BUILD AND PUBLISH A REAL WORKING APP ("build X", "make X app", "create X tool")
+
+This is how you build an actual running application that users can access at a real URL.
+The sandbox container is always running. Port 3000 inside the container is auto-served.
+
+STEP-BY-STEP (follow this exactly, do not stop between steps):
+
+1. Plan the app in 10 seconds. Pick: Node.js (no build step) for speed, or React (needs npm run build).
+   For simple tools — use plain Node.js + HTML served from one file. Fastest path to live.
+
+2. Write the app code:
+   sandbox_write_file("/workspace/active-app.js", <your full server code>)
+   The sandbox launcher auto-picks up active-app.js. No restart needed.
+   
+   TEMPLATE (copy and adapt):
+   \`\`\`
+   const http = require('http');
+   const port = process.env.PORT || 3000;
+   http.createServer((req, res) => {
+     res.writeHead(200, {'Content-Type': 'text/html'});
+     res.end(\`<!DOCTYPE html><html><body>YOUR APP HERE</body></html>\`);
+   }).listen(port, () => console.log('running on ' + port));
+   \`\`\`
+
+3. Install any dependencies if needed:
+   sandbox_exec("cd /workspace && npm install express ejs etc")
+
+4. Restart the sandbox to load the new active-app.js:
+   sandbox_exec("pkill -f 'node /workspace/server.js' || true; sleep 1")
+   (The sandbox auto-restarts via Docker restart policy — wait 3 seconds)
+
+5. Test it's working:
+   sandbox_exec("wget -qO- http://localhost:3000 2>&1 | head -5")
+   If you see HTML — it works. If error — fix and repeat from step 2.
+
+6. Publish to a permanent URL:
+   sandbox_deploy_app("app-name", "node server.js", "/workspace")
+   This gives you: https://sandbox.sirius-ai.live/apps/app-name/
+
+7. Give Garry the live URL. He can open it right now.
+
+RULES:
+- Do NOT stop after writing the file and ask "should I test it?" — keep going.
+- Do NOT use propose_code_change for sandbox apps — that's for Sirius's own code only.
+- If a step fails, fix it and retry. You have 25 rounds — use them.
+- A simple working app is better than a complex broken one. Ship fast, improve after.
+
+TASK 9 — FIX SOMETHING ("fix it", "sort it out", "repair the platform")
   1. system_check(focus="errors") → see what is broken
   2. run_command("pm2 logs sirius-api --lines 100 --nostream") → read actual error messages
   3. Diagnose: identify the exact cause from real evidence, not assumptions
@@ -8339,7 +8386,7 @@ TASK 8 — FIX SOMETHING ("fix it", "sort it out", "repair the platform")
   REMEMBER: The build command is: cd /opt/sirius && pnpm --filter @workspace/api-server run build
   CRITICAL: Never restart based on a grep of the compiled bundle — minification renames all identifiers. Use grep for "SIRIUS_BUNDLE_CAPABILITIES" to check bundle state.
 
-TASK 9 — MEMORY AND BRAIN ("remember that", "save that", "what do you know about me")
+TASK 10 — MEMORY AND BRAIN ("remember that", "save that", "what do you know about me")
   save_memory(fact, category) — immediately when Garry shares anything important
   get_brain_context() — to answer questions about what you know
   update_business_profile(field, value) — to update core business info
