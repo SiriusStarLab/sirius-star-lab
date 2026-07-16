@@ -7,7 +7,7 @@ import { join } from "path";
 import { randomUUID } from "crypto";
 
 const POLL_INTERVAL_MS = 30_000;
-const MAX_ROUNDS = 8;
+const MAX_ROUNDS = 25;
 const BRAIN_USER = "garry";
 const MAX_CONCURRENT = 3;
 const MODEL = "anthropic/claude-sonnet-4.5";

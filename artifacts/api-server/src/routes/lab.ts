@@ -1002,7 +1002,7 @@ CRITICAL EXECUTION RULES — READ CAREFULLY:
     let messages: any[] = [...chatMessages];
     let contentBuffer = "";
     const savedFields: string[] = [];
-    const MAX_ROUNDS = 8;
+    const MAX_ROUNDS = 20;
 
     for (let round = 0; round < MAX_ROUNDS; round++) {
       const isLastRound = round === MAX_ROUNDS - 1;
@@ -8785,7 +8785,7 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
     // Replaces the old 2-phase system. Sirius can now call tools across multiple rounds
     // (check → fix → verify → respond) without getting stuck mid-sequence.
     // Capped at 6 rounds to control API costs — Sirius should complete tasks in fewer rounds.
-    const MAX_TOOL_ROUNDS = 6;
+    const MAX_TOOL_ROUNDS = 25;
     const MAX_TOOL_RESULT_CHARS = 8000; // truncate huge results to prevent context overflow
 
     let loopMessages: any[] = [...chatMessages];
