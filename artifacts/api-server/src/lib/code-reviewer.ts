@@ -87,7 +87,6 @@ Is this safe to auto-deploy?`;
       ],
       max_tokens: 500,
       temperature: 0.1,
-      response_format: { type: "json_object" },
     });
 
     const raw = completion.choices?.[0]?.message?.content ?? "{}";
