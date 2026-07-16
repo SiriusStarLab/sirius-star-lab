@@ -337,7 +337,7 @@ export function AuthGate({ onAuth }: AuthGateProps) {
                     No account yet? Create one free
                   </button>
                   <button type="button"
-                    style={{ ...ghostBtn, color: "rgba(80,130,180,0.4)", fontSize: "0.68rem" }}
+                    style={{ ...ghostBtn, color: "rgba(0,196,255,0.55)", fontSize: "0.75rem", fontWeight: 500 }}
                     onClick={() => setMode("forgot")}>
                     Forgot your password?
                   </button>
