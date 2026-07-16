@@ -6295,25 +6295,24 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
 
         // ── 5b. AI integration connectivity ─────────────────────────────────
         try {
-          const usingAnthropic = !!process.env.ANTHROPIC_API_KEY;
-          const aiEndpoint = usingAnthropic
-            ? "https://api.anthropic.com/v1/messages"
-            : "https://openrouter.ai/api/v1/chat/completions";
-          const aiHeaders: Record<string, string> = usingAnthropic
-            ? { "x-api-key": process.env.ANTHROPIC_API_KEY!, "anthropic-version": "2023-06-01", "Content-Type": "application/json" }
-            : { "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`, "Content-Type": "application/json", "HTTP-Referer": "https://sirius-ai.live", "X-Title": "Sirius Star Lab" };
-          const aiBody = usingAnthropic
-            ? JSON.stringify({ model: "claude-sonnet-4-5", messages: [{ role: "user", content: "ping" }], max_tokens: 1 })
-            : JSON.stringify({ model: "anthropic/claude-sonnet-4.5", messages: [{ role: "user", content: "ping" }], max_tokens: 1 });
+          // Always route through OpenRouter for cost control — never call Anthropic directly
+          const aiEndpoint = "https://openrouter.ai/api/v1/chat/completions";
+          const aiHeaders: Record<string, string> = {
+            "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://sirius-ai.live",
+            "X-Title": "Sirius Star Lab",
+          };
+          const aiBody = JSON.stringify({ model: "anthropic/claude-sonnet-4.5", messages: [{ role: "user", content: "ping" }], max_tokens: 1 });
           const aiTestRes = await fetch(aiEndpoint, {
             method: "POST", headers: aiHeaders, body: aiBody,
             signal: AbortSignal.timeout(8000),
           });
           if (aiTestRes.ok || aiTestRes.status === 400) {
-            report.push({ system: "AI Integration", status: "ok", detail: `${usingAnthropic ? "Anthropic" : "OpenRouter"} reachable and authorised` });
+            report.push({ system: "AI Integration", status: "ok", detail: `OpenRouter reachable and authorised` });
           } else {
             const errBody = await aiTestRes.text().catch(() => "");
-            report.push({ system: "AI Integration", status: "fail", detail: `${usingAnthropic ? "Anthropic" : "OpenRouter"} returned ${aiTestRes.status} — ${errBody.slice(0, 120)}. Sirius cannot generate content until this is resolved.`, action: "bug_report" });
+            report.push({ system: "AI Integration", status: "fail", detail: `OpenRouter returned ${aiTestRes.status} — ${errBody.slice(0, 120)}. Sirius cannot generate content until this is resolved.`, action: "bug_report" });
           }
         } catch (e: any) {
           report.push({ system: "AI Integration", status: "fail", detail: `Cannot reach AI backend: ${e.message}`, action: "bug_report" });
@@ -8758,13 +8757,20 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
       console.log(`[Mnemosyne] Cross-session memory active — loaded ${crossSessionMsgs.length} messages from previous conversations`);
     }
 
+    // Trim conversation history to last 30 messages to control context cost.
+    // Full history is stored in DB; cross-session memory covers older context.
+    const MAX_CONTEXT_MSGS = 30;
+    const trimmedMessages = messages.length > MAX_CONTEXT_MSGS
+      ? messages.slice(-MAX_CONTEXT_MSGS)
+      : messages;
+
     const chatMessages: any[] = [
       { role: "system", content: activeSystemPrompt },
       ...(crossSessionMsgs.length > 0 ? [{
         role: "system" as const,
         content: `CROSS-SESSION MEMORY — recent messages from previous conversations with Garry:\n${crossSessionMsgs.map((m: { role: string; content: string }) => `${m.role}: ${m.content}`).join("\n")}`,
       }] : []),
-      ...messages.map((m: { role: string; content: string }) => ({ role: m.role, content: m.content })),
+      ...trimmedMessages.map((m: { role: string; content: string }) => ({ role: m.role, content: m.content })),
     ];
 
     // Mid-conversation guard: remind Sirius not to re-run the startup system_check on follow-up messages.
@@ -8778,7 +8784,8 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
     // ── Agentic loop — runs until Sirius produces a text response or hits MAX_ROUNDS ──
     // Replaces the old 2-phase system. Sirius can now call tools across multiple rounds
     // (check → fix → verify → respond) without getting stuck mid-sequence.
-    const MAX_TOOL_ROUNDS = 16;
+    // Capped at 6 rounds to control API costs — Sirius should complete tasks in fewer rounds.
+    const MAX_TOOL_ROUNDS = 6;
     const MAX_TOOL_RESULT_CHARS = 8000; // truncate huge results to prevent context overflow
 
     let loopMessages: any[] = [...chatMessages];
