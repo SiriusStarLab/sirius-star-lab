@@ -4888,6 +4888,14 @@ const LAB_TOOLS: any[] = [
   {
     type: "function" as const,
     function: {
+      name: "sandbox_restart",
+      description: "Restart the sandbox Docker container so it picks up your new active-app.js. Call this after writing a new app with sandbox_write_file — the container must restart to load the new code. Also use this to recover if the sandbox is unresponsive.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
       name: "sandbox_list_apps",
       description: "List all apps currently deployed from the sandbox to the server. Shows name, URL, and PM2 status for each.",
       parameters: { type: "object", properties: {} },
@@ -7965,6 +7973,13 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
         return `✅ SIRIUS_PROJECT.md updated`;
       }
 
+      case "sandbox_restart": {
+        const { execAsync: _exec } = await import("child_process").then(m => ({ execAsync: require("util").promisify(m.exec) }));
+        await _exec("docker restart sirius-sandbox-garry", { timeout: 30000 });
+        await new Promise(r => setTimeout(r, 4000));
+        return "✅ Sandbox container restarted — your new active-app.js is now loaded. Test it with sandbox_exec(\"curl -s http://localhost:3000/health\").";
+      }
+
       case "sandbox_deploy_app": {
         const result = await deployApp("garry", args.appName, args.startCommand, args.sourceDir);
         return `✅ App deployed and live!\n\nURL: ${result.url}\nPM2 process: ${result.pm2Name}\nPort: ${result.port}\n\nShare this URL with anyone — it's on your server, SSL included.`;
@@ -8032,6 +8047,7 @@ const TOOL_META: Record<string, { label: string; color: string; icon: string }> 
   sandbox_run_tests: { label: "Running tests", color: "hsl(155,70%,42%)", icon: "🧪" },
   sandbox_project_memory: { label: "Reading project memory", color: "hsl(280,70%,55%)", icon: "🧠" },
   sandbox_update_memory: { label: "Updating project memory", color: "hsl(280,70%,55%)", icon: "💾" },
+  sandbox_restart: { label: "Restarting sandbox container", color: "hsl(25,100%,55%)", icon: "🔄" },
   sandbox_deploy_app: { label: "Deploying app to server", color: "hsl(155,70%,42%)", icon: "🚀" },
   sandbox_list_apps: { label: "Listing deployed apps", color: "hsl(193,100%,40%)", icon: "📋" },
   sandbox_stop_app: { label: "Stopping deployed app", color: "hsl(0,75%,55%)", icon: "🛑" },
@@ -8340,28 +8356,26 @@ STEP-BY-STEP (follow this exactly, do not stop between steps):
 
 2. Write the app code:
    sandbox_write_file("/workspace/active-app.js", <your full server code>)
-   The sandbox launcher auto-picks up active-app.js. No restart needed.
-   
-   TEMPLATE (copy and adapt):
-   \`\`\`
-   const http = require('http');
-   const port = process.env.PORT || 3000;
-   http.createServer((req, res) => {
-     res.writeHead(200, {'Content-Type': 'text/html'});
-     res.end(\`<!DOCTYPE html><html><body>YOUR APP HERE</body></html>\`);
-   }).listen(port, () => console.log('running on ' + port));
-   \`\`\`
+
+   ⚠️ CRITICAL — BACKTICK RULE: When writing JavaScript with template literals, use a
+   bare backtick character as the opening delimiter — NEVER write backslash-backtick
+   as the opening. Escaped backticks cause a SyntaxError and the launcher will skip your
+   app. Use single-quote string concatenation if you are unsure:
+     res.send('<html>' + body + '</html>');   // safe — no template literals needed
+   When you use template literals, open and close them with a single plain backtick.
 
 3. Install any dependencies if needed:
-   sandbox_exec("cd /workspace && npm install express ejs etc")
+   sandbox_exec("cd /workspace && npm install express multer etc")
 
 4. Restart the sandbox to load the new active-app.js:
-   sandbox_exec("pkill -f 'node /workspace/server.js' || true; sleep 1")
-   (The sandbox auto-restarts via Docker restart policy — wait 3 seconds)
+   sandbox_restart()
+   ← This is the ONLY reliable way to restart. Do NOT use pkill from inside the container
+     — it does not trigger a Docker restart and the old code keeps running.
 
 5. Test it's working:
-   sandbox_exec("wget -qO- http://localhost:3000 2>&1 | head -5")
-   If you see HTML — it works. If error — fix and repeat from step 2.
+   sandbox_exec("curl -s http://localhost:3000/health 2>&1 | head -5")
+   Or check the root: sandbox_exec("curl -s http://localhost:3000/ 2>&1 | head -3")
+   If you see HTML or JSON — it works. If error — check logs and fix from step 2.
 
 6. Publish to a permanent URL:
    sandbox_deploy_app("app-name", "node server.js", "/workspace")
