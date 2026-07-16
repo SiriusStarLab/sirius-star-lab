@@ -4,6 +4,8 @@ import { useLocalSearchParams } from "expo-router";
 import * as Speech from "expo-speech";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   AppState,
   FlatList,
   Image,
@@ -34,6 +36,7 @@ import {
   getApiBase,
   getUserId,
 } from "@/lib/api";
+import { useSubscription } from "@/lib/revenuecat";
 
 interface DBMessage {
   id: number;
@@ -86,7 +89,8 @@ const SURPRISE_PROMPTS = [
 
 export default function ChatScreen() {
   const insets = useSafeAreaInsets();
-  const { userId, profile } = useApp();
+  const { userId, profile, refreshProfile } = useApp();
+  const subscription = useSubscription();
   const params = useLocalSearchParams<{ prompt?: string; conversationId?: string }>();
 
   const [messages, setMessages] = useState<Message[]>([]);
@@ -485,6 +489,19 @@ export default function ChatScreen() {
   }, [userId, stopSpeech]);
 
   const UPGRADE_URL = "https://sirius-ai.live/pricing";
+  const isIOS = Platform.OS === "ios";
+
+  const handleModalIAPPurchase = async (pkg: any) => {
+    if (!pkg) return;
+    try {
+      await subscription.purchase(pkg);
+      await refreshProfile();
+      setShowUpgradeModal(false);
+    } catch (err: any) {
+      if (err?.userCancelled) return;
+      Alert.alert("Purchase failed", err?.message ?? "Something went wrong. Please try again.");
+    }
+  };
 
   return (
     <KeyboardAvoidingView
@@ -501,7 +518,6 @@ export default function ChatScreen() {
       >
         <View style={upgradeStyles.overlay}>
           <View style={upgradeStyles.sheet}>
-            {/* Glow blob */}
             <View style={upgradeStyles.glow} pointerEvents="none" />
 
             {/* Header */}
@@ -521,39 +537,86 @@ export default function ChatScreen() {
               </Text>
             </View>
 
-            {/* Plans */}
-            {hitLimitTier === "free" && (
-              <View style={upgradeStyles.planCard}>
-                <View style={upgradeStyles.planRow}>
-                  <View>
-                    <Text style={upgradeStyles.planName}>Plus</Text>
-                    <Text style={upgradeStyles.planDesc}>200 messages/day · image gen · memory</Text>
+            {/* iOS: IAP purchase buttons from RevenueCat */}
+            {isIOS ? (
+              subscription.isLoading ? (
+                <View style={{ alignItems: "center", paddingVertical: 20 }}>
+                  <ActivityIndicator color={Colors.primary} />
+                  <Text style={[upgradeStyles.subtitle, { marginTop: 10 }]}>Loading plans…</Text>
+                </View>
+              ) : (
+                <>
+                  {hitLimitTier === "free" && subscription.plusPackage && (
+                    <TouchableOpacity
+                      style={upgradeStyles.ctaBtn}
+                      activeOpacity={0.82}
+                      disabled={subscription.isPurchasing}
+                      onPress={() => handleModalIAPPurchase(subscription.plusPackage)}
+                    >
+                      {subscription.isPurchasing
+                        ? <ActivityIndicator color="#04081a" />
+                        : <Text style={upgradeStyles.ctaText}>
+                            Get Plus — {subscription.plusPackage.product.priceString}/mo →
+                          </Text>}
+                    </TouchableOpacity>
+                  )}
+                  {subscription.proPackage && (
+                    <TouchableOpacity
+                      style={[upgradeStyles.ctaBtn, { backgroundColor: "hsl(45,100%,42%)", marginTop: hitLimitTier === "free" ? 8 : 0 }]}
+                      activeOpacity={0.82}
+                      disabled={subscription.isPurchasing}
+                      onPress={() => handleModalIAPPurchase(subscription.proPackage)}
+                    >
+                      {subscription.isPurchasing
+                        ? <ActivityIndicator color="#04081a" />
+                        : <Text style={upgradeStyles.ctaText}>
+                            Get Pro — {subscription.proPackage.product.priceString}/mo →
+                          </Text>}
+                    </TouchableOpacity>
+                  )}
+                  {!subscription.plusPackage && !subscription.proPackage && (
+                    <TouchableOpacity
+                      style={upgradeStyles.ctaBtn}
+                      activeOpacity={0.82}
+                      onPress={() => { setShowUpgradeModal(false); }}
+                    >
+                      <Text style={upgradeStyles.ctaText}>See plans in Settings →</Text>
+                    </TouchableOpacity>
+                  )}
+                </>
+              )
+            ) : (
+              /* Non-iOS: existing plan cards + web link */
+              <>
+                {hitLimitTier === "free" && (
+                  <View style={upgradeStyles.planCard}>
+                    <View style={upgradeStyles.planRow}>
+                      <View>
+                        <Text style={upgradeStyles.planName}>Plus</Text>
+                        <Text style={upgradeStyles.planDesc}>200 messages/day · image gen · memory</Text>
+                      </View>
+                      <Text style={[upgradeStyles.planPrice, { color: "hsl(193,100%,55%)" }]}>£9.99<Text style={upgradeStyles.planPer}>/mo</Text></Text>
+                    </View>
                   </View>
-                  <Text style={[upgradeStyles.planPrice, { color: "hsl(193,100%,55%)" }]}>£9.99<Text style={upgradeStyles.planPer}>/mo</Text></Text>
+                )}
+                <View style={upgradeStyles.planCard}>
+                  <View style={upgradeStyles.planRow}>
+                    <View>
+                      <Text style={upgradeStyles.planName}>Pro</Text>
+                      <Text style={upgradeStyles.planDesc}>Unlimited messages · priority speed</Text>
+                    </View>
+                    <Text style={[upgradeStyles.planPrice, { color: "hsl(45,100%,55%)" }]}>£19.99<Text style={upgradeStyles.planPer}>/mo</Text></Text>
+                  </View>
                 </View>
-              </View>
+                <TouchableOpacity
+                  style={upgradeStyles.ctaBtn}
+                  activeOpacity={0.82}
+                  onPress={() => { setShowUpgradeModal(false); Linking.openURL(UPGRADE_URL); }}
+                >
+                  <Text style={upgradeStyles.ctaText}>See plans at sirius-ai.live →</Text>
+                </TouchableOpacity>
+              </>
             )}
-            <View style={upgradeStyles.planCard}>
-              <View style={upgradeStyles.planRow}>
-                <View>
-                  <Text style={upgradeStyles.planName}>Pro</Text>
-                  <Text style={upgradeStyles.planDesc}>Unlimited messages · priority speed</Text>
-                </View>
-                <Text style={[upgradeStyles.planPrice, { color: "hsl(45,100%,55%)" }]}>£19.99<Text style={upgradeStyles.planPer}>/mo</Text></Text>
-              </View>
-            </View>
-
-            {/* CTA */}
-            <TouchableOpacity
-              style={upgradeStyles.ctaBtn}
-              activeOpacity={0.82}
-              onPress={() => {
-                setShowUpgradeModal(false);
-                Linking.openURL(UPGRADE_URL);
-              }}
-            >
-              <Text style={upgradeStyles.ctaText}>See plans at sirius-ai.live →</Text>
-            </TouchableOpacity>
 
             <TouchableOpacity
               style={upgradeStyles.dismissBtn}
