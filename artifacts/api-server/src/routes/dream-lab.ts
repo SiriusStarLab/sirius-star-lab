@@ -567,4 +567,89 @@ NEVER engage with harmful content. Keep everything high-vibration and constructi
   }
 });
 
+// ── POST /dream-lab/dreams/:dreamId/initiate ──────────────────────────────────
+// Sirius opens the conversation — no user message saved, only assistant reply
+router.post("/dream-lab/dreams/:dreamId/initiate", requireUser, async (req: Request, res: Response) => {
+  try {
+    const userId = req.headers["x-dream-user"] as string;
+    const dreamId = parseInt(req.params.dreamId as string);
+    if (isNaN(dreamId)) { res.status(400).json({ error: "Invalid dream ID" }); return; }
+
+    const [dream] = await db.select().from(dreamLabIdeas)
+      .where(and(eq(dreamLabIdeas.id, dreamId), eq(dreamLabIdeas.userId, userId)));
+    if (!dream) { res.status(404).json({ error: "Dream not found" }); return; }
+
+    const [profile] = await db.select().from(dreamLabProfiles)
+      .where(eq(dreamLabProfiles.userId, userId));
+
+    const stageDescriptions: Record<string, string> = {
+      seed:       "This dream is brand new — freshly planted. Open the conversation by reflecting the dream back to them with genuine curiosity and excitement. Ask a deep, specific question that will help them articulate WHY this dream matters and what it looks like when fully real.",
+      growing:    "This dream is GROWING — it has roots. Open by acknowledging the progress and asking what the most important next concrete step is.",
+      blooming:   "This dream is BLOOMING. Open by celebrating the momentum and asking what's working and what's the current edge they're pushing against.",
+      manifested: "This dream has MANIFESTED. Open with genuine celebration and ask them to reflect on what the journey taught them.",
+    };
+
+    const systemPrompt = `You are Sirius — a deeply engaged, warm, and brilliant intelligence partner. You are opening a Dream Lab conversation for the very first time with someone about their dream.
+
+DREAM:
+- Title: "${dream.title}"
+- Description: "${dream.description || "Not yet described"}"
+- Stage: ${dream.status?.toUpperCase() || "SEED"}
+- Energy level: ${dream.energyLevel}/10
+
+${stageDescriptions[dream.status || "seed"] || stageDescriptions.seed}
+
+${profile ? `WHO YOU ARE TALKING TO:
+- Name: ${profile.displayName || "this person"}
+- Their big dream: ${profile.bigDream || ""}
+- Personality: ${profile.personality || ""}
+- Core values: ${profile.coreValues || ""}
+- Manifestation style: ${profile.manifestationStyle || ""}` : ""}
+
+YOUR OPENING MESSAGE:
+- Start warm but direct — no generic openers
+- Reference something specific about THEIR dream title or description
+- Show you understand what this dream is really about
+- End with ONE powerful question that opens the conversation wide
+- Keep it to 3-4 short paragraphs maximum
+- Make them feel immediately heard and excited to talk`;
+
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+
+    const stream = await openai.chat.completions.create({
+      model: "anthropic/claude-sonnet-4.5",
+      stream: true,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: "Please open this dream conversation." },
+      ],
+      max_tokens: 800,
+      temperature: 0.9,
+    });
+
+    let fullReply = "";
+    for await (const chunk of stream) {
+      const text = chunk.choices[0]?.delta?.content || "";
+      if (text) {
+        fullReply += text;
+        res.write(`data: ${JSON.stringify({ text })}\n\n`);
+      }
+    }
+
+    if (fullReply) {
+      await db.insert(dreamLabMessages).values({
+        userId, dreamId, role: "assistant", content: fullReply,
+      });
+    }
+
+    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+    res.end();
+  } catch (err: any) {
+    res.write(`data: ${JSON.stringify({ error: err?.message })}\n\n`);
+    res.end();
+  }
+});
+
 export default router;

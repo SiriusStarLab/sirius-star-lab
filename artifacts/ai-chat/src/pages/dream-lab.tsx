@@ -391,43 +391,67 @@ function DreamConversation({
 
   useEffect(() => { setTitleDraft(dream.title); }, [dream.id, dream.title]);
 
-  // Load messages from DB when dream changes
+  // Load messages from DB when dream changes; auto-initiate if none exist
   useEffect(() => {
+    let cancelled = false;
     setMessages([]);
     setLoading(true);
     setStatusSuggestion(null);
     setChips([]);
+
     api.get(`dream-lab/dreams/${dream.id}/messages`).then(async r => {
-      if (r.ok) {
-        const data = await r.json();
-        if (data.length === 0) {
-          // First time opening this dream — Sirius introduces herself to it
-          setMessages([{
-            role: "assistant",
-            content: buildWelcome(dream, profile),
-          }]);
-        } else {
-          setMessages(data);
+      if (!r.ok || cancelled) return;
+      const data = await r.json();
+      if (data.length > 0) {
+        setMessages(data);
+        setLoading(false);
+      } else {
+        // No messages yet — Sirius generates a real opening
+        setLoading(false);
+        if (cancelled) return;
+        const assistantMsg: ChatMsg = { role: "assistant", content: "" };
+        setMessages([assistantMsg]);
+        setStreaming(true);
+        try {
+          const res = await fetch(`${base}dream-lab/dreams/${dream.id}/initiate`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-dream-user": userId },
+          });
+          if (!res.body || cancelled) { setStreaming(false); return; }
+          const reader = res.body.getReader();
+          const dec = new TextDecoder();
+          let buf = "";
+          let reply = "";
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done || cancelled) break;
+            buf += dec.decode(value, { stream: true });
+            const lines = buf.split("\n");
+            buf = lines.pop() || "";
+            for (const line of lines) {
+              if (!line.startsWith("data: ")) continue;
+              try {
+                const d = JSON.parse(line.slice(6));
+                if (d.text) {
+                  reply += d.text;
+                  if (!cancelled) setMessages([{ role: "assistant", content: reply }]);
+                }
+              } catch {}
+            }
+          }
+          if (!cancelled && reply) setChips(buildChips(reply));
+        } catch {} finally {
+          if (!cancelled) setStreaming(false);
         }
       }
-    }).catch(() => {}).finally(() => setLoading(false));
+    }).catch(() => setLoading(false));
+
+    return () => { cancelled = true; };
   }, [dream.id]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, streaming]);
-
-  function buildWelcome(d: Dream, p: DreamProfile | null): string {
-    const name = p?.displayName ? `${p.displayName}` : "you";
-    const lines = [
-      `Let's build this together. "${d.title}" — I love that you've named it.`,
-      d.description
-        ? `You said: *"${d.description}"* — that's the seed. There's already something alive in there.`
-        : `Tell me everything about it. What does this dream look like when it's fully real?`,
-      `What's alive in your mind about this right now — the excitement, the fear, the part you don't know how to start?`,
-    ];
-    return lines.join("\n\n");
-  }
 
   const detectStatusSuggestion = (text: string) => {
     const lower = text.toLowerCase();
