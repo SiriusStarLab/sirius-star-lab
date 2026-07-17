@@ -13,10 +13,10 @@ const PLANS = [
     color: "hsl(193,100%,45%)",
     icon: Zap,
     features: [
-      "200 messages per day",
-      "Image generation",
-      "Sirius remembers you",
-      "Full conversation history",
+      "75 messages per day",
+      "Dream Lab — build & track your dreams",
+      "Sirius remembers you across sessions",
+      "Full memory & personalisation",
       "Priority response speed",
     ],
   },
@@ -29,10 +29,10 @@ const PLANS = [
     color: "hsl(45,100%,52%)",
     icon: Star,
     features: [
-      "Unlimited messages",
-      "Unlimited image generation",
-      "Deep memory & personalisation",
-      "Priority speed",
+      "500 messages per day",
+      "Everything in Plus",
+      "Voice conversations",
+      "Telegram — Sirius messages you proactively",
       "Early access to new features",
     ],
     featured: true,
@@ -70,7 +70,6 @@ export function PricingPage() {
       color: "#fff",
       fontFamily: "Outfit, sans-serif",
     }}>
-      {/* Star field */}
       <div style={{
         position: "fixed", inset: 0, pointerEvents: "none",
         backgroundImage: `radial-gradient(circle, rgba(0,212,255,0.07) 1px, transparent 1px),
@@ -78,7 +77,6 @@ export function PricingPage() {
         backgroundSize: "56px 56px, 28px 28px",
         backgroundPosition: "0 0, 14px 14px",
       }} />
-      {/* Ambient glow */}
       <div style={{
         position: "fixed", top: -100, left: "50%", transform: "translateX(-50%)",
         width: 500, height: 500, pointerEvents: "none",
@@ -87,14 +85,12 @@ export function PricingPage() {
 
       <div style={{ position: "relative", zIndex: 1, maxWidth: 540, margin: "0 auto", padding: "40px 20px 60px" }}>
 
-        {/* Back link */}
         <a href="/" style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "rgba(255,255,255,0.35)", textDecoration: "none", fontSize: 13, marginBottom: 40 }}
           onMouseEnter={e => (e.currentTarget.style.color = "rgba(255,255,255,0.7)")}
           onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.35)")}>
           <ArrowLeft size={14} /> Back to Sirius
         </a>
 
-        {/* Header */}
         <div style={{ textAlign: "center", marginBottom: 44 }}>
           <div style={{
             display: "inline-flex", alignItems: "center", gap: 8,
@@ -108,11 +104,10 @@ export function PricingPage() {
             More messages.<br />More intelligence.
           </h1>
           <p style={{ fontSize: 15, color: "rgba(255,255,255,0.4)", lineHeight: 1.6 }}>
-            Start free with 30 messages a day — upgrade any time.<br />Cancel whenever you like.
+            Start free with 10 messages a day — upgrade any time.<br />Cancel whenever you like.
           </p>
         </div>
 
-        {/* Free tier reminder */}
         <div style={{
           background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
           borderRadius: 16, padding: "14px 18px", marginBottom: 18,
@@ -120,7 +115,7 @@ export function PricingPage() {
         }}>
           <div>
             <p style={{ fontWeight: 600, fontSize: 14, marginBottom: 2 }}>Free</p>
-            <p style={{ fontSize: 12, color: "rgba(255,255,255,0.35)" }}>30 messages per day · always free</p>
+            <p style={{ fontSize: 12, color: "rgba(255,255,255,0.35)" }}>10 messages per day · chat, wellbeing, learn & universe · always free</p>
           </div>
           <span style={{
             fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 999,
@@ -128,7 +123,6 @@ export function PricingPage() {
           }}>Current</span>
         </div>
 
-        {/* Paid plans */}
         {PLANS.map(plan => {
           const Icon = plan.icon;
           return (
@@ -205,7 +199,6 @@ export function PricingPage() {
           <p style={{ textAlign: "center", color: "hsl(0,80%,65%)", fontSize: 13, marginTop: 10 }}>{error}</p>
         )}
 
-        {/* Trust line */}
         <p style={{ textAlign: "center", fontSize: 12, color: "rgba(255,255,255,0.2)", marginTop: 24, lineHeight: 1.6 }}>
           Payments secured by Stripe · Cancel anytime from your account · No hidden fees
         </p>

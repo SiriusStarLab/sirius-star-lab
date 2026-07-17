@@ -1054,8 +1054,8 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
 
       // Check daily message limit
       const tier = dbProfile.subscriptionTier || "free";
-      const limits: Record<string, number> = { free: 30, plus: 200, pro: Infinity };
-      const limit = limits[tier] ?? 30;
+      const limits: Record<string, number> = { free: 10, plus: 75, pro: 500 };
+      const limit = limits[tier] ?? 10;
 
       if (limit !== Infinity) {
         const now = new Date();
@@ -1065,7 +1065,7 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
         const currentCount = needsReset ? 0 : parseInt(dbProfile.dailyMessageCount || "0", 10);
 
         if (currentCount >= limit) {
-          res.status(429).json({ error: "Daily message limit reached. Upgrade to send more messages.", tier, limit });
+          res.status(429).json({ error: `You've used all ${limit} of your free daily messages. Upgrade to Plus for 75/day, or Pro for 500/day.`, tier, limit });
           return;
         }
       }

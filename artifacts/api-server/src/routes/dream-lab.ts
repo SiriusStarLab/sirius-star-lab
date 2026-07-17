@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { eq, desc, and, asc } from "drizzle-orm";
-import { db, dreamLabProfiles, dreamLabIdeas, dreamLabManifestations, dreamLabJournal, dreamLabMessages } from "@workspace/db";
+import { db, dreamLabProfiles, dreamLabIdeas, dreamLabManifestations, dreamLabJournal, dreamLabMessages, userProfilesTable } from "@workspace/db";
 import { openai } from "@workspace/ai-client";
 
 const router: IRouter = Router();
@@ -13,6 +13,26 @@ function requireUser(req: Request, res: Response, next: () => void) {
     return;
   }
   next();
+}
+
+// ── Middleware: require paid tier (plus or pro) ───────────────────────────────
+async function requirePaid(req: Request, res: Response, next: () => void) {
+  const userId = req.headers["x-dream-user"] as string;
+  if (!userId || userId.length < 4) { res.status(401).json({ error: "User ID required" }); return; }
+  // Garry always gets access
+  if (userId === "garry") { next(); return; }
+  try {
+    const [profile] = await db.select({ tier: userProfilesTable.subscriptionTier })
+      .from(userProfilesTable).where(eq(userProfilesTable.userId, userId));
+    const tier = profile?.tier || "free";
+    if (tier === "free") {
+      res.status(403).json({ error: "Dream Lab is available on Plus and Pro plans.", upgrade: true });
+      return;
+    }
+    next();
+  } catch {
+    next();
+  }
 }
 
 // ── Content guard: reject dark/harmful material ───────────────────────────────
@@ -65,7 +85,7 @@ router.post("/dream-lab/profile", requireUser, async (req: Request, res: Respons
 });
 
 // ── GET /dream-lab/ideas ──────────────────────────────────────────────────────
-router.get("/dream-lab/ideas", requireUser, async (req: Request, res: Response) => {
+router.get("/dream-lab/ideas", requirePaid, async (req: Request, res: Response) => {
   try {
     const userId = req.headers["x-dream-user"] as string;
     const ideas = await db.select().from(dreamLabIdeas)
@@ -78,7 +98,7 @@ router.get("/dream-lab/ideas", requireUser, async (req: Request, res: Response) 
 });
 
 // ── POST /dream-lab/ideas ─────────────────────────────────────────────────────
-router.post("/dream-lab/ideas", requireUser, async (req: Request, res: Response) => {
+router.post("/dream-lab/ideas", requirePaid, async (req: Request, res: Response) => {
   try {
     const userId = req.headers["x-dream-user"] as string;
     const { title, description, category, colour, emoji, energyLevel } = req.body;
@@ -97,7 +117,7 @@ router.post("/dream-lab/ideas", requireUser, async (req: Request, res: Response)
 });
 
 // ── PUT /dream-lab/ideas/:id ──────────────────────────────────────────────────
-router.put("/dream-lab/ideas/:id", requireUser, async (req: Request, res: Response) => {
+router.put("/dream-lab/ideas/:id", requirePaid, async (req: Request, res: Response) => {
   try {
     const userId = req.headers["x-dream-user"] as string;
     const id = parseInt(req.params.id as string);
@@ -118,7 +138,7 @@ router.put("/dream-lab/ideas/:id", requireUser, async (req: Request, res: Respon
 });
 
 // ── DELETE /dream-lab/ideas/:id ───────────────────────────────────────────────
-router.delete("/dream-lab/ideas/:id", requireUser, async (req: Request, res: Response) => {
+router.delete("/dream-lab/ideas/:id", requirePaid, async (req: Request, res: Response) => {
   try {
     const userId = req.headers["x-dream-user"] as string;
     const id = parseInt(req.params.id as string);
@@ -131,7 +151,7 @@ router.delete("/dream-lab/ideas/:id", requireUser, async (req: Request, res: Res
 
 // ── POST /dream-lab/ideas/:id/sirius ─────────────────────────────────────────
 // Sirius enhances an idea — returns insight + affirmations (streaming)
-router.post("/dream-lab/ideas/:id/sirius", requireUser, async (req: Request, res: Response) => {
+router.post("/dream-lab/ideas/:id/sirius", requirePaid, async (req: Request, res: Response) => {
   try {
     const userId = req.headers["x-dream-user"] as string;
     const id = parseInt(req.params.id as string);
@@ -202,7 +222,7 @@ Format your response naturally — flowing prose, then list the affirmations cle
 
 // ── POST /dream-lab/sirius-chat ───────────────────────────────────────────────
 // General Sirius chat within Dream Lab (streaming)
-router.post("/dream-lab/sirius-chat", requireUser, async (req: Request, res: Response) => {
+router.post("/dream-lab/sirius-chat", requirePaid, async (req: Request, res: Response) => {
   try {
     const userId = req.headers["x-dream-user"] as string;
     const { message, history, systemPrompt: overrideSystemPrompt } = req.body;
@@ -299,7 +319,7 @@ NEVER engage with harmful, violent, exploitative, or hateful content. Gently red
 });
 
 // ── GET /dream-lab/manifestations ─────────────────────────────────────────────
-router.get("/dream-lab/manifestations", requireUser, async (req: Request, res: Response) => {
+router.get("/dream-lab/manifestations", requirePaid, async (req: Request, res: Response) => {
   try {
     const userId = req.headers["x-dream-user"] as string;
     const items = await db.select().from(dreamLabManifestations)
@@ -312,7 +332,7 @@ router.get("/dream-lab/manifestations", requireUser, async (req: Request, res: R
 });
 
 // ── POST /dream-lab/manifestations ────────────────────────────────────────────
-router.post("/dream-lab/manifestations", requireUser, async (req: Request, res: Response) => {
+router.post("/dream-lab/manifestations", requirePaid, async (req: Request, res: Response) => {
   try {
     const userId = req.headers["x-dream-user"] as string;
     const { text, type, frequency, ideaId } = req.body;
@@ -331,7 +351,7 @@ router.post("/dream-lab/manifestations", requireUser, async (req: Request, res: 
 });
 
 // ── DELETE /dream-lab/manifestations/:id ──────────────────────────────────────
-router.delete("/dream-lab/manifestations/:id", requireUser, async (req: Request, res: Response) => {
+router.delete("/dream-lab/manifestations/:id", requirePaid, async (req: Request, res: Response) => {
   try {
     const userId = req.headers["x-dream-user"] as string;
     const id = parseInt(req.params.id as string);
@@ -343,7 +363,7 @@ router.delete("/dream-lab/manifestations/:id", requireUser, async (req: Request,
 });
 
 // ── GET /dream-lab/journal ────────────────────────────────────────────────────
-router.get("/dream-lab/journal", requireUser, async (req: Request, res: Response) => {
+router.get("/dream-lab/journal", requirePaid, async (req: Request, res: Response) => {
   try {
     const userId = req.headers["x-dream-user"] as string;
     const entries = await db.select().from(dreamLabJournal)
@@ -357,7 +377,7 @@ router.get("/dream-lab/journal", requireUser, async (req: Request, res: Response
 });
 
 // ── DELETE /dream-lab/journal/:id ────────────────────────────────────────────
-router.delete("/dream-lab/journal/:id", requireUser, async (req: Request, res: Response) => {
+router.delete("/dream-lab/journal/:id", requirePaid, async (req: Request, res: Response) => {
   try {
     const userId = req.headers["x-dream-user"] as string;
     const id = parseInt(req.params.id as string);
@@ -369,7 +389,7 @@ router.delete("/dream-lab/journal/:id", requireUser, async (req: Request, res: R
 });
 
 // ── POST /dream-lab/journal ───────────────────────────────────────────────────
-router.post("/dream-lab/journal", requireUser, async (req: Request, res: Response) => {
+router.post("/dream-lab/journal", requirePaid, async (req: Request, res: Response) => {
   try {
     const userId = req.headers["x-dream-user"] as string;
     const { title, content, mood, tags } = req.body;
@@ -389,7 +409,7 @@ router.post("/dream-lab/journal", requireUser, async (req: Request, res: Respons
 
 // ── POST /dream-lab/generate-affirmations ─────────────────────────────────────
 // Sirius generates a batch of personalised affirmations
-router.post("/dream-lab/generate-affirmations", requireUser, async (req: Request, res: Response) => {
+router.post("/dream-lab/generate-affirmations", requirePaid, async (req: Request, res: Response) => {
   try {
     const userId = req.headers["x-dream-user"] as string;
     const { theme, count = 5 } = req.body;
@@ -436,7 +456,7 @@ Rules:
 
 // ── GET /dream-lab/dreams/:dreamId/messages ────────────────────────────────────
 // Load full conversation history for a specific dream
-router.get("/dream-lab/dreams/:dreamId/messages", requireUser, async (req: Request, res: Response) => {
+router.get("/dream-lab/dreams/:dreamId/messages", requirePaid, async (req: Request, res: Response) => {
   try {
     const userId = req.headers["x-dream-user"] as string;
     const dreamId = parseInt(req.params.dreamId as string);
@@ -459,7 +479,7 @@ router.get("/dream-lab/dreams/:dreamId/messages", requireUser, async (req: Reque
 
 // ── POST /dream-lab/dreams/:dreamId/chat ───────────────────────────────────────
 // Send a message about a dream — streams Sirius response, saves both to DB
-router.post("/dream-lab/dreams/:dreamId/chat", requireUser, async (req: Request, res: Response) => {
+router.post("/dream-lab/dreams/:dreamId/chat", requirePaid, async (req: Request, res: Response) => {
   try {
     const userId = req.headers["x-dream-user"] as string;
     const dreamId = parseInt(req.params.dreamId as string);
@@ -585,7 +605,7 @@ NEVER engage with harmful content. Keep everything high-vibration and constructi
 
 // ── POST /dream-lab/dreams/:dreamId/initiate ──────────────────────────────────
 // Sirius opens the conversation — no user message saved, only assistant reply
-router.post("/dream-lab/dreams/:dreamId/initiate", requireUser, async (req: Request, res: Response) => {
+router.post("/dream-lab/dreams/:dreamId/initiate", requirePaid, async (req: Request, res: Response) => {
   try {
     const userId = req.headers["x-dream-user"] as string;
     const dreamId = parseInt(req.params.dreamId as string);
