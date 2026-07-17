@@ -222,7 +222,7 @@ Format your response naturally — flowing prose, then list the affirmations cle
 
 // ── POST /dream-lab/sirius-chat ───────────────────────────────────────────────
 // General Sirius chat within Dream Lab (streaming)
-router.post("/dream-lab/sirius-chat", requirePaid, async (req: Request, res: Response) => {
+router.post("/dream-lab/sirius-chat", requireUser, async (req: Request, res: Response) => {
   try {
     const userId = req.headers["x-dream-user"] as string;
     const { message, history, systemPrompt: overrideSystemPrompt } = req.body;

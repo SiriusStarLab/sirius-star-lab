@@ -1022,6 +1022,7 @@ export function DreamLabPage() {
   const [loading, setLoading] = useState(true);
   const [showNewDream, setShowNewDream] = useState(false);
   const [onboarding, setOnboarding] = useState(false);
+  const [upgradeRequired, setUpgradeRequired] = useState(false);
   const [themeKey, setThemeKey] = useState<ThemeKey>(() => {
     try { return (localStorage.getItem("dream_theme") as ThemeKey) || "ocean"; } catch { return "ocean"; }
   });
@@ -1059,7 +1060,9 @@ export function DreamLabPage() {
       } else {
         setOnboarding(true);
       }
-      if (dRes.ok) {
+      if (dRes.status === 403) {
+        setUpgradeRequired(true);
+      } else if (dRes.ok) {
         const d = await dRes.json();
         setDreams(d);
         if (d.length > 0 && !selectedDream) {
@@ -1090,6 +1093,35 @@ export function DreamLabPage() {
           <p style={{ fontSize: "0.8rem", color: T.textFaint }}>Loading Dream Lab…</p>
         </div>
         <style>{`@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}`}</style>
+      </div>
+    );
+  }
+
+  if (upgradeRequired) {
+    return (
+      <div style={{
+        height: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+        background: "linear-gradient(160deg, #04081a 0%, #070d20 55%, #050e1b 100%)",
+        color: "#fff", fontFamily: "'Inter', system-ui, sans-serif", padding: "32px 24px", textAlign: "center",
+      }}>
+        <div style={{ fontSize: 52, marginBottom: 20 }}>🌱</div>
+        <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 10, lineHeight: 1.2 }}>Dream Lab is a Plus feature</h2>
+        <p style={{ fontSize: 15, color: "rgba(255,255,255,0.5)", maxWidth: 380, lineHeight: 1.65, marginBottom: 32 }}>
+          Dream Lab is where Sirius helps you build and track your dreams — with full memory, stage progression, and a dedicated space for every goal. Available on Plus and Pro.
+        </p>
+        <button
+          onClick={() => setLocation("/pricing")}
+          style={{
+            padding: "14px 32px", borderRadius: 12, border: "none",
+            background: "hsl(193,100%,45%)", color: "#04081a",
+            fontSize: 15, fontWeight: 700, cursor: "pointer",
+          }}>
+          Upgrade to Plus — £9.99/month
+        </button>
+        <button onClick={() => setLocation("/")} style={{
+          marginTop: 14, background: "none", border: "none", color: "rgba(255,255,255,0.3)",
+          fontSize: 13, cursor: "pointer",
+        }}>← Back to Sirius</button>
       </div>
     );
   }
