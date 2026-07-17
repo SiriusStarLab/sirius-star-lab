@@ -529,11 +529,14 @@ function DreamConversation({
                 return copy;
               });
             }
+            if (d.suggestStage) {
+              setStatusSuggestion(d.suggestStage);
+            }
           } catch {}
         }
       }
 
-      detectStatusSuggestion(reply);
+      if (!statusSuggestion) detectStatusSuggestion(reply);
       setChips(buildChips(reply));
     } finally {
       setStreaming(false);

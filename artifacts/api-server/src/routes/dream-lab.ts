@@ -559,6 +559,22 @@ NEVER engage with harmful content. Keep everything high-vibration and constructi
       });
     }
 
+    // Auto stage progression — count total messages and suggest next stage
+    const stageOrder = ["seed", "growing", "blooming", "manifested"];
+    const currentStage = dream.status || "seed";
+    const currentIdx = stageOrder.indexOf(currentStage);
+    const nextStage = stageOrder[currentIdx + 1];
+    if (nextStage) {
+      const totalMessages = await db.select().from(dreamLabMessages)
+        .where(and(eq(dreamLabMessages.userId, userId), eq(dreamLabMessages.dreamId, dreamId)));
+      // Thresholds: seed→growing at 8 msgs, growing→blooming at 20, blooming→manifested at 36
+      const thresholds: Record<string, number> = { seed: 8, growing: 20, blooming: 36 };
+      const threshold = thresholds[currentStage] ?? 999;
+      if (totalMessages.length >= threshold) {
+        res.write(`data: ${JSON.stringify({ suggestStage: nextStage })}\n\n`);
+      }
+    }
+
     res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
     res.end();
   } catch (err: any) {
