@@ -26,7 +26,7 @@ const BANK = {
 
 const PRICES: Record<string, { amount: string; label: string }> = {
   plus: { amount: "£9.99", label: "Sirius Plus" },
-  pro: { amount: "£14.99", label: "Sirius Pro" },
+  pro: { amount: "£19.99", label: "Sirius Pro" },
 };
 
 // GET /api/payment/bank — return bank details

@@ -21,8 +21,8 @@ router.get("/subscription/:userId", async (req, res) => {
     const tier = profile?.subscriptionTier || "free";
     const dailyCount = parseInt(profile?.dailyMessageCount || "0", 10);
 
-    const limits: Record<string, number | null> = { free: 30, plus: 200, pro: null };
-    const limit = limits[tier] ?? 30;
+    const limits: Record<string, number> = { free: 10, plus: 75, pro: 500 };
+    const limit = limits[tier] ?? 10;
 
     return res.json({
       tier,
