@@ -6304,7 +6304,7 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
         // ── 5b. AI integration connectivity ─────────────────────────────────
         try {
           // Always route through OpenRouter for cost control — never call Anthropic directly
-          const aiEndpoint = "https://openrouter.ai/api/v1/chat/completions";
+          const aiEndpoint = `${process.env["OPENROUTER_BASE_URL"] || "https://openrouter.ai/api/v1"}/chat/completions`;
           const aiHeaders: Record<string, string> = {
             "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
             "Content-Type": "application/json",

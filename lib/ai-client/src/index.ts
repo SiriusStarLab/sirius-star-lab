@@ -22,7 +22,7 @@ const _baseClient = new OpenAI({
     : (process.env.OPENROUTER_API_KEY ?? "missing-key"),
   baseURL: usingDirect
     ? "https://api.anthropic.com/v1"
-    : "https://openrouter.ai/api/v1",
+    : (process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1"),
   defaultHeaders: usingDirect
     ? { "anthropic-version": "2023-06-01" }
     : {

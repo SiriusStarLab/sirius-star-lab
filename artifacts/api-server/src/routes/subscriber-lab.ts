@@ -277,7 +277,8 @@ async function executeTool(
     case "search_web": {
       const depth = args.depth === "deep" ? "deep" : "standard";
       const model = depth === "deep" ? "perplexity/sonar-pro" : "perplexity/sonar";
-      const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      const orBase = process.env["OPENROUTER_BASE_URL"] || "https://openrouter.ai/api/v1";
+      const r = await fetch(`${orBase}/chat/completions`, {
         method: "POST",
         headers: { Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({ model, messages: [{ role: "user", content: args.query }], max_tokens: depth === "deep" ? 2000 : 1000 }),
@@ -423,7 +424,8 @@ router.post("/creator-lab/chat", async (req, res) => {
     while (round < MAX_TOOL_ROUNDS) {
       round++;
 
-      const apiRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      const orBase2 = process.env["OPENROUTER_BASE_URL"] || "https://openrouter.ai/api/v1";
+      const apiRes = await fetch(`${orBase2}/chat/completions`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,

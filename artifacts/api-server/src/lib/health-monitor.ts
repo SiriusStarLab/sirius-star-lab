@@ -45,7 +45,8 @@ async function checkOpenRouter(): Promise<CheckResult> {
   const key = process.env["OPENROUTER_API_KEY"] || process.env["AI_INTEGRATIONS_OPENAI_API_KEY"];
   if (!key) return { name: "openrouter", status: "warn", detail: "No API key configured" };
   try {
-    const res = await fetch("https://openrouter.ai/api/v1/models", {
+    const orBase = process.env["OPENROUTER_BASE_URL"] || "https://openrouter.ai/api/v1";
+    const res = await fetch(`${orBase}/models`, {
       headers: { Authorization: `Bearer ${key}` },
       signal: AbortSignal.timeout(8000),
     });
