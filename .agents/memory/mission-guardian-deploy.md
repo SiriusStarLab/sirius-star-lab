@@ -44,7 +44,7 @@ pm2 logs sirius-api --lines 20 --nostream | grep Guardian
 curl -s -X POST http://localhost:4000/api/auth/request-reset \
   -H "Content-Type: application/json" \
   -H "User-Agent: Mozilla/5.0 (iPhone; CPU iPhone OS 17_0)" \
-  -d '{"email":"huttongarry4@gmail.com"}'
+  -d '{"email":"<owner-email>"}'
 # Should return: {"ok":true}
 ```
 

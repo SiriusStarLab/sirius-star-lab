@@ -24,3 +24,5 @@
 - [Anthropic direct API quirks](anthropic-direct-api-quirks.md) — response_format json_object = 400 error on Anthropic/OpenRouter Claude models; never use it. Piper needs stdout.resume(). ANTHROPIC_API_KEY must be empty string in ecosystem to force OpenRouter fallback.
 - [Sirius app-deployer stub rules](sirius-app-deployer-stubs.md) — workspace stripping, named-export stubs, vite base URL, basename in BrowserRouter, screenshot tool timing quirk.
 - [Mission Guardian deploy protocol](mission-guardian-deploy.md) — EXPECTED_MODEL="anthropic/claude-opus-4.8" (dot not dash); bundleModel() uses multi-pattern+env-var fallback; pre-set baseline hash in DB before PM2 restart; use `pm2 reload ecosystem.config.json --update-env` to pick up new env vars.
+- [Sirius AI Router](sirius-ai-router.md) — mini OpenRouter proxy at localhost:5000; all Sirius AI calls now route through it for cost tracking.
+- [PM2 ecosystem env reload](pm2-ecosystem-env-reload.md) — `pm2 restart --update-env` reads from PM2 dump, NOT ecosystem.config.json; new env vars require stop/delete/start from the file.
