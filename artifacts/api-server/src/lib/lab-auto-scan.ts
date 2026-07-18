@@ -389,6 +389,12 @@ export async function triggerAutoBuildForProject(
   brief: string,
   industry: string,
 ): Promise<void> {
+  // Kill switch — disabled to prevent runaway API spend
+  if (process.env.AUTO_BUILD_ENABLED !== "true") {
+    console.log(`[Auto-Build] DISABLED — skipping "${name}". Set AUTO_BUILD_ENABLED=true to re-enable.`);
+    return;
+  }
+
   if (!isSoftwareBuildable(name, brief)) {
     console.log(`[Auto-Build] Skipping "${name}" — not a software product`);
     return;
