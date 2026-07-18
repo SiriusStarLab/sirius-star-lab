@@ -293,3 +293,9 @@ id = "Z_N_XwnJaAaxim3gI1glM"
 uri = "file://sirius-appstore-guide.pdf"
 type = "pdf"
 title = "Sirius Star Lab — Apple App Store Submission Guide"
+
+[[outputs]]
+id = "xTR_3TH37H2xAjF6TmQts"
+uri = "file://.local/exports/mini-openrouter.pdf"
+type = "pdf"
+title = "Mini OpenRouter — Build Specification"

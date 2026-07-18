@@ -8387,20 +8387,15 @@ export function StarLabPage() {
 
   const ALL_NAV_ITEMS = [
     // COMMAND
-    { id: "orchestrate" as NavMode, label: "Command Centre",  icon: Zap,             color: "hsl(193,100%,60%)", category: "command",      guestAllowed: false, badge: true },
     { id: "dashboard" as NavMode,  label: "Dashboard",        icon: LayoutDashboard, color: "hsl(193,100%,45%)", category: "command",      guestAllowed: true  },
     { id: "labchat"   as NavMode,  label: "Chat with Sirius", icon: MessageSquare,   color: "hsl(193,100%,50%)", category: "command",      guestAllowed: true  },
-    { id: "sysaudit"  as NavMode,  label: "System Audit",     icon: ShieldAlert,     color: "hsl(210,80%,55%)",  category: "command",      guestAllowed: false },
-    { id: "upgrades"  as NavMode,  label: "Sirius Upgrades",  icon: Package,         color: "hsl(280,80%,58%)",  category: "command",      guestAllowed: false },
-    { id: "tasks"     as NavMode,  label: "Background Tasks", icon: Clock,            color: "hsl(193,100%,45%)", category: "command",      guestAllowed: false },
-    { id: "team"      as NavMode,  label: "Team Access",      icon: Users,            color: "hsl(193,100%,50%)", category: "command",      guestAllowed: false },
     { id: "mission"   as NavMode,  label: "Mission",          icon: Star,            color: "hsl(193,100%,50%)", category: "command",      guestAllowed: true  },
+    { id: "tasks"     as NavMode,  label: "Background Tasks", icon: Clock,            color: "hsl(193,100%,45%)", category: "command",      guestAllowed: false },
+    { id: "sysaudit"  as NavMode,  label: "System Audit",     icon: ShieldAlert,     color: "hsl(210,80%,55%)",  category: "command",      guestAllowed: false },
+    { id: "team"      as NavMode,  label: "Team Access",      icon: Users,            color: "hsl(193,100%,50%)", category: "command",      guestAllowed: false },
     // BUILD
-    { id: "appbuilder" as NavMode, label: "App Builder",      icon: Rocket,          color: "hsl(155,70%,42%)",  category: "build",        guestAllowed: false },
     { id: "projects"   as NavMode, label: "Projects",         icon: FolderOpen,      color: "hsl(155,60%,38%)",  category: "build",        guestAllowed: true  },
-    { id: "botlab"     as NavMode, label: "Bot Lab",          icon: Bot,             color: "hsl(280,70%,55%)",  category: "build",        guestAllowed: false },
     { id: "autolab"    as NavMode, label: "Autonomous Lab",   icon: Cpu,             color: "hsl(155,50%,40%)",  category: "build",        guestAllowed: false },
-    { id: "ai-arch"  as NavMode,   label: "AI Architecture",  icon: Layers,          color: "hsl(155,60%,38%)",  category: "build",        guestAllowed: false },
     // INTELLIGENCE
     { id: "scout"    as NavMode,   label: "Scout",            icon: Telescope,       color: "hsl(45,100%,45%)",  category: "intelligence", guestAllowed: true  },
     { id: "feed"     as NavMode,   label: "AI Intelligence",  icon: Atom,            color: "hsl(210,80%,55%)",  category: "intelligence", guestAllowed: true,  badge: true },
@@ -8408,12 +8403,7 @@ export function StarLabPage() {
     { id: "docs"     as NavMode,   label: "Document Intel",   icon: FileSearch,      color: "hsl(210,90%,55%)",  category: "intelligence", guestAllowed: true  },
     { id: "brain"    as NavMode,   label: "Sirius Brain",     icon: Brain,           color: "hsl(280,70%,65%)",  category: "intelligence", guestAllowed: false },
     // REVENUE
-    { id: "revenue"  as NavMode,   label: "Revenue Hub",      icon: Banknote,        color: "hsl(155,70%,45%)",  category: "revenue",      guestAllowed: false },
-    { id: "commerce" as NavMode,   label: "Commerce Lab",     icon: TrendingUp,      color: "hsl(25,90%,55%)",   category: "revenue",      guestAllowed: false },
     { id: "grants"   as NavMode,   label: "Funding Radar",    icon: BadgeCheck,      color: "hsl(155,70%,45%)",  category: "revenue",      guestAllowed: false, pending: anyPendingFunding },
-    { id: "agency"   as NavMode,   label: "Agency Hub",       icon: Briefcase,       color: "hsl(220,80%,55%)",  category: "revenue",      guestAllowed: false },
-    { id: "growth"   as NavMode,   label: "Growth Engine",    icon: Globe,           color: "hsl(155,70%,50%)",  category: "revenue",      guestAllowed: false },
-    { id: "outreach" as NavMode,   label: "Outreach Hub",     icon: Mail,            color: "hsl(340,80%,60%)",  category: "revenue",      guestAllowed: false },
   ];
   const NAV_ITEMS = isGuest ? ALL_NAV_ITEMS.filter(n => n.guestAllowed) : ALL_NAV_ITEMS;
 
