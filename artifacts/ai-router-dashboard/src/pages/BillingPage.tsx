@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 import { getBalance, getPlans, buyCredits, type Plan, type CreditPack } from "../api.ts";
 
+function toTokens(usd: number) {
+  return Math.round(usd * 100).toLocaleString();
+}
+
 export function BillingPage() {
   const [balance, setBalance]   = useState(0);
   const [plan, setPlan]         = useState("dev");
@@ -14,7 +18,6 @@ export function BillingPage() {
       .then(([b, p]) => { setBalance(b.balanceUsd); setPlan(b.plan); setPlans(p.plans); setPacks(p.creditPacks); })
       .finally(() => setLoading(false));
 
-    // Handle Stripe success redirect
     if (window.location.search.includes("success=1")) {
       getBalance().then(b => setBalance(b.balanceUsd));
     }
@@ -34,38 +37,43 @@ export function BillingPage() {
 
   if (loading) return <div className="p-8 text-slate-400">Loading…</div>;
 
+  const LOW_TOKENS = 500;
+  const balanceTokens = Math.round(balance * 100);
+
   return (
     <div className="p-8 max-w-3xl">
       <h1 className="text-2xl font-bold text-white mb-1">Billing</h1>
-      <p className="text-slate-400 text-sm mb-8">Manage your credits and subscription.</p>
+      <p className="text-slate-400 text-sm mb-8">Manage your tokens and subscription.</p>
 
-      {/* Balance */}
+      {/* Token balance */}
       <div className="bg-[#18181f] border border-[#2a2a35] rounded-xl p-6 mb-8 flex items-center justify-between">
         <div>
-          <p className="text-xs text-slate-500 uppercase tracking-wider font-medium">Current balance</p>
-          <p className={`text-4xl font-bold mt-1 ${balance < 5 ? "text-red-400" : "text-green-400"}`}>
-            ${balance.toFixed(2)}
+          <p className="text-xs text-slate-500 uppercase tracking-wider font-medium">Token balance</p>
+          <p className={`text-4xl font-bold mt-1 ${balanceTokens < LOW_TOKENS ? "text-red-400" : "text-green-400"}`}>
+            {toTokens(balance)} <span className="text-xl font-normal text-slate-400">tokens</span>
           </p>
-          <p className="text-xs text-slate-500 mt-1 capitalize">{plan} plan</p>
+          <p className="text-xs text-slate-500 mt-1 capitalize">{plan} plan · 100 tokens = $1</p>
         </div>
-        {balance < 5 && (
+        {balanceTokens < LOW_TOKENS && (
           <div className="text-right">
             <span className="text-2xl">⚠️</span>
-            <p className="text-red-400 text-xs mt-1">Low balance</p>
+            <p className="text-red-400 text-xs mt-1">Low tokens</p>
           </div>
         )}
       </div>
 
-      {/* Credit packs */}
-      <h2 className="text-base font-semibold text-white mb-4">Top up credits</h2>
+      {/* Token packs */}
+      <h2 className="text-base font-semibold text-white mb-4">Top up tokens</h2>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-10">
         {packs.map(pack => (
           <button key={pack.id}
             onClick={() => handleBuy(pack.id)}
             disabled={!!buying}
             className="bg-[#18181f] border border-[#2a2a35] hover:border-indigo-500/50 rounded-xl p-4 text-left transition-all disabled:opacity-50 group">
-            <p className="text-xl font-bold text-white group-hover:text-indigo-300 transition-colors">${pack.credits}</p>
-            <p className="text-xs text-slate-400 mt-0.5">{pack.label}</p>
+            <p className="text-xl font-bold text-white group-hover:text-indigo-300 transition-colors">
+              {(pack.credits * 100).toLocaleString()} tk
+            </p>
+            <p className="text-xs text-slate-400 mt-0.5">${pack.usd}</p>
             <p className="text-xs text-slate-500 mt-3">{buying === pack.id ? "Redirecting…" : "Pay with card →"}</p>
           </button>
         ))}

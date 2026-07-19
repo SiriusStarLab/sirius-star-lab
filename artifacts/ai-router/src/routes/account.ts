@@ -46,7 +46,7 @@ accountRouter.get("/me", async (req: Request, res: Response): Promise<void> => {
   res.json({
     ...customer,
     balanceUsd: Number(customer.balanceUsd),
-    ...(bonusJustApplied && { loyaltyBonusApplied: true, message: "$5 loyalty credit added — thank you for 3 months with Sirius!" }),
+    ...(bonusJustApplied && { loyaltyBonusApplied: true, message: "500 tokens added to your account — thank you for 3 months with Sirius!" }),
   });
 });
 
@@ -236,7 +236,7 @@ accountRouter.post("/plan", async (req: Request, res: Response): Promise<void> =
     plan,
     balanceUsd: Number(customer.balanceUsd),
     message: plan === "pro" && firstTimePro
-      ? "Welcome to Pro! Stay subscribed for 3 months and a $5 loyalty credit will be added to your account automatically."
+      ? "Welcome to Pro! Stay subscribed for 3 months and 500 bonus tokens will be added to your account automatically."
       : undefined,
   });
 });

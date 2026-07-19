@@ -1,8 +1,12 @@
 import { useEffect, useState } from "react";
 import { getMe, getUsage, type Customer, type UsageData } from "../api.ts";
-import { Zap, DollarSign, Database, TrendingUp } from "lucide-react";
+import { Zap, Coins, Database, TrendingUp } from "lucide-react";
 
 const PERIODS = ["today", "week", "month"] as const;
+
+function toTokens(usd: number) {
+  return Math.round(usd * 100).toLocaleString();
+}
 
 export function OverviewPage() {
   const [customer, setCustomer]   = useState<Customer | null>(null);
@@ -23,6 +27,8 @@ export function OverviewPage() {
   const totalReqs = usage?.totals?.totalRequests ?? 0;
   const cached    = usage?.totals?.cachedHits ?? 0;
   const cacheRate = totalReqs > 0 ? Math.round((cached / totalReqs) * 100) : 0;
+  const LOW_TOKENS = 500;
+  const balanceTokens = Math.round(balance * 100);
 
   return (
     <div className="p-8 max-w-5xl">
@@ -47,10 +53,10 @@ export function OverviewPage() {
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {[
-          { label: "Balance",      value: `$${balance.toFixed(2)}`,  icon: DollarSign, color: balance < 5 ? "text-red-400" : "text-green-400"  },
-          { label: "Cost",         value: `$${Number(totalCost).toFixed(4)}`, icon: TrendingUp, color: "text-orange-400" },
-          { label: "Requests",     value: totalReqs.toLocaleString(), icon: Zap,         color: "text-indigo-400" },
-          { label: "Cache hit %",  value: `${cacheRate}%`,            icon: Database,    color: "text-cyan-400" },
+          { label: "Tokens",       value: `${toTokens(balance)} tk`,            icon: Coins,      color: balanceTokens < LOW_TOKENS ? "text-red-400" : "text-green-400" },
+          { label: "Cost",         value: `$${Number(totalCost).toFixed(4)}`,   icon: TrendingUp, color: "text-orange-400" },
+          { label: "Requests",     value: totalReqs.toLocaleString(),            icon: Zap,        color: "text-indigo-400" },
+          { label: "Cache hit %",  value: `${cacheRate}%`,                       icon: Database,   color: "text-cyan-400" },
         ].map(({ label, value, icon: Icon, color }) => (
           <div key={label} className="bg-[#18181f] border border-[#2a2a35] rounded-xl p-5">
             <div className="flex items-center justify-between mb-3">
@@ -62,14 +68,14 @@ export function OverviewPage() {
         ))}
       </div>
 
-      {/* Balance warning */}
-      {balance < 5 && (
+      {/* Token warning */}
+      {balanceTokens < LOW_TOKENS && (
         <div className="mb-6 bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex items-center gap-3">
           <span className="text-red-400 text-xl">⚠️</span>
           <div>
-            <p className="text-red-300 font-medium text-sm">Low balance — ${balance.toFixed(2)} remaining</p>
+            <p className="text-red-300 font-medium text-sm">Low tokens — {toTokens(balance)} remaining</p>
             <p className="text-red-400/70 text-xs mt-0.5">
-              <a href="/dashboard/billing" className="underline">Top up credits</a> to keep your API working.
+              <a href="/dashboard/billing" className="underline">Top up tokens</a> to keep your API working.
             </p>
           </div>
         </div>
