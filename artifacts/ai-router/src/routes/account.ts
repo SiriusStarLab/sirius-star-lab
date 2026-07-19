@@ -11,16 +11,43 @@ accountRouter.use(requireAuth);
 const PLAN_RPM: Record<string, number> = { dev: 60, pro: 300, business: 1000 };
 const PLAN_MAX_KEYS: Record<string, number> = { dev: 3, pro: 10, business: 999 };
 
-// GET /account/me
+// GET /account/me — also auto-applies $5 loyalty bonus on month 3 of Pro
 accountRouter.get("/me", async (req: Request, res: Response): Promise<void> => {
   const [customer] = await db.select({
     id: schema.customers.id, email: schema.customers.email,
     plan: schema.customers.plan, balanceUsd: schema.customers.balanceUsd,
+    loyaltyBonusClaimed: schema.customers.loyaltyBonusClaimed,
+    proSince: schema.customers.proSince,
     createdAt: schema.customers.createdAt,
   }).from(schema.customers).where(eq(schema.customers.id, req.customerId!)).limit(1);
 
   if (!customer) { res.status(404).json({ error: "Not found" }); return; }
-  res.json(customer);
+
+  // Auto-apply $5 loyalty bonus when they've been on Pro for 3+ months
+  let bonusJustApplied = false;
+  if (
+    customer.plan === "pro" &&
+    !customer.loyaltyBonusClaimed &&
+    customer.proSince
+  ) {
+    const threeMonthsAgo = new Date();
+    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+    if (new Date(customer.proSince) <= threeMonthsAgo) {
+      const newBalance = Number(customer.balanceUsd) + 5;
+      await db.update(schema.customers)
+        .set({ loyaltyBonusClaimed: true, balanceUsd: String(newBalance) })
+        .where(eq(schema.customers.id, req.customerId!));
+      customer.balanceUsd = String(newBalance);
+      customer.loyaltyBonusClaimed = true;
+      bonusJustApplied = true;
+    }
+  }
+
+  res.json({
+    ...customer,
+    balanceUsd: Number(customer.balanceUsd),
+    ...(bonusJustApplied && { loyaltyBonusApplied: true, message: "$5 loyalty credit added — thank you for 3 months with Sirius!" }),
+  });
 });
 
 // GET /account/usage?period=today|week|month
@@ -188,30 +215,28 @@ accountRouter.post("/plan", async (req: Request, res: Response): Promise<void> =
     plan: schema.customers.plan,
     balanceUsd: schema.customers.balanceUsd,
     loyaltyBonusClaimed: schema.customers.loyaltyBonusClaimed,
+    proSince: schema.customers.proSince,
   }).from(schema.customers).where(eq(schema.customers.id, req.customerId!)).limit(1);
 
   if (!customer) { res.status(404).json({ error: "Not found" }); return; }
   if (customer.plan === plan) { res.status(400).json({ error: "Already on that plan" }); return; }
 
-  // $5 loyalty bonus — only ever paid out once, no matter how many times they upgrade/downgrade
-  const upgradingToPro = plan === "pro";
-  const bonusEligible  = upgradingToPro && !customer.loyaltyBonusClaimed;
-  const loyaltyBonus   = bonusEligible ? 5 : 0;
-  const newBalance     = Number(customer.balanceUsd) + loyaltyBonus;
+  // Record pro_since only on the first-ever upgrade to Pro (never overwrite it)
+  const firstTimePro = plan === "pro" && !customer.proSince;
 
   await db.update(schema.customers)
     .set({
       plan,
-      balanceUsd: String(newBalance),
-      ...(bonusEligible && { loyaltyBonusClaimed: true }),
+      ...(firstTimePro && { proSince: new Date() }),
     })
     .where(eq(schema.customers.id, req.customerId!));
 
   res.json({
     ok: true,
     plan,
-    balanceUsd: newBalance,
-    bonusApplied: loyaltyBonus,
-    message: loyaltyBonus > 0 ? `$${loyaltyBonus} loyalty credit added to your balance` : undefined,
+    balanceUsd: Number(customer.balanceUsd),
+    message: plan === "pro" && firstTimePro
+      ? "Welcome to Pro! Stay subscribed for 3 months and a $5 loyalty credit will be added to your account automatically."
+      : undefined,
   });
 });

@@ -12,6 +12,7 @@ export const customers = pgTable("router_customers", {
   spendAlertThreshold:  numeric("spend_alert_threshold", { precision: 10, scale: 2 }), // alert when balance drops below
   spendAlertSentAt:     timestamp("spend_alert_sent_at"),
   loyaltyBonusClaimed:  boolean("loyalty_bonus_claimed").notNull().default(false),
+  proSince:             timestamp("pro_since"),   // set when first upgrading to Pro; used for month-3 loyalty bonus
   createdAt:            timestamp("created_at").defaultNow().notNull(),
 });
 
