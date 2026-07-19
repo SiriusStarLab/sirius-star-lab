@@ -126,6 +126,7 @@ async function migrate() {
     );
 
     -- Add missing columns BEFORE creating indexes that depend on them
+    ALTER TABLE router_customers ADD COLUMN IF NOT EXISTS loyalty_bonus_claimed BOOLEAN NOT NULL DEFAULT false;
     ALTER TABLE router_requests ADD COLUMN IF NOT EXISTS customer_id    INTEGER;
     ALTER TABLE router_requests ADD COLUMN IF NOT EXISTS api_key_id     INTEGER;
     ALTER TABLE router_requests ADD COLUMN IF NOT EXISTS api_key_name   TEXT;

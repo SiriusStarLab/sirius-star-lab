@@ -11,6 +11,7 @@ export const customers = pgTable("router_customers", {
   stripeSubscriptionId: text("stripe_subscription_id"),
   spendAlertThreshold:  numeric("spend_alert_threshold", { precision: 10, scale: 2 }), // alert when balance drops below
   spendAlertSentAt:     timestamp("spend_alert_sent_at"),
+  loyaltyBonusClaimed:  boolean("loyalty_bonus_claimed").notNull().default(false),
   createdAt:            timestamp("created_at").defaultNow().notNull(),
 });
 

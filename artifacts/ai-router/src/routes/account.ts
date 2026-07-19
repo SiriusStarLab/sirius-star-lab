@@ -187,17 +187,24 @@ accountRouter.post("/plan", async (req: Request, res: Response): Promise<void> =
   const [customer] = await db.select({
     plan: schema.customers.plan,
     balanceUsd: schema.customers.balanceUsd,
+    loyaltyBonusClaimed: schema.customers.loyaltyBonusClaimed,
   }).from(schema.customers).where(eq(schema.customers.id, req.customerId!)).limit(1);
 
   if (!customer) { res.status(404).json({ error: "Not found" }); return; }
   if (customer.plan === plan) { res.status(400).json({ error: "Already on that plan" }); return; }
 
-  const upgradingFromDevToPro = customer.plan === "dev" && plan === "pro";
-  const loyaltyBonus = upgradingFromDevToPro ? 5 : 0;
-  const newBalance = Number(customer.balanceUsd) + loyaltyBonus;
+  // $5 loyalty bonus — only ever paid out once, no matter how many times they upgrade/downgrade
+  const upgradingToPro = plan === "pro";
+  const bonusEligible  = upgradingToPro && !customer.loyaltyBonusClaimed;
+  const loyaltyBonus   = bonusEligible ? 5 : 0;
+  const newBalance     = Number(customer.balanceUsd) + loyaltyBonus;
 
   await db.update(schema.customers)
-    .set({ plan, balanceUsd: String(newBalance) })
+    .set({
+      plan,
+      balanceUsd: String(newBalance),
+      ...(bonusEligible && { loyaltyBonusClaimed: true }),
+    })
     .where(eq(schema.customers.id, req.customerId!));
 
   res.json({
