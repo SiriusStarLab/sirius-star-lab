@@ -2,8 +2,9 @@ import { Router } from "express";
 import type { Request, Response } from "express";
 import { requireApiKey } from "../middleware/auth.js";
 import { rateLimitByKey } from "../middleware/rateLimit.js";
-import { resolveRoute, calcCost, calcCharge } from "../routing.js";
+import { resolveRoute, calcCost, calcCostFromActual, calcCharge } from "../routing.js";
 import { streamOpenRouter, chatOpenRouter } from "../providers/openrouter.js";
+import type { UsageResult } from "../providers/openrouter.js";
 import { streamOpenAI, chatOpenAI } from "../providers/openai.js";
 import { streamAnthropic } from "../providers/anthropic.js";
 import { db, schema } from "../db/index.js";
@@ -142,11 +143,16 @@ chatRouter.post("/chat/completions", requireApiKey, rateLimitByKey, async (req: 
     // ── Non-streaming ──────────────────────────────────────────────────────
     if (!doStream) {
       try {
-        let result: { content: string; usage: { prompt_tokens: number; completion_tokens: number } };
-        if (route.provider === "openai") result = await chatOpenAI(tryBody);
-        else result = await chatOpenRouter(tryBody);
+        // chatOpenRouter now returns actual_cost_usd when available
+        let result: { content: string; usage: UsageResult };
+        if (route.provider === "openai") {
+          const r = await chatOpenAI(tryBody);
+          result = { content: r.content, usage: { ...r.usage, actual_cost_usd: null } };
+        } else {
+          result = await chatOpenRouter(tryBody);
+        }
 
-        const cost    = calcCost(route, result.usage.prompt_tokens, result.usage.completion_tokens);
+        const cost    = calcCostFromActual(route, result.usage.prompt_tokens, result.usage.completion_tokens, result.usage.actual_cost_usd);
         const charged = calcCharge(cost);
         if (req.customerId) await deductCredits(req.customerId, charged);
 
@@ -204,8 +210,10 @@ chatRouter.post("/chat/completions", requireApiKey, rateLimitByKey, async (req: 
       res.write(`data: ${JSON.stringify(payload)}\n\n`);
     };
 
-    const onDone = async (usage: { prompt_tokens: number; completion_tokens: number }) => {
-      const cost    = calcCost(route, usage.prompt_tokens, usage.completion_tokens);
+    // Handles both UsageResult (OpenRouter, with actual_cost_usd) and plain token counts (Anthropic/OpenAI)
+    const onDone = async (usage: UsageResult | { prompt_tokens: number; completion_tokens: number }) => {
+      const actualCost = "actual_cost_usd" in usage ? usage.actual_cost_usd : null;
+      const cost    = calcCostFromActual(route, usage.prompt_tokens, usage.completion_tokens, actualCost);
       const charged = calcCharge(cost);
       if (req.customerId) await deductCredits(req.customerId, charged);
       res.write(`data: [DONE]\n\n`);
@@ -245,4 +253,6 @@ chatRouter.post("/chat/completions", requireApiKey, rateLimitByKey, async (req: 
     res.end();
     return;
   }
+
+  void finalModel; // suppress unused var warning
 });
