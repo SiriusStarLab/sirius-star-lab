@@ -176,3 +176,35 @@ accountRouter.delete("/fallbacks/:id", async (req: Request, res: Response): Prom
     .where(and(eq(schema.routerFallbacks.id, Number(req.params.id)), eq(schema.routerFallbacks.customerId, req.customerId!)));
   res.json({ ok: true });
 });
+
+// POST /account/plan — upgrade plan, apply dev→pro $5 loyalty bonus
+accountRouter.post("/plan", async (req: Request, res: Response): Promise<void> => {
+  const { plan } = req.body as { plan?: string };
+  if (!plan || !["dev", "pro", "business"].includes(plan)) {
+    res.status(400).json({ error: "plan must be dev, pro, or business" }); return;
+  }
+
+  const [customer] = await db.select({
+    plan: schema.customers.plan,
+    balanceUsd: schema.customers.balanceUsd,
+  }).from(schema.customers).where(eq(schema.customers.id, req.customerId!)).limit(1);
+
+  if (!customer) { res.status(404).json({ error: "Not found" }); return; }
+  if (customer.plan === plan) { res.status(400).json({ error: "Already on that plan" }); return; }
+
+  const upgradingFromDevToPro = customer.plan === "dev" && plan === "pro";
+  const loyaltyBonus = upgradingFromDevToPro ? 5 : 0;
+  const newBalance = Number(customer.balanceUsd) + loyaltyBonus;
+
+  await db.update(schema.customers)
+    .set({ plan, balanceUsd: String(newBalance) })
+    .where(eq(schema.customers.id, req.customerId!));
+
+  res.json({
+    ok: true,
+    plan,
+    balanceUsd: newBalance,
+    bonusApplied: loyaltyBonus,
+    message: loyaltyBonus > 0 ? `$${loyaltyBonus} loyalty credit added to your balance` : undefined,
+  });
+});

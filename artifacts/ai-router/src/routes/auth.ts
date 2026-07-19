@@ -8,7 +8,7 @@ import crypto from "crypto";
 export const authRouter = Router();
 
 const PLANS: Record<string, { rpmLimit: number; maxKeys: number; startingCredits: number }> = {
-  dev:      { rpmLimit: 60,   maxKeys: 3,         startingCredits: 5   },
+  dev:      { rpmLimit: 60,   maxKeys: 3,         startingCredits: 0   },
   pro:      { rpmLimit: 300,  maxKeys: 10,        startingCredits: 60  },
   business: { rpmLimit: 1000, maxKeys: 999,       startingCredits: 250 },
 };
