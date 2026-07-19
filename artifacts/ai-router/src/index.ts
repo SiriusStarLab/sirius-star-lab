@@ -30,6 +30,8 @@ app.use("/auth",    authRouter);
 app.use("/account", accountRouter);
 app.use("/billing", billingRouter);
 
+app.get("/", (_req, res) => res.redirect("https://sirius-ai.live/dashboard/"));
+
 app.get("/health", (_req, res) => res.json({
   ok: true, service: "Sirius AI Router", version: "2.0.0",
   providers: {
