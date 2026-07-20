@@ -6,7 +6,7 @@ const MARKUP = Number(process.env.ROUTER_MARKUP_PCT ?? 25) / 100; // 25% default
 // UNKNOWN MODELS fall back to SAFE_FALLBACK (very high) to avoid undercharging.
 // Update this table when adding new models.
 const PRICE_TABLE: Record<string, { input: number; output: number }> = {
-  // Anthropic
+  // Anthropic — hyphen form (canonical OpenRouter IDs)
   "anthropic/claude-opus-4":              { input: 15.00,  output: 75.00  },
   "anthropic/claude-opus-4-8":            { input: 15.00,  output: 75.00  },
   "anthropic/claude-sonnet-4-5":          { input: 3.00,   output: 15.00  },
@@ -15,6 +15,12 @@ const PRICE_TABLE: Record<string, { input: number; output: number }> = {
   "anthropic/claude-3-5-haiku":           { input: 0.80,   output: 4.00   },
   "anthropic/claude-3-haiku":             { input: 0.25,   output: 1.25   },
   "anthropic/claude-3-opus":              { input: 15.00,  output: 75.00  },
+  // Anthropic — dot form (used by some clients e.g. anthropic/claude-opus-4.8)
+  "anthropic/claude-opus-4.8":            { input: 15.00,  output: 75.00  },
+  "anthropic/claude-sonnet-4.5":          { input: 3.00,   output: 15.00  },
+  "anthropic/claude-haiku-4.5":           { input: 0.80,   output: 4.00   },
+  "anthropic/claude-3.5-sonnet":          { input: 3.00,   output: 15.00  },
+  "anthropic/claude-3.5-haiku":           { input: 0.80,   output: 4.00   },
 
   // OpenAI
   "gpt-4o":                               { input: 2.50,   output: 10.00  },
