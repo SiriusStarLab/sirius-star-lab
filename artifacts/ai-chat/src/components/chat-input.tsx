@@ -217,13 +217,21 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
   const handleDocSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const isImage = file.type.startsWith("image/");
     const reader = new FileReader();
     reader.onload = (ev) => {
       const result = ev.target?.result as string;
-      setDocumentBase64(result.split(",")[1]);
-      setDocumentName(file.name);
-      setImageBase64(null);
-      setImagePreview(null);
+      if (isImage) {
+        setImageBase64(result);
+        setImagePreview(result);
+        setDocumentBase64(null);
+        setDocumentName(null);
+      } else {
+        setDocumentBase64(result.split(",")[1]);
+        setDocumentName(file.name);
+        setImageBase64(null);
+        setImagePreview(null);
+      }
     };
     reader.readAsDataURL(file);
     e.target.value = "";
@@ -594,7 +602,7 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
         </div>
         <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageSelect} />
         <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleImageSelect} />
-        <input ref={docInputRef} type="file" accept=".pdf,.docx,.doc,.txt,.csv,.md,.json,.py,.js,.ts,.tsx,.jsx,.java,.cpp,.c,.h,.cs,.go,.rs,.php,.rb,.swift,.kt,.vue,.html,.css,.scss,.sql,.sh,.bash,.yml,.yaml,.toml,.xml,.env,.gitignore,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,text/plain,text/csv,text/markdown,application/json" className="hidden" onChange={handleDocSelect} />
+        <input ref={docInputRef} type="file" accept="image/*,.pdf,.docx,.doc,.txt,.csv,.md,.json,.py,.js,.ts,.tsx,.jsx,.java,.cpp,.c,.h,.cs,.go,.rs,.php,.rb,.swift,.kt,.vue,.html,.css,.scss,.sql,.sh,.bash,.yml,.yaml,.toml,.xml,.env,.gitignore,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,text/plain,text/csv,text/markdown,application/json" className="hidden" onChange={handleDocSelect} />
 
         <Textarea
           ref={textareaRef}
