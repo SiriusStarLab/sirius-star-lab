@@ -4127,29 +4127,6 @@ const LAB_TOOLS: any[] = [
   {
     type: "function",
     function: {
-      name: "batch_complete_all",
-      description: "Start a background job that runs the full completion pipeline on every project that has missing content. This includes: brief, market research, technical specs, business case, go-to-market plan, brochure, pitch, social posts, cost analysis, landing page, embed widget, and one AI render per project. The job runs on the server in the background — you don't need to stay in chat. Call get_batch_status to check progress. Only call this once; it will refuse to start if already running.",
-      parameters: {
-        type: "object",
-        properties: {
-          confirm: { type: "boolean", description: "Must be true to start the batch job." },
-          renders: { type: "boolean", description: "If true, also generate one AI render per project that has no renders. Default: true." },
-        },
-        required: ["confirm"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "get_batch_status",
-      description: "Check the status of the background batch_complete_all job — how many projects are done, which one is currently running, and how long it's been going.",
-      parameters: { type: "object", properties: {} },
-    },
-  },
-  {
-    type: "function",
-    function: {
       name: "query_projects",
       description: "Search, filter, and list Star Lab projects. Use this for ALL project queries: 'show me my projects', 'list everything', 'what projects do we have', 'what did the scan find last night' (source=scan, days_ago=1), 'recent projects' (days_ago=3), filtering by industry, status, or keyword. This is the single tool for all project retrieval.",
       parameters: {
@@ -4187,32 +4164,6 @@ const LAB_TOOLS: any[] = [
         },
         required: ["action"],
       },
-    },
-  },
-  {
-    type: "function" as const,
-    function: {
-      name: "create_stripe_product",
-      description: "Create a Stripe product, price, and payment link for a Star Lab project so it can be sold immediately. Use when Garry says 'list this for sale', 'create a payment link', 'put it on Stripe', or 'I want to sell this'. Automatically stores the Stripe IDs and payment link on the project record.",
-      parameters: {
-        type: "object",
-        properties: {
-          project_id: { type: "number", description: "Star Lab project ID to attach the Stripe product to" },
-          name: { type: "string", description: "Product name (defaults to the project name if omitted)" },
-          description: { type: "string", description: "Short product description shown on the Stripe checkout page" },
-          price_pence: { type: "number", description: "Price in pence GBP (e.g. 5000 = £50.00)" },
-          price_type: { type: "string", enum: ["one_time", "recurring_monthly", "recurring_yearly"], description: "Billing model — one_time for a single charge, recurring_monthly/yearly for subscriptions" },
-        },
-        required: ["project_id", "price_pence", "price_type"],
-      },
-    },
-  },
-  {
-    type: "function" as const,
-    function: {
-      name: "list_stripe_products",
-      description: "List all Stripe products and their payment links. Use when Garry asks what's for sale, what's on Stripe, or wants an overview of current products and their prices.",
-      parameters: { type: "object", properties: { limit: { type: "number", description: "Max results (default 20)" } }, required: [] },
     },
   },
   {
@@ -4287,14 +4238,6 @@ const LAB_TOOLS: any[] = [
   {
     type: "function" as const,
     function: {
-      name: "get_pipeline_status",
-      description: "Get the live status of the autonomous build pipeline. Use when asked what's building, what's queued, what's ready to launch, or to check pipeline health. Returns the currently-building project, queue size, CAD-pending count, and launch-ready projects.",
-      parameters: { type: "object", properties: {}, required: [] },
-    },
-  },
-  {
-    type: "function" as const,
-    function: {
       name: "complete_project",
       description: "Take a project ALL THE WAY to completion: generates every missing document (brief, market research, technical specs, business case, go-to-market plan, brochure, investor pitch, social posts), triggers the build pipeline, marks it complete. Use for 'complete this project', 'finish it', 'wrap it up', 'publish X'. For 'complete ALL projects' / 'finish everything' / 'do all of them' — call query_projects first to get the IDs, then call complete_project once per project in sequence. Always use query_projects to find the project ID if you don't have it.",
       parameters: {
@@ -4332,36 +4275,6 @@ const LAB_TOOLS: any[] = [
           include_error_log: { type: "boolean", description: "Include last 20 lines of PM2 error log. Default true." },
         },
         required: [],
-      },
-    },
-  },
-  {
-    type: "function" as const,
-    function: {
-      name: "approve_project",
-      description: "Approve a specific project from the Autonomous Lab approval queue and add it to the Star Lab workspace. Use when Garry says 'approve', 'yes', 'add that one', 'add it', or confirms he wants a specific pending project. Call system_check(focus='approvals') first to get the project ID if you don't have it.",
-      parameters: {
-        type: "object",
-        properties: {
-          project_id: { type: "number", description: "The numeric ID of the project to approve (from system_check approvals)" },
-          project_name: { type: "string", description: "Project name — for spoken confirmation" },
-        },
-        required: ["project_id"],
-      },
-    },
-  },
-  {
-    type: "function" as const,
-    function: {
-      name: "reject_project",
-      description: "Reject and dismiss a specific project from the Autonomous Lab approval queue. Use when Garry says 'reject', 'no', 'not that one', 'skip it', 'dismiss', or declines a pending project.",
-      parameters: {
-        type: "object",
-        properties: {
-          project_id: { type: "number", description: "The numeric ID of the project to reject (from system_check approvals)" },
-          project_name: { type: "string", description: "Project name — for spoken confirmation" },
-        },
-        required: ["project_id"],
       },
     },
   },
@@ -5147,23 +5060,6 @@ async function executeLabTool(name: string, args: any, onProgress?: (event: Reco
         return `NAVIGATE_AND_BUILD:appbuilder | prompt:${brief} | project_id:${created.id}`;
       }
 
-      case "get_pipeline_status": {
-        const status = await getPipelineStatus();
-        const lines = ["╔══ PIPELINE STATUS ══╗"];
-        lines.push(status.currentlyBuilding
-          ? `▶ BUILDING NOW: "${status.currentlyBuilding.name}" (#${status.currentlyBuilding.id})`
-          : "▶ IDLE — no active build");
-        lines.push(`📋 Queued: ${status.queued} projects`);
-        lines.push(`📐 Awaiting CAD: ${status.cadPending}`);
-        lines.push(`🚀 Launch-ready: ${status.launchReady.length}`);
-        if (status.launchReady.length > 0) {
-          lines.push("\nLAUNCH-READY PROJECTS:");
-          for (const p of status.launchReady.slice(0, 5)) {
-            lines.push(`  • "${p.name}" (#${p.id}) — ${p.industry}`);
-          }
-        }
-        return lines.join("\n");
-      }
 
       case "build_now": {
         const id = Number(args.projectId);
@@ -5533,178 +5429,6 @@ Context: ${ctx}`,
         return [`╔══ TASK QUEUE ══╗`, ``, ...lines].join("\n");
       }
 
-      case "batch_complete_all": {
-        if (!args.confirm) return "Set confirm: true to start the batch job.";
-        if (batchJob.running) {
-          const elapsed = batchJob.startedAt ? Math.round((Date.now() - batchJob.startedAt.getTime()) / 1000) : 0;
-          return `Batch job already running — ${batchJob.completed}/${batchJob.total} done (${elapsed}s elapsed). Current: "${batchJob.currentProject}". Call get_batch_status for full details.`;
-        }
-
-        const includeRenders = args.renders !== false;
-
-        // Count projects upfront
-        const allForBatch = await db.select().from(labProjects).orderBy(labProjects.id);
-        batchJob.running = true;
-        batchJob.total = allForBatch.length;
-        batchJob.completed = 0;
-        batchJob.failed = 0;
-        batchJob.currentProject = "";
-        batchJob.startedAt = new Date();
-        batchJob.finishedAt = null;
-        batchJob.log = [];
-
-        // Run in background — do NOT await
-        (async () => {
-          const ENGINEERING_SECTORS = ["oil_gas", "aerospace", "medical", "medical_devices", "manufacturing", "hydrogen", "clean_energy", "engineering", "defence", "nuclear"];
-          const gen = async (sys: string, user: string, tokens = 500): Promise<string> => {
-            const r = await openai.chat.completions.create({
-              model: "anthropic/claude-haiku-4-5",
-              messages: [{ role: "system", content: sys }, { role: "user", content: user }],
-              max_tokens: tokens,
-            });
-            return r.choices[0]?.message?.content?.trim() || "";
-          };
-
-          for (const proj of allForBatch) {
-            try {
-              batchJob.currentProject = proj.name;
-              const name = proj.name;
-              const industry = proj.industry || "General";
-              const ctx = `Product: "${name}"\nIndustry: ${industry}\nBrief: ${(proj.brief || "").slice(0, 600)}`;
-              const isEng = ENGINEERING_SECTORS.some(s => industry.toLowerCase().includes(s));
-              const updates: Record<string, any> = {};
-
-              // Generate all missing text sections in parallel
-              const [brief, research, specs, businessCase, goToMarket, brochure, pitch, socialPosts, costToBuild, landingPage, embedCode] = await Promise.all([
-                proj.brief ? Promise.resolve("") : gen("You are a strategic product consultant.", `Write a comprehensive product brief for "${name}" (${industry}): what it is, who it's for, core problem, key features (5-8), competitive advantage, market opportunity. 400-500 words.`, 700),
-                proj.research ? Promise.resolve("") : gen("You are a market research analyst.", `Market research for "${name}" (${industry}): target market size, key competitors, customer pain points, market trends, opportunity gap. 300-400 words.\n${ctx}`, 600),
-                proj.specs ? Promise.resolve("") : gen("You are a technical product architect.", `Technical specifications for "${name}" (${industry}): core components, tech stack, integrations, performance requirements, scalability, MVP feature set. 300-400 words.\n${ctx}`, 600),
-                proj.businessCase ? Promise.resolve("") : gen("You are a business strategist.", `Business case for "${name}" (${industry}): ROI analysis, revenue model, cost structure, payback period, strategic value. 300-400 words.\n${ctx}`, 600),
-                proj.goToMarket ? Promise.resolve("") : gen("You are a GTM strategist.", `Go-to-market plan for "${name}" (${industry}): launch strategy, customer segments, pricing, distribution channels, partnerships, 90-day roadmap. 300-400 words.\n${ctx}`, 600),
-                proj.brochure ? Promise.resolve("") : gen("You are a professional copywriter.", `Marketing brochure for "${name}" (${industry}): headline, tagline, value prop, 3 key benefits, features, testimonial, CTA. 250-350 words.\n${ctx}`, 500),
-                proj.pitch ? Promise.resolve("") : gen("You are a pitch deck writer.", `Investor pitch for "${name}" (${industry}): problem, solution, market size TAM/SAM/SOM, business model, traction/roadmap, team, funding ask. 300-400 words.\n${ctx}`, 600),
-                (proj.socialPosts && proj.socialPosts !== "{}") ? Promise.resolve("") : gen("You are a social media manager.", `Write social media launch posts for "${name}" (${industry}) as JSON with keys: linkedin, twitter, instagram, facebook, pressRelease. Return ONLY valid JSON.\n${ctx}`, 700),
-                proj.costToBuild ? Promise.resolve("") : gen("You are a product cost analyst.", `Cost-to-build estimate for "${name}" (${industry}): dev hours (frontend, backend, AI/ML, DevOps), infrastructure costs, tooling, time-to-market, operating costs, break-even.\n${ctx}`, 600),
-                (proj as any).landingPage ? Promise.resolve("") : gen(
-                  "You are a world-class frontend developer. Write complete, self-contained HTML landing pages. No external dependencies.",
-                  `Write a complete standalone HTML landing page for "${name}" (${industry}).
-REQUIREMENTS:
-- Single self-contained HTML file, no CDN links, no external fonts
-- Brand: primary #006680, background #F5F8FF, text #0F172A, accent #00A3C4
-- Font: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif
-- Sections: nav, hero (headline+tagline+CTA), 3 feature cards, about section, CTA footer, footer
-- CTA links to mailto:contact@sirius-ai.live — Responsive (640px breakpoint)
-- Return ONLY the complete HTML (<!DOCTYPE html> through </html>)
-${ctx}`, 3000),
-                (proj as any).embedCode ? Promise.resolve("") : gen(
-                  "You are a frontend developer. Write minimal self-contained HTML embed snippets.",
-                  `Write a compact HTML embed widget for "${name}" (${industry}).
-- Single <div>, max 20 lines, all styles inline
-- Shows: product name, tagline, "Learn more →" button (mailto:contact@sirius-ai.live)
-- Style: white bg, 1px solid #E2E8F0 border, 12px radius, 20px padding, max-width 360px
-- Button: #006680 bg, white text, 8px 18px padding, 8px radius
-Return ONLY the <div>...</div> snippet.\n${ctx}`, 400),
-              ]);
-
-              if (brief) updates.brief = brief;
-              if (research) updates.research = research;
-              if (specs) updates.specs = specs;
-              if (businessCase) updates.businessCase = businessCase;
-              if (goToMarket) updates.goToMarket = goToMarket;
-              if (brochure) updates.brochure = brochure;
-              if (pitch) updates.pitch = pitch;
-              if (socialPosts) updates.socialPosts = socialPosts;
-              if (costToBuild) updates.costToBuild = costToBuild;
-              if (landingPage) updates.landingPage = landingPage;
-              if (embedCode) updates.embedCode = embedCode;
-
-              // Engineering extras
-              if (isEng && !proj.materials) {
-                updates.materials = await gen("You are a materials engineer.", `Materials specification for "${name}" (${industry}): material grade, standard, mechanical properties, suppliers, certifications.\n${ctx}`, 500);
-              }
-
-              // Render via Pollinations if project has no renders
-              if (includeRenders) {
-                const currentRenders: any[] = (() => { try { return JSON.parse(proj.renders as any || "[]"); } catch { return []; } })();
-                if (currentRenders.length === 0) {
-                  try {
-                    const prompt = encodeURIComponent(`Professional product render of ${name}, ${industry} industry, sleek modern design, studio lighting, high quality, 4K`);
-                    const renderUrl = `https://image.pollinations.ai/prompt/${prompt}?width=1280&height=720&nologo=true&seed=${proj.id}`;
-                    // Verify image is accessible
-                    const check = await fetch(renderUrl, { method: "HEAD" }).catch(() => null);
-                    if (check?.ok) {
-                      updates.renders = JSON.stringify([{ url: renderUrl, label: `${name} — Product Render`, type: "render", generatedAt: new Date().toISOString() }]);
-                    }
-                  } catch { /* skip render on failure */ }
-                }
-              }
-
-              updates.phase = "complete";
-              if (Object.keys(updates).length > 1) {
-                await db.update(labProjects).set(updates as any).where(eq(labProjects.id, proj.id));
-              }
-
-              const count = Object.keys(updates).filter(k => k !== "phase").length;
-              batchJob.log.push(`✓ #${proj.id} "${name}" — ${count} sections`);
-              batchJob.completed++;
-            } catch (err: any) {
-              batchJob.log.push(`✗ #${proj.id} "${proj.name}" — ${err?.message || "error"}`);
-              batchJob.failed++;
-              batchJob.completed++;
-            }
-          }
-
-          batchJob.running = false;
-          batchJob.finishedAt = new Date();
-          batchJob.currentProject = "";
-          batchJob.log.push(`✅ Batch complete — ${allForBatch.length} projects processed at ${new Date().toLocaleTimeString()}`);
-        })().catch(err => {
-          batchJob.running = false;
-          batchJob.finishedAt = new Date();
-          batchJob.log.push(`🔴 Batch crashed: ${err?.message || "unknown"}`);
-        });
-
-        return [
-          `╔══ BATCH JOB STARTED ══╗`,
-          ``,
-          `Running full completion pipeline on ${allForBatch.length} projects in the background.`,
-          `Each project will get: brief, research, specs, business case, GTM, brochure, pitch, social posts, cost analysis, landing page, embed widget${includeRenders ? ", and one AI render" : ""}.`,
-          ``,
-          `The job runs on the server — this chat session can close and it will continue.`,
-          `Call get_batch_status at any time to check progress.`,
-        ].join("\n");
-      }
-
-      case "get_batch_status": {
-        const elapsed = batchJob.startedAt
-          ? Math.round((Date.now() - (batchJob.running ? batchJob.startedAt : batchJob.finishedAt || batchJob.startedAt)!.getTime()) / 1000)
-          : 0;
-        const elapsedTotal = batchJob.startedAt ? Math.round((Date.now() - batchJob.startedAt.getTime()) / 1000) : 0;
-        const pct = batchJob.total > 0 ? Math.round((batchJob.completed / batchJob.total) * 100) : 0;
-        const eta = (batchJob.running && batchJob.completed > 0)
-          ? Math.round((elapsedTotal / batchJob.completed) * (batchJob.total - batchJob.completed))
-          : 0;
-        const recentLog = batchJob.log.slice(-10).join("\n");
-
-        if (!batchJob.startedAt) {
-          return `No batch job has been started yet. Call batch_complete_all with confirm: true to begin.`;
-        }
-
-        return [
-          `╔══ BATCH STATUS ══╗`,
-          ``,
-          batchJob.running ? `🔄 RUNNING` : batchJob.failed > 0 ? `⚠ FINISHED WITH ERRORS` : `✅ COMPLETE`,
-          `Progress: ${batchJob.completed}/${batchJob.total} (${pct}%)`,
-          batchJob.running ? `Current: "${batchJob.currentProject}"` : "",
-          batchJob.running && eta > 0 ? `ETA: ~${eta}s remaining` : "",
-          `Succeeded: ${batchJob.completed - batchJob.failed}  |  Failed: ${batchJob.failed}`,
-          `Started: ${batchJob.startedAt?.toLocaleTimeString()}`,
-          batchJob.finishedAt ? `Finished: ${batchJob.finishedAt?.toLocaleTimeString()}` : "",
-          ``,
-          `Recent activity:`,
-          recentLog || "(none yet)",
-        ].filter(l => l !== undefined && l !== null && l !== "").join("\n");
-      }
 
       case "system_check": {
         const focus = (args.focus || "").toLowerCase();
@@ -5989,30 +5713,9 @@ Return ONLY the <div>...</div> snippet.\n${ctx}`, 400),
           const brief = r.brief ? r.brief.slice(0, 250) : "No brief available.";
           return `${i + 1}. [ID:${r.id}] "${r.name}" — ${r.industry} | Found: ${date}\n   ${brief}`;
         });
-        return `${rows.length} project(s) awaiting your approval:\n\n${lines.join("\n\n")}\n\nTo approve: call approve_project with the project_id. To reject: call reject_project with the project_id. Read each one to Garry and ask whether to approve or reject.`;
+        return `${rows.length} project(s) in the queue:\n\n${lines.join("\n\n")}\n\nRead each one to Garry and ask what he wants to do with it — build an app, open a business, research further, or discard.`;
       }
 
-      case "approve_project": {
-        const id = Number(args.project_id);
-        if (!id) return "Project ID required to approve.";
-        const updated = await db.update(labProjects)
-          .set({ approvalStatus: "approved", status: "active", updatedAt: new Date() })
-          .where(eq(labProjects.id, id))
-          .returning({ name: labProjects.name, industry: labProjects.industry });
-        if (!updated.length) return `No project found with ID ${id}.`;
-        return `APPROVED: "${updated[0].name}" (${updated[0].industry}) has been added to your Star Lab workspace. It will appear in the Projects section.`;
-      }
-
-      case "reject_project": {
-        const id = Number(args.project_id);
-        if (!id) return "Project ID required to reject.";
-        const updated = await db.update(labProjects)
-          .set({ approvalStatus: "rejected", updatedAt: new Date() })
-          .where(eq(labProjects.id, id))
-          .returning({ name: labProjects.name });
-        if (!updated.length) return `No project found with ID ${id}.`;
-        return `REJECTED: "${updated[0].name}" has been removed from the approval queue.`;
-      }
 
       case "update_project_phase": {
         const id = Number(args.project_id);
@@ -7456,92 +7159,6 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
         return lines.join("\n");
       }
 
-      case "create_stripe_product": {
-        const { project_id, price_pence, price_type } = args as { project_id: number; name?: string; description?: string; price_pence: number; price_type: string };
-        const [proj] = await db.select().from(labProjects).where(eq(labProjects.id, project_id)).limit(1);
-        if (!proj) return `❌ Project #${project_id} not found.`;
-
-        const productName = (args as any).name || proj.name;
-        const productDesc = (args as any).description || (proj.brief || "").slice(0, 400) || productName;
-        const isRecurring = price_type.startsWith("recurring");
-        const interval = price_type === "recurring_yearly" ? "year" : "month";
-        const priceGbp = (price_pence / 100).toFixed(2);
-
-        try {
-          // 1. Create product
-          const product = await stripe.products.create({
-            name: productName,
-            description: productDesc.slice(0, 500),
-            metadata: { sirius_project_id: String(project_id) },
-          });
-
-          // 2. Create price
-          const price = await stripe.prices.create({
-            product: product.id,
-            unit_amount: price_pence,
-            currency: "gbp",
-            ...(isRecurring ? { recurring: { interval } } : {}),
-          });
-
-          // 3. Create payment link
-          const paymentLink = await stripe.paymentLinks.create({
-            line_items: [{ price: price.id, quantity: 1 }],
-            metadata: { sirius_project_id: String(project_id) },
-          });
-
-          // 4. Save to project record
-          await db.update(labProjects).set({
-            stripeProductId: product.id,
-            stripePriceId: price.id,
-            stripePaymentLink: paymentLink.url,
-            sellPrice: String(price_pence),
-            sellPriceType: price_type,
-            updatedAt: new Date(),
-          } as any).where(eq(labProjects.id, project_id));
-
-          return [
-            `✅ **Stripe product created for "${productName}"**`,
-            ``,
-            `💷 **Price:** £${priceGbp}${isRecurring ? `/${interval}` : " (one-time)"}`,
-            `🔗 **Payment link:** ${paymentLink.url}`,
-            `📦 **Product ID:** ${product.id}`,
-            `💰 **Price ID:** ${price.id}`,
-            ``,
-            `The payment link is now saved on the project. Share it directly or embed it anywhere.`,
-          ].join("\n");
-        } catch (err: any) {
-          return `❌ Stripe error: ${err?.message}`;
-        }
-      }
-
-      case "list_stripe_products": {
-        const limit = (args as any).limit || 20;
-        try {
-          const products = await stripe.products.list({ limit, active: true, expand: ["data.default_price"] });
-          if (!products.data.length) return `📦 No Stripe products found. Use create_stripe_product to add one.`;
-
-          const lines = [`📦 **Stripe Products (${products.data.length})**`, ``];
-          for (const p of products.data) {
-            const dp = p.default_price as Stripe.Price | null;
-            const priceStr = dp ? `£${((dp.unit_amount ?? 0) / 100).toFixed(2)}${dp.recurring ? `/${dp.recurring.interval}` : ""}` : "No price";
-            lines.push(`**${p.name}** — ${priceStr}`);
-            lines.push(`  ID: ${p.id} | Active: ${p.active}`);
-            if (p.description) lines.push(`  ${p.description.slice(0, 100)}`);
-            lines.push(``);
-          }
-
-          const links = await stripe.paymentLinks.list({ limit: 10 });
-          if (links.data.length) {
-            lines.push(`🔗 **Payment Links (${links.data.length})**`, ``);
-            for (const l of links.data) {
-              lines.push(`${l.active ? "✅" : "❌"} ${l.url}`);
-            }
-          }
-          return lines.join("\n");
-        } catch (err: any) {
-          return `❌ Stripe error: ${err?.message}`;
-        }
-      }
 
       case "send_telegram": {
         const { action, message } = args as { action: string; message?: string };
@@ -8020,14 +7637,11 @@ const TOOL_META: Record<string, { label: string; color: string; icon: string }> 
   run_code_agent: { label: "Code Agent writing code", color: "hsl(155,70%,42%)", icon: "💻" },
   navigate_to: { label: "Navigating", color: "hsl(226,70%,55%)", icon: "🧭" },
   start_app_build: { label: "Queuing new build", color: "hsl(155,70%,42%)", icon: "🚀" },
-  get_pipeline_status: { label: "Pipeline status loaded", color: "hsl(193,100%,40%)", icon: "⚙️" },
   build_now: { label: "Build triggered", color: "hsl(155,70%,42%)", icon: "▶️" },
   complete_project: { label: "Completing project — generating all materials", color: "hsl(260,80%,55%)", icon: "🏁" },
   complete_all_projects: { label: "Batch completing all incomplete projects", color: "hsl(270,80%,55%)", icon: "⚡" },
   system_check: { label: "System check running", color: "hsl(193,100%,35%)", icon: "🖥️" },
   get_pending_approvals: { label: "Loading approval queue", color: "hsl(25,90%,55%)", icon: "📋" },
-  approve_project: { label: "Project approved", color: "hsl(155,70%,45%)", icon: "✅" },
-  reject_project: { label: "Project rejected", color: "hsl(0,75%,55%)", icon: "❌" },
   update_project_phase: { label: "Project updated", color: "hsl(193,100%,40%)", icon: "🔄" },
   startup_health_check: { label: "Running startup maintenance check", color: "hsl(220,80%,55%)", icon: "🔍" },
   fix_platform: { label: "Running autonomous platform repair", color: "hsl(25,100%,55%)", icon: "🔧" },
@@ -8276,7 +7890,7 @@ When Garry gives you ANY task — big or small — your job is to complete it, i
 
 6. **You never freeze.** If you are unsure which project Garry means, call query_projects to find it — then proceed. You get the information you need and continue. You do not stop and wait.
 
-7. **Status queries trigger real tool calls.** NEVER answer "what's building?" from memory. Always call get_pipeline_status. NEVER answer "what's the system status?" from memory. Always call system_check.
+7. **Status queries trigger real tool calls.** NEVER answer "what's building?" from memory. Always call system_check(focus='pipeline'). NEVER answer "what's the system status?" from memory. Always call system_check.
 
 8. **You proactively complete.** If Garry says "do all of them", "finish all projects", "complete everything", "run through them all" — call query_projects to get all incomplete projects, then call complete_project for each one in sequence. For a SINGLE specific project, use complete_project with the project ID directly.
 
@@ -8323,12 +7937,11 @@ TASK 4 — COMPLETE ALL PROJECTS ("do all", "finish everything", "run through th
   navigate_to("projects")
   Report: how many completed, list their names
 
-TASK 5 — APPROVAL QUEUE ("what is pending", "approve my projects", "review the queue")
+TASK 5 — PROJECT QUEUE ("what is pending", "what did the scan find", "review the queue")
   system_check(focus="approvals") → get pending list
   If empty → tell Garry, done
-  Read the FIRST project aloud: name, industry, 1-sentence summary. Ask "Approve or reject?"
-  Wait for answer → call approve_project(id) OR reject_project(id)
-  If approved → immediately call complete_project(id) then launch_project(id). No waiting.
+  Read the FIRST project aloud: name, industry, 1-sentence summary. Ask what Garry wants to do with it.
+  Based on his answer: build_app → call start_app_build, complete → call complete_project, discard → call delete_item
   Move to next project. Repeat until queue empty.
   navigate_to("projects") at end
 
@@ -8461,10 +8074,7 @@ Every project goes through this lifecycle. You drive it through all stages yours
 - **complete_project**: The engine room. Generates ALL missing documents for any project: Brief, Research, Specs, Business Case, Go-To-Market, Brochure, Pitch, Social Posts, Cost Analysis. For engineering/manufacturing/medical/aerospace projects also generates Materials Spec + CAD Drawing Notes. Triggers the build pipeline. At the end, call launch_project.
 - **create_project**: Creates a new project record. Use for engineering products or any project that needs a record without going through the App Builder.
 - **launch_project**: The final step. Selects press outlets, formats personalised submissions, posts social content, marks project as launched.
-- **get_pipeline_status**: Live pipeline state — building, queued, launch-ready. Always call for pipeline questions.
 - **query_projects**: ALL project queries go here — list projects, filter by status/industry/source/date/keyword, find IDs, check scan results. Use source=scan + days_ago=1 for "what did the scan find last night".
-- **approve_project**: Approve a pending project. Call system_check(focus='approvals') first if you need the ID. After approving, immediately call complete_project → launch_project.
-- **reject_project**: Reject/dismiss a pending project.
 - **update_project_phase**: Move a project's phase forward.
 - **run_market_scan**: Trigger a market scan for a specific industry.
 - **run_funding_analysis**: Find grants and funding schemes for a project.
@@ -8646,7 +8256,7 @@ This tells you the script path (your compiled bundle), cwd, memory, restarts, an
 Or use read_file with the absolute path you get from pm2 show.
 
 **🚨 STOP — READ THIS BEFORE ANY SELF-DIAGNOSIS:**
-The compiled bundle is MINIFIED. Every function name — \`loadCrossSessionContext\`, \`github_push_file\`, \`create_stripe_product\`, ALL of them — are renamed to single letters by the minifier. Grepping for them ALWAYS returns 0. This is NOT evidence that a feature is missing. Concluding "X doesn't exist because grep returned 0" is ALWAYS wrong.
+The compiled bundle is MINIFIED. Every function name — \`loadCrossSessionContext\`, \`github_push_file\`, \`run_market_scan\`, ALL of them — are renamed to single letters by the minifier. Grepping for them ALWAYS returns 0. This is NOT evidence that a feature is missing. Concluding "X doesn't exist because grep returned 0" is ALWAYS wrong.
 
 **The ONLY correct way to check bundle capabilities:**
 \`run_command: "grep -o 'SIRIUS_BUNDLE_CAPABILITIES:[^\"]*' /opt/sirius/artifacts/api-server/dist/index.cjs"\`
@@ -8654,7 +8264,7 @@ Current capabilities: "mnemosyne-wired cad-enabled generate-image query-database
 If you see v6, the bundle contains: Mnemosyne cross-session memory, CAD generation, image generation, DB queries, GitHub push, Stripe product/payment-link creation.
 
 **NEVER do this — it is ALWAYS wrong:**
-\`run_command: "grep -c 'loadCrossSessionContext\\|github_push_file\\|create_stripe_product' /opt/sirius/artifacts/api-server/dist/index.cjs"\`
+\`run_command: "grep -c 'loadCrossSessionContext\\|github_push_file\\|run_market_scan' /opt/sirius/artifacts/api-server/dist/index.cjs"\`
 This always returns 0 and will cause you to falsely report to Garry that features are missing. Do not do this. Do not tell Garry something doesn't exist because grep returned 0.
 
 **Check environment variables:**
@@ -8698,15 +8308,14 @@ When you find a bug (in logs, from Garry, or during investigation):
 
 You complete the full cycle. You do not stop at step 2 and tell Garry what you found.
 
-## APPROVAL FLOW
+## PROJECT QUEUE FLOW
 
-When Garry asks about pending approvals:
+When Garry asks about pending projects or what the scan found:
 1. Call system_check(focus='approvals') to get the queue
 2. Read the FIRST project aloud: name, industry, 1-sentence summary
-3. Ask "Approve or reject?" — stop and listen
-4. Call approve_project OR reject_project
-5. If approved → immediately call complete_project on it
-6. Move to the next. Repeat until queue is empty.
+3. Ask what Garry wants to do with it — build an app, open a business, complete docs, or discard
+4. Act on his answer using the appropriate tool (start_app_build, complete_project, delete_item)
+5. Move to the next. Repeat until queue is empty.
 
 Never list all at once. One at a time. But complete each one immediately on approval.
 
@@ -9497,9 +9106,9 @@ Examples of autonomous execution:
 - "Build me an app for X" → call start_app_build, then immediately call complete_project with the returned ID, then navigate to projects. Say: "On it. Building now." Then confirm when done.
 - "Complete all projects" / "Finish all of them" / "Do all projects" / "Run through them all" → call complete_all_projects with NO arguments. Say: "Running batch completion now." Report the summary when done.
 - "What's pending?" → call get_pending_approvals, read the first one aloud, ask approve or reject.
-- "Approve it" → call approve_project, then immediately call complete_project on it. Say: "Approved. Completing it now."
+- "Build it" / "Do it" / "Yes" (after reviewing a project) → call start_app_build or complete_project depending on whether it's a digital product or not. Say: "On it."
 - "Take that project to conclusion" → call query_projects to find it, call complete_project, navigate. Say: "Taking it to conclusion." Report when done.
-- "What's building?" → call get_pipeline_status. Report what you found.
+- "What's building?" → call system_check(focus='pipeline'). Report what you found.
 
 You NEVER stop mid-task and ask what the next step is. You do the next step.
 
@@ -9523,8 +9132,7 @@ Rules for voice:
   const VOICE_TOOLS = LAB_TOOLS.filter(t => [
     // Projects & pipeline
     "create_project", "query_projects", "complete_project", "launch_project",
-    "start_app_build", "get_pipeline_status", "approve_project", "reject_project",
-    "update_project_phase", "run_market_scan",
+    "start_app_build", "update_project_phase", "run_market_scan",
     // Navigation & status
     "navigate_to", "system_check", "fix_platform",
     // Brain & memory
