@@ -103,7 +103,7 @@ export async function requireApiKey(req: Request, res: Response, next: NextFunct
       if (Number(customer.balanceUsd) <= 0) {
         res.status(402).json({
           error: {
-            message: "Insufficient credits. Top up at https://api.sirius-ai.live/dashboard",
+            message: "Insufficient credits. Top up at https://sirius-ai.live/dashboard",
             type: "payment_required",
             code: 402,
           },
@@ -113,6 +113,27 @@ export async function requireApiKey(req: Request, res: Response, next: NextFunct
     }
   }
 
+  next();
+}
+
+// Lighter version — validates the key exists but does NOT check balance.
+// Use for informational endpoints (models list, etc.) that should always be accessible.
+export async function requireApiKeyOnly(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const internal = req.headers["x-internal-secret"];
+  if (internal && internal === process.env.ROUTER_INTERNAL_SECRET) {
+    req.apiKeyName = "internal"; next(); return;
+  }
+  const auth = req.headers["authorization"];
+  if (!auth?.startsWith("Bearer ")) {
+    res.status(401).json({ error: { message: "Missing API key", type: "auth_error", code: 401 } }); return;
+  }
+  const hash = hashKey(auth.slice(7).trim());
+  const [keyRow] = await db.select().from(schema.routerApiKeys)
+    .where(and(eq(schema.routerApiKeys.keyHash, hash), eq(schema.routerApiKeys.isActive, true))).limit(1);
+  if (!keyRow) {
+    res.status(401).json({ error: { message: "Invalid API key", type: "auth_error", code: 401 } }); return;
+  }
+  req.apiKeyId = keyRow.id; req.customerId = keyRow.customerId ?? undefined;
   next();
 }
 

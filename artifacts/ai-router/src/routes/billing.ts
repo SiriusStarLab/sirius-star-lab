@@ -87,8 +87,8 @@ billingRouter.post("/checkout", requireAuth, async (req: Request, res: Response)
       },
     }],
     metadata:    { customerId: String(customer.id), credits: String(pack.usd), type: "topup" },
-    success_url: `${process.env.ROUTER_DASHBOARD_URL ?? "https://api.sirius-ai.live"}/dashboard/billing?success=topup`,
-    cancel_url:  `${process.env.ROUTER_DASHBOARD_URL ?? "https://api.sirius-ai.live"}/dashboard/billing`,
+    success_url: `${process.env.ROUTER_DASHBOARD_URL ?? "https://sirius-ai.live"}/dashboard/billing?success=topup`,
+    cancel_url:  `${process.env.ROUTER_DASHBOARD_URL ?? "https://sirius-ai.live"}/dashboard/billing`,
   });
 
   res.json({ url: session.url });
@@ -121,8 +121,8 @@ billingRouter.post("/subscribe", requireAuth, async (req: Request, res: Response
     payment_method_types: ["card"],
     line_items: [{ price: priceId, quantity: 1 }],
     metadata:    { customerId: String(customer.id), plan, type: "subscription" },
-    success_url: `${process.env.ROUTER_DASHBOARD_URL ?? "https://api.sirius-ai.live"}/dashboard/billing?success=subscribed&plan=${plan}`,
-    cancel_url:  `${process.env.ROUTER_DASHBOARD_URL ?? "https://api.sirius-ai.live"}/dashboard/billing`,
+    success_url: `${process.env.ROUTER_DASHBOARD_URL ?? "https://sirius-ai.live"}/dashboard/billing?success=subscribed&plan=${plan}`,
+    cancel_url:  `${process.env.ROUTER_DASHBOARD_URL ?? "https://sirius-ai.live"}/dashboard/billing`,
     subscription_data: {
       metadata: { customerId: String(customer.id), plan },
     },
