@@ -1,4 +1,4 @@
-const BASE = import.meta.env.VITE_ROUTER_API ?? "http://localhost:5000";
+const BASE = import.meta.env.VITE_ROUTER_API ?? "https://sirius-ai.live/router";
 
 function getToken(): string | null {
   return localStorage.getItem("router_token");
