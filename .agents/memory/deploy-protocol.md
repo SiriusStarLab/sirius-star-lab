@@ -18,7 +18,37 @@ workspace. This caused visible frustration and repeated re-explaining. Treat
 deploy-to-server as an implicit, standing requirement for every task on this
 project — do not wait to be asked each time.
 
-## How to apply
+---
+
+## ⚠️ CRITICAL — NEVER READ REPLIT WORKSPACE CODE TO DIAGNOSE LIVE SIRIUS ISSUES
+
+The Replit workspace copies of `artifacts/api-server/src/`, `artifacts/ai-chat/src/`,
+and all other Sirius source files are **stale and do not reflect what is running
+on sirius-ai.live**.
+
+Sirius modifies her own code via `patch_source_file` / `propose_code_change` on
+the server — those changes go to `/opt/sirius-source/` and build to
+`/opt/sirius/artifacts/api-server/dist/index.cjs`. They **never come back to
+this Replit workspace.**
+
+**Why this matters:** Reading workspace code to diagnose a live issue produces
+false findings. The model names, memory caps, system prompts, and logic in the
+workspace may be weeks or months out of date compared to what Sirius is
+actually running. Reporting findings from workspace code as diagnoses of the
+live system is wrong and can cause unnecessary, harmful changes.
+
+**How to diagnose live Sirius issues:**
+- SSH to the server and grep the running bundle: `grep "claude\|model" /opt/sirius/artifacts/api-server/dist/index.cjs`
+- Ask Sirius herself in the lab: `server_diagnostic(bundle_contains, "pattern")`
+- Check PM2 logs: `ssh ... pm2 logs sirius-api --lines 100 --nostream`
+- Read source from server: `/opt/sirius-source/artifacts/api-server/src/`
+
+**Never** open workspace files like `artifacts/api-server/src/routes/lab.ts`
+to answer questions about what Sirius is doing live. That file is a dead copy.
+
+---
+
+## How to apply code changes
 1. After making and verifying a fix in the workspace, always run the deploy
    step as part of finishing the task (not a separate follow-up the user has
    to request).

@@ -12,7 +12,7 @@
 - [Sirius Zod schema — message body](sirius-zod-schema.md) — SendOpenaiMessageBody must include mode/imageBase64/documentBase64/documentName or they're silently stripped; always run health check after deploys.
 - [Sirius stability fixes](sirius-stability-fixes.md) — self-repair call-site, health checks, Telegram auto-chat-id, mobile pnpm conflict, SSH heredoc safety.
 - [LabFloatingChat navigate-during-streaming bug](lab-floating-chat-navigate-bug.md) — navigate event was closing chat mid-stream; fix: pendingNavRef defers navigation until after setMessages.
-- [Deploy-to-server protocol (MANDATORY)](deploy-protocol.md) — every fix must be deployed to Kamatera server (sirius-ai.live), not left only in Replit workspace; user has repeated this many times.
+- [Deploy-to-server protocol (MANDATORY)](deploy-protocol.md) — ALL live Sirius code is on Kamatera server ONLY. Replit workspace files are stale dead copies — NEVER read them to diagnose live issues. SSH to server or use server_diagnostic/bundle_contains instead.
 - [Sirius model names](sirius-model-names.md) — OpenRouter retires model IDs periodically; never trust a hardcoded name, always re-verify live via curl before patching. 20+ server files affected each time.
 - [Piper TTS stdout deadlock](piper-tts-stdout-deadlock.md) — piper hangs on long texts; fix is stdout.resume() after spawn.
 - [Sirius custom tools data loss](sirius-custom-tools-loss.md) — tools were never in Kamatera DB (migration gap); backup/restore now in self-repair.ts.
