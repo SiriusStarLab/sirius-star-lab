@@ -3,6 +3,12 @@ import { ChevronDown, ChevronUp, Repeat, Maximize2, Music, VolumeX } from 'lucid
 import VideoTemplate, { SCENE_DURATIONS } from './VideoTemplate';
 import { useSceneControls } from '@/lib/video/controls/useSceneControls';
 import { useFuturisticMusic } from '@/lib/video/useFuturisticMusic';
+import { CanvasExporter } from './CanvasExporter';
+
+function isIOS() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
 
 const PROGRESS_TICK_MS = 60;
 const TOTAL_DURATION_MS = Object.values(SCENE_DURATIONS).reduce((a, b) => a + b, 0);
@@ -309,6 +315,7 @@ export default function VideoWithControls() {
   const [musicEnabled, setMusicEnabled] = useState(true);
   const [audioUnlocked, setAudioUnlocked] = useState(false);
 
+  const [showCanvasExporter, setShowCanvasExporter] = useState(false);
   const [exportStep, setExportStep] = useState<ExportStep>('idle');
   const [secondsLeft, setSecondsLeft] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -422,7 +429,11 @@ export default function VideoWithControls() {
   }, [jumpTo]);
 
   const handleExportClick = useCallback(() => {
-    setExportStep('instructions');
+    if (isIOS()) {
+      setShowCanvasExporter(true);
+    } else {
+      setExportStep('instructions');
+    }
   }, []);
 
   const handleCloseModal = useCallback(() => {
@@ -476,7 +487,12 @@ export default function VideoWithControls() {
         </div>
       )}
 
-      {/* Export modal */}
+      {/* Canvas-based exporter — iOS only (no getDisplayMedia on iPhone) */}
+      {showCanvasExporter && (
+        <CanvasExporter onClose={() => setShowCanvasExporter(false)} />
+      )}
+
+      {/* Export modal — desktop screen-record flow */}
       <ExportModal
         step={exportStep}
         secondsLeft={secondsLeft}
