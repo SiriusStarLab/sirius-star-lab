@@ -151,7 +151,7 @@ export function useFuturisticMusic(enabled: boolean) {
       disposersRef.current = d;
     }
 
-    startMusic();
+    startMusic().catch(() => {});
 
     return () => {
       cancelled = true;
