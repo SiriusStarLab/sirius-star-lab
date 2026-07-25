@@ -1,5 +1,7 @@
 import { fetch } from "expo/fetch";
 import { Feather } from "@expo/vector-icons";
+import * as DocumentPicker from "expo-document-picker";
+import * as FileSystem from "expo-file-system";
 import React, { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -66,6 +68,22 @@ function ChatView({ panel, onBack }: { panel: typeof PANELS[0]; onBack: () => vo
   const [isStreaming, setIsStreaming] = useState(false);
   const [convId, setConvId] = useState<number | null>(null);
   const scrollRef = useRef<ScrollView>(null);
+
+  const pickDocument = useCallback(async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ["text/plain", "application/pdf", "application/msword",
+               "application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled || !result.assets?.[0]) return;
+      const asset = result.assets[0];
+      const content = await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.UTF8 });
+      setInput(prev => prev ? prev + "\n\n" + content : content);
+    } catch {
+      setInput(prev => prev);
+    }
+  }, []);
 
   const send = useCallback(async (text: string) => {
     if (!text.trim() || isStreaming) return;
@@ -185,6 +203,15 @@ function ChatView({ panel, onBack }: { panel: typeof PANELS[0]; onBack: () => vo
 
       {/* Input */}
       <View style={[styles.inputRow, { paddingBottom: insets.bottom + 8 }]}>
+        {panel.id === "document" && (
+          <Pressable
+            onPress={pickDocument}
+            hitSlop={8}
+            style={styles.attachBtn}
+          >
+            <Feather name="plus" size={20} color={Colors.textMuted} />
+          </Pressable>
+        )}
         <TextInput
           style={styles.input}
           value={input}

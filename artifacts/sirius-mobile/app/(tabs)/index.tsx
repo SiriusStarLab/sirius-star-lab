@@ -519,13 +519,7 @@ export default function ChatScreen() {
 
         <Text style={styles.headerTitle}>SIRIUS</Text>
 
-        <Pressable
-          onPress={handleNewChat}
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          style={({ pressed }) => [styles.headerBtn, pressed && { opacity: 0.6 }]}
-        >
-          <Feather name="plus" size={22} color={Colors.text} />
-        </Pressable>
+        <View style={styles.headerBtn} />
       </View>
 
       {/* ── Main content ── */}
