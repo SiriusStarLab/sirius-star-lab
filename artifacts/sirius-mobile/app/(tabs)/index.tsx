@@ -1,6 +1,6 @@
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { fetch } from "expo/fetch";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Speech from "expo-speech";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -87,8 +87,16 @@ const SURPRISE_PROMPTS = [
   "What does quantum entanglement really mean for our understanding of reality?",
 ];
 
+const NAV_TILES = [
+  { label: "Learn",     icon: "book"    as const, route: "/(tabs)/learn",     color: "#0099b3" },
+  { label: "Dream Lab", icon: "star"    as const, route: "/(tabs)/dreamlab",  color: "#7c3aed" },
+  { label: "Wellbeing", icon: "heart"   as const, route: "/(tabs)/wellbeing", color: "#e11d48" },
+  { label: "Universe",  icon: "globe"   as const, route: "/(tabs)/universe",  color: "#0ea5e9" },
+];
+
 export default function ChatScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { userId, profile, refreshProfile } = useApp();
   const subscription = useSubscription();
   const params = useLocalSearchParams<{ prompt?: string; conversationId?: string }>();
@@ -753,27 +761,27 @@ export default function ChatScreen() {
             ))}
           </ScrollView>
 
-          {/* Mood strip */}
+          {/* Section nav tiles */}
           <View style={styles.sectionHeader}>
-            <Feather name="activity" size={13} color={Colors.primary} />
-            <Text style={styles.sectionLabel}>WHERE ARE YOU RIGHT NOW?</Text>
+            <Feather name="grid" size={13} color={Colors.primary} />
+            <Text style={styles.sectionLabel}>EXPLORE</Text>
           </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.moodStrip}>
-            {MOODS.map(mood => (
+          <View style={styles.navTilesGrid}>
+            {NAV_TILES.map(tile => (
               <Pressable
-                key={mood.label}
-                onPress={() => handleMood(mood)}
+                key={tile.label}
+                onPress={() => router.push(tile.route as any)}
                 style={({ pressed }) => [
-                  styles.moodChip,
-                  { borderColor: mood.color + "50", backgroundColor: mood.color + "18" },
-                  pressed && { opacity: 0.75, transform: [{ scale: 0.95 }] },
+                  styles.navTile,
+                  { borderColor: tile.color + "40", backgroundColor: tile.color + "12" },
+                  pressed && { opacity: 0.75, transform: [{ scale: 0.96 }] },
                 ]}
               >
-                <Text style={styles.moodEmoji}>{mood.emoji}</Text>
-                <Text style={[styles.moodLabel, { color: mood.color }]}>{mood.label}</Text>
+                <Feather name={tile.icon} size={22} color={tile.color} />
+                <Text style={[styles.navTileLabel, { color: tile.color }]}>{tile.label}</Text>
               </Pressable>
             ))}
-          </ScrollView>
+          </View>
 
           {/* Topics */}
           <View style={styles.sectionHeader}>
@@ -920,6 +928,29 @@ export default function ChatScreen() {
           </Pressable>
         </ScrollView>
       )}
+      {/* Mood strip — always visible above input */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.moodStrip}
+        keyboardShouldPersistTaps="handled"
+      >
+        {MOODS.map(mood => (
+          <Pressable
+            key={mood.label}
+            onPress={() => handleMood(mood)}
+            style={({ pressed }) => [
+              styles.moodChip,
+              { borderColor: mood.color + "50", backgroundColor: mood.color + "18" },
+              pressed && { opacity: 0.75, transform: [{ scale: 0.95 }] },
+            ]}
+          >
+            <Text style={styles.moodEmoji}>{mood.emoji}</Text>
+            <Text style={[styles.moodLabel, { color: mood.color }]}>{mood.label}</Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+
       <View style={{ paddingBottom: bottomPad }}>
         <ChatInput
           onSend={handleSend}
@@ -1046,11 +1077,34 @@ const styles = StyleSheet.create({
     letterSpacing: 0.9,
   },
 
+  /* Nav tiles (2×2 grid on landing page) */
+  navTilesGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    marginBottom: 24,
+  },
+  navTile: {
+    flex: 1,
+    minWidth: "44%",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    paddingVertical: 22,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  navTileLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    fontFamily: "Inter_600SemiBold",
+  },
+
   /* Mood strip */
   moodStrip: {
     gap: 8,
-    paddingRight: 4,
-    marginBottom: 24,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
   moodChip: {
     flexDirection: "row",

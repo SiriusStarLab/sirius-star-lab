@@ -38,15 +38,6 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="dreamlab"
-        options={{
-          title: "Dream Lab",
-          tabBarIcon: ({ color }) => (
-            <Feather name="star" size={21} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="history"
         options={{
           title: "History",
@@ -64,6 +55,7 @@ export default function TabLayout() {
           ),
         }}
       />
+      <Tabs.Screen name="dreamlab" options={{ href: null }} />
       <Tabs.Screen name="learn" options={{ href: null }} />
       <Tabs.Screen name="wellbeing" options={{ href: null }} />
       <Tabs.Screen name="universe" options={{ href: null }} />
