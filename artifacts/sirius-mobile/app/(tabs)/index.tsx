@@ -185,7 +185,8 @@ export default function ChatScreen() {
       let activeId = conversationId;
       if (!activeId) {
         const title = text.trim() ? text.slice(0, 60) : (documentName ?? "Attachment");
-        const convo = await createConversation(title, userId ?? undefined);
+        const uid = userId || (await getUserId());
+        const convo = await createConversation(title, uid);
         activeId = convo.id;
         setConversationId(activeId);
       }
@@ -752,19 +753,19 @@ export default function ChatScreen() {
             ))}
           </ScrollView>
 
-          {/* Mood tiles */}
+          {/* Mood strip */}
           <View style={styles.sectionHeader}>
             <Feather name="activity" size={13} color={Colors.primary} />
             <Text style={styles.sectionLabel}>WHERE ARE YOU RIGHT NOW?</Text>
           </View>
-          <View style={styles.moodGrid}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.moodStrip}>
             {MOODS.map(mood => (
               <Pressable
                 key={mood.label}
                 onPress={() => handleMood(mood)}
                 style={({ pressed }) => [
-                  styles.moodTile,
-                  { borderColor: mood.color + "40", backgroundColor: mood.color + "18" },
+                  styles.moodChip,
+                  { borderColor: mood.color + "50", backgroundColor: mood.color + "18" },
                   pressed && { opacity: 0.75, transform: [{ scale: 0.95 }] },
                 ]}
               >
@@ -772,7 +773,7 @@ export default function ChatScreen() {
                 <Text style={[styles.moodLabel, { color: mood.color }]}>{mood.label}</Text>
               </Pressable>
             ))}
-          </View>
+          </ScrollView>
 
           {/* Topics */}
           <View style={styles.sectionHeader}>
@@ -1045,31 +1046,28 @@ const styles = StyleSheet.create({
     letterSpacing: 0.9,
   },
 
-  /* Mood tiles */
-  moodGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-    marginBottom: 28,
+  /* Mood strip */
+  moodStrip: {
+    gap: 8,
+    paddingRight: 4,
+    marginBottom: 24,
   },
-  moodTile: {
-    width: "47%",
+  moodChip: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    borderRadius: 14,
+    gap: 8,
+    borderRadius: 20,
     paddingHorizontal: 14,
-    paddingVertical: 13,
+    paddingVertical: 10,
     borderWidth: 1,
   },
   moodEmoji: {
-    fontSize: 20,
+    fontSize: 18,
   },
   moodLabel: {
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: "Inter_500Medium",
     fontWeight: "500",
-    flexShrink: 1,
   },
 
   /* Topic row */

@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors from "@/constants/colors";
 import { USER_ID_KEY, getApiBase } from "@/lib/api";
+import { useApp } from "@/context/AppContext";
 
 const ONBOARDING_KEY = "onboarding_complete";
 
@@ -25,6 +26,7 @@ type Screen = "login" | "signup" | "forgot" | "forgot_sent";
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
+  const { reloadUser } = useApp();
   const [screen, setScreen] = useState<Screen>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -67,6 +69,7 @@ export default function LoginScreen() {
 
       const userId: string = data.userId;
       await AsyncStorage.setItem(USER_ID_KEY, userId);
+      await reloadUser();
 
       const onboardingDone = await AsyncStorage.getItem(ONBOARDING_KEY);
       if (!onboardingDone) {

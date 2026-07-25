@@ -25,6 +25,7 @@ interface AppContextValue {
   profile: AppProfile;
   loading: boolean;
   refreshProfile: () => Promise<void>;
+  reloadUser: () => Promise<void>;
   updateLocalProfile: (updates: Partial<Pick<AppProfile, "aiName" | "userName">>) => Promise<void>;
 }
 
@@ -51,6 +52,7 @@ const AppContext = createContext<AppContextValue>({
   profile: defaultProfile,
   loading: true,
   refreshProfile: async () => {},
+  reloadUser: async () => {},
   updateLocalProfile: async () => {},
 });
 
@@ -141,8 +143,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.remove();
   }, [refreshProfile]);
 
+  const reloadUser = useCallback(async () => {
+    await initUser();
+  }, [initUser]);
+
   return (
-    <AppContext.Provider value={{ userId, profile, loading, refreshProfile, updateLocalProfile }}>
+    <AppContext.Provider value={{ userId, profile, loading, refreshProfile, reloadUser, updateLocalProfile }}>
       {children}
     </AppContext.Provider>
   );
