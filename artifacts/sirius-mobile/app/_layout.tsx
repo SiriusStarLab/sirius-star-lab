@@ -16,16 +16,10 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider } from "@/context/AppContext";
 import Colors from "@/constants/colors";
-import { initializeRevenueCat, SubscriptionProvider } from "@/lib/revenuecat";
+import { SubscriptionProvider } from "@/lib/revenuecat";
 import { USER_ID_KEY } from "@/lib/api";
 
 SplashScreen.preventAutoHideAsync();
-
-try {
-  initializeRevenueCat();
-} catch {
-  // RevenueCat API keys not set — fail silently, IAP not used on iOS
-}
 
 const queryClient = new QueryClient();
 const ONBOARDING_KEY = "onboarding_complete";
