@@ -178,31 +178,31 @@ title = "5 — Star Lab"
 id = "6b7iJpUujBbT_ik2c5ieo"
 uri = "file://artifacts/sirius-mobile/store-metadata/ios/screenshots/iphone_6_9/01.png"
 type = "image"
-title = "Screenshot 1 — Think with Sirius"
+title = "Screenshot 01 — Hero (replaces login screen)"
 
 [[outputs]]
 id = "GQeeXAw4gR-rKRk8ggLMM"
 uri = "file://artifacts/sirius-mobile/store-metadata/ios/screenshots/iphone_6_9/02.png"
 type = "image"
-title = "Screenshot 2 — Speak. Sirius Listens."
+title = "Screenshot 02 — Chat / Philosophy (keep)"
 
 [[outputs]]
 id = "D1ZNDho0Kiw_7_Nj7hUUe"
 uri = "file://artifacts/sirius-mobile/store-metadata/ios/screenshots/iphone_6_9/03.png"
 type = "image"
-title = "Screenshot 3 — Explore Anything"
+title = "Screenshot 03 — Explore tab (keep)"
 
 [[outputs]]
 id = "GyqVPGZcFSjmBV5UIdLhA"
 uri = "file://artifacts/sirius-mobile/store-metadata/ios/screenshots/iphone_6_9/04.png"
 type = "image"
-title = "Screenshot 4 — Your Daily Check-In"
+title = "Screenshot 04 — History (keep)"
 
 [[outputs]]
 id = "HaviJdgRx5d0754UMfGdv"
 uri = "file://artifacts/sirius-mobile/store-metadata/ios/screenshots/iphone_6_9/05.png"
 type = "image"
-title = "Screenshot 5 — Settings/IAP"
+title = "Screenshot 05 — Pricing / Profile (replaces £14.99 + Garry)"
 
 [[outputs]]
 id = "JcR_wQHdJSptnnjZK15OG"
