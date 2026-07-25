@@ -335,3 +335,27 @@ id = "LAahh9NglIhBB6gJkO2f2"
 uri = "file://artifacts/sirius-mobile/assets/images/splash-icon.png"
 type = "image"
 title = "splash-icon.png"
+
+[[outputs]]
+id = "XLQp2DiScIoLSKlJhXAqY"
+uri = "file://attached_assets/download_1784974473143.png"
+type = "image"
+title = "Downloaded today (10:14am)"
+
+[[outputs]]
+id = "ml9NxoKlFF5HfcDFYIPLi"
+uri = "file://attached_assets/683c4856-de04-4058-ab7e-06a973201efa_1785005447637.jpeg"
+type = "image"
+title = "Image A (6:50pm today)"
+
+[[outputs]]
+id = "i7y0zPvAkdKQB_IDCD5Dl"
+uri = "file://attached_assets/99ea1823-8b7a-4a99-8ed9-ce3c7ef71355_1785005447637.jpeg"
+type = "image"
+title = "Image B (6:50pm today)"
+
+[[outputs]]
+id = "9ceU7-7x-z2Ui8QC756EN"
+uri = "file://attached_assets/ac0913b7-1a5b-4679-9879-1c49395e16cf_1785005447637.jpeg"
+type = "image"
+title = "Image C (6:50pm today)"
