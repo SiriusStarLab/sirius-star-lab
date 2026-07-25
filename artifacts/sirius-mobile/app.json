@@ -7,7 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "siriusai",
     "userInterfaceStyle": "dark",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "description": "Sirius Star Lab is your personal AI intelligence partner \u2014 always thinking, so you can live with clarity. Enjoy streaming conversations, voice I/O, image analysis, smart web search, memory, and daily wisdom. Free to use.",
     "primaryColor": "#00b4d8",
     "splash": {
@@ -58,8 +58,7 @@
       "favicon": "./assets/images/icon.png"
     },
     "experiments": {
-      "typedRoutes": true,
-      "reactCompiler": true
+      "typedRoutes": true
     },
     "extra": {
       "privacyPolicyUrl": "https://sirius-ai.live/privacy",
