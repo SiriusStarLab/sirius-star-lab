@@ -305,3 +305,9 @@ id = "VBFBZst2BkuIfeokk_IWX"
 uri = "file://artifacts/sirius-mobile/store-metadata/sirius-screenshots.zip"
 type = "unspecified"
 title = "Sirius App Store Screenshots (5 PNGs — 1320×2868 iPhone 6.9\")"
+
+[[outputs]]
+id = "kzhFSchzFkzfqKfWWYFP2"
+uri = "file://artifacts/sirius-mobile/store-metadata/sirius-screenshots-final.zip"
+type = "unspecified"
+title = "Sirius Star Lab — All 5 Screenshots (1320×2868)"
