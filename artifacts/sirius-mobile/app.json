@@ -21,7 +21,7 @@
       "buildNumber": "14",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "SiriusBuildRef": "20260725-c",
+        "SiriusBuildRef": "20260725-d",
         "NSMicrophoneUsageDescription": "Sirius Star Lab uses your microphone to let you speak your messages using voice input.",
         "NSSpeechRecognitionUsageDescription": "Sirius Star Lab uses speech recognition to convert your voice into text messages.",
         "NSCameraUsageDescription": "Sirius Star Lab uses your camera so you can share images directly in your conversations.",

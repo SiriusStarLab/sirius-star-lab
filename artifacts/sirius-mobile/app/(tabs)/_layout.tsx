@@ -38,6 +38,42 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="learn"
+        options={{
+          title: "Learn",
+          tabBarIcon: ({ color }) => (
+            <Feather name="book-open" size={21} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="dreamlab"
+        options={{
+          title: "Dream Lab",
+          tabBarIcon: ({ color }) => (
+            <Feather name="star" size={21} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="wellbeing"
+        options={{
+          title: "Wellbeing",
+          tabBarIcon: ({ color }) => (
+            <Feather name="heart" size={21} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="universe"
+        options={{
+          title: "Universe",
+          tabBarIcon: ({ color }) => (
+            <Feather name="globe" size={21} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="history"
         options={{
           title: "History",
@@ -55,10 +91,6 @@ export default function TabLayout() {
           ),
         }}
       />
-      <Tabs.Screen name="dreamlab" options={{ href: null }} />
-      <Tabs.Screen name="learn" options={{ href: null }} />
-      <Tabs.Screen name="wellbeing" options={{ href: null }} />
-      <Tabs.Screen name="universe" options={{ href: null }} />
       <Tabs.Screen name="explore" options={{ href: null }} />
     </Tabs>
   );
