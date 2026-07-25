@@ -992,8 +992,9 @@ const styles = StyleSheet.create({
     height: 120,
     borderRadius: 28,
     marginBottom: 16,
+    backgroundColor: "#080c1a",
     borderWidth: 1,
-    borderColor: "rgba(0,212,255,0.25)",
+    borderColor: Colors.border,
   },
   brandName: {
     fontSize: 38,
