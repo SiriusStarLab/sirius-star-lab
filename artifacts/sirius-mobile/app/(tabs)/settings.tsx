@@ -132,7 +132,7 @@ export default function SettingsScreen() {
   const [payEmail, setPayEmail] = useState("");
 
   const BANK = { name: "GCTH Supplies Ltd", account: "26359434", sortCode: "04-03-33", bank: "Mettle" };
-  const PRICES = { plus: "£9.99", pro: "£14.99" };
+  const PRICES = { plus: "£9.99", pro: "£19.99" };
 
   const handleUpgrade = (tier: "plus" | "pro") => {
     setPayTier(tier);
@@ -425,7 +425,7 @@ export default function SettingsScreen() {
           >
             <Feather name="award" size={18} color="#f59e0b" />
             <View style={{ flex: 1 }}>
-              <Text style={styles.proCardTitle}>Go Pro — £14.99/month</Text>
+              <Text style={styles.proCardTitle}>Go Pro — £19.99/month</Text>
               <Text style={styles.proCardDesc}>Unlimited everything · Deep memory · Priority speed</Text>
             </View>
             <Feather name="chevron-right" size={16} color="rgba(245,158,11,0.5)" />
@@ -685,7 +685,7 @@ export default function SettingsScreen() {
                 Pay by bank transfer
               </Text>
               <Text style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", marginBottom: 20 }}>
-                {payTier === "plus" ? "Sirius Plus · £9.99/month" : "Sirius Pro · £14.99/month"}
+                {payTier === "plus" ? "Sirius Plus · £9.99/month" : "Sirius Pro · £19.99/month"}
               </Text>
 
               {[
