@@ -76,13 +76,13 @@ title = "sirius star lab chat screenshot clean"
 id = "cNdbKNPxY3uJsRbWTNxPd"
 uri = "file://attached_assets/sirius-logo-v1.png"
 type = "image"
-title = "Sirius Logo — V1: Twin Faces (front-facing, green + blue eyes)"
+title = "Sirius Logo V1"
 
 [[outputs]]
 id = "ddNIDw6dWrvHDkcJVQFqO"
 uri = "file://attached_assets/sirius-logo-v2.png"
 type = "image"
-title = "Sirius Logo — V2: Profile Silhouettes (facing each other)"
+title = "Sirius Logo V2"
 
 [[outputs]]
 id = "ScKwcO4nBbAQvutiEn3Nx"
@@ -359,3 +359,15 @@ id = "9ceU7-7x-z2Ui8QC756EN"
 uri = "file://attached_assets/ac0913b7-1a5b-4679-9879-1c49395e16cf_1785005447637.jpeg"
 type = "image"
 title = "Image C (6:50pm today)"
+
+[[outputs]]
+id = "UZBQdVT9zmUhZDvPpbMOJ"
+uri = "file://attached_assets/image_1783502855473.png"
+type = "image"
+title = "Small icon (Jul 8)"
+
+[[outputs]]
+id = "3frXc29lMNJBKxRrYOxc0"
+uri = "file://attached_assets/image_1777287304549.png"
+type = "image"
+title = "Image (Apr 27)"
