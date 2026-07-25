@@ -178,25 +178,25 @@ title = "5 — Star Lab"
 id = "6b7iJpUujBbT_ik2c5ieo"
 uri = "file://artifacts/sirius-mobile/store-metadata/ios/screenshots/iphone_6_9/01.png"
 type = "image"
-title = "#01 — Hero (twins image)"
+title = "01 — Hero (twins image)"
 
 [[outputs]]
 id = "GQeeXAw4gR-rKRk8ggLMM"
 uri = "file://artifacts/sirius-mobile/store-metadata/ios/screenshots/iphone_6_9/02.png"
 type = "image"
-title = "#02 — Chat"
+title = "02 — Chat screen"
 
 [[outputs]]
 id = "D1ZNDho0Kiw_7_Nj7hUUe"
 uri = "file://artifacts/sirius-mobile/store-metadata/ios/screenshots/iphone_6_9/03.png"
 type = "image"
-title = "Screenshot 03 — Explore Screen (missing from ASC)"
+title = "03 — Explore screen"
 
 [[outputs]]
 id = "GyqVPGZcFSjmBV5UIdLhA"
 uri = "file://artifacts/sirius-mobile/store-metadata/ios/screenshots/iphone_6_9/04.png"
 type = "image"
-title = "#04 — History"
+title = "04 — History screen"
 
 [[outputs]]
 id = "HaviJdgRx5d0754UMfGdv"
