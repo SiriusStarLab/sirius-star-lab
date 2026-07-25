@@ -1,0 +1,81 @@
+When an Expo / React Native iOS app continuously builds successfully but crashes instantly on launch (often freezing on the splash screen or closing in under 1 second), it means the crash occurs during native binary initialization.   
+
+Here are the top root causes for immediate launch crashes in iOS Expo/React Native apps and how to diagnose/fix them:
+
+🚨 Top 6 Reasons Expo/iOS Apps Crash on Startup
+1. Missing Permission Descriptions in app.json / Info.plist
+The Cause: If your app initializes native features on boot (e.g., Camera, Microphone, Speech Recognition, Location, Audio recording) and the required usage string is missing, iOS's kernel terminates the process instantly (SIGABRT).
+
+Fix: Check your app.json under expo.plugins or ios.infoPlist to ensure permissions exist:
+
+JSON
+"ios": {
+  "infoPlist": {
+    "NSMicrophoneUsageDescription": "Allows voice interaction with Sirius AI.",
+    "NSSpeechRecognitionUsageDescription": "Converts speech to text for chat input."
+  }
+}
+2. Broken Relative Import or Missing Asset Path
+The Cause: If App.js / index.js or an initial screen imports an image, font, or JSON file with a typo or wrong path, the JS bundle fails to execute. Expo's error handler tries to render an error screen, but because it happens before mount, the app hard crashes.   
+
+Fix: Verify all require('./assets/...') and font loading hooks (useFonts).   
+
+3. Missing Native Dynamic Library / Plugin Config (dyld: Library not loaded)
+The Cause: If you installed an npm package with native code (e.g., react-native-reanimated, expo-av, react-native-gesture-handler, RevenueCat) without running npx expo prebuild or configuring the Expo config plugin in app.json.   
+
+Fix:
+
+Run npx expo-doctor in your workspace to scan for broken dependencies.   
+
+Clear cache and prebuild:
+
+Bash
+npx expo prebuild --clean -p ios
+4. Unhandled JS Exception in Top-Level Scope / Hermes Engine
+The Cause: Code running outside your React components (e.g., initializing an SDK with undefined API keys on module load) executes before any try/catch or error boundary can intercept it.
+
+Fix: Ensure environment variables (like EXPO_PUBLIC_API_URL or secrets) are properly bundled in production builds, or enable/disable Hermes JS Engine in app.json:
+
+JSON
+"ios": {
+  "jsEngine": "hermes"
+}
+5. react-native-reanimated Plugin Order Error
+The Cause: If react-native-reanimated is listed in your babel.config.js incorrectly, or not listed as the last plugin in the array, iOS release builds crash immediately upon loading the main bundle.
+
+Fix: Ensure babel.config.js has react-native-reanimated/plugin at the very bottom:
+
+JavaScript
+module.exports = function(api) {
+  api.cache(true);
+  return {
+    presets: ['babel-preset-expo'],
+    plugins: [
+      // other plugins...
+      'react-native-reanimated/plugin', // MUST BE LAST
+    ],
+  };
+};
+6. Scheme or Bundle Identifier Mismatch
+The Cause: If your StoreKit / RevenueCat config or OAuth schemes (app.json → scheme) are formatted incorrectly or missing, the app fails to register deep links at boot time.
+
+🔍 How to Find the EXACT Line Causing the Crash
+If you want to catch the exact stack trace rather than guessing:
+
+Check TestFlight Crash Logs:
+
+Go to App Store Connect → TestFlight → Select Build → Crash Feedback / Xcode Organizer.
+
+Read the On-Device Logs:
+
+On the iPhone: Settings → Privacy & Security → Analytics & Improvements → Analytics Data.
+
+Search for your app name to view the exact Termination Reason (e.g., CRASH (SIGABRT) or dyld missing library).
+
+Run a Local Release Build:
+
+Run the production scheme directly on a simulator or device connected via USB:
+
+Bash
+npx expo run:ios --configuration Release
+Xcode will break and pause on the exact line of code causing the startup crash.
