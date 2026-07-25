@@ -665,13 +665,13 @@ export default function SettingsScreen() {
       >
         <View style={{
           flex: 1,
-          backgroundColor: "rgba(8,12,26,0.92)",
+          backgroundColor: "rgba(0,0,0,0.45)",
           justifyContent: "flex-end",
         }}>
           <View style={{
-            backgroundColor: "#0c1020",
+            backgroundColor: Colors.surface,
             borderTopLeftRadius: 24, borderTopRightRadius: 24,
-            borderTopWidth: 1, borderTopColor: "rgba(0,212,255,0.15)",
+            borderTopWidth: 1, borderTopColor: Colors.border,
             maxHeight: "90%",
           }}>
           <ScrollView
@@ -681,10 +681,10 @@ export default function SettingsScreen() {
           >
           {payStep === "details" ? (
             <>
-              <Text style={{ fontSize: 20, fontWeight: "800", color: "#fff", marginBottom: 4 }}>
+              <Text style={{ fontSize: 20, fontWeight: "800", color: Colors.text, marginBottom: 4 }}>
                 Pay by bank transfer
               </Text>
-              <Text style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", marginBottom: 20 }}>
+              <Text style={{ fontSize: 13, color: Colors.textMuted, marginBottom: 20 }}>
                 {payTier === "plus" ? "Sirius Plus · £9.99/month" : "Sirius Pro · £19.99/month"}
               </Text>
 
@@ -699,40 +699,40 @@ export default function SettingsScreen() {
                 <View key={label} style={{
                   flexDirection: "row", justifyContent: "space-between",
                   paddingVertical: 8,
-                  borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)",
+                  borderBottomWidth: 1, borderBottomColor: Colors.border,
                 }}>
-                  <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.35)" }}>{label}</Text>
-                  <Text style={{ fontSize: 13, fontWeight: "600", color: "#fff" }}>{value}</Text>
+                  <Text style={{ fontSize: 12, color: Colors.textDim }}>{label}</Text>
+                  <Text style={{ fontSize: 13, fontWeight: "600", color: Colors.text }}>{value}</Text>
                 </View>
               ))}
 
-              <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", marginTop: 16, marginBottom: 12, lineHeight: 18 }}>
+              <Text style={{ fontSize: 12, color: Colors.textDim, marginTop: 16, marginBottom: 12, lineHeight: 18 }}>
                 Make the transfer in your banking app using the details above, then tap the button below. We'll upgrade your account within a few hours.
               </Text>
 
               <TextInput
                 placeholder="Your name (optional)"
-                placeholderTextColor="rgba(255,255,255,0.25)"
+                placeholderTextColor={Colors.textDim}
                 value={payName}
                 onChangeText={setPayName}
                 style={{
-                  backgroundColor: "rgba(255,255,255,0.05)",
+                  backgroundColor: Colors.background,
                   borderRadius: 10, padding: 12,
-                  color: "#fff", fontSize: 14, marginBottom: 8,
-                  borderWidth: 1, borderColor: "rgba(255,255,255,0.1)",
+                  color: Colors.text, fontSize: 14, marginBottom: 8,
+                  borderWidth: 1, borderColor: Colors.border,
                 }}
               />
               <TextInput
                 placeholder="Email for confirmation (optional)"
-                placeholderTextColor="rgba(255,255,255,0.25)"
+                placeholderTextColor={Colors.textDim}
                 value={payEmail}
                 onChangeText={setPayEmail}
                 keyboardType="email-address"
                 style={{
-                  backgroundColor: "rgba(255,255,255,0.05)",
+                  backgroundColor: Colors.background,
                   borderRadius: 10, padding: 12,
-                  color: "#fff", fontSize: 14, marginBottom: 16,
-                  borderWidth: 1, borderColor: "rgba(255,255,255,0.1)",
+                  color: Colors.text, fontSize: 14, marginBottom: 16,
+                  borderWidth: 1, borderColor: Colors.border,
                 }}
               />
 
@@ -740,45 +740,45 @@ export default function SettingsScreen() {
                 onPress={handlePayConfirm}
                 disabled={payLoading}
                 style={({ pressed }) => ({
-                  backgroundColor: payLoading ? "rgba(0,212,255,0.2)" : "#00d4ff",
+                  backgroundColor: payLoading ? `${Colors.primary}40` : Colors.primary,
                   borderRadius: 12, padding: 16,
                   alignItems: "center", marginBottom: 12,
                   opacity: pressed ? 0.9 : 1,
                 })}
               >
                 {payLoading
-                  ? <ActivityIndicator color="#00d4ff" />
-                  : <Text style={{ fontSize: 15, fontWeight: "700", color: "#080c1a" }}>I've made the transfer</Text>}
+                  ? <ActivityIndicator color="#ffffff" />
+                  : <Text style={{ fontSize: 15, fontWeight: "700", color: "#ffffff" }}>I've made the transfer</Text>}
               </Pressable>
               <Pressable onPress={() => setShowPayment(false)} style={{ alignItems: "center", padding: 8 }}>
-                <Text style={{ fontSize: 14, color: "rgba(255,255,255,0.35)" }}>Cancel</Text>
+                <Text style={{ fontSize: 14, color: Colors.textMuted }}>Cancel</Text>
               </Pressable>
             </>
           ) : (
             <>
               <Text style={{ fontSize: 36, textAlign: "center", marginBottom: 12 }}>🎉</Text>
-              <Text style={{ fontSize: 20, fontWeight: "800", color: "#fff", textAlign: "center", marginBottom: 8 }}>
+              <Text style={{ fontSize: 20, fontWeight: "800", color: Colors.text, textAlign: "center", marginBottom: 8 }}>
                 You're upgraded!
               </Text>
-              <Text style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", textAlign: "center", lineHeight: 20, marginBottom: 20 }}>
+              <Text style={{ fontSize: 13, color: Colors.textMuted, textAlign: "center", lineHeight: 20, marginBottom: 20 }}>
                 Your account is now active. Just complete the bank transfer and you're all set — no waiting needed.
               </Text>
               {!!payRef && (
                 <View style={{
-                  backgroundColor: "rgba(0,212,255,0.08)",
+                  backgroundColor: Colors.surfaceElevated,
                   borderRadius: 10, padding: 12, marginBottom: 20,
-                  borderWidth: 1, borderColor: "rgba(0,212,255,0.2)",
+                  borderWidth: 1, borderColor: Colors.border,
                   alignItems: "center",
                 }}>
-                  <Text style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", marginBottom: 2 }}>Your reference</Text>
-                  <Text style={{ fontSize: 14, fontWeight: "700", color: "#00d4ff" }}>{payRef}</Text>
+                  <Text style={{ fontSize: 11, color: Colors.textDim, marginBottom: 2 }}>Your reference</Text>
+                  <Text style={{ fontSize: 14, fontWeight: "700", color: Colors.primary }}>{payRef}</Text>
                 </View>
               )}
               <Pressable
                 onPress={() => setShowPayment(false)}
-                style={{ backgroundColor: "rgba(255,255,255,0.07)", borderRadius: 12, padding: 14, alignItems: "center" }}
+                style={{ backgroundColor: Colors.surfaceElevated, borderRadius: 12, padding: 14, alignItems: "center" }}
               >
-                <Text style={{ fontSize: 14, color: "rgba(255,255,255,0.6)" }}>Close</Text>
+                <Text style={{ fontSize: 14, color: Colors.textMuted }}>Close</Text>
               </Pressable>
             </>
           )}
@@ -1125,7 +1125,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: Colors.border,
     paddingTop: 14,
-    backgroundColor: "rgba(255,255,255,0.06)",
+    backgroundColor: Colors.surfaceElevated,
     borderRadius: 12,
     padding: 16,
   },

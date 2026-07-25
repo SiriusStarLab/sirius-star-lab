@@ -202,7 +202,7 @@ export default function LoginScreen() {
               ]}
             >
               {loading ? (
-                <ActivityIndicator color="#04081a" />
+                <ActivityIndicator color="#ffffff" />
               ) : (
                 <Text style={styles.submitText}>Send reset link</Text>
               )}
@@ -310,7 +310,7 @@ export default function LoginScreen() {
             ]}
           >
             {loading ? (
-              <ActivityIndicator color="#04081a" />
+              <ActivityIndicator color="#ffffff" />
             ) : (
               <Text style={styles.submitText}>
                 {screen === "login" ? "Sign in" : "Create account"}
@@ -476,7 +476,7 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   submitText: {
-    color: "#04081a",
+    color: "#ffffff",
     fontSize: 16,
     fontFamily: "Inter_700Bold",
     letterSpacing: 0.3,

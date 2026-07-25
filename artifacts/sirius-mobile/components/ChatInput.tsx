@@ -446,7 +446,7 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   menuItemPressed: {
-    backgroundColor: "rgba(255,255,255,0.05)",
+    backgroundColor: Colors.surfaceElevated,
   },
   menuIcon: {
     width: 40,
@@ -462,12 +462,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   menuLabel: {
-    color: "#fff",
+    color: Colors.text,
     fontSize: 16,
     fontFamily: "Inter_600SemiBold",
   },
   menuSub: {
-    color: "rgba(160,170,210,0.7)",
+    color: Colors.textMuted,
     fontSize: 12,
     fontFamily: "Inter_400Regular",
     marginTop: 2,

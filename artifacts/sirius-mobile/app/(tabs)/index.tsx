@@ -559,7 +559,7 @@ export default function ChatScreen() {
                       onPress={() => handleModalIAPPurchase(subscription.plusPackage)}
                     >
                       {subscription.isPurchasing
-                        ? <ActivityIndicator color="#04081a" />
+                        ? <ActivityIndicator color="#ffffff" />
                         : <Text style={upgradeStyles.ctaText}>
                             Get Plus — {subscription.plusPackage.product.priceString}/mo →
                           </Text>}
@@ -573,7 +573,7 @@ export default function ChatScreen() {
                       onPress={() => handleModalIAPPurchase(subscription.proPackage)}
                     >
                       {subscription.isPurchasing
-                        ? <ActivityIndicator color="#04081a" />
+                        ? <ActivityIndicator color="#ffffff" />
                         : <Text style={upgradeStyles.ctaText}>
                             Get Pro — {subscription.proPackage.product.priceString}/mo →
                           </Text>}
@@ -948,7 +948,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 8,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.05)",
+    borderBottomColor: Colors.border,
   },
   backBtn: {
     flexDirection: "row",
@@ -1143,7 +1143,7 @@ const styles = StyleSheet.create({
   },
   actionStepDetail: {
     fontSize: 11,
-    color: "rgba(255,255,255,0.4)",
+    color: Colors.textDim,
     fontFamily: "Inter_400Regular",
     lineHeight: 16,
     marginTop: 1,
@@ -1165,7 +1165,7 @@ const styles = StyleSheet.create({
   },
   actionLogWorking: {
     fontSize: 11,
-    color: "rgba(0,212,255,0.7)",
+    color: Colors.primary,
     fontFamily: "Inter_400Regular",
     fontStyle: "italic",
   },
@@ -1187,7 +1187,7 @@ const styles = StyleSheet.create({
   },
   actionLogCollapsedText: {
     fontSize: 12,
-    color: "rgba(255,255,255,0.45)",
+    color: Colors.textMuted,
     fontFamily: "Inter_400Regular",
   },
   actionLogExpanded: {
@@ -1229,19 +1229,19 @@ const styles = StyleSheet.create({
 const upgradeStyles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(4,8,26,0.85)",
+    backgroundColor: "rgba(0,0,0,0.45)",
     justifyContent: "flex-end",
     alignItems: "center",
   },
   sheet: {
     width: "100%",
-    backgroundColor: "#0a0f1e",
+    backgroundColor: Colors.surface,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     padding: 28,
     paddingBottom: 40,
     borderTopWidth: 1,
-    borderTopColor: "rgba(0,212,255,0.15)",
+    borderTopColor: Colors.border,
     overflow: "hidden",
   },
   glow: {
@@ -1276,23 +1276,23 @@ const upgradeStyles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: "700",
-    color: "#ffffff",
+    color: Colors.text,
     textAlign: "center",
     marginBottom: 8,
     fontFamily: "Inter_700Bold",
   },
   subtitle: {
     fontSize: 14,
-    color: "rgba(255,255,255,0.45)",
+    color: Colors.textMuted,
     textAlign: "center",
     lineHeight: 21,
     fontFamily: "Inter_400Regular",
   },
   planCard: {
-    backgroundColor: "rgba(255,255,255,0.04)",
+    backgroundColor: Colors.surfaceElevated,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderColor: Colors.border,
     padding: 16,
     marginBottom: 10,
   },
@@ -1304,13 +1304,13 @@ const upgradeStyles = StyleSheet.create({
   planName: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#fff",
+    color: Colors.text,
     fontFamily: "Inter_700Bold",
     marginBottom: 3,
   },
   planDesc: {
     fontSize: 12,
-    color: "rgba(255,255,255,0.35)",
+    color: Colors.textDim,
     fontFamily: "Inter_400Regular",
   },
   planPrice: {
@@ -1321,10 +1321,10 @@ const upgradeStyles = StyleSheet.create({
   planPer: {
     fontSize: 12,
     fontWeight: "400",
-    color: "rgba(255,255,255,0.35)",
+    color: Colors.textDim,
   },
   ctaBtn: {
-    backgroundColor: "hsl(193,100%,42%)",
+    backgroundColor: Colors.primary,
     borderRadius: 14,
     paddingVertical: 15,
     alignItems: "center",
@@ -1332,7 +1332,7 @@ const upgradeStyles = StyleSheet.create({
     marginBottom: 10,
   },
   ctaText: {
-    color: "#04081a",
+    color: "#ffffff",
     fontSize: 15,
     fontWeight: "700",
     fontFamily: "Inter_700Bold",
@@ -1342,7 +1342,7 @@ const upgradeStyles = StyleSheet.create({
     paddingVertical: 8,
   },
   dismissText: {
-    color: "rgba(255,255,255,0.25)",
+    color: Colors.textDim,
     fontSize: 13,
     fontFamily: "Inter_400Regular",
   },
@@ -1351,15 +1351,15 @@ const upgradeStyles = StyleSheet.create({
 const histStyles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.7)",
+    backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "flex-end",
   },
   sheet: {
-    backgroundColor: "#07111f",
+    backgroundColor: Colors.surface,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     borderWidth: 1,
-    borderColor: "rgba(0,180,216,0.15)",
+    borderColor: Colors.border,
     padding: 24,
     maxHeight: "80%",
   },
@@ -1372,11 +1372,11 @@ const histStyles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#ffffff",
+    color: Colors.text,
     fontFamily: "Inter_700Bold",
   },
   empty: {
-    color: "rgba(255,255,255,0.35)",
+    color: Colors.textDim,
     textAlign: "center",
     paddingVertical: 40,
     fontFamily: "Inter_400Regular",
@@ -1384,17 +1384,17 @@ const histStyles = StyleSheet.create({
   item: {
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.06)",
+    borderBottomColor: Colors.border,
   },
   itemTitle: {
     fontSize: 15,
-    color: "#ffffff",
+    color: Colors.text,
     fontFamily: "Inter_500Medium",
     marginBottom: 3,
   },
   itemDate: {
     fontSize: 12,
-    color: "rgba(255,255,255,0.35)",
+    color: Colors.textDim,
     fontFamily: "Inter_400Regular",
   },
 });
