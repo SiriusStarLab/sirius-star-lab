@@ -169,6 +169,7 @@ function StudyPlanPanel() {
   const [duration, setDuration] = useState("4 weeks");
   const [streaming, setStreaming] = useState(false);
   const [plan, setPlan] = useState("");
+  const [planError, setPlanError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [savedPlans, setSavedPlans] = useState<SavedPlan[]>([]);
   const [showSaved, setShowSaved] = useState(false);
@@ -193,7 +194,7 @@ function StudyPlanPanel() {
 
   const generate = async () => {
     if (!topic.trim() || streaming) return;
-    setStreaming(true); setPlan(""); setSaved(false);
+    setStreaming(true); setPlan(""); setSaved(false); setPlanError(null);
     let result = "";
     try {
       const res = await fetch(`${base}learn/study-plan`, {
@@ -211,11 +212,14 @@ function StudyPlanPanel() {
               const d = JSON.parse(line.slice(6));
               if (d.delta) { result += d.delta; setPlan(result); }
               if (d.done) { setSaved(true); loadSaved(); }
+              if (d.error) { setPlanError(d.error); }
             } catch {}
           }
         }
       }
-    } catch {}
+    } catch (e: any) {
+      setPlanError("Connection error — please try again");
+    }
     setStreaming(false);
   };
 
@@ -257,9 +261,9 @@ function StudyPlanPanel() {
   }
 
   return (
-    <div className="flex-1 flex min-h-0">
+    <div className="flex-1 flex flex-col min-h-0">
       {/* Config */}
-      <div className="w-72 border-r flex-shrink-0 flex flex-col overflow-y-auto"
+      <div className="border-b flex-shrink-0 flex flex-col overflow-y-auto"
         style={{ borderColor: "hsl(210 25% 90%)", background: "white" }}>
         <div className="p-5">
           <div className="flex items-center gap-3 mb-5">
@@ -357,7 +361,19 @@ function StudyPlanPanel() {
 
       {/* Output */}
       <div className="flex-1 flex flex-col min-h-0" style={{ background: BASE_BG }}>
-        {!plan && !streaming ? (
+        {planError && !plan && (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center space-y-3 max-w-sm px-6">
+              <div className="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center" style={{ background: "hsl(0 80% 97%)" }}>
+                <XCircle className="w-7 h-7 text-red-400" />
+              </div>
+              <p className="text-sm font-medium text-gray-600">Something went wrong</p>
+              <p className="text-xs text-gray-400 leading-relaxed">{planError}</p>
+              <button onClick={() => setPlanError(null)} className="text-xs px-3 py-1.5 rounded-lg" style={{ background: `${TEAL}15`, color: TEAL }}>Try again</button>
+            </div>
+          </div>
+        )}
+        {!plan && !streaming && !planError ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center space-y-3 max-w-sm px-6">
               <div className="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center"
@@ -491,9 +507,9 @@ function QuizPanel() {
   const pct = questions.length > 0 ? Math.round((score / questions.length) * 100) : 0;
 
   return (
-    <div className="flex-1 flex min-h-0">
+    <div className="flex-1 flex flex-col min-h-0">
       {/* Config */}
-      <div className="w-72 border-r flex-shrink-0 flex flex-col overflow-y-auto"
+      <div className="border-b flex-shrink-0 flex flex-col overflow-y-auto"
         style={{ borderColor: "hsl(210 25% 90%)", background: "white" }}>
         <div className="p-5">
           <div className="flex items-center gap-3 mb-5">
@@ -812,9 +828,9 @@ function DocumentPanel() {
   const copy = () => { navigator.clipboard.writeText(output); setCopied(true); setTimeout(() => setCopied(false), 2000); };
 
   return (
-    <div className="flex-1 flex min-h-0">
+    <div className="flex-1 flex flex-col min-h-0">
       {/* Config */}
-      <div className="w-72 border-r flex-shrink-0 flex flex-col overflow-y-auto"
+      <div className="border-b flex-shrink-0 flex flex-col overflow-y-auto"
         style={{ borderColor: "hsl(210 25% 90%)", background: "white" }}>
         <div className="p-5">
           <div className="flex items-center gap-3 mb-5">
