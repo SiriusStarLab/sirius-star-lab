@@ -311,3 +311,27 @@ id = "kzhFSchzFkzfqKfWWYFP2"
 uri = "file://artifacts/sirius-mobile/store-metadata/sirius-screenshots-final.zip"
 type = "unspecified"
 title = "Sirius Star Lab — All 5 Screenshots (1320×2868)"
+
+[[outputs]]
+id = "vOti_nS85M4v_e0LYEdGF"
+uri = "file://artifacts/sirius-mobile/assets/images/logo.png"
+type = "image"
+title = "logo.png"
+
+[[outputs]]
+id = "wpSvfQHDEXTs4ePSM0KQO"
+uri = "file://artifacts/sirius-mobile/assets/images/icon.png"
+type = "image"
+title = "icon.png"
+
+[[outputs]]
+id = "5MQVq06bFoeYLfaxT4Ajo"
+uri = "file://artifacts/sirius-mobile/assets/images/adaptive-icon.png"
+type = "image"
+title = "adaptive-icon.png"
+
+[[outputs]]
+id = "LAahh9NglIhBB6gJkO2f2"
+uri = "file://artifacts/sirius-mobile/assets/images/splash-icon.png"
+type = "image"
+title = "splash-icon.png"
