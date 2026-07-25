@@ -24,7 +24,7 @@ export default function TabLayout() {
         ),
         tabBarLabelStyle: {
           fontFamily: "Inter_500Medium",
-          fontSize: 11,
+          fontSize: 10,
         },
       }}
     >
@@ -33,16 +33,43 @@ export default function TabLayout() {
         options={{
           title: "Chat",
           tabBarIcon: ({ color }) => (
-            <Feather name="message-circle" size={22} color={color} />
+            <Feather name="message-circle" size={21} color={color} />
           ),
         }}
       />
       <Tabs.Screen
-        name="explore"
+        name="learn"
         options={{
-          title: "Explore",
+          title: "Learn",
           tabBarIcon: ({ color }) => (
-            <Feather name="zap" size={22} color={color} />
+            <Feather name="book-open" size={21} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="dreamlab"
+        options={{
+          title: "Dream Lab",
+          tabBarIcon: ({ color }) => (
+            <Feather name="star" size={21} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="wellbeing"
+        options={{
+          title: "Wellbeing",
+          tabBarIcon: ({ color }) => (
+            <Feather name="heart" size={21} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="universe"
+        options={{
+          title: "Universe",
+          tabBarIcon: ({ color }) => (
+            <Feather name="globe" size={21} color={color} />
           ),
         }}
       />
@@ -51,7 +78,7 @@ export default function TabLayout() {
         options={{
           title: "History",
           tabBarIcon: ({ color }) => (
-            <Feather name="clock" size={22} color={color} />
+            <Feather name="clock" size={21} color={color} />
           ),
         }}
       />
@@ -60,10 +87,11 @@ export default function TabLayout() {
         options={{
           title: "Profile",
           tabBarIcon: ({ color }) => (
-            <Feather name="user" size={22} color={color} />
+            <Feather name="user" size={21} color={color} />
           ),
         }}
       />
+      <Tabs.Screen name="explore" options={{ href: null }} />
     </Tabs>
   );
 }

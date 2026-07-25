@@ -105,6 +105,7 @@ export default function ChatScreen() {
   const [showHistory, setShowHistory] = useState(false);
   const [historyList, setHistoryList] = useState<Array<{ id: number; title: string; createdAt: string }>>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [chatMode, setChatMode] = useState("guru");
 
   const promptHandledRef = useRef<string | undefined>(undefined);
   const convoHandledRef = useRef<string | undefined>(undefined);
@@ -201,6 +202,7 @@ export default function ChatScreen() {
           body: JSON.stringify({
             content: text,
             userId: userId ?? undefined,
+            mode: chatMode,
             imageBase64: imageBase64 ?? undefined,
             documentBase64: documentBase64 ?? undefined,
             documentName: documentName ?? undefined,
@@ -718,6 +720,38 @@ export default function ChatScreen() {
             <Text style={styles.brandSlogan}>I think, so I am</Text>
           </View>
 
+          {/* Mode selector */}
+          <View style={styles.sectionHeader}>
+            <Feather name="sliders" size={13} color={Colors.primary} />
+            <Text style={styles.sectionLabel}>CONVERSATION MODE</Text>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.modesRow}>
+            {[
+              { id: "guru",        label: "Guru",        emoji: "🧿" },
+              { id: "coach",       label: "Coach",       emoji: "🏋️" },
+              { id: "scientist",   label: "Scientist",   emoji: "🔬" },
+              { id: "philosopher", label: "Philosopher", emoji: "🦉" },
+              { id: "creative",    label: "Creative",    emoji: "🎨" },
+              { id: "friend",      label: "Friend",      emoji: "🤝" },
+              { id: "tutor",       label: "Tutor",       emoji: "📚" },
+              { id: "research",    label: "Research",    emoji: "🔭" },
+              { id: "think",       label: "Think",       emoji: "💭" },
+              { id: "manifest",    label: "Manifest",    emoji: "✨" },
+            ].map(mode => (
+              <Pressable
+                key={mode.id}
+                onPress={() => setChatMode(mode.id)}
+                style={[
+                  styles.modeChip,
+                  chatMode === mode.id && { backgroundColor: Colors.primary + "22", borderColor: Colors.primary },
+                ]}
+              >
+                <Text style={styles.modeChipEmoji}>{mode.emoji}</Text>
+                <Text style={[styles.modeChipLabel, chatMode === mode.id && { color: Colors.primary }]}>{mode.label}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+
           {/* Mood tiles */}
           <View style={styles.sectionHeader}>
             <Feather name="activity" size={13} color={Colors.primary} />
@@ -983,6 +1017,25 @@ const styles = StyleSheet.create({
     gap: 7,
     marginBottom: 12,
   },
+
+  modesRow: {
+    paddingHorizontal: 0,
+    gap: 8,
+    marginBottom: 24,
+  },
+  modeChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+  },
+  modeChipEmoji: { fontSize: 14 },
+  modeChipLabel: { fontSize: 13, fontWeight: "600", color: Colors.textMuted },
   sectionLabel: {
     fontSize: 11,
     fontWeight: "600",
