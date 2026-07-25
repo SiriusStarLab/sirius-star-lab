@@ -299,3 +299,9 @@ id = "xTR_3TH37H2xAjF6TmQts"
 uri = "file://.local/exports/mini-openrouter.pdf"
 type = "pdf"
 title = "Mini OpenRouter — Build Specification"
+
+[[outputs]]
+id = "VBFBZst2BkuIfeokk_IWX"
+uri = "file://artifacts/sirius-mobile/store-metadata/sirius-screenshots.zip"
+type = "unspecified"
+title = "Sirius App Store Screenshots (5 PNGs — 1320×2868 iPhone 6.9\")"
