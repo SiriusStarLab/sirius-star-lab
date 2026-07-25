@@ -129,12 +129,10 @@ export default function ChatScreen() {
   const refreshKateVoice = useCallback(() => {
     Speech.getAvailableVoicesAsync()
       .then(voices => {
-        const jenny = voices.find(
-          v => v.name.toLowerCase().includes("jenny") && v.language.startsWith("en")
-        ) ?? voices.find(
+        const kate = voices.find(
           v => v.name.toLowerCase().includes("kate") && v.language.startsWith("en-GB")
         ) ?? voices.find(v => v.language.startsWith("en-GB"));
-        if (jenny) kateVoiceRef.current = jenny.identifier;
+        if (kate) kateVoiceRef.current = kate.identifier;
       })
       .catch(() => {});
   }, []);
