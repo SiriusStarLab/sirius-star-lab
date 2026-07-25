@@ -251,8 +251,8 @@ function StudyPlanPanel() {
             <Trash2 className="w-4 h-4" />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto px-6 py-6">
-          <div className="max-w-2xl mx-auto prose prose-sm prose-gray max-w-none">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden px-6 py-6">
+          <div className="max-w-2xl mx-auto prose prose-sm prose-gray max-w-none break-words">
             <ReactMarkdown>{viewingPlan.plan}</ReactMarkdown>
           </div>
         </div>
@@ -409,9 +409,9 @@ function StudyPlanPanel() {
                 </button>
               </div>
             )}
-            <div className="flex-1 overflow-y-auto px-6 py-6">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden px-6 py-6">
               <div className="max-w-2xl mx-auto">
-                <div className="prose prose-sm prose-gray max-w-none">
+                <div className="prose prose-sm prose-gray max-w-none break-words">
                   <ReactMarkdown>{plan}</ReactMarkdown>
                 </div>
                 {streaming && (
@@ -935,9 +935,9 @@ function DocumentPanel() {
                 </button>
               </div>
             )}
-            <div className="flex-1 overflow-y-auto px-6 py-6">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden px-6 py-6">
               <div className="max-w-2xl mx-auto">
-                <div className="prose prose-sm prose-gray max-w-none">
+                <div className="prose prose-sm prose-gray max-w-none break-words">
                   <ReactMarkdown>{output}</ReactMarkdown>
                 </div>
                 {streaming && (
