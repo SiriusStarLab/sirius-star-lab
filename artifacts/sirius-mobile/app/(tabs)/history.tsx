@@ -100,6 +100,10 @@ export default function HistoryScreen() {
   return (
     <View style={[styles.root, { backgroundColor: Colors.background }]}>
       <View style={[styles.header, { paddingTop: topPad + 8 }]}>
+        <Pressable onPress={() => router.push("/(tabs)" as any)} style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.6 }]}>
+          <Feather name="chevron-left" size={20} color={Colors.primary} />
+          <Text style={styles.backBtnText}>Home</Text>
+        </Pressable>
         <Text style={styles.heading}>History</Text>
         <Pressable
           onPress={() => refetch()}
@@ -154,6 +158,8 @@ export default function HistoryScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  backBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
+  backBtnText: { fontSize: 15, fontWeight: "600", color: Colors.primary },
   header: {
     flexDirection: "row",
     alignItems: "center",

@@ -1,12 +1,13 @@
-import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { fetch } from "expo/fetch";
-import { useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import * as Speech from "expo-speech";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   AppState,
+  Dimensions,
   FlatList,
   Image,
   KeyboardAvoidingView,
@@ -38,6 +39,9 @@ import {
 } from "@/lib/api";
 import { useSubscription } from "@/lib/revenuecat";
 
+const SCREEN_WIDTH = Dimensions.get("window").width;
+const DRAWER_WIDTH = Math.min(SCREEN_WIDTH * 0.85, 340);
+
 interface DBMessage {
   id: number;
   conversationId: number;
@@ -54,26 +58,17 @@ interface ActionStep {
   icon: string;
 }
 
-const MOODS = [
-  { label: "Alive & open",      emoji: "🌤️", color: "#00d4ff", prompt: "My heart feels light today — genuinely open. I want to share this energy and maybe explore something that gives it more meaning. Meet me here." },
-  { label: "Need holding",      emoji: "💙", color: "#60a5fa", prompt: "Something in me is asking for gentleness right now. I don't need solutions — I need to feel less alone. Can you just be here with me for a while?" },
-  { label: "In the deep",       emoji: "🌊", color: "#38bdf8", prompt: "I'm in a hard place today. The kind that's hard to explain. I don't need fixing — I just need you to sit with me in it and not rush me out." },
-  { label: "Restless mind",     emoji: "🌀", color: "#a78bfa", prompt: "My mind won't settle — it's spinning and I can't find stillness. Can you help me come back to myself? Gently. I need grounding, not rushing." },
-  { label: "Searching",         emoji: "🔍", color: "#94a3b8", prompt: "I'm alive with questions today — something in me is reaching for something I can't quite name. Let's go somewhere I've never been. I'm ready to explore." },
-  { label: "Ready to rise",     emoji: "🔥", color: "#f97316", prompt: "Something is building in me — a real sense of possibility and purpose. I don't want to waste it. Help me channel this into something that actually matters." },
-  { label: "Running on empty",  emoji: "🌑", color: "#64748b", prompt: "I'm depleted — down to the last reserves. But I'm here, and I reached out, which took something. Let's take it slow. No pressure. Just presence." },
-  { label: "Heart full",        emoji: "✨", color: "#ec4899", prompt: "I'm sitting with something beautiful — a quiet, deep gratitude that I can't quite explain. Can we stay here a while? I want to understand what I'm feeling." },
-];
-
-const TOPICS = [
-  { label: "Philosophy",    icon: "book" as const },
-  { label: "Cosmos",        icon: "globe" as const },
-  { label: "Consciousness", icon: "cpu" as const },
-  { label: "Psychology",    icon: "user" as const },
-  { label: "Quantum",       icon: "zap" as const },
-  { label: "Spirituality",  icon: "feather" as const },
-  { label: "Health",        icon: "heart" as const },
-  { label: "Music",         icon: "music" as const },
+const MODES = [
+  { id: "guru",        label: "Guru",        emoji: "🧿" },
+  { id: "coach",       label: "Coach",       emoji: "🏋️" },
+  { id: "scientist",   label: "Scientist",   emoji: "🔬" },
+  { id: "philosopher", label: "Philosopher", emoji: "🦉" },
+  { id: "creative",    label: "Creative",    emoji: "🎨" },
+  { id: "friend",      label: "Friend",      emoji: "🤝" },
+  { id: "tutor",       label: "Tutor",       emoji: "📚" },
+  { id: "research",    label: "Research",    emoji: "🔭" },
+  { id: "think",       label: "Think",       emoji: "💭" },
+  { id: "manifest",    label: "Manifest",    emoji: "✨" },
 ];
 
 const SURPRISE_PROMPTS = [
@@ -106,6 +101,25 @@ export default function ChatScreen() {
   const [historyList, setHistoryList] = useState<Array<{ id: number; title: string; createdAt: string }>>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [chatMode, setChatMode] = useState("guru");
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  const drawerAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
+  const overlayAnim = useRef(new Animated.Value(0)).current;
+
+  const openDrawer = useCallback(() => {
+    setDrawerOpen(true);
+    Animated.parallel([
+      Animated.spring(drawerAnim, { toValue: 0, useNativeDriver: true, tension: 65, friction: 11 }),
+      Animated.timing(overlayAnim, { toValue: 1, duration: 250, useNativeDriver: true }),
+    ]).start();
+  }, [drawerAnim, overlayAnim]);
+
+  const closeDrawer = useCallback(() => {
+    Animated.parallel([
+      Animated.spring(drawerAnim, { toValue: -DRAWER_WIDTH, useNativeDriver: true, tension: 65, friction: 11 }),
+      Animated.timing(overlayAnim, { toValue: 0, duration: 200, useNativeDriver: true }),
+    ]).start(() => setDrawerOpen(false));
+  }, [drawerAnim, overlayAnim]);
 
   const promptHandledRef = useRef<string | undefined>(undefined);
   const convoHandledRef = useRef<string | undefined>(undefined);
@@ -150,7 +164,6 @@ export default function ChatScreen() {
       .filter(p => p.length > 0);
 
     if (rawChunks.length === 0) return;
-
     let idx = 0;
     const speakNext = () => {
       if (speechCancelledRef.current || idx >= rawChunks.length) return;
@@ -167,9 +180,8 @@ export default function ChatScreen() {
     speakNext();
   }, []);
 
-  const tabBarHeight = useBottomTabBarHeight();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
-  const bottomPad = Platform.OS === "web" ? 34 : tabBarHeight;
+  const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
   const handleSend = useCallback(async (text: string, imageBase64?: string, documentBase64?: string, documentName?: string) => {
     if (isStreaming) return;
@@ -232,7 +244,6 @@ export default function ChatScreen() {
       let buffer = "";
       let assistantAdded = false;
       const assistantId = generateId();
-      let imageB64: string | undefined;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -252,7 +263,7 @@ export default function ChatScreen() {
             if (parsed.done) continue;
 
             if (parsed.type === "image" && parsed.b64) {
-              imageB64 = parsed.b64;
+              const imageB64: string = parsed.b64;
               const imageMimeType: string = parsed.mimeType ?? "image/jpeg";
               setMessages(prev => {
                 const updated = [...prev];
@@ -339,24 +350,16 @@ export default function ChatScreen() {
       setShowTyping(false);
       setMessages(prev => [
         ...prev,
-        {
-          id: generateId(),
-          role: "assistant",
-          content: "Something went wrong. Please try again.",
-        },
+        { id: generateId(), role: "assistant", content: "Something went wrong. Please try again." },
       ]);
     } finally {
       setIsStreaming(false);
       setShowTyping(false);
     }
-  }, [conversationId, isStreaming, userId, voiceMode]);
+  }, [conversationId, isStreaming, userId, voiceMode, chatMode]);
 
   useEffect(() => {
-    if (
-      params.prompt &&
-      params.prompt !== promptHandledRef.current &&
-      !isStreaming
-    ) {
+    if (params.prompt && params.prompt !== promptHandledRef.current && !isStreaming) {
       promptHandledRef.current = params.prompt;
       setMessages([]);
       setConversationId(null);
@@ -364,9 +367,8 @@ export default function ChatScreen() {
     }
   }, [params.prompt, handleSend, isStreaming]);
 
-  // Auto-load the most recent conversation on startup
   useEffect(() => {
-    if (params.conversationId || params.prompt) return; // handled by other effects
+    if (params.conversationId || params.prompt) return;
     (async () => {
       try {
         const uid = userId || (await getUserId());
@@ -375,7 +377,6 @@ export default function ChatScreen() {
         const latest = convos.sort(
           (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         )[0];
-        // Skip probe/health-check conversations
         if (!latest || latest.title === "health check" || latest.title === "probe") return;
         const base = getApiBase();
         const qs = uid ? `?userId=${encodeURIComponent(uid)}` : "";
@@ -399,10 +400,8 @@ export default function ChatScreen() {
     const convoIdParam = params.conversationId;
     if (!convoIdParam || convoIdParam === convoHandledRef.current) return;
     convoHandledRef.current = convoIdParam;
-
     const id = parseInt(convoIdParam, 10);
     if (isNaN(id)) return;
-
     (async () => {
       try {
         const base = getApiBase();
@@ -425,19 +424,6 @@ export default function ChatScreen() {
   const reversed = [...messages].reverse();
   const aiName = profile.aiName || "Sirius";
 
-  const handleMood = (mood: typeof MOODS[number]) => {
-    handleSend(mood.prompt);
-  };
-
-  const handleTopic = (topic: string) => {
-    handleSend(`Let's explore ${topic}. What's the most fascinating angle on this right now?`);
-  };
-
-  const handleSurprise = () => {
-    const pick = SURPRISE_PROMPTS[Math.floor(Math.random() * SURPRISE_PROMPTS.length)];
-    handleSend(pick);
-  };
-
   const handleNewChat = useCallback(() => {
     stopSpeech();
     setMessages([]);
@@ -446,9 +432,11 @@ export default function ChatScreen() {
     setShowTyping(false);
     setActionSteps([]);
     setStepsExpanded(false);
-  }, []);
+    closeDrawer();
+  }, [stopSpeech, closeDrawer]);
 
   const openHistory = useCallback(async () => {
+    closeDrawer();
     setShowHistory(true);
     setHistoryLoading(true);
     try {
@@ -466,7 +454,7 @@ export default function ChatScreen() {
     } finally {
       setHistoryLoading(false);
     }
-  }, [userId]);
+  }, [userId, closeDrawer]);
 
   const loadConversation = useCallback(async (id: number) => {
     setShowHistory(false);
@@ -493,9 +481,6 @@ export default function ChatScreen() {
     } catch {}
   }, [userId, stopSpeech]);
 
-  const UPGRADE_URL = "https://sirius-ai.live/pricing";
-  const isIOS = Platform.OS === "ios";
-
   const handleModalIAPPurchase = async (pkg: any) => {
     if (!pkg) return;
     try {
@@ -508,29 +493,177 @@ export default function ChatScreen() {
     }
   };
 
+  const UPGRADE_URL = "https://sirius-ai.live/pricing";
+  const isIOS = Platform.OS === "ios";
+
+  const dailyUsed = profile.dailyMessageCount ?? 0;
+  const dailyLimit = profile.dailyLimit ?? 30;
+  const usagePct = Math.min(dailyUsed / dailyLimit, 1);
+
+  const navigateTo = (screen: string) => {
+    closeDrawer();
+    setTimeout(() => router.push(screen as any), 180);
+  };
+
   return (
-    <KeyboardAvoidingView
-      style={[styles.root, { backgroundColor: Colors.background }]}
-      behavior="padding"
-      keyboardVerticalOffset={0}
-    >
-      {/* ── Upgrade modal ── */}
-      <Modal
-        visible={showUpgradeModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowUpgradeModal(false)}
+    <View style={[styles.root, { backgroundColor: Colors.background }]}>
+      {/* ── Fixed top header ── */}
+      <View style={[styles.header, { paddingTop: topPad, borderBottomColor: messages.length > 0 ? Colors.border : "transparent" }]}>
+        <Pressable
+          onPress={openDrawer}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          style={({ pressed }) => [styles.headerBtn, pressed && { opacity: 0.6 }]}
+        >
+          <Feather name="menu" size={22} color={Colors.text} />
+        </Pressable>
+
+        <Text style={styles.headerTitle}>SIRIUS</Text>
+
+        <Pressable
+          onPress={handleNewChat}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          style={({ pressed }) => [styles.headerBtn, pressed && { opacity: 0.6 }]}
+        >
+          <Feather name="plus" size={22} color={Colors.text} />
+        </Pressable>
+      </View>
+
+      {/* ── Main content ── */}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior="padding"
+        keyboardVerticalOffset={0}
       >
+        {messages.length === 0 ? (
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={[styles.landing, { paddingBottom: bottomPad + 8 }]}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {/* Logo */}
+            <View style={styles.logoWrap}>
+              <View style={styles.logoGlow} />
+              <Image
+                source={require("@/assets/images/logo.png")}
+                style={styles.logoImage}
+              />
+            </View>
+
+            {/* Tagline */}
+            <Text style={styles.tagline}>I'M SIRIUS  ·  I THINK, SO I AM</Text>
+
+            {/* Welcome heading */}
+            <Text style={styles.welcomeTitle}>Welcome to Sirius — a place where you become a star</Text>
+
+            {/* Subtitle */}
+            <Text style={styles.welcomeSub}>What would you like to do?</Text>
+          </ScrollView>
+        ) : (
+          <FlatList
+            data={reversed}
+            keyExtractor={item => item.id}
+            renderItem={({ item }) => <MessageBubble message={item} />}
+            inverted
+            ListHeaderComponent={
+              <>
+                {showTyping && <TypingIndicator />}
+                {isStreaming && actionSteps.length > 0 && (
+                  <View style={styles.actionLogLive}>
+                    {actionSteps.map((step, i) => (
+                      <View key={i} style={styles.actionStep}>
+                        <Text style={styles.actionStepIcon}>{step.icon}</Text>
+                        <View style={styles.actionStepText}>
+                          <Text style={[styles.actionStepLabel, { color: step.color }]}>{step.label}</Text>
+                          {step.detail ? <Text style={styles.actionStepDetail}>{step.detail}</Text> : null}
+                        </View>
+                      </View>
+                    ))}
+                    <View style={styles.actionLogPulse}>
+                      <View style={[styles.actionLogDot, { backgroundColor: Colors.primary }]} />
+                      <Text style={styles.actionLogWorking}>Working…</Text>
+                    </View>
+                  </View>
+                )}
+                {!isStreaming && actionSteps.length > 0 && (
+                  <Pressable onPress={() => setStepsExpanded(e => !e)} style={styles.actionLogCollapsed}>
+                    <Text style={styles.actionLogCollapsedIcon}>⚡</Text>
+                    <Text style={styles.actionLogCollapsedText}>
+                      {actionSteps.length} action{actionSteps.length !== 1 ? "s" : ""} taken
+                    </Text>
+                    <Feather name={stepsExpanded ? "chevron-down" : "chevron-up"} size={13} color={Colors.textMuted} style={{ marginLeft: "auto" }} />
+                  </Pressable>
+                )}
+                {!isStreaming && stepsExpanded && actionSteps.length > 0 && (
+                  <View style={styles.actionLogExpanded}>
+                    {actionSteps.map((step, i) => (
+                      <View key={i} style={styles.actionStep}>
+                        <Text style={styles.actionStepIcon}>{step.icon}</Text>
+                        <View style={styles.actionStepText}>
+                          <Text style={[styles.actionStepLabel, { color: step.color }]}>{step.label}</Text>
+                          {step.detail ? <Text style={styles.actionStepDetail}>{step.detail}</Text> : null}
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </>
+            }
+            keyboardDismissMode="interactive"
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ paddingTop: 8, paddingBottom: 12 }}
+            showsVerticalScrollIndicator={false}
+          />
+        )}
+
+        {/* Quick chips (active chat) */}
+        {messages.length > 0 && !isStreaming && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickChipsRow} keyboardShouldPersistTaps="handled">
+            <Pressable onPress={() => handleSend("Can you visualise this for me?")} style={({ pressed }) => [styles.quickChip, pressed && { opacity: 0.7 }]}>
+              <Feather name="image" size={13} color={Colors.primary} />
+              <Text style={styles.quickChipText}>Visualise this</Text>
+            </Pressable>
+            <Pressable onPress={() => handleSend("Can you summarise what we've discussed so far?")} style={({ pressed }) => [styles.quickChip, pressed && { opacity: 0.7 }]}>
+              <Feather name="list" size={13} color={Colors.primary} />
+              <Text style={styles.quickChipText}>Summarise</Text>
+            </Pressable>
+            <Pressable onPress={() => handleSend("Go deeper on this.")} style={({ pressed }) => [styles.quickChip, pressed && { opacity: 0.7 }]}>
+              <Feather name="arrow-down-circle" size={13} color={Colors.primary} />
+              <Text style={styles.quickChipText}>Go deeper</Text>
+            </Pressable>
+            <Pressable onPress={() => handleSend("What's a different way to look at this?")} style={({ pressed }) => [styles.quickChip, pressed && { opacity: 0.7 }]}>
+              <Feather name="refresh-cw" size={13} color={Colors.primary} />
+              <Text style={styles.quickChipText}>New angle</Text>
+            </Pressable>
+          </ScrollView>
+        )}
+
+        {/* Chat input */}
+        <View style={{ paddingBottom: Math.max(bottomPad, 8) }}>
+          {messages.length === 0 && (
+            <Text style={styles.secureFooter}>SECURE  ·  PRIVATE  ·  ALWAYS ON</Text>
+          )}
+          <ChatInput
+            onSend={handleSend}
+            disabled={isStreaming}
+            placeholder="I'm listening. Take your time."
+            voiceMode={voiceMode}
+            onToggleVoice={() => {
+              if (voiceMode) stopSpeech();
+              setVoiceMode(v => !v);
+            }}
+          />
+        </View>
+      </KeyboardAvoidingView>
+
+      {/* ── Upgrade modal ── */}
+      <Modal visible={showUpgradeModal} transparent animationType="fade" onRequestClose={() => setShowUpgradeModal(false)}>
         <View style={upgradeStyles.overlay}>
           <View style={upgradeStyles.sheet}>
             <View style={upgradeStyles.glow} pointerEvents="none" />
-
-            {/* Header */}
             <View style={upgradeStyles.header}>
               <View style={upgradeStyles.orbWrap}>
-                <View style={upgradeStyles.orb}>
-                  <Text style={{ fontSize: 22 }}>⚡</Text>
-                </View>
+                <View style={upgradeStyles.orb}><Text style={{ fontSize: 22 }}>⚡</Text></View>
               </View>
               <Text style={upgradeStyles.title}>
                 {hitLimitTier === "plus" ? "Daily limit reached" : "You've used your 30 free messages"}
@@ -542,7 +675,6 @@ export default function ChatScreen() {
               </Text>
             </View>
 
-            {/* iOS: IAP purchase buttons from RevenueCat */}
             {isIOS ? (
               subscription.isLoading ? (
                 <View style={{ alignItems: "center", paddingVertical: 20 }}>
@@ -552,46 +684,23 @@ export default function ChatScreen() {
               ) : (
                 <>
                   {hitLimitTier === "free" && subscription.plusPackage && (
-                    <TouchableOpacity
-                      style={upgradeStyles.ctaBtn}
-                      activeOpacity={0.82}
-                      disabled={subscription.isPurchasing}
-                      onPress={() => handleModalIAPPurchase(subscription.plusPackage)}
-                    >
-                      {subscription.isPurchasing
-                        ? <ActivityIndicator color="#ffffff" />
-                        : <Text style={upgradeStyles.ctaText}>
-                            Get Plus — {subscription.plusPackage.product.priceString}/mo →
-                          </Text>}
+                    <TouchableOpacity style={upgradeStyles.ctaBtn} activeOpacity={0.82} disabled={subscription.isPurchasing} onPress={() => handleModalIAPPurchase(subscription.plusPackage)}>
+                      {subscription.isPurchasing ? <ActivityIndicator color="#ffffff" /> : <Text style={upgradeStyles.ctaText}>Get Plus — {subscription.plusPackage.product.priceString}/mo →</Text>}
                     </TouchableOpacity>
                   )}
                   {subscription.proPackage && (
-                    <TouchableOpacity
-                      style={[upgradeStyles.ctaBtn, { backgroundColor: "hsl(45,100%,42%)", marginTop: hitLimitTier === "free" ? 8 : 0 }]}
-                      activeOpacity={0.82}
-                      disabled={subscription.isPurchasing}
-                      onPress={() => handleModalIAPPurchase(subscription.proPackage)}
-                    >
-                      {subscription.isPurchasing
-                        ? <ActivityIndicator color="#ffffff" />
-                        : <Text style={upgradeStyles.ctaText}>
-                            Get Pro — {subscription.proPackage.product.priceString}/mo →
-                          </Text>}
+                    <TouchableOpacity style={[upgradeStyles.ctaBtn, { backgroundColor: "hsl(45,100%,42%)", marginTop: hitLimitTier === "free" ? 8 : 0 }]} activeOpacity={0.82} disabled={subscription.isPurchasing} onPress={() => handleModalIAPPurchase(subscription.proPackage)}>
+                      {subscription.isPurchasing ? <ActivityIndicator color="#ffffff" /> : <Text style={upgradeStyles.ctaText}>Get Pro — {subscription.proPackage.product.priceString}/mo →</Text>}
                     </TouchableOpacity>
                   )}
                   {!subscription.plusPackage && !subscription.proPackage && (
-                    <TouchableOpacity
-                      style={upgradeStyles.ctaBtn}
-                      activeOpacity={0.82}
-                      onPress={() => { setShowUpgradeModal(false); }}
-                    >
+                    <TouchableOpacity style={upgradeStyles.ctaBtn} activeOpacity={0.82} onPress={() => setShowUpgradeModal(false)}>
                       <Text style={upgradeStyles.ctaText}>See plans in Settings →</Text>
                     </TouchableOpacity>
                   )}
                 </>
               )
             ) : (
-              /* Non-iOS: existing plan cards + web link */
               <>
                 {hitLimitTier === "free" && (
                   <View style={upgradeStyles.planCard}>
@@ -613,32 +722,20 @@ export default function ChatScreen() {
                     <Text style={[upgradeStyles.planPrice, { color: "hsl(45,100%,55%)" }]}>£19.99<Text style={upgradeStyles.planPer}>/mo</Text></Text>
                   </View>
                 </View>
-                <TouchableOpacity
-                  style={upgradeStyles.ctaBtn}
-                  activeOpacity={0.82}
-                  onPress={() => { setShowUpgradeModal(false); Linking.openURL(UPGRADE_URL); }}
-                >
+                <TouchableOpacity style={upgradeStyles.ctaBtn} activeOpacity={0.82} onPress={() => { setShowUpgradeModal(false); Linking.openURL(UPGRADE_URL); }}>
                   <Text style={upgradeStyles.ctaText}>See plans at sirius-ai.live →</Text>
                 </TouchableOpacity>
               </>
             )}
-
-            <TouchableOpacity
-              style={upgradeStyles.dismissBtn}
-              onPress={() => setShowUpgradeModal(false)}
-            >
+            <TouchableOpacity style={upgradeStyles.dismissBtn} onPress={() => setShowUpgradeModal(false)}>
               <Text style={upgradeStyles.dismissText}>Maybe later</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
+
       {/* ── History modal ── */}
-      <Modal
-        visible={showHistory}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowHistory(false)}
-      >
+      <Modal visible={showHistory} transparent animationType="slide" onRequestClose={() => setShowHistory(false)}>
         <View style={histStyles.overlay}>
           <View style={histStyles.sheet}>
             <View style={histStyles.headerRow}>
@@ -657,11 +754,7 @@ export default function ChatScreen() {
                   const d = new Date(c.createdAt);
                   const label = d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
                   return (
-                    <Pressable
-                      key={c.id}
-                      onPress={() => loadConversation(c.id)}
-                      style={({ pressed }) => [histStyles.item, pressed && { opacity: 0.6 }]}
-                    >
+                    <Pressable key={c.id} onPress={() => loadConversation(c.id)} style={({ pressed }) => [histStyles.item, pressed && { opacity: 0.6 }]}>
                       <Text style={histStyles.itemTitle} numberOfLines={1}>{c.title || "Untitled"}</Text>
                       <Text style={histStyles.itemDate}>{label}</Text>
                     </Pressable>
@@ -673,729 +766,372 @@ export default function ChatScreen() {
         </View>
       </Modal>
 
-      {messages.length > 0 && (
-        <View style={[styles.chatHeader, { paddingTop: topPad }]}>
-          <Pressable
-            onPress={handleNewChat}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.6 }]}
+      {/* ── Drawer overlay + panel ── */}
+      {drawerOpen && (
+        <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+          {/* Semi-transparent backdrop */}
+          <Animated.View
+            style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(0,0,0,0.45)", opacity: overlayAnim }]}
+            pointerEvents="auto"
           >
-            <Feather name="chevron-left" size={22} color={Colors.primary} />
-            <Text style={styles.backBtnText}>Home</Text>
-          </Pressable>
-          <View style={{ flexDirection: "row", gap: 8 }}>
-            <Pressable
-              onPress={openHistory}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              style={({ pressed }) => [styles.newChatBtn, pressed && { opacity: 0.6 }]}
-            >
-              <Feather name="clock" size={16} color={Colors.primary} />
-              <Text style={styles.newChatText}>History</Text>
-            </Pressable>
-            <Pressable
-              onPress={handleNewChat}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              style={({ pressed }) => [styles.newChatBtn, pressed && { opacity: 0.6 }]}
-            >
-              <Feather name="edit" size={16} color={Colors.primary} />
-              <Text style={styles.newChatText}>New chat</Text>
-            </Pressable>
-          </View>
-        </View>
-      )}
-      {messages.length === 0 ? (
-        <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={[styles.landing, { paddingTop: topPad + 16, paddingBottom: bottomPad + 24 }]}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          {/* Logo + branding */}
-          <View style={styles.brandRow}>
-            <Image
-              source={require("@/assets/images/icon.png")}
-              style={styles.logoImage}
-            />
-            <Text style={styles.brandName}>{aiName}</Text>
-            <Text style={styles.brandSlogan}>I think, so I am</Text>
-          </View>
+            <Pressable style={{ flex: 1 }} onPress={closeDrawer} />
+          </Animated.View>
 
-          {/* Mode selector */}
-          <View style={styles.sectionHeader}>
-            <Feather name="sliders" size={13} color={Colors.primary} />
-            <Text style={styles.sectionLabel}>CONVERSATION MODE</Text>
-          </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.modesRow}>
-            {[
-              { id: "guru",        label: "Guru",        emoji: "🧿" },
-              { id: "coach",       label: "Coach",       emoji: "🏋️" },
-              { id: "scientist",   label: "Scientist",   emoji: "🔬" },
-              { id: "philosopher", label: "Philosopher", emoji: "🦉" },
-              { id: "creative",    label: "Creative",    emoji: "🎨" },
-              { id: "friend",      label: "Friend",      emoji: "🤝" },
-              { id: "tutor",       label: "Tutor",       emoji: "📚" },
-              { id: "research",    label: "Research",    emoji: "🔭" },
-              { id: "think",       label: "Think",       emoji: "💭" },
-              { id: "manifest",    label: "Manifest",    emoji: "✨" },
-            ].map(mode => (
-              <Pressable
-                key={mode.id}
-                onPress={() => setChatMode(mode.id)}
-                style={[
-                  styles.modeChip,
-                  chatMode === mode.id && { backgroundColor: Colors.primary + "22", borderColor: Colors.primary },
-                ]}
-              >
-                <Text style={styles.modeChipEmoji}>{mode.emoji}</Text>
-                <Text style={[styles.modeChipLabel, chatMode === mode.id && { color: Colors.primary }]}>{mode.label}</Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-
-          {/* Mood tiles */}
-          <View style={styles.sectionHeader}>
-            <Feather name="activity" size={13} color={Colors.primary} />
-            <Text style={styles.sectionLabel}>WHERE ARE YOU RIGHT NOW?</Text>
-          </View>
-          <View style={styles.moodGrid}>
-            {MOODS.map(mood => (
-              <Pressable
-                key={mood.label}
-                onPress={() => handleMood(mood)}
-                style={({ pressed }) => [
-                  styles.moodTile,
-                  { borderColor: mood.color + "40", backgroundColor: mood.color + "18" },
-                  pressed && { opacity: 0.75, transform: [{ scale: 0.95 }] },
-                ]}
-              >
-                <Text style={styles.moodEmoji}>{mood.emoji}</Text>
-                <Text style={[styles.moodLabel, { color: mood.color }]}>{mood.label}</Text>
-              </Pressable>
-            ))}
-          </View>
-
-          {/* Topics */}
-          <View style={styles.sectionHeader}>
-            <Feather name="compass" size={13} color={Colors.primary} />
-            <Text style={styles.sectionLabel}>EXPLORE A DOMAIN</Text>
-          </View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.topicsRow}
+          {/* Drawer panel */}
+          <Animated.View
+            style={[styles.drawer, { paddingTop: insets.top, paddingBottom: insets.bottom + 12, transform: [{ translateX: drawerAnim }] }]}
+            pointerEvents="auto"
           >
-            {TOPICS.map(topic => (
-              <Pressable
-                key={topic.label}
-                onPress={() => handleTopic(topic.label)}
-                style={({ pressed }) => [
-                  styles.topicChip,
-                  pressed && { opacity: 0.75, transform: [{ scale: 0.95 }] },
-                ]}
-              >
-                <Feather name={topic.icon} size={14} color={Colors.primary} />
-                <Text style={styles.topicLabel}>{topic.label}</Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-
-          {/* History */}
-          <Pressable
-            onPress={openHistory}
-            style={({ pressed }) => [styles.surpriseBtn, { backgroundColor: "rgba(0,180,216,0.12)", marginBottom: 10 }, pressed && { opacity: 0.8 }]}
-          >
-            <Feather name="clock" size={16} color={Colors.primary} />
-            <Text style={[styles.surpriseBtnText, { color: Colors.primary }]}>Past conversations</Text>
-          </Pressable>
-
-          {/* Surprise me */}
-          <Pressable
-            onPress={handleSurprise}
-            style={({ pressed }) => [styles.surpriseBtn, pressed && { opacity: 0.8 }]}
-          >
-            <Feather name="shuffle" size={16} color={Colors.background} />
-            <Text style={styles.surpriseBtnText}>Surprise me</Text>
-          </Pressable>
-        </ScrollView>
-      ) : (
-        <FlatList
-          data={reversed}
-          keyExtractor={item => item.id}
-          renderItem={({ item }) => <MessageBubble message={item} />}
-          inverted
-          ListHeaderComponent={
-            <>
-              {showTyping && <TypingIndicator />}
-              {isStreaming && actionSteps.length > 0 && (
-                <View style={styles.actionLogLive}>
-                  {actionSteps.map((step, i) => (
-                    <View key={i} style={styles.actionStep}>
-                      <Text style={styles.actionStepIcon}>{step.icon}</Text>
-                      <View style={styles.actionStepText}>
-                        <Text style={[styles.actionStepLabel, { color: step.color }]}>{step.label}</Text>
-                        {step.detail ? <Text style={styles.actionStepDetail}>{step.detail}</Text> : null}
-                      </View>
-                    </View>
-                  ))}
-                  <View style={styles.actionLogPulse}>
-                    <View style={[styles.actionLogDot, { backgroundColor: Colors.primary }]} />
-                    <Text style={styles.actionLogWorking}>Working…</Text>
+            <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
+              {/* Drawer header */}
+              <View style={styles.drawerHeader}>
+                <View style={styles.drawerLogoWrap}>
+                  <Image source={require("@/assets/images/logo.png")} style={styles.drawerLogo} />
+                  <View>
+                    <Text style={styles.drawerLogoName}>Sirius</Text>
+                    <Text style={styles.drawerLogoTagline}>I think, so I am</Text>
                   </View>
                 </View>
-              )}
-              {!isStreaming && actionSteps.length > 0 && (
-                <Pressable
-                  onPress={() => setStepsExpanded(e => !e)}
-                  style={styles.actionLogCollapsed}
-                >
-                  <Text style={styles.actionLogCollapsedIcon}>⚡</Text>
-                  <Text style={styles.actionLogCollapsedText}>
-                    {actionSteps.length} action{actionSteps.length !== 1 ? "s" : ""} taken
-                  </Text>
-                  <Feather
-                    name={stepsExpanded ? "chevron-down" : "chevron-up"}
-                    size={13}
-                    color={Colors.textMuted}
-                    style={{ marginLeft: "auto" }}
-                  />
+                <Pressable onPress={closeDrawer} hitSlop={12} style={({ pressed }) => [styles.drawerCloseBtn, pressed && { opacity: 0.6 }]}>
+                  <Feather name="x" size={20} color={Colors.textMuted} />
                 </Pressable>
-              )}
-              {!isStreaming && stepsExpanded && actionSteps.length > 0 && (
-                <View style={styles.actionLogExpanded}>
-                  {actionSteps.map((step, i) => (
-                    <View key={i} style={styles.actionStep}>
-                      <Text style={styles.actionStepIcon}>{step.icon}</Text>
-                      <View style={styles.actionStepText}>
-                        <Text style={[styles.actionStepLabel, { color: step.color }]}>{step.label}</Text>
-                        {step.detail ? <Text style={styles.actionStepDetail}>{step.detail}</Text> : null}
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              )}
-            </>
-          }
-          keyboardDismissMode="interactive"
-          keyboardShouldPersistTaps="handled"
-          contentContainerStyle={{ paddingTop: 8, paddingBottom: 12 }}
-          showsVerticalScrollIndicator={false}
-        />
-      )}
+              </View>
 
-      {messages.length > 0 && !isStreaming && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.quickChipsRow}
-          keyboardShouldPersistTaps="handled"
-        >
-          <Pressable
-            onPress={() => handleSend("Can you visualise this for me?")}
-            style={({ pressed }) => [styles.quickChip, pressed && { opacity: 0.7 }]}
-          >
-            <Feather name="image" size={13} color={Colors.primary} />
-            <Text style={styles.quickChipText}>Visualise this</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => handleSend("Can you summarise what we've discussed so far?")}
-            style={({ pressed }) => [styles.quickChip, pressed && { opacity: 0.7 }]}
-          >
-            <Feather name="list" size={13} color={Colors.primary} />
-            <Text style={styles.quickChipText}>Summarise</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => handleSend("Go deeper on this.")}
-            style={({ pressed }) => [styles.quickChip, pressed && { opacity: 0.7 }]}
-          >
-            <Feather name="arrow-down-circle" size={13} color={Colors.primary} />
-            <Text style={styles.quickChipText}>Go deeper</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => handleSend("What's a different way to look at this?")}
-            style={({ pressed }) => [styles.quickChip, pressed && { opacity: 0.7 }]}
-          >
-            <Feather name="refresh-cw" size={13} color={Colors.primary} />
-            <Text style={styles.quickChipText}>New angle</Text>
-          </Pressable>
-        </ScrollView>
+              {/* Conversation mode */}
+              <Text style={styles.drawerSectionLabel}>CONVERSATION MODE</Text>
+              <View style={styles.drawerModeWrap}>
+                {MODES.map(mode => (
+                  <Pressable
+                    key={mode.id}
+                    onPress={() => setChatMode(mode.id)}
+                    style={[
+                      styles.drawerModeChip,
+                      chatMode === mode.id && { borderColor: Colors.primary, backgroundColor: Colors.primary + "18" },
+                    ]}
+                  >
+                    <Text style={[styles.drawerModeLabel, chatMode === mode.id && { color: Colors.primary }]}>{mode.label}</Text>
+                  </Pressable>
+                ))}
+              </View>
+
+              <View style={styles.drawerDivider} />
+
+              {/* Nav items */}
+              <DrawerItem icon="plus-circle" label="New Session" onPress={handleNewChat} color={Colors.primary} tint={Colors.primary + "15"} />
+              <DrawerItem icon="book-open" label="Sirius Guide" badge="HELP" badgeColor="#f59e0b" onPress={() => navigateTo("/(tabs)/learn")} />
+              <DrawerItem icon="award" label="Learn" badge="NEW" badgeColor={Colors.primary} onPress={() => navigateTo("/(tabs)/learn")} />
+              <DrawerItem icon="star" label="Dream Lab" badge="NEW" badgeColor="#a78bfa" dot onPress={() => navigateTo("/(tabs)/dreamlab")} />
+              <DrawerItem icon="heart" label="Wellbeing" onPress={() => navigateTo("/(tabs)/wellbeing")} />
+              <DrawerItem icon="globe" label="The Universe" badge="NEW" badgeColor={Colors.primary} onPress={() => navigateTo("/(tabs)/universe")} />
+              <DrawerItem icon="zap" label="Star Lab" badge="R&D" badgeColor={Colors.textMuted} dot onPress={() => navigateTo("/(tabs)/settings")} />
+
+              <View style={styles.drawerDivider} />
+              <Text style={styles.drawerSectionLabel}>SESSION HISTORY</Text>
+              <DrawerItem icon="clock" label="Past Conversations" onPress={openHistory} />
+
+              <View style={styles.drawerDivider} />
+
+              {/* Get Plus usage bar */}
+              <Pressable
+                onPress={() => { closeDrawer(); setTimeout(() => setShowUpgradeModal(true), 200); }}
+                style={({ pressed }) => [styles.drawerPlusCard, pressed && { opacity: 0.85 }]}
+              >
+                <View style={styles.drawerPlusRow}>
+                  <Feather name="zap" size={15} color={Colors.primary} />
+                  <Text style={styles.drawerPlusTitle}>Get Plus — £9.99/month</Text>
+                </View>
+                <View style={styles.drawerUsageBar}>
+                  <View style={[styles.drawerUsageFill, { width: `${usagePct * 100}%` as any, backgroundColor: usagePct > 0.85 ? "#ef4444" : Colors.primary }]} />
+                </View>
+                <Text style={styles.drawerUsageText}>{dailyUsed}/{dailyLimit} messages today</Text>
+              </Pressable>
+
+              <View style={styles.drawerDivider} />
+
+              <DrawerItem icon="user-check" label="Memory Portrait" badge="SIRIUS" badgeColor={Colors.primary} onPress={() => navigateTo("/(tabs)/settings")} />
+              <DrawerItem icon="user" label="My Account" onPress={() => navigateTo("/(tabs)/settings")} />
+
+              {/* Footer */}
+              <View style={styles.drawerFooter}>
+                <Pressable onPress={() => Linking.openURL("https://sirius-ai.live/terms")}>
+                  <Text style={styles.drawerFooterLink}>Terms</Text>
+                </Pressable>
+                <Text style={styles.drawerFooterDot}>·</Text>
+                <Pressable onPress={() => Linking.openURL("https://sirius-ai.live/privacy")}>
+                  <Text style={styles.drawerFooterLink}>Privacy</Text>
+                </Pressable>
+                <Text style={styles.drawerFooterDot}>·</Text>
+                <Text style={styles.drawerFooterText}>© 2026 Sirius Star Lab</Text>
+              </View>
+            </ScrollView>
+          </Animated.View>
+        </View>
       )}
-      <View style={{ paddingBottom: bottomPad }}>
-        <ChatInput
-          onSend={handleSend}
-          disabled={isStreaming}
-          placeholder={`Message ${aiName}...`}
-          voiceMode={voiceMode}
-          onToggleVoice={() => {
-            if (voiceMode) stopSpeech();
-            setVoiceMode(v => !v);
-          }}
-        />
+    </View>
+  );
+}
+
+function DrawerItem({
+  icon,
+  label,
+  badge,
+  badgeColor,
+  dot,
+  onPress,
+  color,
+  tint,
+}: {
+  icon: React.ComponentProps<typeof Feather>["name"];
+  label: string;
+  badge?: string;
+  badgeColor?: string;
+  dot?: boolean;
+  onPress: () => void;
+  color?: string;
+  tint?: string;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.drawerItem,
+        tint && { backgroundColor: tint, borderRadius: 12, marginBottom: 6 },
+        pressed && { opacity: 0.7 },
+      ]}
+    >
+      <View style={[styles.drawerItemIcon, tint && { backgroundColor: "transparent" }]}>
+        <Feather name={icon} size={18} color={color ?? Colors.textMuted} />
       </View>
-    </KeyboardAvoidingView>
+      <Text style={[styles.drawerItemLabel, color && { color }]}>{label}</Text>
+      <View style={{ flex: 1 }} />
+      {badge && (
+        <View style={[styles.drawerBadge, { borderColor: badgeColor ?? Colors.textDim }]}>
+          <Text style={[styles.drawerBadgeText, { color: badgeColor ?? Colors.textDim }]}>{badge}</Text>
+        </View>
+      )}
+      {dot && <View style={[styles.drawerDot, badge ? { marginLeft: 4 } : {}]} />}
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-  },
+  root: { flex: 1 },
 
-  /* ── Chat header (shown when in conversation) ── */
-  chatHeader: {
+  /* ── Top header ── */
+  header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingBottom: 8,
+    paddingHorizontal: 18,
+    paddingBottom: 10,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
   },
-  backBtn: {
-    flexDirection: "row",
+  headerBtn: {
+    width: 40,
+    height: 40,
     alignItems: "center",
-    gap: 2,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRadius: 20,
+    justifyContent: "center",
   },
-  backBtnText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: Colors.primary,
-  },
-  newChatBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    backgroundColor: "rgba(0,180,216,0.12)",
-  },
-  newChatText: {
+  headerTitle: {
     fontSize: 13,
-    fontWeight: "600",
-    color: Colors.primary,
+    fontFamily: "Inter_700Bold",
+    fontWeight: "700",
+    letterSpacing: 3,
+    color: Colors.textMuted,
   },
 
   /* ── Landing screen ── */
   landing: {
-    paddingHorizontal: 20,
-    alignItems: "stretch",
-  },
-  brandRow: {
+    flex: 1,
     alignItems: "center",
-    marginBottom: 36,
+    justifyContent: "center",
+    paddingHorizontal: 28,
+    paddingTop: 40,
+  },
+  logoWrap: {
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 28,
+    position: "relative",
+  },
+  logoGlow: {
+    position: "absolute",
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: Colors.primary + "18",
+    borderWidth: 1,
+    borderColor: Colors.primary + "30",
   },
   logoImage: {
     width: 120,
     height: 120,
-    borderRadius: 28,
-    marginBottom: 16,
-    backgroundColor: "#080c1a",
-    borderWidth: 1,
-    borderColor: Colors.border,
+    borderRadius: 60,
+    borderWidth: 2,
+    borderColor: Colors.primary + "50",
   },
-  brandName: {
-    fontSize: 38,
-    fontWeight: "700",
+  tagline: {
+    fontSize: 11,
+    fontFamily: "Inter_500Medium",
+    letterSpacing: 2.5,
     color: Colors.primary,
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  welcomeTitle: {
+    fontSize: 28,
     fontFamily: "Inter_700Bold",
-    letterSpacing: -1,
-    marginBottom: 6,
+    fontWeight: "700",
+    color: Colors.text,
+    textAlign: "center",
+    lineHeight: 36,
+    marginBottom: 14,
   },
-  brandSlogan: {
+  welcomeSub: {
     fontSize: 15,
+    fontFamily: "Inter_400Regular",
     color: Colors.textMuted,
-    fontFamily: "Inter_400Regular",
-    fontStyle: "italic",
-    letterSpacing: 0.5,
+    textAlign: "center",
+    marginBottom: 32,
   },
-
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 7,
-    marginBottom: 12,
-  },
-
-  modesRow: {
-    paddingHorizontal: 0,
-    gap: 8,
-    marginBottom: 24,
-  },
-  modeChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surface,
-  },
-  modeChipEmoji: { fontSize: 14 },
-  modeChipLabel: { fontSize: 13, fontWeight: "600", color: Colors.textMuted },
-  sectionLabel: {
-    fontSize: 11,
-    fontWeight: "600",
+  secureFooter: {
+    fontSize: 10,
+    fontFamily: "Inter_500Medium",
+    letterSpacing: 2,
     color: Colors.textDim,
-    fontFamily: "Inter_600SemiBold",
-    letterSpacing: 0.9,
-  },
-
-  /* Mood tiles */
-  moodGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-    marginBottom: 28,
-  },
-  moodTile: {
-    width: "47%",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 13,
-    borderWidth: 1,
-  },
-  moodEmoji: {
-    fontSize: 20,
-  },
-  moodLabel: {
-    fontSize: 14,
-    fontFamily: "Inter_500Medium",
-    fontWeight: "500",
-    flexShrink: 1,
-  },
-
-  /* Topic row */
-  topicsRow: {
-    gap: 10,
-    paddingRight: 4,
-    marginBottom: 28,
-  },
-  topicChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 7,
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  topicLabel: {
-    fontSize: 13,
-    color: Colors.text,
-    fontFamily: "Inter_500Medium",
-  },
-
-  /* Surprise */
-  surpriseBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-    backgroundColor: Colors.primary,
-    borderRadius: 16,
-    paddingVertical: 16,
-  },
-  surpriseBtnText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: Colors.background,
-    fontFamily: "Inter_600SemiBold",
-  },
-
-  /* ── Action log (live tool narration) ── */
-  actionLogLive: {
-    marginHorizontal: 12,
-    marginBottom: 8,
-    backgroundColor: "rgba(0,180,216,0.06)",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(0,180,216,0.15)",
-    padding: 12,
-    gap: 6,
-  },
-  actionStep: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 8,
-    paddingVertical: 2,
-  },
-  actionStepIcon: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  actionStepText: {
-    flex: 1,
-  },
-  actionStepLabel: {
-    fontSize: 12,
-    fontFamily: "Inter_500Medium",
-    fontWeight: "500",
-    lineHeight: 18,
-  },
-  actionStepDetail: {
-    fontSize: 11,
-    color: Colors.textDim,
-    fontFamily: "Inter_400Regular",
-    lineHeight: 16,
-    marginTop: 1,
-  },
-  actionLogPulse: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginTop: 4,
-    paddingTop: 6,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(0,180,216,0.1)",
-  },
-  actionLogDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    opacity: 0.8,
-  },
-  actionLogWorking: {
-    fontSize: 11,
-    color: Colors.primary,
-    fontFamily: "Inter_400Regular",
-    fontStyle: "italic",
-  },
-  actionLogCollapsed: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 7,
-    marginHorizontal: 12,
+    textAlign: "center",
     marginBottom: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    backgroundColor: "rgba(0,180,216,0.06)",
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "rgba(0,180,216,0.15)",
-  },
-  actionLogCollapsedIcon: {
-    fontSize: 12,
-  },
-  actionLogCollapsedText: {
-    fontSize: 12,
-    color: Colors.textMuted,
-    fontFamily: "Inter_400Regular",
-  },
-  actionLogExpanded: {
-    marginHorizontal: 12,
-    marginBottom: 8,
-    backgroundColor: "rgba(0,180,216,0.05)",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(0,180,216,0.12)",
-    padding: 12,
-    gap: 6,
   },
 
-  /* Quick action chips (active conversation) */
-  quickChipsRow: {
-    flexDirection: "row",
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+  /* ── Action log ── */
+  actionLogLive: {
+    marginHorizontal: 12, marginBottom: 8, backgroundColor: "rgba(0,180,216,0.06)",
+    borderRadius: 12, borderWidth: 1, borderColor: "rgba(0,180,216,0.15)", padding: 12, gap: 6,
   },
-  quickChip: {
+  actionStep: { flexDirection: "row", alignItems: "flex-start", gap: 8, paddingVertical: 2 },
+  actionStepIcon: { fontSize: 14, lineHeight: 20 },
+  actionStepText: { flex: 1 },
+  actionStepLabel: { fontSize: 12, fontFamily: "Inter_500Medium", fontWeight: "500", lineHeight: 18 },
+  actionStepDetail: { fontSize: 11, color: Colors.textDim, fontFamily: "Inter_400Regular", lineHeight: 16, marginTop: 1 },
+  actionLogPulse: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4, paddingTop: 6, borderTopWidth: 1, borderTopColor: "rgba(0,180,216,0.1)" },
+  actionLogDot: { width: 6, height: 6, borderRadius: 3, opacity: 0.8 },
+  actionLogWorking: { fontSize: 11, color: Colors.primary, fontFamily: "Inter_400Regular", fontStyle: "italic" },
+  actionLogCollapsed: { flexDirection: "row", alignItems: "center", gap: 7, marginHorizontal: 12, marginBottom: 6, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: "rgba(0,180,216,0.06)", borderRadius: 20, borderWidth: 1, borderColor: "rgba(0,180,216,0.15)" },
+  actionLogCollapsedIcon: { fontSize: 12 },
+  actionLogCollapsedText: { fontSize: 12, color: Colors.textMuted, fontFamily: "Inter_400Regular" },
+  actionLogExpanded: { marginHorizontal: 12, marginBottom: 8, backgroundColor: "rgba(0,180,216,0.05)", borderRadius: 12, borderWidth: 1, borderColor: "rgba(0,180,216,0.12)", padding: 12, gap: 6 },
+
+  /* ── Quick chips ── */
+  quickChipsRow: { flexDirection: "row", gap: 8, paddingHorizontal: 12, paddingVertical: 8 },
+  quickChip: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: Colors.surface, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7, borderWidth: 1, borderColor: Colors.primary + "30" },
+  quickChipText: { fontSize: 12, color: Colors.text, fontFamily: "Inter_500Medium" },
+
+  /* ── Drawer ── */
+  drawer: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    left: 0,
+    width: DRAWER_WIDTH,
+    backgroundColor: Colors.surface,
+    borderRightWidth: 1,
+    borderRightColor: Colors.border,
+    shadowColor: "#000",
+    shadowOffset: { width: 4, height: 0 },
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  drawerHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    backgroundColor: Colors.surface,
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderWidth: 1,
-    borderColor: `${Colors.primary}30`,
+    justifyContent: "space-between",
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    marginBottom: 8,
   },
-  quickChipText: {
-    fontSize: 12,
-    color: Colors.text,
-    fontFamily: "Inter_500Medium",
+  drawerLogoWrap: { flexDirection: "row", alignItems: "center", gap: 10 },
+  drawerLogo: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: Colors.border },
+  drawerLogoName: { fontSize: 15, fontFamily: "Inter_700Bold", fontWeight: "700", color: Colors.text },
+  drawerLogoTagline: { fontSize: 11, fontFamily: "Inter_400Regular", color: Colors.textMuted, marginTop: 1 },
+  drawerCloseBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.surfaceElevated, alignItems: "center", justifyContent: "center" },
+
+  drawerSectionLabel: {
+    fontSize: 10, fontFamily: "Inter_600SemiBold", letterSpacing: 1.5,
+    color: Colors.textDim, paddingHorizontal: 18, marginBottom: 8, marginTop: 4,
   },
+  drawerModeWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingHorizontal: 18, marginBottom: 16 },
+  drawerModeChip: {
+    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
+    borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surfaceElevated,
+  },
+  drawerModeLabel: { fontSize: 13, fontFamily: "Inter_500Medium", color: Colors.textMuted },
+
+  drawerDivider: { height: 1, backgroundColor: Colors.border, marginVertical: 8, marginHorizontal: 18 },
+
+  drawerItem: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    paddingHorizontal: 18, paddingVertical: 13,
+  },
+  drawerItemIcon: { width: 32, height: 32, borderRadius: 8, backgroundColor: Colors.surfaceElevated, alignItems: "center", justifyContent: "center" },
+  drawerItemLabel: { fontSize: 15, fontFamily: "Inter_500Medium", color: Colors.text },
+  drawerBadge: {
+    paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6,
+    borderWidth: 1, backgroundColor: "transparent",
+  },
+  drawerBadgeText: { fontSize: 10, fontFamily: "Inter_600SemiBold", letterSpacing: 0.5 },
+  drawerDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: Colors.primary },
+
+  drawerPlusCard: {
+    marginHorizontal: 18, marginVertical: 4, padding: 14,
+    backgroundColor: Colors.surfaceElevated, borderRadius: 12,
+    borderWidth: 1, borderColor: Colors.border,
+  },
+  drawerPlusRow: { flexDirection: "row", alignItems: "center", gap: 7, marginBottom: 10 },
+  drawerPlusTitle: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: Colors.text },
+  drawerUsageBar: { height: 4, backgroundColor: Colors.border, borderRadius: 2, overflow: "hidden", marginBottom: 6 },
+  drawerUsageFill: { height: 4, borderRadius: 2 },
+  drawerUsageText: { fontSize: 11, fontFamily: "Inter_400Regular", color: Colors.textMuted },
+
+  drawerFooter: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 6, paddingHorizontal: 18, paddingTop: 16, paddingBottom: 8, flexWrap: "wrap",
+  },
+  drawerFooterLink: { fontSize: 11, color: Colors.textMuted, fontFamily: "Inter_400Regular" },
+  drawerFooterDot: { fontSize: 11, color: Colors.textDim },
+  drawerFooterText: { fontSize: 11, color: Colors.textDim, fontFamily: "Inter_400Regular" },
 });
 
 const upgradeStyles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.45)",
-    justifyContent: "flex-end",
-    alignItems: "center",
-  },
-  sheet: {
-    width: "100%",
-    backgroundColor: Colors.surface,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    padding: 28,
-    paddingBottom: 40,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-    overflow: "hidden",
-  },
-  glow: {
-    position: "absolute",
-    top: -60,
-    left: "50%",
-    marginLeft: -150,
-    width: 300,
-    height: 200,
-    borderRadius: 150,
-    backgroundColor: "transparent",
-    // @ts-ignore
-    boxShadow: "0 0 80px 40px rgba(0,212,255,0.08)",
-  },
-  header: {
-    alignItems: "center",
-    marginBottom: 22,
-  },
-  orbWrap: {
-    marginBottom: 16,
-  },
-  orb: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: "rgba(0,212,255,0.1)",
-    borderWidth: 1,
-    borderColor: "rgba(0,212,255,0.25)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: Colors.text,
-    textAlign: "center",
-    marginBottom: 8,
-    fontFamily: "Inter_700Bold",
-  },
-  subtitle: {
-    fontSize: 14,
-    color: Colors.textMuted,
-    textAlign: "center",
-    lineHeight: 21,
-    fontFamily: "Inter_400Regular",
-  },
-  planCard: {
-    backgroundColor: Colors.surfaceElevated,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: 16,
-    marginBottom: 10,
-  },
-  planRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  planName: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: Colors.text,
-    fontFamily: "Inter_700Bold",
-    marginBottom: 3,
-  },
-  planDesc: {
-    fontSize: 12,
-    color: Colors.textDim,
-    fontFamily: "Inter_400Regular",
-  },
-  planPrice: {
-    fontSize: 22,
-    fontWeight: "800",
-    fontFamily: "Inter_700Bold",
-  },
-  planPer: {
-    fontSize: 12,
-    fontWeight: "400",
-    color: Colors.textDim,
-  },
-  ctaBtn: {
-    backgroundColor: Colors.primary,
-    borderRadius: 14,
-    paddingVertical: 15,
-    alignItems: "center",
-    marginTop: 6,
-    marginBottom: 10,
-  },
-  ctaText: {
-    color: "#ffffff",
-    fontSize: 15,
-    fontWeight: "700",
-    fontFamily: "Inter_700Bold",
-  },
-  dismissBtn: {
-    alignItems: "center",
-    paddingVertical: 8,
-  },
-  dismissText: {
-    color: Colors.textDim,
-    fontSize: 13,
-    fontFamily: "Inter_400Regular",
-  },
+  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end", alignItems: "center" },
+  sheet: { width: "100%", backgroundColor: Colors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 28, paddingBottom: 40, borderTopWidth: 1, borderTopColor: Colors.border, overflow: "hidden" },
+  glow: { position: "absolute", top: -60, left: "50%", marginLeft: -150, width: 300, height: 200, borderRadius: 150, backgroundColor: "transparent" },
+  header: { alignItems: "center", marginBottom: 22 },
+  orbWrap: { marginBottom: 16 },
+  orb: { width: 60, height: 60, borderRadius: 30, backgroundColor: "rgba(0,212,255,0.1)", borderWidth: 1, borderColor: "rgba(0,212,255,0.25)", alignItems: "center", justifyContent: "center" },
+  title: { fontSize: 20, fontWeight: "700", color: Colors.text, textAlign: "center", marginBottom: 8, fontFamily: "Inter_700Bold" },
+  subtitle: { fontSize: 14, color: Colors.textMuted, textAlign: "center", lineHeight: 21, fontFamily: "Inter_400Regular" },
+  planCard: { backgroundColor: Colors.surfaceElevated, borderRadius: 14, borderWidth: 1, borderColor: Colors.border, padding: 16, marginBottom: 10 },
+  planRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  planName: { fontSize: 15, fontWeight: "700", color: Colors.text, fontFamily: "Inter_700Bold", marginBottom: 3 },
+  planDesc: { fontSize: 12, color: Colors.textDim, fontFamily: "Inter_400Regular" },
+  planPrice: { fontSize: 22, fontWeight: "800", fontFamily: "Inter_700Bold" },
+  planPer: { fontSize: 12, fontWeight: "400", color: Colors.textDim },
+  ctaBtn: { backgroundColor: Colors.primary, borderRadius: 14, paddingVertical: 15, alignItems: "center", marginTop: 6, marginBottom: 10 },
+  ctaText: { color: "#ffffff", fontSize: 15, fontWeight: "700", fontFamily: "Inter_700Bold" },
+  dismissBtn: { alignItems: "center", paddingVertical: 8 },
+  dismissText: { color: Colors.textDim, fontSize: 13, fontFamily: "Inter_400Regular" },
 });
 
 const histStyles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "flex-end",
-  },
-  sheet: {
-    backgroundColor: Colors.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: 24,
-    maxHeight: "80%",
-  },
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 20,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: Colors.text,
-    fontFamily: "Inter_700Bold",
-  },
-  empty: {
-    color: Colors.textDim,
-    textAlign: "center",
-    paddingVertical: 40,
-    fontFamily: "Inter_400Regular",
-  },
-  item: {
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  itemTitle: {
-    fontSize: 15,
-    color: Colors.text,
-    fontFamily: "Inter_500Medium",
-    marginBottom: 3,
-  },
-  itemDate: {
-    fontSize: 12,
-    color: Colors.textDim,
-    fontFamily: "Inter_400Regular",
-  },
+  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
+  sheet: { backgroundColor: Colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1, borderColor: Colors.border, padding: 24, maxHeight: "80%" },
+  headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 20 },
+  title: { fontSize: 18, fontWeight: "700", color: Colors.text, fontFamily: "Inter_700Bold" },
+  empty: { color: Colors.textDim, textAlign: "center", paddingVertical: 40, fontFamily: "Inter_400Regular" },
+  item: { paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  itemTitle: { fontSize: 15, color: Colors.text, fontFamily: "Inter_500Medium", marginBottom: 3 },
+  itemDate: { fontSize: 12, color: Colors.textDim, fontFamily: "Inter_400Regular" },
 });

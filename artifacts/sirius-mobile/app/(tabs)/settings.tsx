@@ -255,10 +255,14 @@ export default function SettingsScreen() {
       style={styles.root}
       contentContainerStyle={[
         styles.content,
-        { paddingTop: topPad + 8, paddingBottom: bottomPad + 24 },
+        { paddingTop: topPad + 4, paddingBottom: bottomPad + 24 },
       ]}
       showsVerticalScrollIndicator={false}
     >
+      <Pressable onPress={() => router.push("/(tabs)" as any)} style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.6 }]}>
+        <Feather name="chevron-left" size={20} color={Colors.primary} />
+        <Text style={styles.backBtnText}>Home</Text>
+      </Pressable>
       <Text style={styles.heading}>Profile</Text>
 
       <View style={styles.avatarSection}>
@@ -794,6 +798,8 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   content: { paddingHorizontal: 20 },
+  backBtn: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 8 },
+  backBtnText: { fontSize: 15, fontWeight: "600", color: Colors.primary },
   heading: {
     fontSize: 30,
     fontWeight: "700",

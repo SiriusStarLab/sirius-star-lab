@@ -13,7 +13,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import { router } from "expo-router";
 
 import Colors from "@/constants/colors";
 import { createConversation, generateId, getApiBase, getUserId } from "@/lib/api";
@@ -86,7 +86,6 @@ const DOMAINS = [
 
 function DomainChat({ domain, onBack }: { domain: typeof DOMAINS[0]; onBack: () => void }) {
   const insets = useSafeAreaInsets();
-  const tabBarHeight = useBottomTabBarHeight();
   const { userId: ctxUserId } = useApp();
   const [messages, setMessages] = useState<Msg[]>([
     { id: "opening", role: "assistant", content: domain.openingMessage },
@@ -194,7 +193,7 @@ function DomainChat({ domain, onBack }: { domain: typeof DOMAINS[0]; onBack: () 
         )}
       </ScrollView>
 
-      <View style={[u.inputRow, { paddingBottom: tabBarHeight + 8 }]}>
+      <View style={[u.inputRow, { paddingBottom: insets.bottom + 8 }]}>
         <TextInput style={u.input} value={input} onChangeText={setInput}
           placeholder="Ask anything..." placeholderTextColor={Colors.textMuted} multiline maxLength={2000} />
         <Pressable onPress={() => send(input)} disabled={!input.trim() || isStreaming}
@@ -214,7 +213,11 @@ export default function UniverseScreen() {
 
   return (
     <ScrollView style={[u.flex, { backgroundColor: Colors.background }]} contentContainerStyle={{ paddingBottom: 32 }}>
-      <View style={[u.hero, { paddingTop: insets.top + 20 }]}>
+      <View style={[u.hero, { paddingTop: insets.top + 8 }]}>
+        <Pressable onPress={() => router.push("/(tabs)" as any)} style={u.backBtn}>
+          <Feather name="chevron-left" size={20} color={Colors.primary} />
+          <Text style={u.backBtnText}>Home</Text>
+        </Pressable>
         <Text style={u.heroStar}>✦</Text>
         <Text style={u.heroTitle}>Universe</Text>
         <Text style={u.heroSub}>Explore the deepest questions in existence</Text>
@@ -242,6 +245,8 @@ export default function UniverseScreen() {
 
 const u = StyleSheet.create({
   flex: { flex: 1 },
+  backBtn: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", paddingHorizontal: 16, paddingVertical: 8, marginBottom: 4 },
+  backBtnText: { fontSize: 15, fontWeight: "600", color: Colors.primary },
   hero: { alignItems: "center", paddingHorizontal: 24, paddingBottom: 28 },
   heroStar: { fontSize: 40, marginBottom: 8 },
   heroTitle: { fontSize: 28, fontWeight: "700", color: Colors.text, letterSpacing: -0.5, marginBottom: 6 },

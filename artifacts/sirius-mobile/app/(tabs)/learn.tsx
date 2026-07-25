@@ -13,7 +13,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import { router } from "expo-router";
 
 import Colors from "@/constants/colors";
 import { createConversation, generateId, getApiBase, getUserId } from "@/lib/api";
@@ -60,7 +60,6 @@ const PANELS = [
 
 function ChatView({ panel, onBack }: { panel: typeof PANELS[0]; onBack: () => void }) {
   const insets = useSafeAreaInsets();
-  const tabBarHeight = useBottomTabBarHeight();
   const { userId: ctxUserId } = useApp();
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
@@ -185,7 +184,7 @@ function ChatView({ panel, onBack }: { panel: typeof PANELS[0]; onBack: () => vo
       </ScrollView>
 
       {/* Input */}
-      <View style={[styles.inputRow, { paddingBottom: tabBarHeight + 8 }]}>
+      <View style={[styles.inputRow, { paddingBottom: insets.bottom + 8 }]}>
         <TextInput
           style={styles.input}
           value={input}
@@ -221,7 +220,11 @@ export default function LearnScreen() {
       contentContainerStyle={{ paddingBottom: 32 }}
     >
       {/* Hero */}
-      <View style={[styles.hero, { paddingTop: insets.top + 20 }]}>
+      <View style={[styles.hero, { paddingTop: insets.top + 8 }]}>
+        <Pressable onPress={() => router.push("/(tabs)" as any)} style={styles.backBtn}>
+          <Feather name="chevron-left" size={20} color={Colors.primary} />
+          <Text style={styles.backBtnText}>Home</Text>
+        </Pressable>
         <View style={[styles.heroIcon, { backgroundColor: TEAL }]}>
           <Feather name="book-open" size={28} color="#fff" />
         </View>
@@ -259,6 +262,8 @@ export default function LearnScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  backBtn: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", paddingHorizontal: 16, paddingVertical: 8, marginBottom: 12 },
+  backBtnText: { fontSize: 15, fontWeight: "600", color: Colors.primary },
   hero: { alignItems: "center", paddingHorizontal: 24, paddingBottom: 28 },
   heroIcon: { width: 64, height: 64, borderRadius: 20, alignItems: "center", justifyContent: "center", marginBottom: 16, shadowColor: TEAL, shadowOpacity: 0.4, shadowRadius: 16, shadowOffset: { width: 0, height: 8 } },
   heroTitle: { fontSize: 28, fontWeight: "700", color: Colors.text, letterSpacing: -0.5, marginBottom: 6 },

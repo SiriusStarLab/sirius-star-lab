@@ -13,7 +13,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import { router } from "expo-router";
 
 import Colors from "@/constants/colors";
 import { createConversation, generateId, getApiBase, getUserId } from "@/lib/api";
@@ -131,7 +131,6 @@ const TOPICS = [
 
 function TopicChat({ topic, onBack }: { topic: typeof TOPICS[0]; onBack: () => void }) {
   const insets = useSafeAreaInsets();
-  const tabBarHeight = useBottomTabBarHeight();
   const { userId: ctxUserId } = useApp();
   const [messages, setMessages] = useState<Msg[]>([
     { id: "opening", role: "assistant", content: topic.openingMessage },
@@ -260,7 +259,7 @@ function TopicChat({ topic, onBack }: { topic: typeof TOPICS[0]; onBack: () => v
         </ScrollView>
       )}
 
-      <View style={[s.inputRow, { paddingBottom: tabBarHeight + 8 }]}>
+      <View style={[s.inputRow, { paddingBottom: insets.bottom + 8 }]}>
         <TextInput style={s.input} value={input} onChangeText={setInput}
           placeholder="Ask anything..." placeholderTextColor={Colors.textMuted} multiline maxLength={2000} />
         <Pressable onPress={() => send(input)} disabled={!input.trim() || isStreaming}
@@ -280,7 +279,11 @@ export default function WellbeingScreen() {
 
   return (
     <ScrollView style={[s.flex, { backgroundColor: Colors.background }]} contentContainerStyle={{ paddingBottom: 32 }}>
-      <View style={[s.hero, { paddingTop: insets.top + 20 }]}>
+      <View style={[s.hero, { paddingTop: insets.top + 8 }]}>
+        <Pressable onPress={() => router.push("/(tabs)" as any)} style={s.backBtn}>
+          <Feather name="chevron-left" size={20} color={Colors.primary} />
+          <Text style={s.backBtnText}>Home</Text>
+        </Pressable>
         <View style={[s.heroIcon, { backgroundColor: "#ec4899" }]}>
           <Feather name="heart" size={28} color="#fff" />
         </View>
@@ -307,6 +310,8 @@ export default function WellbeingScreen() {
 
 const s = StyleSheet.create({
   flex: { flex: 1 },
+  backBtn: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", paddingHorizontal: 16, paddingVertical: 8, marginBottom: 12 },
+  backBtnText: { fontSize: 15, fontWeight: "600", color: Colors.primary },
   hero: { alignItems: "center", paddingHorizontal: 24, paddingBottom: 24 },
   heroIcon: { width: 64, height: 64, borderRadius: 20, alignItems: "center", justifyContent: "center", marginBottom: 16, shadowColor: "#ec4899", shadowOpacity: 0.4, shadowRadius: 16, shadowOffset: { width: 0, height: 8 } },
   heroTitle: { fontSize: 28, fontWeight: "700", color: Colors.text, letterSpacing: -0.5, marginBottom: 6 },

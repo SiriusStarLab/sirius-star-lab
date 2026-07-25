@@ -15,7 +15,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import Colors from "@/constants/colors";
@@ -98,7 +98,6 @@ function AddDreamModal({ visible, onClose, onAdd }: { visible: boolean; onClose:
 
 function DreamChat({ dream, onBack }: { dream: Dream; onBack: () => void }) {
   const insets = useSafeAreaInsets();
-  const tabBarHeight = useBottomTabBarHeight();
   const { userId: ctxUserId } = useApp();
   const opening = `I want to talk about my dream: "${dream.title}". ${dream.note ? `Here's some context: ${dream.note}` : "Help me explore it, break it down into actionable steps, and give me a clear next step I can take today."}`;
   const [messages, setMessages] = useState<Msg[]>([]);
@@ -210,7 +209,7 @@ function DreamChat({ dream, onBack }: { dream: Dream; onBack: () => void }) {
         )}
       </ScrollView>
 
-      <View style={[d.inputRow, { paddingBottom: tabBarHeight + 8 }]}>
+      <View style={[d.inputRow, { paddingBottom: insets.bottom + 8 }]}>
         <TextInput style={d.input} value={input} onChangeText={setInput}
           placeholder="Ask Sirius about this dream..." placeholderTextColor={Colors.textMuted} multiline maxLength={2000} />
         <Pressable onPress={() => { sendMsg(input); setInput(""); }} disabled={!input.trim() || isStreaming}
@@ -261,8 +260,14 @@ export default function DreamLabScreen() {
       <AddDreamModal visible={showAdd} onClose={() => setShowAdd(false)} onAdd={addDream} />
 
       <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
+        <View style={{ paddingTop: insets.top + 8 }}>
+          <Pressable onPress={() => router.push("/(tabs)" as any)} style={d.backBtn}>
+            <Feather name="chevron-left" size={20} color={Colors.primary} />
+            <Text style={d.backBtnText}>Home</Text>
+          </Pressable>
+        </View>
         {/* Hero */}
-        <View style={[d.hero, { paddingTop: insets.top + 20 }]}>
+        <View style={d.hero}>
           <View style={d.heroIcon}>
             <Feather name="star" size={28} color="#fff" />
           </View>
@@ -316,6 +321,8 @@ export default function DreamLabScreen() {
 
 const d = StyleSheet.create({
   flex: { flex: 1 },
+  backBtn: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", paddingHorizontal: 16, paddingVertical: 8 },
+  backBtnText: { fontSize: 15, fontWeight: "600", color: Colors.primary },
   hero: { alignItems: "center", paddingHorizontal: 24, paddingBottom: 20 },
   heroIcon: { width: 64, height: 64, borderRadius: 20, alignItems: "center", justifyContent: "center", marginBottom: 16, backgroundColor: "#6366f1", shadowColor: "#6366f1", shadowOpacity: 0.4, shadowRadius: 16, shadowOffset: { width: 0, height: 8 } },
   heroTitle: { fontSize: 28, fontWeight: "700", color: Colors.text, letterSpacing: -0.5, marginBottom: 6 },
