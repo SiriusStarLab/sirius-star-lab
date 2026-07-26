@@ -69,6 +69,8 @@ function ChatView({ panel, onBack }: { panel: typeof PANELS[0]; onBack: () => vo
   const [convId, setConvId] = useState<number | null>(null);
   const scrollRef = useRef<ScrollView>(null);
 
+  const [attachedDoc, setAttachedDoc] = useState<{ name: string; base64: string } | null>(null);
+
   const pickDocument = useCallback(async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
@@ -78,16 +80,27 @@ function ChatView({ panel, onBack }: { panel: typeof PANELS[0]; onBack: () => vo
       });
       if (result.canceled || !result.assets?.[0]) return;
       const asset = result.assets[0];
-      const content = await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.UTF8 });
-      setInput(prev => prev ? prev + "\n\n" + content : content);
+      const isPDF = asset.mimeType === "application/pdf" || asset.name?.toLowerCase().endsWith(".pdf");
+      if (isPDF) {
+        // For PDFs, read as base64 and send via the document API
+        const base64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: "base64" as any });
+        setAttachedDoc({ name: asset.name ?? "document.pdf", base64 });
+        setInput(prev => prev || `[PDF attached: ${asset.name}] Please summarise and analyse this document.`);
+      } else {
+        // For text files, paste content directly into input
+        const content = await FileSystem.readAsStringAsync(asset.uri, { encoding: "utf8" as any });
+        setInput(prev => prev ? prev + "\n\n" + content : content);
+      }
     } catch {
-      setInput(prev => prev);
+      // silently ignore picker cancellation
     }
   }, []);
 
   const send = useCallback(async (text: string) => {
     if (!text.trim() || isStreaming) return;
     setInput("");
+    const docToSend = attachedDoc;
+    setAttachedDoc(null);
 
     const uid = ctxUserId || (await getUserId());
     const userMsg: Msg = { id: generateId(), role: "user", content: text };
@@ -106,7 +119,12 @@ function ChatView({ panel, onBack }: { panel: typeof PANELS[0]; onBack: () => vo
       const response = await fetch(`${base}openai/conversations/${activeId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
-        body: JSON.stringify({ content: text, userId: uid, mode: "guru" }),
+        body: JSON.stringify({
+          content: text,
+          userId: uid,
+          mode: "guru",
+          ...(docToSend ? { documentBase64: docToSend.base64, documentName: docToSend.name } : {}),
+        }),
       } as any);
 
       if (!response.ok) throw new Error("Failed");
@@ -150,7 +168,7 @@ function ChatView({ panel, onBack }: { panel: typeof PANELS[0]; onBack: () => vo
     } finally {
       setIsStreaming(false);
     }
-  }, [isStreaming, convId, ctxUserId]);
+  }, [isStreaming, convId, ctxUserId, attachedDoc]);
 
   return (
     <KeyboardAvoidingView
@@ -160,7 +178,7 @@ function ChatView({ panel, onBack }: { panel: typeof PANELS[0]; onBack: () => vo
     >
       {/* Header */}
       <View style={[styles.chatHeader, { paddingTop: insets.top + 8 }]}>
-        <Pressable onPress={onBack} style={styles.backBtn} hitSlop={12}>
+        <Pressable onPress={onBack} style={styles.chatHeaderBtn} hitSlop={12}>
           <Feather name="arrow-left" size={20} color={Colors.text} />
         </Pressable>
         <View style={[styles.modeTag, { backgroundColor: panel.color + "22" }]}>
@@ -168,9 +186,9 @@ function ChatView({ panel, onBack }: { panel: typeof PANELS[0]; onBack: () => vo
           <Text style={[styles.modeTagText, { color: panel.color }]}>{panel.title}</Text>
         </View>
         <Pressable
-          onPress={() => { setMessages([]); setConvId(null); }}
+          onPress={() => { setMessages([]); setConvId(null); setAttachedDoc(null); }}
           hitSlop={12}
-          style={styles.backBtn}
+          style={styles.chatHeaderBtn}
         >
           <Feather name="refresh-cw" size={18} color={Colors.textMuted} />
         </Pressable>
@@ -200,6 +218,17 @@ function ChatView({ panel, onBack }: { panel: typeof PANELS[0]; onBack: () => vo
           </View>
         )}
       </ScrollView>
+
+      {/* Attached doc indicator */}
+      {attachedDoc && (
+        <View style={styles.attachedBar}>
+          <Feather name="file-text" size={13} color="#f59e0b" />
+          <Text style={styles.attachedBarText} numberOfLines={1}>{attachedDoc.name}</Text>
+          <Pressable onPress={() => setAttachedDoc(null)} hitSlop={8}>
+            <Feather name="x" size={14} color={Colors.textMuted} />
+          </Pressable>
+        </View>
+      )}
 
       {/* Input */}
       <View style={[styles.inputRow, { paddingBottom: insets.bottom + 8 }]}>
@@ -305,7 +334,7 @@ const styles = StyleSheet.create({
   tagText: { fontSize: 11, fontWeight: "600" },
   cardDesc: { fontSize: 13, color: Colors.textMuted, lineHeight: 18 },
   chatHeader: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingBottom: 10, backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border, justifyContent: "space-between" },
-  backBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
+  chatHeaderBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
   modeTag: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
   modeTagText: { fontSize: 13, fontWeight: "600" },
   emptyChat: { alignItems: "center", paddingTop: 60, paddingHorizontal: 24, gap: 12 },
@@ -319,4 +348,6 @@ const styles = StyleSheet.create({
   input: { flex: 1, backgroundColor: Colors.background, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, color: Colors.text, fontSize: 15, maxHeight: 120, borderWidth: 1, borderColor: Colors.border },
   sendBtn: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", marginBottom: 2 },
   attachBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center", marginBottom: 2 },
+  attachedBar: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, paddingVertical: 6, backgroundColor: "rgba(245,158,11,0.08)", borderTopWidth: 1, borderTopColor: "rgba(245,158,11,0.2)" },
+  attachedBarText: { flex: 1, fontSize: 12, color: "#f59e0b", fontFamily: "Inter_500Medium" },
 });

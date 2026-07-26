@@ -244,6 +244,8 @@ export default function DreamLabScreen() {
   const addDream = (data: Omit<Dream, "id" | "createdAt">) => {
     const dream: Dream = { ...data, id: `dream-${Date.now()}`, createdAt: new Date().toISOString() };
     saveDreams([dream, ...dreams]);
+    // Auto-open chat so Sirius responds immediately to the dream seed
+    setActiveDream(dream);
   };
 
   const deleteDream = (id: string) => {

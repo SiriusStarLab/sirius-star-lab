@@ -58,18 +58,6 @@ interface ActionStep {
   icon: string;
 }
 
-const MODES = [
-  { id: "guru",        label: "Guru",        emoji: "🧿" },
-  { id: "coach",       label: "Coach",       emoji: "🏋️" },
-  { id: "scientist",   label: "Scientist",   emoji: "🔬" },
-  { id: "philosopher", label: "Philosopher", emoji: "🦉" },
-  { id: "creative",    label: "Creative",    emoji: "🎨" },
-  { id: "friend",      label: "Friend",      emoji: "🤝" },
-  { id: "tutor",       label: "Tutor",       emoji: "📚" },
-  { id: "research",    label: "Research",    emoji: "🔭" },
-  { id: "think",       label: "Think",       emoji: "💭" },
-  { id: "manifest",    label: "Manifest",    emoji: "✨" },
-];
 
 const SURPRISE_PROMPTS = [
   "What is the most mind-bending fact in physics right now?",
@@ -100,7 +88,6 @@ export default function ChatScreen() {
   const [showHistory, setShowHistory] = useState(false);
   const [historyList, setHistoryList] = useState<Array<{ id: number; title: string; createdAt: string }>>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
-  const [chatMode, setChatMode] = useState("guru");
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const drawerAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
@@ -214,7 +201,7 @@ export default function ChatScreen() {
           body: JSON.stringify({
             content: text,
             userId: userId ?? undefined,
-            mode: chatMode,
+            mode: "guru",
             imageBase64: imageBase64 ?? undefined,
             documentBase64: documentBase64 ?? undefined,
             documentName: documentName ?? undefined,
@@ -356,7 +343,7 @@ export default function ChatScreen() {
       setIsStreaming(false);
       setShowTyping(false);
     }
-  }, [conversationId, isStreaming, userId, voiceMode, chatMode]);
+  }, [conversationId, isStreaming, userId, voiceMode]);
 
   useEffect(() => {
     if (params.prompt && params.prompt !== promptHandledRef.current && !isStreaming) {
@@ -441,7 +428,11 @@ export default function ChatScreen() {
     setHistoryLoading(true);
     try {
       const uid = userId || (await getUserId());
-      const convos = await fetchConversations(uid);
+      let convos = await fetchConversations(uid);
+      // Fallback: if no conversations found with userId, try without (catches userId mismatch)
+      if ((!convos || convos.length === 0) && uid) {
+        try { convos = await fetchConversations(undefined); } catch {}
+      }
       const filtered = (convos || [])
         .filter((c: { title?: string }) => c.title !== "health check" && c.title !== "probe")
         .sort((a: { createdAt: string }, b: { createdAt: string }) =>
@@ -791,33 +782,12 @@ export default function ChatScreen() {
                 </Pressable>
               </View>
 
-              {/* Conversation mode */}
-              <Text style={styles.drawerSectionLabel}>CONVERSATION MODE</Text>
-              <View style={styles.drawerModeWrap}>
-                {MODES.map(mode => (
-                  <Pressable
-                    key={mode.id}
-                    onPress={() => setChatMode(mode.id)}
-                    style={[
-                      styles.drawerModeChip,
-                      chatMode === mode.id && { borderColor: Colors.primary, backgroundColor: Colors.primary + "18" },
-                    ]}
-                  >
-                    <Text style={[styles.drawerModeLabel, chatMode === mode.id && { color: Colors.primary }]}>{mode.label}</Text>
-                  </Pressable>
-                ))}
-              </View>
-
-              <View style={styles.drawerDivider} />
-
               {/* Nav items */}
               <DrawerItem icon="plus-circle" label="New Session" onPress={handleNewChat} color={Colors.primary} tint={Colors.primary + "15"} />
               <DrawerItem icon="book-open" label="Sirius Guide" badge="HELP" badgeColor="#f59e0b" onPress={() => navigateTo("/(tabs)/learn")} />
               <DrawerItem icon="award" label="Learn" badge="NEW" badgeColor={Colors.primary} onPress={() => navigateTo("/(tabs)/learn")} />
               <DrawerItem icon="star" label="Dream Lab" badge="NEW" badgeColor="#a78bfa" dot onPress={() => navigateTo("/(tabs)/dreamlab")} />
-              <DrawerItem icon="heart" label="Wellbeing" onPress={() => navigateTo("/(tabs)/wellbeing")} />
-              <DrawerItem icon="globe" label="The Universe" badge="NEW" badgeColor={Colors.primary} onPress={() => navigateTo("/(tabs)/universe")} />
-              <DrawerItem icon="zap" label="Star Lab" badge="R&D" badgeColor={Colors.textMuted} dot onPress={() => navigateTo("/(tabs)/settings")} />
+              <DrawerItem icon="zap" label="Star Lab" badge="R&D" badgeColor="#6366f1" dot onPress={() => navigateTo("/(tabs)/starlab")} />
 
               <View style={styles.drawerDivider} />
               <Text style={styles.drawerSectionLabel}>SESSION HISTORY</Text>
@@ -842,7 +812,6 @@ export default function ChatScreen() {
 
               <View style={styles.drawerDivider} />
 
-              <DrawerItem icon="user-check" label="Memory Portrait" badge="SIRIUS" badgeColor={Colors.primary} onPress={() => navigateTo("/(tabs)/settings")} />
               <DrawerItem icon="user" label="My Account" onPress={() => navigateTo("/(tabs)/settings")} />
 
               {/* Footer */}
