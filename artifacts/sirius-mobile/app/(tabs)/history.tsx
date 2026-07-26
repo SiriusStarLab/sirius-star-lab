@@ -16,6 +16,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Colors from "@/constants/colors";
 import { Conversation, deleteConversation, fetchConversations, getUserId } from "@/lib/api";
+import { useApp } from "@/context/AppContext";
 
 function ConversationItem({
   item,
@@ -67,11 +68,19 @@ export default function HistoryScreen() {
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
+  const { userId: ctxUserId } = useApp();
+
   const { data: conversations = [], isLoading, refetch, isRefetching } = useQuery({
-    queryKey: ["conversations"],
+    queryKey: ["conversations", ctxUserId],
     queryFn: async () => {
-      const uid = await getUserId();
-      return fetchConversations(uid);
+      // Use context userId first (set after login), fall back to stored ID
+      const uid = ctxUserId || (await getUserId());
+      const convos = await fetchConversations(uid);
+      // If nothing returned, try without filter (catches userId mismatch edge case)
+      if ((!convos || convos.length === 0) && uid) {
+        try { return await fetchConversations(undefined); } catch {}
+      }
+      return convos;
     },
     staleTime: 30_000,
   });

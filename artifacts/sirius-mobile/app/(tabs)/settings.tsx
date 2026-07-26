@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -81,6 +81,7 @@ function SectionHeader({ title }: { title: string }) {
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { profile, updateLocalProfile, refreshProfile, userId } = useApp();
+  const params = useLocalSearchParams<{ showPricing?: string }>();
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -130,6 +131,18 @@ export default function SettingsScreen() {
   const [payRef, setPayRef] = useState("");
   const [payName, setPayName] = useState("");
   const [payEmail, setPayEmail] = useState("");
+
+  // Auto-open pricing when navigated from "Get Plus" modal
+  useEffect(() => {
+    if (params.showPricing === "1") {
+      setPayTier("plus");
+      setPayStep("details");
+      setPayRef("");
+      setPayName("");
+      setPayEmail("");
+      setShowPayment(true);
+    }
+  }, [params.showPricing]);
 
   const BANK = { name: "GCTH Supplies Ltd", account: "26359434", sortCode: "04-03-33", bank: "Mettle" };
   const PRICES = { plus: "£9.99", pro: "£19.99" };
@@ -473,15 +486,35 @@ export default function SettingsScreen() {
               <Text style={styles.iapLoadingText}>Loading subscription options…</Text>
             </View>
           ) : !subscription.plusPackage && !subscription.proPackage ? (
-            <View style={styles.iapLoadingWrap}>
-              <Text style={[styles.iapLoadingText, { textAlign: "center", lineHeight: 20 }]}>
-                Subscription options are not available right now.{"\n"}Please check your connection and try again, or manage your subscription in Apple Settings.
+            <View>
+              <Text style={[styles.iapLoadingText, { textAlign: "center", lineHeight: 20, marginBottom: 16 }]}>
+                In-app purchase is temporarily unavailable. You can subscribe via bank transfer below.
               </Text>
               <Pressable
-                onPress={() => Linking.openURL("https://apps.apple.com/account/subscriptions")}
-                style={[styles.restoreBtn, { marginTop: 12 }]}
+                onPress={() => { setPayTier("plus"); setShowPayment(true); }}
+                style={({ pressed }) => [styles.plusCard, { opacity: pressed ? 0.85 : 1 }]}
               >
-                <Text style={styles.restoreBtnText}>Open Apple Settings</Text>
+                <View style={styles.plusCardInner}>
+                  <View style={styles.plusIconWrap}>
+                    <Feather name="zap" size={22} color={Colors.background} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.plusCardTitle}>Sirius Plus — £9.99/month</Text>
+                    <Text style={styles.plusCardDesc}>Pay by bank transfer · No card needed</Text>
+                  </View>
+                  <Feather name="arrow-right" size={18} color={Colors.background} />
+                </View>
+              </Pressable>
+              <Pressable
+                onPress={() => { setPayTier("pro"); setShowPayment(true); }}
+                style={({ pressed }) => [styles.proCard, { opacity: pressed ? 0.85 : 1 }]}
+              >
+                <Feather name="award" size={18} color="#f59e0b" />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.proCardTitle}>Sirius Pro — £19.99/month</Text>
+                  <Text style={styles.proCardDesc}>Everything + Star Lab · Pay by bank transfer</Text>
+                </View>
+                <Feather name="chevron-right" size={16} color="rgba(245,158,11,0.5)" />
               </Pressable>
             </View>
           ) : (

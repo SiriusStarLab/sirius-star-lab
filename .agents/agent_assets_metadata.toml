@@ -395,3 +395,21 @@ id = "TPMlORdJua0w6ss0m8LPT"
 uri = "file://attached_assets/IMG_0264_1774097332649.png"
 type = "image"
 title = "Mar 21 image"
+
+[[outputs]]
+id = "2bnxkDcLNGn-aZIk_xlst"
+uri = "file://migration-pack/sirius-migration.zip"
+type = "unspecified"
+title = "Sirius Star Lab — Full Migration Pack (updated)"
+
+[[outputs]]
+id = "s6-2MeBsnk2IFj9Ay8w3a"
+uri = "file://migration-pack/ENV_TEMPLATE.md"
+type = "text"
+title = "Sirius — Environment Variables Reference"
+
+[[outputs]]
+id = "CuncP39jtke144wj8bat-"
+uri = "file://migration-pack/README.md"
+type = "text"
+title = "Sirius — Migration Pack README"

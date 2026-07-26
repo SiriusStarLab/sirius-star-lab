@@ -12,12 +12,8 @@ export function getApiBase(): string {
 }
 
 export async function getUserId(): Promise<string> {
-  let id = await AsyncStorage.getItem(USER_ID_KEY);
-  if (!id) {
-    id = `mobile-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    await AsyncStorage.setItem(USER_ID_KEY, id);
-  }
-  return id;
+  const id = await AsyncStorage.getItem(USER_ID_KEY);
+  return id ?? "";
 }
 
 export interface UserProfile {

@@ -124,18 +124,31 @@ export default function ChatScreen() {
       .catch(() => {});
   }, []);
 
-  useEffect(() => {
-    refreshKateVoice();
-    const sub = AppState.addEventListener("change", state => {
-      if (state === "active") refreshKateVoice();
-    });
-    return () => sub.remove();
-  }, [refreshKateVoice]);
-
   const stopSpeech = useCallback(() => {
     speechCancelledRef.current = true;
     Speech.stop();
   }, []);
+
+  const lastBackgroundRef = useRef<number>(0);
+
+  useEffect(() => {
+    refreshKateVoice();
+    const sub = AppState.addEventListener("change", state => {
+      if (state === "active") {
+        refreshKateVoice();
+        // Reset to landing screen if app was backgrounded for more than 3 minutes
+        const elapsed = Date.now() - lastBackgroundRef.current;
+        if (lastBackgroundRef.current > 0 && elapsed > 3 * 60 * 1000) {
+          setMessages([]);
+          setConversationId(null);
+          stopSpeech();
+        }
+      } else if (state === "background" || state === "inactive") {
+        lastBackgroundRef.current = Date.now();
+      }
+    });
+    return () => sub.remove();
+  }, [refreshKateVoice, stopSpeech]);
 
   const speakWithChunks = useCallback((text: string) => {
     speechCancelledRef.current = false;
@@ -553,6 +566,21 @@ export default function ChatScreen() {
 
             {/* Subtitle */}
             <Text style={styles.welcomeSub}>What would you like to do?</Text>
+
+            {/* Chat input — sits right under the welcome text on landing */}
+            <View style={{ paddingTop: 20, alignSelf: "stretch" }}>
+              <Text style={styles.secureFooter}>SECURE  ·  PRIVATE  ·  ALWAYS ON</Text>
+              <ChatInput
+                onSend={handleSend}
+                disabled={isStreaming}
+                placeholder="I'm listening. Take your time."
+                voiceMode={voiceMode}
+                onToggleVoice={() => {
+                  if (voiceMode) stopSpeech();
+                  setVoiceMode(v => !v);
+                }}
+              />
+            </View>
           </ScrollView>
         ) : (
           <FlatList
@@ -611,44 +639,21 @@ export default function ChatScreen() {
           />
         )}
 
-        {/* Quick chips (active chat) */}
-        {messages.length > 0 && !isStreaming && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickChipsRow} keyboardShouldPersistTaps="handled">
-            <Pressable onPress={() => handleSend("Can you visualise this for me?")} style={({ pressed }) => [styles.quickChip, pressed && { opacity: 0.7 }]}>
-              <Feather name="image" size={13} color={Colors.primary} />
-              <Text style={styles.quickChipText}>Visualise this</Text>
-            </Pressable>
-            <Pressable onPress={() => handleSend("Can you summarise what we've discussed so far?")} style={({ pressed }) => [styles.quickChip, pressed && { opacity: 0.7 }]}>
-              <Feather name="list" size={13} color={Colors.primary} />
-              <Text style={styles.quickChipText}>Summarise</Text>
-            </Pressable>
-            <Pressable onPress={() => handleSend("Go deeper on this.")} style={({ pressed }) => [styles.quickChip, pressed && { opacity: 0.7 }]}>
-              <Feather name="arrow-down-circle" size={13} color={Colors.primary} />
-              <Text style={styles.quickChipText}>Go deeper</Text>
-            </Pressable>
-            <Pressable onPress={() => handleSend("What's a different way to look at this?")} style={({ pressed }) => [styles.quickChip, pressed && { opacity: 0.7 }]}>
-              <Feather name="refresh-cw" size={13} color={Colors.primary} />
-              <Text style={styles.quickChipText}>New angle</Text>
-            </Pressable>
-          </ScrollView>
+        {/* Chat input — only shown here when in active chat */}
+        {messages.length > 0 && (
+          <View style={{ paddingBottom: Math.max(bottomPad, 8) }}>
+            <ChatInput
+              onSend={handleSend}
+              disabled={isStreaming}
+              placeholder="I'm listening. Take your time."
+              voiceMode={voiceMode}
+              onToggleVoice={() => {
+                if (voiceMode) stopSpeech();
+                setVoiceMode(v => !v);
+              }}
+            />
+          </View>
         )}
-
-        {/* Chat input */}
-        <View style={{ paddingBottom: Math.max(bottomPad, 8) }}>
-          {messages.length === 0 && (
-            <Text style={styles.secureFooter}>SECURE  ·  PRIVATE  ·  ALWAYS ON</Text>
-          )}
-          <ChatInput
-            onSend={handleSend}
-            disabled={isStreaming}
-            placeholder="I'm listening. Take your time."
-            voiceMode={voiceMode}
-            onToggleVoice={() => {
-              if (voiceMode) stopSpeech();
-              setVoiceMode(v => !v);
-            }}
-          />
-        </View>
       </KeyboardAvoidingView>
 
       {/* ── Upgrade modal ── */}
@@ -689,8 +694,8 @@ export default function ChatScreen() {
                     </TouchableOpacity>
                   )}
                   {!subscription.plusPackage && !subscription.proPackage && (
-                    <TouchableOpacity style={upgradeStyles.ctaBtn} activeOpacity={0.82} onPress={() => setShowUpgradeModal(false)}>
-                      <Text style={upgradeStyles.ctaText}>See plans in Settings →</Text>
+                    <TouchableOpacity style={upgradeStyles.ctaBtn} activeOpacity={0.82} onPress={() => { setShowUpgradeModal(false); setTimeout(() => router.push({ pathname: "/(tabs)/settings", params: { showPricing: "1" } } as any), 300); }}>
+                      <Text style={upgradeStyles.ctaText}>View subscription options →</Text>
                     </TouchableOpacity>
                   )}
                 </>
@@ -797,10 +802,11 @@ export default function ChatScreen() {
               <DrawerItem icon="book-open" label="Sirius Guide" badge="HELP" badgeColor="#f59e0b" onPress={() => navigateTo("/(tabs)/guide")} />
               <DrawerItem icon="award" label="Learn" badge="NEW" badgeColor={Colors.primary} onPress={() => navigateTo("/(tabs)/learn")} />
               <DrawerItem icon="star" label="Dream Lab" badge="NEW" badgeColor="#a78bfa" dot onPress={() => navigateTo("/(tabs)/dreamlab")} />
-              <DrawerItem icon="zap" label="Star Lab" badge="R&D" badgeColor="#6366f1" dot onPress={() => { closeDrawer(); Linking.openURL("https://sirius-ai.live/star-lab"); }} />
+              <DrawerItem icon="zap" label="Star Lab" badge="PRO" badgeColor="#6366f1" dot onPress={() => { closeDrawer(); router.push("/(tabs)/starlab" as any); }} />
 
               <View style={styles.drawerDivider} />
               <Text style={styles.drawerSectionLabel}>SESSION HISTORY</Text>
+              <DrawerItem icon="credit-card" label="Plans & Pricing" onPress={() => { closeDrawer(); router.push("/(tabs)/pricing" as any); }} />
               <DrawerItem icon="clock" label="Past Conversations" onPress={openHistory} />
 
               <View style={styles.drawerDivider} />
@@ -915,10 +921,10 @@ const styles = StyleSheet.create({
 
   /* ── Landing screen ── */
   landing: {
-    flex: 1,
+    flexGrow: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 28,
+    paddingHorizontal: 20,
     paddingTop: 40,
   },
   logoWrap: {

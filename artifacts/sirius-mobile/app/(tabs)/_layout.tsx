@@ -12,10 +12,11 @@ export default function TabLayout() {
       <Tabs.Screen name="index" />
       <Tabs.Screen name="learn" />
       <Tabs.Screen name="dreamlab" />
-      <Tabs.Screen name="starlab" options={{ href: null }} />
+      <Tabs.Screen name="starlab" />
       <Tabs.Screen name="guide" />
       <Tabs.Screen name="history" />
       <Tabs.Screen name="settings" />
+      <Tabs.Screen name="pricing" />
       <Tabs.Screen name="wellbeing" options={{ href: null }} />
       <Tabs.Screen name="universe" options={{ href: null }} />
       <Tabs.Screen name="explore" options={{ href: null }} />

@@ -201,7 +201,7 @@ const SECTIONS: Section[] = [
     steps: [
       {
         title: "Free plan",
-        body: "The Free plan gives you 10 messages per day — a great way to explore what Sirius can do. No payment required to start.",
+        body: "The Free plan gives you 30 messages per day — a great way to explore what Sirius can do. No payment required to start.",
       },
       {
         title: "Sirius Plus — £9.99/month",
