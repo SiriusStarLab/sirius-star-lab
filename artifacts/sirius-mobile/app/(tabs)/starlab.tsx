@@ -7,9 +7,11 @@ import * as FileSystem from "expo-file-system";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   KeyboardAvoidingView,
   Linking,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -32,7 +34,7 @@ type ChatMode = "appbuilder" | "code" | "general";
 
 const SYSTEM_PROMPTS: Record<ChatMode, string> = {
   appbuilder:
-    "You are Sirius App Builder inside the Sirius Star Lab. Help the user design, plan, and build their app idea from concept to production. Guide them through: defining the app purpose and target users, choosing the right tech stack, outlining the architecture, breaking the build into milestones, and writing actual code when requested. Be specific, technical, and actionable. When writing code always use complete, working examples.",
+    "You are Sirius App Builder inside the Sirius Star Lab. Your job is to help the user design and specify their app idea so it can be handed to a development team to build and launch. The user does NOT build or deploy the app themselves — they design it here, and the Sirius build team handles everything else. Guide them through: 1) What the app does and who it's for. 2) Core features — what must it do on day one. 3) Platform — iOS, Android, web, or all three. 4) Design style — look and feel. 5) Any integrations needed (payments, logins, etc). 6) Timeline expectations. Ask one question at a time. Be clear and friendly. When you have enough detail, tell the user their brief is ready to submit.",
   code:
     "You are Sirius Code Builder inside the Sirius Star Lab. Write high-quality, complete, production-ready code for the user. Always provide full working implementations, not snippets. Explain your choices clearly. Support any language or framework. Format all code in proper code blocks.",
   general:
@@ -71,6 +73,12 @@ export default function StarLabScreen() {
   const [inputText, setInputText] = useState("");
   const [selectedDocBase64, setSelectedDocBase64] = useState<string | null>(null);
   const [selectedDocName, setSelectedDocName] = useState<string | null>(null);
+
+  // App Builder brief state
+  const [showBriefModal, setShowBriefModal] = useState(false);
+  const [briefText, setBriefText] = useState("");
+  const [generatingBrief, setGeneratingBrief] = useState(false);
+  const [briefSubmitted, setBriefSubmitted] = useState(false);
 
   const flatListRef = useRef<FlatList>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -236,6 +244,63 @@ export default function StarLabScreen() {
       abortRef.current = null;
     }
   }, [inputText, selectedDocBase64, selectedDocName, isStreaming, userId, conversationId, chatMode]);
+
+  // ── Generate app brief from conversation ─────────────────────────────────
+  const generateBrief = useCallback(async () => {
+    if (messages.length === 0 || generatingBrief) return;
+    setGeneratingBrief(true);
+    setBriefText("");
+    setBriefSubmitted(false);
+    setShowBriefModal(true);
+    try {
+      const uid = userId || (await getUserId());
+      const base = getApiBase();
+      let convoId = conversationId;
+      if (!convoId) {
+        const convo = await createConversation("App Brief", uid);
+        convoId = convo.id;
+        setConversationId(convoId);
+      }
+      const summaryPrompt = "Based on everything discussed so far, write a complete, structured App Brief in plain text with these sections: APP NAME, PURPOSE, TARGET USERS, CORE FEATURES (numbered list), PLATFORM, DESIGN STYLE, INTEGRATIONS NEEDED, and TIMELINE. Be specific and concise. This brief will be sent to the build team.";
+      const res = await fetch(`${base}openai/conversations/${convoId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: summaryPrompt, mode: "guru", systemPrompt: SYSTEM_PROMPTS.appbuilder, userId: uid }),
+      });
+      if (!res.ok || !res.body) throw new Error("Failed");
+      const reader = (res.body as any).getReader();
+      const decoder = new TextDecoder();
+      let buf = ""; let full = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split("\n"); buf = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const raw = line.slice(6).trim();
+          if (raw === "[DONE]") break;
+          try {
+            const evt = JSON.parse(raw);
+            const chunk = evt.content ?? (evt.type === "text" ? evt.delta : null);
+            if (chunk) { full += chunk; setBriefText(full); }
+          } catch {}
+        }
+      }
+    } catch {
+      setBriefText("Could not generate brief. Please try again.");
+    } finally {
+      setGeneratingBrief(false);
+    }
+  }, [messages, generatingBrief, userId, conversationId]);
+
+  // ── Submit brief to build team ────────────────────────────────────────────
+  const submitBrief = () => {
+    const subject = encodeURIComponent("App Build Brief — Sirius Star Lab");
+    const body = encodeURIComponent(`Hello,\n\nI have designed an app using Sirius Star Lab and I'd like to submit it for building.\n\n${briefText}\n\nPlease get back to me with next steps.\n\nThank you`);
+    Linking.openURL(`mailto:support@sirius-ai.live?subject=${subject}&body=${body}`);
+    setBriefSubmitted(true);
+  };
 
   // ─────────────────────────────────────────────────────────────────────────
   // RENDER
@@ -503,7 +568,15 @@ export default function StarLabScreen() {
           <Text style={s.headerTitle}>{MODE_LABELS[chatMode]}</Text>
           <Text style={{ fontSize: 11, color: Colors.textDim, fontFamily: "Inter_400Regular" }}>Star Lab</Text>
         </View>
-        <View style={{ width: 36 }} />
+        {/* Submit Brief button — only in App Builder once messages exist */}
+        {chatMode === "appbuilder" && messages.length > 0 ? (
+          <Pressable onPress={generateBrief} style={s.briefBtn} hitSlop={8}>
+            <Feather name="send" size={14} color="#6366f1" />
+            <Text style={s.briefBtnText}>Brief</Text>
+          </Pressable>
+        ) : (
+          <View style={{ width: 52 }} />
+        )}
       </View>
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" keyboardVerticalOffset={0}>
@@ -519,7 +592,7 @@ export default function StarLabScreen() {
             <Text style={s.chatEmptyTitle}>{MODE_LABELS[chatMode]}</Text>
             <Text style={s.chatEmptySub}>
               {chatMode === "appbuilder"
-                ? "Describe the app you want to build. Sirius will guide you from idea to launch."
+                ? "Tell Sirius about the app you want to build. Once your idea is fully designed, you can submit the brief and our team will build and launch it for you."
                 : chatMode === "code"
                 ? "Tell me what code you need. I'll write complete, working implementations."
                 : "What are we working on today?"}
@@ -583,6 +656,61 @@ export default function StarLabScreen() {
           </View>
         </View>
       </KeyboardAvoidingView>
+
+      {/* ── App Builder Brief Modal ── */}
+      <Modal visible={showBriefModal} transparent animationType="slide" onRequestClose={() => setShowBriefModal(false)}>
+        <View style={s.briefOverlay}>
+          <View style={[s.briefSheet, { paddingBottom: Math.max(bottomPad, 16) }]}>
+            <View style={s.briefHandle} />
+
+            <View style={s.briefHeader}>
+              <View>
+                <Text style={s.briefTitle}>App Brief</Text>
+                <Text style={s.briefSubtitle}>Submit this to the build team to get started</Text>
+              </View>
+              <Pressable onPress={() => setShowBriefModal(false)} hitSlop={12}>
+                <Feather name="x" size={20} color={Colors.textDim} />
+              </Pressable>
+            </View>
+
+            {generatingBrief ? (
+              <View style={s.briefLoading}>
+                <ActivityIndicator color="#6366f1" />
+                <Text style={s.briefLoadingText}>Generating your brief…</Text>
+              </View>
+            ) : briefSubmitted ? (
+              <View style={s.briefSuccess}>
+                <Text style={{ fontSize: 44, marginBottom: 12 }}>✅</Text>
+                <Text style={s.briefSuccessTitle}>Brief Submitted!</Text>
+                <Text style={s.briefSuccessText}>Your app brief has been sent to the Sirius build team at support@sirius-ai.live. We'll be in touch within 48 hours with next steps.</Text>
+                <Pressable onPress={() => { setShowBriefModal(false); setBriefSubmitted(false); }} style={s.briefCloseBtn}>
+                  <Text style={s.briefCloseBtnText}>Done</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <>
+                <ScrollView style={s.briefBody} showsVerticalScrollIndicator={false}>
+                  <Text style={s.briefBodyText}>{briefText || "Generating…"}</Text>
+                </ScrollView>
+
+                <View style={s.briefNote}>
+                  <Feather name="info" size={13} color={Colors.textDim} />
+                  <Text style={s.briefNoteText}>You design it — we build and launch it. Tapping submit opens your email app with this brief ready to send.</Text>
+                </View>
+
+                <Pressable
+                  onPress={submitBrief}
+                  disabled={!briefText || generatingBrief}
+                  style={({ pressed }) => [s.briefSubmitBtn, pressed && { opacity: 0.85 }, (!briefText || generatingBrief) && { opacity: 0.5 }]}
+                >
+                  <Feather name="send" size={16} color="#fff" />
+                  <Text style={s.briefSubmitText}>Submit to Build Team</Text>
+                </Pressable>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -909,5 +1037,151 @@ const s = StyleSheet.create({
     backgroundColor: Colors.primary,
     alignItems: "center",
     justifyContent: "center",
+  },
+
+  // Brief button in header
+  briefBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(99,102,241,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(99,102,241,0.3)",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  briefBtnText: {
+    fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
+    color: "#6366f1",
+  },
+
+  // Brief modal
+  briefOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    justifyContent: "flex-end",
+  },
+  briefSheet: {
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    maxHeight: "85%",
+  },
+  briefHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.borderLight,
+    alignSelf: "center",
+    marginBottom: 16,
+  },
+  briefHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
+  briefTitle: {
+    fontSize: 20,
+    fontFamily: "Inter_700Bold",
+    color: Colors.text,
+  },
+  briefSubtitle: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textDim,
+    marginTop: 2,
+  },
+  briefLoading: {
+    alignItems: "center",
+    paddingVertical: 40,
+    gap: 12,
+  },
+  briefLoadingText: {
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textDim,
+  },
+  briefSuccess: {
+    alignItems: "center",
+    paddingVertical: 24,
+  },
+  briefSuccessTitle: {
+    fontSize: 22,
+    fontFamily: "Inter_700Bold",
+    color: Colors.text,
+    marginBottom: 10,
+  },
+  briefSuccessText: {
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textDim,
+    textAlign: "center",
+    lineHeight: 21,
+    marginBottom: 24,
+  },
+  briefCloseBtn: {
+    backgroundColor: Colors.primary,
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 40,
+  },
+  briefCloseBtnText: {
+    color: "#fff",
+    fontSize: 15,
+    fontFamily: "Inter_700Bold",
+  },
+  briefBody: {
+    maxHeight: 300,
+    backgroundColor: Colors.background,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  briefBodyText: {
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    color: Colors.text,
+    lineHeight: 20,
+  },
+  briefNote: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    marginBottom: 16,
+  },
+  briefNoteText: {
+    flex: 1,
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textDim,
+    lineHeight: 17,
+  },
+  briefSubmitBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#6366f1",
+    borderRadius: 14,
+    paddingVertical: 15,
+    shadowColor: "#6366f1",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  briefSubmitText: {
+    color: "#fff",
+    fontSize: 15,
+    fontFamily: "Inter_700Bold",
   },
 });
