@@ -300,8 +300,16 @@ export default function PricingScreen() {
                       <Text style={p.refValue}>{payRef}</Text>
                     </View>
                   ) : null}
-                  <Pressable onPress={() => setShowPayment(false)} style={[p.confirmBtn, { marginTop: 20 }]}>
-                    <Text style={p.confirmBtnText}>Done</Text>
+                  {payTier === "pro" && (
+                    <Pressable
+                      onPress={() => { setShowPayment(false); setTimeout(() => router.push("/(tabs)/starlab" as any), 300); }}
+                      style={[p.confirmBtn, { marginTop: 20, backgroundColor: "#6366f1" }]}
+                    >
+                      <Text style={p.confirmBtnText}>Set up your Star Lab →</Text>
+                    </Pressable>
+                  )}
+                  <Pressable onPress={() => setShowPayment(false)} style={{ alignItems: "center", padding: 14 }}>
+                    <Text style={{ color: Colors.textDim, fontSize: 14, fontFamily: "Inter_400Regular" }}>Done</Text>
                   </Pressable>
                 </View>
               )}

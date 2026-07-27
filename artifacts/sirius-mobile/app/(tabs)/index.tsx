@@ -694,7 +694,7 @@ export default function ChatScreen() {
                     </TouchableOpacity>
                   )}
                   {!subscription.plusPackage && !subscription.proPackage && (
-                    <TouchableOpacity style={upgradeStyles.ctaBtn} activeOpacity={0.82} onPress={() => { setShowUpgradeModal(false); setTimeout(() => router.push({ pathname: "/(tabs)/settings", params: { showPricing: "1" } } as any), 300); }}>
+                    <TouchableOpacity style={upgradeStyles.ctaBtn} activeOpacity={0.82} onPress={() => { setShowUpgradeModal(false); setTimeout(() => router.push("/(tabs)/pricing" as any), 300); }}>
                       <Text style={upgradeStyles.ctaText}>View subscription options →</Text>
                     </TouchableOpacity>
                   )}
@@ -722,8 +722,8 @@ export default function ChatScreen() {
                     <Text style={[upgradeStyles.planPrice, { color: "hsl(45,100%,55%)" }]}>£19.99<Text style={upgradeStyles.planPer}>/mo</Text></Text>
                   </View>
                 </View>
-                <TouchableOpacity style={upgradeStyles.ctaBtn} activeOpacity={0.82} onPress={() => { setShowUpgradeModal(false); Linking.openURL(UPGRADE_URL); }}>
-                  <Text style={upgradeStyles.ctaText}>See plans at sirius-ai.live →</Text>
+                <TouchableOpacity style={upgradeStyles.ctaBtn} activeOpacity={0.82} onPress={() => { setShowUpgradeModal(false); setTimeout(() => router.push("/(tabs)/pricing" as any), 300); }}>
+                  <Text style={upgradeStyles.ctaText}>See plans →</Text>
                 </TouchableOpacity>
               </>
             )}
@@ -813,7 +813,7 @@ export default function ChatScreen() {
 
               {/* Get Plus usage bar */}
               <Pressable
-                onPress={() => { closeDrawer(); setTimeout(() => setShowUpgradeModal(true), 200); }}
+                onPress={() => { closeDrawer(); setTimeout(() => router.push("/(tabs)/pricing" as any), 200); }}
                 style={({ pressed }) => [styles.drawerPlusCard, pressed && { opacity: 0.85 }]}
               >
                 <View style={styles.drawerPlusRow}>

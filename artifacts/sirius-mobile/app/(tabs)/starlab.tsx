@@ -270,7 +270,7 @@ export default function StarLabScreen() {
           <Text style={s.gateTitle}>Star Lab</Text>
           <Text style={s.gateSub}>Star Lab is included with the Sirius Pro plan. Upgrade to unlock your private R&D intelligence platform.</Text>
           <Pressable
-            onPress={() => router.push({ pathname: "/(tabs)/settings", params: { showPricing: "1" } } as any)}
+            onPress={() => router.push("/(tabs)/pricing" as any)}
             style={({ pressed }) => [s.upgradeBtn, pressed && { opacity: 0.85 }]}
           >
             <Feather name="award" size={16} color="#fff" />
