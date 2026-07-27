@@ -561,15 +561,11 @@ export default function ChatScreen() {
             {/* Tagline */}
             <Text style={styles.tagline}>I'M SIRIUS  ·  I THINK, SO I AM</Text>
 
-            {/* Welcome heading */}
-            <Text style={styles.welcomeTitle}>Welcome to Sirius — a place where you become a star</Text>
-
             {/* Subtitle */}
             <Text style={styles.welcomeSub}>What would you like to do?</Text>
 
             {/* Chat input — sits right under the welcome text on landing */}
             <View style={{ paddingTop: 20, alignSelf: "stretch" }}>
-              <Text style={styles.secureFooter}>SECURE  ·  PRIVATE  ·  ALWAYS ON</Text>
               <ChatInput
                 onSend={handleSend}
                 disabled={isStreaming}
@@ -808,23 +804,6 @@ export default function ChatScreen() {
               <Text style={styles.drawerSectionLabel}>SESSION HISTORY</Text>
               <DrawerItem icon="credit-card" label="Plans & Pricing" onPress={() => { closeDrawer(); router.push("/(tabs)/pricing" as any); }} />
               <DrawerItem icon="clock" label="Past Conversations" onPress={openHistory} />
-
-              <View style={styles.drawerDivider} />
-
-              {/* Get Plus usage bar */}
-              <Pressable
-                onPress={() => { closeDrawer(); setTimeout(() => router.push("/(tabs)/pricing" as any), 200); }}
-                style={({ pressed }) => [styles.drawerPlusCard, pressed && { opacity: 0.85 }]}
-              >
-                <View style={styles.drawerPlusRow}>
-                  <Feather name="zap" size={15} color={Colors.primary} />
-                  <Text style={styles.drawerPlusTitle}>Get Plus — £9.99/month</Text>
-                </View>
-                <View style={styles.drawerUsageBar}>
-                  <View style={[styles.drawerUsageFill, { width: `${usagePct * 100}%` as any, backgroundColor: usagePct > 0.85 ? "#ef4444" : Colors.primary }]} />
-                </View>
-                <Text style={styles.drawerUsageText}>{dailyUsed}/{dailyLimit} messages today</Text>
-              </Pressable>
 
               <View style={styles.drawerDivider} />
 
