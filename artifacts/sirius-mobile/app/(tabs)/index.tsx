@@ -1,5 +1,5 @@
 import { fetch } from "expo/fetch";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import * as Speech from "expo-speech";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -367,34 +367,16 @@ export default function ChatScreen() {
     }
   }, [params.prompt, handleSend, isStreaming]);
 
-  useEffect(() => {
-    if (params.conversationId || params.prompt) return;
-    (async () => {
-      try {
-        const uid = userId || (await getUserId());
-        const convos = await fetchConversations(uid);
-        if (!convos || convos.length === 0) return;
-        const latest = convos.sort(
-          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        )[0];
-        if (!latest || latest.title === "health check" || latest.title === "probe") return;
-        const base = getApiBase();
-        const qs = uid ? `?userId=${encodeURIComponent(uid)}` : "";
-        const res = await fetch(`${base}openai/conversations/${latest.id}${qs}`);
-        if (!res.ok) return;
-        const data = await res.json();
-        const msgs: Message[] = (data.messages ?? []).map((m: DBMessage) => ({
-          id: String(m.id),
-          role: m.role as "user" | "assistant",
-          content: m.content,
-        }));
-        if (msgs.length === 0) return;
-        setMessages(msgs);
-        setConversationId(latest.id);
-      } catch {}
-    })();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Clear chat when navigating away — so returning to this tab always shows the landing screen
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        setMessages([]);
+        setConversationId(null);
+        stopSpeech();
+      };
+    }, [stopSpeech])
+  );
 
   useEffect(() => {
     const convoIdParam = params.conversationId;
