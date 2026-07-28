@@ -1922,58 +1922,44 @@ router.post("/openai/transcribe", async (req, res): Promise<void> => {
 
 const ALLOWED_TTS_VOICES = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"] as const;
 
+// Piper TTS — British female Jenny voice (hardwired, no OpenAI)
 router.post("/openai/tts", async (req, res): Promise<void> => {
-  const { text, voice, language } = req.body ?? {};
+  const { text } = req.body ?? {};
   if (!text || typeof text !== "string") {
     res.status(400).json({ error: "text is required" });
     return;
   }
-
-  // If a specific voice is requested, use it; otherwise load Sirius's preferred voice from config
-  let resolvedVoice = ALLOWED_TTS_VOICES.includes(voice) ? voice : null;
-  if (!resolvedVoice) {
-    try {
-      const { db, siriusConfig } = await import("@workspace/db");
-      const { eq } = await import("drizzle-orm");
-      const rows = await db.select().from(siriusConfig).where(eq(siriusConfig.key, "tts_voice")).limit(1);
-      const saved = rows[0]?.value;
-      resolvedVoice = (saved && ALLOWED_TTS_VOICES.includes(saved as any)) ? saved as any : "nova";
-    } catch {
-      resolvedVoice = "nova";
-    }
-  }
-  const safeVoice = resolvedVoice;
+  const { spawn } = require("child_process");
+  const { readFile, unlink } = require("fs/promises");
+  const { tmpdir } = require("os");
+  const { join } = require("path");
+  const safe = String(text).replace(/[*#>`_~]/g, "").replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").slice(0, 2000);
+  const tmpFile = join(tmpdir(), `piper-tts-${Date.now()}-${Math.random().toString(36).slice(2)}.wav`);
   try {
-    let finalText = text;
-    if (language && language !== "auto" && !language.toLowerCase().startsWith("english")) {
-      const translation = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content: `Translate the following text into ${language}. Preserve the warm, meditative, poetic tone exactly. Return only the translated text, nothing else.`,
-          },
-          { role: "user", content: text },
-        ],
-        max_tokens: 600,
-      });
-      finalText = translation.choices[0]?.message?.content?.trim() || text;
-    }
-    const { default: OpenAI } = await import("openai");
-    const directOpenAI = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    const mp3 = await directOpenAI.audio.speech.create({
-      model: "tts-1-hd",
-      voice: safeVoice,
-      input: finalText,
-      response_format: "mp3",
+    await new Promise<void>((resolve, reject) => {
+      const piper = spawn("/opt/piper/piper", [
+        "--model", "/opt/piper/voices/en_GB-jenny_dioco-medium.onnx",
+        "--output_file", tmpFile,
+        "--quiet",
+      ]);
+      // CRITICAL: drain stdout to prevent pipe buffer deadlock on long text
+      piper.stdout.resume();
+      piper.stdin.write(safe);
+      piper.stdin.end();
+      const timer = setTimeout(() => { piper.kill(); reject(new Error("piper timeout")); }, 30_000);
+      piper.on("close", (code: number) => { clearTimeout(timer); code === 0 ? resolve() : reject(new Error(`piper exited ${code}`)); });
+      piper.on("error", (e: Error) => { clearTimeout(timer); reject(e); });
     });
-    const buffer = Buffer.from(await mp3.arrayBuffer());
-    res.set("Content-Type", "audio/mpeg");
-    res.set("Content-Length", String(buffer.length));
-    res.set("Cache-Control", "no-cache");
-    res.send(buffer);
+    const wav = await readFile(tmpFile);
+    res.setHeader("Content-Type", "audio/wav");
+    res.setHeader("Content-Length", String(wav.length));
+    res.setHeader("Cache-Control", "no-store");
+    res.send(wav);
   } catch (err: any) {
-    res.status(500).json({ error: "TTS generation failed", detail: err?.message });
+    console.error("[TTS /openai/tts]", err.message);
+    res.status(500).json({ error: err.message });
+  } finally {
+    unlink(tmpFile).catch(() => {});
   }
 });
 

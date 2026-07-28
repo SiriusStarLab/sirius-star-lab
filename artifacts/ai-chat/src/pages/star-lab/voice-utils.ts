@@ -64,7 +64,7 @@ export function stopSpeaking() {
 export async function speakText(
   text: string,
   onDone?: () => void,
-  _rate = 0.87,
+  _rate = 1.0,
   pin?: string,
 ) {
   stopSpeaking();
@@ -163,7 +163,7 @@ export async function speakText(
   _speakBrowser(clean, onDone, _rate);
 }
 
-function _speakBrowser(text: string, onDone?: () => void, rate = 0.87) {
+function _speakBrowser(text: string, onDone?: () => void, rate = 1.0) {
   if (typeof window === "undefined" || !window.speechSynthesis) {
     console.warn("[TTS] Browser speech synthesis not available");
     onDone?.();
