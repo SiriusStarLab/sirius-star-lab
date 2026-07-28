@@ -174,6 +174,28 @@ router.post("/stripe/webhook", async (req, res) => {
   res.json({ received: true });
 });
 
+// POST /api/stripe/activate-lab — called from mobile after IAP purchase to upsert pro tier
+router.post("/stripe/activate-lab", async (req, res) => {
+  try {
+    const { userId } = req.body as { userId: string };
+    if (!userId?.trim()) {
+      res.status(400).json({ error: "userId required" }); return;
+    }
+    await db
+      .insert(userProfilesTable)
+      .values({ userId: userId.trim(), subscriptionTier: "pro" })
+      .onConflictDoUpdate({
+        target: userProfilesTable.userId,
+        set: { subscriptionTier: "pro" },
+      });
+    console.log(`[Stripe] activate-lab: set pro for userId=${userId.trim()}`);
+    res.json({ ok: true, tier: "pro" });
+  } catch (err: unknown) {
+    console.error("[Stripe] activate-lab error:", err);
+    res.status(500).json({ error: "Failed to activate subscription" });
+  }
+});
+
 // GET /api/stripe/subscription/:userId
 router.get("/stripe/subscription/:userId", async (req, res) => {
   try {
