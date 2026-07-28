@@ -7,6 +7,7 @@ import { fetch } from "expo/fetch";
 import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Image,
   Modal,
   Platform,
@@ -180,10 +181,15 @@ export function ChatInput({ onSend, disabled = false, placeholder = "Message Sir
         if (transcript.trim()) {
           onSend(transcript.trim(), selectedImage ?? undefined, selectedDocBase64 ?? undefined, selectedDocName ?? undefined);
           clearAttachments();
+        } else {
+          Alert.alert("Nothing heard", "No speech was detected. Please try again.");
         }
+      } else {
+        Alert.alert("Transcription failed", "Could not process your voice. Please try again.");
       }
     } catch (err) {
       console.error("Transcription failed", err);
+      Alert.alert("Mic error", "Something went wrong with the microphone. Please try again.");
     } finally {
       setVoiceState("idle");
     }

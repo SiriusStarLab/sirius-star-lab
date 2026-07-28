@@ -116,10 +116,19 @@ export default function ChatScreen() {
   const refreshKateVoice = useCallback(() => {
     Speech.getAvailableVoicesAsync()
       .then(voices => {
-        const kate = voices.find(
-          v => v.name.toLowerCase().includes("kate") && v.language.startsWith("en-GB")
-        ) ?? voices.find(v => v.language.startsWith("en-GB"));
-        if (kate) kateVoiceRef.current = kate.identifier;
+        const enGB = voices.filter(v => v.language.startsWith("en-GB"));
+        const enUS = voices.filter(v => v.language.startsWith("en-US"));
+        // Prefer premium/neural en-GB voices, then any en-GB, then en-US neural
+        const preferred = [
+          enGB.find(v => v.name.toLowerCase().includes("serena")),
+          enGB.find(v => v.name.toLowerCase().includes("martha")),
+          enGB.find(v => v.name.toLowerCase().includes("daniel")),
+          enGB.find(v => v.quality === "Enhanced" || (v as any).quality === "Premium"),
+          enGB[0],
+          enUS.find(v => v.name.toLowerCase().includes("samantha")),
+          enUS[0],
+        ].find(Boolean);
+        if (preferred) kateVoiceRef.current = preferred.identifier;
       })
       .catch(() => {});
   }, []);
@@ -452,19 +461,36 @@ export default function ChatScreen() {
     try {
       const base = getApiBase();
       const uid = userId || (await getUserId());
-      const qs = uid ? `?userId=${encodeURIComponent(uid)}` : "";
-      const res = await fetch(`${base}openai/conversations/${id}${qs}`);
-      if (!res.ok) return;
-      const data = await res.json();
+
+      // Try with userId first, then without as fallback (handles userId mismatch)
+      let data: any = null;
+      const withUser = await fetch(`${base}openai/conversations/${id}${uid ? `?userId=${encodeURIComponent(uid)}` : ""}`);
+      if (withUser.ok) {
+        data = await withUser.json();
+      } else {
+        const withoutUser = await fetch(`${base}openai/conversations/${id}`);
+        if (withoutUser.ok) data = await withoutUser.json();
+      }
+
+      if (!data) {
+        Alert.alert("Couldn't load conversation", "Please try again.");
+        return;
+      }
+
       const msgs: Message[] = (data.messages ?? []).map((m: DBMessage) => ({
         id: String(m.id),
         role: m.role as "user" | "assistant",
         content: m.content,
       }));
-      if (msgs.length === 0) return;
+      if (msgs.length === 0) {
+        Alert.alert("Empty conversation", "This conversation has no messages.");
+        return;
+      }
       setMessages(msgs);
       setConversationId(id);
-    } catch {}
+    } catch {
+      Alert.alert("Couldn't load conversation", "Please check your connection and try again.");
+    }
   }, [userId, stopSpeech]);
 
   const handleModalIAPPurchase = async (pkg: any) => {
