@@ -39,7 +39,7 @@ interface LabAccount { email: string; userId: string }
 type LabView =
   | "loading"
   | "login" | "signup" | "forgot" | "forgot_sent"
-  | "payment" | "waiting"
+  | "payment" | "payment_bank" | "waiting"
   | "pin_create" | "pin_enter"
   | "home" | "chat";
 
@@ -129,7 +129,7 @@ export default function StarLabScreen() {
   const checkTier = async (uid: string): Promise<"free" | "plus" | "pro"> => {
     try {
       const base = getApiBase();
-      const res = await fetch(`${base}stripe/subscription/${uid}`);
+      const res = await fetch(`${base}subscription/${uid}`);
       const data = await res.json();
       return data.tier ?? "free";
     } catch { return "free"; }
@@ -196,8 +196,8 @@ export default function StarLabScreen() {
       if (!res.ok) { setAuthError(data.error || "Login failed. Please try again."); return; }
       const account: LabAccount = { email, userId: data.userId };
       await saveLabAuth(account);
-      // Check if they have pro
-      const tier = await checkTier(data.userId);
+      // Use tier from login response if present (e.g. Garry bypass), otherwise check
+      const tier = (data.tier as string | undefined) ?? await checkTier(data.userId);
       if (tier === "pro") {
         await proceedAfterPayment(account);
       } else {
@@ -312,26 +312,8 @@ export default function StarLabScreen() {
     }
   };
 
-  const handleStripeCheckout = async () => {
-    if (!labAuth) return;
-    setPayLoading(true);
-    setPayError("");
-    try {
-      const base = getApiBase();
-      const res = await fetch(`${base}stripe/checkout`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: labAuth.userId, tier: "pro" }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.url) { setPayError(data.error || "Could not start checkout. Please try again."); return; }
-      await Linking.openURL(data.url);
-      setView("waiting");
-    } catch {
-      setPayError("Connection failed. Check your internet and try again.");
-    } finally {
-      setPayLoading(false);
-    }
+  const handleBankTransfer = () => {
+    setView("payment_bank");
   };
 
   const handleCheckPayment = async () => {
@@ -921,18 +903,14 @@ export default function StarLabScreen() {
             </Pressable>
           )}
 
-          {/* Stripe card payment */}
+          {/* Bank transfer payment */}
           <Pressable
-            onPress={handleStripeCheckout}
+            onPress={handleBankTransfer}
             disabled={payLoading}
             style={({ pressed }) => [s.primaryBtn, pressed && { opacity: 0.85 }, payLoading && { opacity: 0.7 }]}
           >
-            {payLoading
-              ? <ActivityIndicator color="#fff" />
-              : <>
-                  <Feather name="credit-card" size={16} color="#fff" />
-                  <Text style={s.primaryBtnText}>Pay with Card — £19.99/mo</Text>
-                </>}
+            <Feather name="credit-card" size={16} color="#fff" />
+            <Text style={s.primaryBtnText}>Subscribe — £19.99/mo</Text>
           </Pressable>
 
           {/* Restore purchases (iOS) */}
@@ -982,6 +960,68 @@ export default function StarLabScreen() {
             <Text style={[s.linkText, { color: Colors.textMuted }]}>Back</Text>
           </Pressable>
         </View>
+      </View>
+    );
+  }
+
+  // ── Bank Transfer ─────────────────────────────────────────────────────────
+  if (view === "payment_bank") {
+    const ref = labAuth ? `SIRIUSLAB-${labAuth.userId.toUpperCase()}` : "SIRIUSLAB-PRO";
+    const copyField = (label: string, value: string) => (
+      <Pressable
+        key={label}
+        onPress={() => {
+          const Clipboard = require("@react-native-clipboard/clipboard").default;
+          Clipboard.setString(value);
+          Alert.alert("Copied", `${label} copied to clipboard.`);
+        }}
+        style={s.bankRow}
+      >
+        <Text style={s.bankLabel}>{label}</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          <Text style={s.bankValue}>{value}</Text>
+          <Feather name="copy" size={13} color={Colors.textDim} />
+        </View>
+      </Pressable>
+    );
+
+    return (
+      <View style={[s.root, { paddingTop: topPad }]}>
+        <Header title="Pay by Bank Transfer" onBack={() => setView("payment")} />
+        <ScrollView contentContainerStyle={[s.authWrap, { paddingBottom: bottomPad + 32 }]} showsVerticalScrollIndicator={false}>
+          <View style={[s.labIcon, { width: 52, height: 52, borderRadius: 16, marginBottom: 8 }]}>
+            <Feather name="dollar-sign" size={24} color="#6366f1" />
+          </View>
+          <Text style={s.authTitle}>Bank Transfer</Text>
+          <Text style={[s.authSub, { marginBottom: 20 }]}>
+            Sirius Pro · £19.99/month{"\n"}Transfer the exact amount using the details below.
+          </Text>
+
+          <View style={s.bankCard}>
+            {copyField("Pay to", "GCTH Supplies Ltd")}
+            {copyField("Bank", "Mettle")}
+            {copyField("Account number", "26359434")}
+            {copyField("Sort code", "04-03-33")}
+            {copyField("Amount", "£19.99")}
+            {copyField("Reference", ref)}
+          </View>
+
+          <Text style={[s.payNote, { marginTop: 16 }]}>
+            Make the transfer using your banking app, then tap the button below. Your account will be upgraded within a few hours once we confirm receipt.
+          </Text>
+
+          <Pressable
+            onPress={() => { setView("waiting"); }}
+            style={({ pressed }) => [s.primaryBtn, { marginTop: 20 }, pressed && { opacity: 0.85 }]}
+          >
+            <Feather name="check" size={16} color="#fff" />
+            <Text style={s.primaryBtnText}>I've Made the Transfer</Text>
+          </Pressable>
+
+          <Pressable onPress={() => setView("payment")} style={s.linkBtn}>
+            <Text style={[s.linkText, { color: Colors.textMuted }]}>Back</Text>
+          </Pressable>
+        </ScrollView>
       </View>
     );
   }
@@ -1487,6 +1527,27 @@ const s = StyleSheet.create({
 
   accountNote: { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.textDim, textAlign: "center", marginBottom: 8 },
   payNote:     { fontSize: 11, fontFamily: "Inter_400Regular", color: Colors.textMuted, textAlign: "center", lineHeight: 16, marginTop: 16, paddingHorizontal: 8 },
+
+  // Bank transfer
+  bankCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    overflow: "hidden",
+    marginBottom: 4,
+  },
+  bankRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  bankLabel: { fontSize: 13, fontFamily: "Inter_400Regular", color: Colors.textDim },
+  bankValue: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: Colors.text, textAlign: "right", flexShrink: 1, marginLeft: 8 },
 
   // Home
   homeContent: { paddingHorizontal: 16, paddingTop: 20 },
