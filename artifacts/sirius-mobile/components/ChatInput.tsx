@@ -140,7 +140,14 @@ export function ChatInput({ onSend, disabled = false, placeholder = "Message Sir
     if (disabled) return;
     try {
       const { granted } = await Audio.requestPermissionsAsync();
-      if (!granted) return;
+      if (!granted) {
+        Alert.alert(
+          "Microphone Access Needed",
+          "Please enable microphone access for Sirius in your device Settings to use voice input.",
+          [{ text: "OK" }]
+        );
+        return;
+      }
       await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
       const { recording } = await Audio.Recording.createAsync(
         Audio.RecordingOptionsPresets.HIGH_QUALITY

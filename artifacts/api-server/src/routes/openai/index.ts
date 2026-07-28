@@ -1911,7 +1911,7 @@ router.post("/openai/transcribe", async (req, res): Promise<void> => {
     const file = await toFile(rawBuffer, `recording.${ext}`, { type: `audio/${ext === "mp4" ? "mp4" : ext}` });
     const transcript = await client.audio.transcriptions.create({
       file,
-      model: "gpt-4o-mini-transcribe",
+      model: "whisper-1",
     });
     res.json({ text: transcript.text });
   } catch (err: any) {
