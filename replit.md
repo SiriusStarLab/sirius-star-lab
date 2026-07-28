@@ -17,6 +17,7 @@ I prefer to use simple language.
 I like functional programming.
 Do not make changes to the folder `lib/api-spec`.
 Changes to `artifacts/ai-chat/src/pages/star-lab.tsx` are permitted — Garry explicitly approved this. The previous restriction is lifted.
+**Avoid OpenAI, OpenRouter, and Replit dependencies wherever possible.** Use them only as a last resort. Prefer self-hosted, open-source, or alternative solutions (e.g. Piper for TTS, local models, direct APIs) over routing through these platforms.
 
 ## ★ PRIME DIRECTIVE — KAMATERA DEPLOYMENT (NON-NEGOTIABLE, HARDWIRED PROTOCOL) ★
 
