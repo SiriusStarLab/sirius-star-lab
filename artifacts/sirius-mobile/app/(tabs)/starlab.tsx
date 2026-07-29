@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { fetch } from "expo/fetch";
+import * as ExpoClipboard from "expo-clipboard";
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import * as DocumentPicker from "expo-document-picker";
@@ -983,8 +984,7 @@ export default function StarLabScreen() {
       <Pressable
         key={label}
         onPress={() => {
-          const Clipboard = require("@react-native-clipboard/clipboard").default;
-          Clipboard.setString(value);
+          ExpoClipboard.setStringAsync(value);
           Alert.alert("Copied", `${label} copied to clipboard.`);
         }}
         style={s.bankRow}
