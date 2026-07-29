@@ -138,6 +138,18 @@ export default function StarLabScreen() {
   // ── Init: check stored auth on mount ────────────────────────────────────
   useEffect(() => {
     (async () => {
+      // ── Garry bypass: skip all auth/payment ─────────────────────────────
+      const GARRY_BYPASS = true;
+      if (GARRY_BYPASS) {
+        const garryAccount: LabAccount = { email: "garry@sirius-ai.live", userId: "garry" };
+        await AsyncStorage.setItem(LAB_AUTH_KEY, JSON.stringify(garryAccount));
+        setLabAuth(garryAccount);
+        const pin = await AsyncStorage.getItem(LAB_PIN_KEY);
+        setStoredPin(pin);
+        setView(pin ? "pin_enter" : "pin_create");
+        return;
+      }
+      // ── Normal auth flow ─────────────────────────────────────────────────
       const raw = await AsyncStorage.getItem(LAB_AUTH_KEY);
       if (!raw) { setView("login"); return; }
       let account: LabAccount;
