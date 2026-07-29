@@ -9,6 +9,7 @@
 - [Sirius self-repair guardrails](sirius-self-repair-guardrails.md) — autonomous restarts broke every session; cooldown + system prompt rewrite deployed.
 - [Stripe on web vs iOS](payments-not-stripe.md) — Stripe IS valid for web subscriptions; forbidden for iOS IAP (Apple 3.1.1). LIVE keys set, no products created yet.
 - [Sirius OpenRouter key source](sirius-openrouter-key.md) — NEVER use Replit's $OPENROUTER_API_KEY to restart PM2; always read from ecosystem.config.json on server.
+- [Sirius AI Router key architecture](sirius-ai-router-key.md) — OPENROUTER_API_KEY in sirius-api is an internal router key; real OR key is in sirius-router. ai-client MUST use OPENROUTER_BASE_URL env var, not hardcoded openrouter.ai URL.
 - [Sirius Zod schema — message body](sirius-zod-schema.md) — SendOpenaiMessageBody must include mode/imageBase64/documentBase64/documentName or they're silently stripped; always run health check after deploys.
 - [Sirius stability fixes](sirius-stability-fixes.md) — self-repair call-site, health checks, Telegram auto-chat-id, mobile pnpm conflict, SSH heredoc safety.
 - [LabFloatingChat navigate-during-streaming bug](lab-floating-chat-navigate-bug.md) — navigate event was closing chat mid-stream; fix: pendingNavRef defers navigation until after setMessages.
