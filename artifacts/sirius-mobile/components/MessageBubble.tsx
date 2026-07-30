@@ -1,12 +1,12 @@
 import React, { memo } from "react";
-import { Image, StyleSheet, Text, View } from "react-native";
+import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
 import Markdown from "react-native-markdown-display";
 
 import Colors from "@/constants/colors";
 import { Message } from "@/lib/api";
 
 interface Props {
-  message: Message;
+  message: Message & { images?: string[] };
 }
 
 const markdownStyles = {
@@ -174,6 +174,18 @@ export const MessageBubble = memo(function MessageBubble({ message }: Props) {
             resizeMode="contain"
           />
         ) : null}
+        {message.images && message.images.length > 0 ? (
+          <View style={styles.inlineImagesContainer}>
+            {message.images.map((url, i) => (
+              <Image
+                key={i}
+                source={{ uri: url }}
+                style={styles.inlineImage}
+                resizeMode="cover"
+              />
+            ))}
+          </View>
+        ) : null}
         {isUser ? (
           message.content ? <Text style={styles.userText}>{message.content}</Text> : null
         ) : (
@@ -249,5 +261,15 @@ const styles = StyleSheet.create({
     height: 180,
     borderRadius: 10,
     marginBottom: 6,
+  },
+  inlineImagesContainer: {
+    gap: 8,
+    marginBottom: 8,
+  },
+  inlineImage: {
+    width: "100%",
+    aspectRatio: 1,
+    borderRadius: 12,
+    backgroundColor: "#0f1425",
   },
 });
