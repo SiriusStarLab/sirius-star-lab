@@ -30,8 +30,9 @@ import { Message, createConversation, generateId, getApiBase, getUserId } from "
 import { useSubscription } from "@/lib/revenuecat";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
-const LAB_PIN_KEY  = "sirius_lab_pin";
-const LAB_AUTH_KEY = "sirius_lab_auth";
+const LAB_PIN_KEY      = "sirius_lab_pin";
+const LAB_AUTH_KEY     = "sirius_lab_auth";
+const LAB_PROJECT_KEY  = "sirius_lab_project_id"; // persisted default project for general chat
 const POLL_INTERVAL_MS = 3000;
 const POLL_MAX_ATTEMPTS = 40; // 40 × 3s = 2 minutes
 
@@ -152,6 +153,7 @@ export default function StarLabScreen() {
   const [messages, setMessages]       = useState<Message[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [conversationId, setConversationId] = useState<number | null>(null);
+  const [labProjectId, setLabProjectId] = useState<string | null>(null); // lab project for general mode
   const [inputText, setInputText]     = useState("");
   const [selectedDocBase64, setSelectedDocBase64] = useState<string | null>(null);
   const [selectedDocName, setSelectedDocName]     = useState<string | null>(null);
@@ -187,6 +189,41 @@ export default function StarLabScreen() {
       const data = await res.json();
       return data.tier ?? "free";
     } catch { return "free"; }
+  };
+
+  // ── Get or create the persistent "Star Lab" default project for general chat ──
+  const getOrCreateLabProject = async (): Promise<string | null> => {
+    try {
+      const base = getApiBase();
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        "x-user-id": "garry",
+      };
+      // Check stored project ID first
+      const stored = await AsyncStorage.getItem(LAB_PROJECT_KEY);
+      if (stored) {
+        // Verify it still exists
+        const check = await fetch(`${base}lab/projects/${stored}`, { headers });
+        if (check.ok) {
+          setLabProjectId(stored);
+          return stored;
+        }
+      }
+      // Create a new default project
+      const create = await fetch(`${base}lab/projects`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ name: "Star Lab", industry: "General" }),
+      });
+      if (!create.ok) return null;
+      const project = await create.json();
+      const id = String(project.id);
+      await AsyncStorage.setItem(LAB_PROJECT_KEY, id);
+      setLabProjectId(id);
+      return id;
+    } catch {
+      return null;
+    }
   };
 
   // ── Init: check stored auth on mount ────────────────────────────────────
@@ -444,7 +481,7 @@ export default function StarLabScreen() {
   // CHAT HANDLERS
   // ─────────────────────────────────────────────────────────────────────────
 
-  const openChat = (mode: ChatMode) => {
+  const openChat = async (mode: ChatMode) => {
     setChatMode(mode);
     setMessages([]);
     setConversationId(null);
@@ -452,6 +489,10 @@ export default function StarLabScreen() {
     setSelectedDocBase64(null);
     setSelectedDocName(null);
     setView("chat");
+    // For general (product design) mode, ensure the lab project exists up-front
+    if (mode === "general") {
+      getOrCreateLabProject().catch(() => {});
+    }
   };
 
   const pickDocument = async () => {
@@ -491,30 +532,53 @@ export default function StarLabScreen() {
 
     try {
       const base = getApiBase();
-      let convoId = conversationId;
-      if (!convoId) {
-        const convo = await createConversation(MODE_LABELS[chatMode], uid);
-        convoId = convo.id;
-        setConversationId(convoId);
-      }
-
       const ctrl = new AbortController();
       abortRef.current = ctrl;
 
-      const body: Record<string, any> = {
-        message: displayContent,
-        mode: "guru",
-        systemPrompt: SYSTEM_PROMPTS[chatMode],
-        userId: uid,
-      };
-      if (docB64) { body.documentBase64 = docB64; body.documentName = docName; }
+      let res: Response;
 
-      const res = await fetch(`${base}openai/conversations/${convoId}/messages`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-        signal: ctrl.signal,
-      });
+      if (chatMode === "general") {
+        // ── Lab project chat — full tool access (renders, web search, save_to_project) ──
+        let projId = labProjectId;
+        if (!projId) projId = await getOrCreateLabProject();
+        if (!projId) throw new Error("Could not create lab project");
+
+        const body: Record<string, any> = { message: displayContent };
+        if (docB64) { body.documentBase64 = docB64; body.documentName = docName; }
+
+        res = await fetch(`${base}lab/projects/${projId}/chat`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-user-id": "garry",
+          },
+          body: JSON.stringify(body),
+          signal: ctrl.signal,
+        });
+      } else {
+        // ── General conversation endpoint (appbuilder / code modes) ──
+        let convoId = conversationId;
+        if (!convoId) {
+          const convo = await createConversation(MODE_LABELS[chatMode], uid);
+          convoId = convo.id;
+          setConversationId(convoId);
+        }
+
+        const body: Record<string, any> = {
+          message: displayContent,
+          mode: "guru",
+          systemPrompt: SYSTEM_PROMPTS[chatMode],
+          userId: uid,
+        };
+        if (docB64) { body.documentBase64 = docB64; body.documentName = docName; }
+
+        res = await fetch(`${base}openai/conversations/${convoId}/messages`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+          signal: ctrl.signal,
+        });
+      }
 
       if (!res.ok || !res.body) throw new Error("Stream failed");
 
@@ -561,7 +625,7 @@ export default function StarLabScreen() {
       setIsStreaming(false);
       abortRef.current = null;
     }
-  }, [inputText, selectedDocBase64, selectedDocName, isStreaming, userId, labAuth, conversationId, chatMode]);
+  }, [inputText, selectedDocBase64, selectedDocName, isStreaming, userId, labAuth, conversationId, chatMode, labProjectId]);
 
   const generateBrief = useCallback(async () => {
     if (messages.length === 0 || generatingBrief) return;
