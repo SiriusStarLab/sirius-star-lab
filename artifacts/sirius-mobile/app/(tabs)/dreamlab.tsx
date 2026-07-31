@@ -1,9 +1,11 @@
 import { fetch } from "expo/fetch";
 import { Feather } from "@expo/vector-icons";
+import * as Speech from "expo-speech";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  FlatList,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -11,13 +13,15 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
+import Markdown from "react-native-markdown-display";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+import { ChatInput } from "@/components/ChatInput";
+import { TypingIndicator } from "@/components/TypingIndicator";
 import Colors from "@/constants/colors";
 import { createConversation, generateId, getApiBase, getUserId } from "@/lib/api";
 import { useApp } from "@/context/AppContext";
@@ -96,31 +100,95 @@ function AddDreamModal({ visible, onClose, onAdd }: { visible: boolean; onClose:
   );
 }
 
+const dreamMarkdownStyles = {
+  body:      { color: Colors.text, fontSize: 15, lineHeight: 22, fontFamily: "Inter_400Regular" },
+  paragraph: { color: Colors.text, fontSize: 15, lineHeight: 22, fontFamily: "Inter_400Regular", marginTop: 0, marginBottom: 6 },
+  strong:    { color: Colors.text, fontFamily: "Inter_700Bold" },
+  em:        { color: Colors.text, fontFamily: "Inter_400Regular", fontStyle: "italic" as const },
+  heading1:  { color: Colors.text, fontSize: 18, fontFamily: "Inter_700Bold", marginBottom: 4 },
+  heading2:  { color: Colors.text, fontSize: 16, fontFamily: "Inter_700Bold", marginBottom: 4 },
+  bullet_list: { marginTop: 4, marginBottom: 4 },
+  ordered_list: { marginTop: 4, marginBottom: 4 },
+  list_item: { color: Colors.text, fontSize: 15, lineHeight: 22, fontFamily: "Inter_400Regular", flexDirection: "row" as const, marginBottom: 2 },
+  bullet_list_icon: { color: Colors.primary, fontSize: 15, lineHeight: 22, marginRight: 6 },
+  ordered_list_icon: { color: Colors.primary, fontSize: 15, fontFamily: "Inter_600SemiBold", marginRight: 6 },
+  code_inline: { color: Colors.primary, backgroundColor: "rgba(0,212,255,0.1)", fontFamily: "Inter_400Regular", fontSize: 13, paddingHorizontal: 4, borderRadius: 4 },
+  fence: { backgroundColor: "rgba(0,0,0,0.35)", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, marginVertical: 4 },
+  code_block: { color: Colors.primary, fontFamily: "Inter_400Regular", fontSize: 13 },
+  link: { color: Colors.primary },
+};
+
 function DreamChat({ dream, onBack }: { dream: Dream; onBack: () => void }) {
   const insets = useSafeAreaInsets();
   const { userId: ctxUserId } = useApp();
   const opening = `I want to talk about my dream: "${dream.title}". ${dream.note ? `Here's some context: ${dream.note}` : "Help me explore it, break it down into actionable steps, and give me a clear next step I can take today."}`;
-  const [messages, setMessages] = useState<Msg[]>([]);
-  const [input, setInput] = useState("");
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [convId, setConvId] = useState<number | null>(null);
-  const [started, setStarted] = useState(false);
-  const scrollRef = useRef<ScrollView>(null);
 
-  useEffect(() => {
-    if (!started) {
-      setStarted(true);
-      sendMsg(opening);
-    }
+  const [messages, setMessages]   = useState<Msg[]>([]);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [showTyping, setShowTyping]  = useState(false);
+  const [convId, setConvId]       = useState<number | null>(null);
+  const [started, setStarted]     = useState(false);
+  const [voiceMode, setVoiceMode] = useState(true);
+
+  const flatRef            = useRef<FlatList>(null);
+  const kateVoiceRef       = useRef<string | undefined>(undefined);
+  const speechCancelledRef = useRef(false);
+
+  // ── Voice ──────────────────────────────────────────────────────────────────
+  const refreshKateVoice = useCallback(() => {
+    Speech.getAvailableVoicesAsync().then(voices => {
+      const enGB = voices.filter(v => v.language.startsWith("en-GB"));
+      const enUS = voices.filter(v => v.language.startsWith("en-US"));
+      const preferred = [
+        enGB.find(v => v.name.toLowerCase().includes("serena")),
+        enGB.find(v => v.name.toLowerCase().includes("martha")),
+        enGB.find(v => (v as any).quality === "Enhanced" || (v as any).quality === "Premium"),
+        enGB[0],
+        enUS.find(v => v.name.toLowerCase().includes("samantha")),
+        enUS[0],
+      ].find(Boolean);
+      if (preferred) kateVoiceRef.current = preferred.identifier;
+    }).catch(() => {});
   }, []);
 
-  const sendMsg = useCallback(async (text: string) => {
+  const stopSpeech = useCallback(() => {
+    speechCancelledRef.current = true;
+    Speech.stop();
+  }, []);
+
+  const speakWithChunks = useCallback((text: string) => {
+    speechCancelledRef.current = false;
+    const chunks = text
+      .split(/\n\n+/)
+      .flatMap(p => p.length > 500 ? (p.match(/[^.!?]*[.!?]+["']?\s*/g)?.map(s => s.trim()).filter(Boolean) ?? [p]) : [p])
+      .map(p => p.replace(/[#*`_~>]/g, "").trim())
+      .filter(p => p.length > 0);
+    if (!chunks.length) return;
+    let idx = 0;
+    const next = () => {
+      if (speechCancelledRef.current || idx >= chunks.length) return;
+      Speech.speak(chunks[idx++], {
+        language: "en-GB",
+        ...(kateVoiceRef.current ? { voice: kateVoiceRef.current } : {}),
+        rate: 0.95, pitch: 1.0,
+        onDone: () => setTimeout(next, 600),
+        onStopped: () => { speechCancelledRef.current = true; },
+      });
+    };
+    next();
+  }, []);
+
+  useEffect(() => { refreshKateVoice(); }, [refreshKateVoice]);
+
+  const sendMsg = useCallback(async (text: string, _imgB64?: string, _docB64?: string, _docName?: string) => {
     if (!text.trim() || isStreaming) return;
+    stopSpeech();
 
     const uid = ctxUserId || (await getUserId());
     const userMsg: Msg = { id: generateId(), role: "user", content: text };
     if (text !== opening) setMessages(prev => [...prev, userMsg]);
     setIsStreaming(true);
+    setShowTyping(true);
 
     try {
       let activeId = convId;
@@ -141,8 +209,7 @@ function DreamChat({ dream, onBack }: { dream: Dream; onBack: () => void }) {
 
       const reader = (response.body as any).getReader();
       const decoder = new TextDecoder();
-      let full = "";
-      let buffer = "";
+      let full = "", buffer = "";
       const aId = generateId();
       let added = false;
 
@@ -158,6 +225,7 @@ function DreamChat({ dream, onBack }: { dream: Dream; onBack: () => void }) {
             const parsed = JSON.parse(line.slice(6));
             if (parsed.content) {
               full += parsed.content;
+              setShowTyping(false);
               if (!added) {
                 setMessages(prev => [...prev, { id: aId, role: "assistant", content: full }]);
                 added = true;
@@ -168,55 +236,73 @@ function DreamChat({ dream, onBack }: { dream: Dream; onBack: () => void }) {
                   return u;
                 });
               }
-              setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 50);
             }
           } catch {}
         }
       }
+      if (voiceMode && full) speakWithChunks(full);
     } catch {
+      setShowTyping(false);
       setMessages(prev => [...prev, { id: generateId(), role: "assistant", content: "Something went wrong. Please try again." }]);
     } finally {
       setIsStreaming(false);
+      setShowTyping(false);
     }
-  }, [isStreaming, convId, ctxUserId, dream]);
+  }, [isStreaming, convId, ctxUserId, dream, voiceMode, stopSpeech, speakWithChunks, opening]);
+
+  useEffect(() => {
+    if (!started) { setStarted(true); sendMsg(opening); }
+  }, []);
+
+  const reversed = [...messages].reverse();
 
   return (
     <KeyboardAvoidingView style={[d.flex, { backgroundColor: Colors.background }]}
       behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <View style={[d.header, { paddingTop: insets.top + 8 }]}>
-        <Pressable onPress={onBack} style={d.iconBtn} hitSlop={12}>
+        <Pressable onPress={() => { stopSpeech(); onBack(); }} style={d.iconBtn} hitSlop={12}>
           <Feather name="arrow-left" size={20} color={Colors.text} />
         </Pressable>
         <View style={d.headerCenter}>
           <Text style={d.dreamEmoji}>{dream.emoji}</Text>
           <Text style={[d.headerTitle, { color: dream.color }]} numberOfLines={1}>{dream.title}</Text>
         </View>
-        <View style={d.iconBtn} />
-      </View>
-
-      <ScrollView ref={scrollRef} style={d.flex} contentContainerStyle={{ padding: 16, paddingBottom: 8 }}
-        onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}>
-        {messages.length === 0 && isStreaming && (
-          <View style={d.aiBubble}><ActivityIndicator size="small" color={Colors.primary} /></View>
-        )}
-        {messages.map(m => (
-          <View key={m.id} style={m.role === "user" ? d.userBubble : d.aiBubble}>
-            <Text style={m.role === "user" ? d.userText : d.aiText}>{m.content}</Text>
-          </View>
-        ))}
-        {isStreaming && messages.length > 0 && messages[messages.length - 1]?.role === "user" && (
-          <View style={d.aiBubble}><ActivityIndicator size="small" color={Colors.primary} /></View>
-        )}
-      </ScrollView>
-
-      <View style={[d.inputRow, { paddingBottom: insets.bottom + 8 }]}>
-        <TextInput style={d.input} value={input} onChangeText={setInput}
-          placeholder="Ask Sirius about this dream..." placeholderTextColor={Colors.textMuted} multiline maxLength={2000} />
-        <Pressable onPress={() => { sendMsg(input); setInput(""); }} disabled={!input.trim() || isStreaming}
-          style={[d.sendBtn, { backgroundColor: dream.color, opacity: (!input.trim() || isStreaming) ? 0.4 : 1 }]}>
-          <Feather name="arrow-up" size={18} color="#fff" />
+        {/* Voice toggle */}
+        <Pressable
+          onPress={() => { if (voiceMode) stopSpeech(); setVoiceMode(v => !v); }}
+          style={[d.iconBtn, voiceMode && { backgroundColor: Colors.primary + "18", borderRadius: 18 }]}
+          hitSlop={10}
+        >
+          <Feather name={voiceMode ? "volume-2" : "volume-x"} size={18} color={voiceMode ? Colors.primary : Colors.textMuted} />
         </Pressable>
       </View>
+
+      <FlatList
+        ref={flatRef}
+        data={reversed}
+        keyExtractor={item => item.id}
+        renderItem={({ item }) => (
+          <View style={item.role === "user" ? d.userBubble : d.aiBubble}>
+            {item.role === "user"
+              ? <Text style={d.userText}>{item.content}</Text>
+              : <Markdown style={dreamMarkdownStyles}>{item.content}</Markdown>}
+          </View>
+        )}
+        inverted
+        ListHeaderComponent={showTyping ? <TypingIndicator /> : null}
+        contentContainerStyle={{ padding: 12, paddingBottom: 4 }}
+        keyboardDismissMode="interactive"
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      />
+
+      <ChatInput
+        onSend={sendMsg}
+        disabled={isStreaming}
+        placeholder="Ask Sirius about this dream…"
+        voiceMode={voiceMode}
+        onToggleVoice={() => { if (voiceMode) stopSpeech(); setVoiceMode(v => !v); }}
+      />
     </KeyboardAvoidingView>
   );
 }

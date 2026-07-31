@@ -27,6 +27,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { MessageBubble } from "@/components/MessageBubble";
+import { TypingIndicator } from "@/components/TypingIndicator";
 import Colors from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 import { Message, createConversation, generateId, getApiBase, getUserId } from "@/lib/api";
@@ -160,6 +161,7 @@ export default function StarLabScreen() {
   const [conversationId, setConversationId] = useState<number | null>(null);
   const [labProjectId, setLabProjectId] = useState<string | null>(null); // lab project for general mode
   const [voiceMode, setVoiceMode]     = useState(true); // TTS on by default
+  const [showTyping, setShowTyping]   = useState(false);
   const [inputText, setInputText]     = useState("");
   const [selectedDocBase64, setSelectedDocBase64] = useState<string | null>(null);
   const [selectedDocName, setSelectedDocName]     = useState<string | null>(null);
@@ -697,6 +699,7 @@ export default function StarLabScreen() {
     setSelectedDocName(null);
     setSelectedImageBase64(null);
     setIsStreaming(true);
+    setShowTyping(true);
 
     try {
       const base = getApiBase();
@@ -753,6 +756,7 @@ export default function StarLabScreen() {
       if (!res.ok || !res.body) throw new Error("Stream failed");
 
       const assistantId = generateId();
+      setShowTyping(false);
       setMessages(prev => [...prev, { id: assistantId, role: "assistant", content: "", images: [] } as any]);
 
       const reader = (res.body as any).getReader();
@@ -810,6 +814,7 @@ export default function StarLabScreen() {
       }
     } finally {
       setIsStreaming(false);
+      setShowTyping(false);
       abortRef.current = null;
     }
   }, [inputText, selectedDocBase64, selectedDocName, selectedImageBase64, isStreaming, userId, labAuth, conversationId, chatMode, labProjectId, stopSpeech, speakWithChunks, voiceMode, saveHistory]);
@@ -1503,9 +1508,7 @@ export default function StarLabScreen() {
             <Feather name="chevron-left" size={22} color={Colors.primary} />
           </Pressable>
           <Text style={s.headerTitle}>Star Lab</Text>
-          <Pressable onPress={() => Linking.openURL("https://sirius-ai.live/star-lab")} style={s.externalBtn} hitSlop={10}>
-            <Feather name="external-link" size={18} color={Colors.primary} />
-          </Pressable>
+          <View style={s.externalBtn} />
         </View>
 
         <ScrollView contentContainerStyle={[s.homeContent, { paddingBottom: bottomPad + 24 }]} showsVerticalScrollIndicator={false}>
@@ -1548,15 +1551,6 @@ export default function StarLabScreen() {
             <Feather name="chevron-right" size={20} color="rgba(245,158,11,0.5)" />
           </Pressable>
 
-          <Pressable
-            onPress={() => Linking.openURL("https://sirius-ai.live/star-lab")}
-            style={({ pressed }) => [s.fullLabBtn, pressed && { opacity: 0.85 }]}
-          >
-            <Feather name="external-link" size={15} color="#fff" />
-            <Text style={s.fullLabBtnText}>Open Full Star Lab on Web</Text>
-          </Pressable>
-
-          <Text style={s.homeNote}>Full project management, CAD tools, funding analysis and autonomous agents available on the full web platform.</Text>
         </ScrollView>
       </View>
     );
@@ -1661,6 +1655,13 @@ export default function StarLabScreen() {
             keyExtractor={item => item.id}
             renderItem={({ item }) => <MessageBubble message={item} />}
             inverted
+            ListHeaderComponent={
+              showTyping ? (
+                <View style={{ paddingHorizontal: 12, paddingVertical: 6 }}>
+                  <TypingIndicator />
+                </View>
+              ) : null
+            }
             contentContainerStyle={{ paddingTop: 8, paddingBottom: 12 }}
             showsVerticalScrollIndicator={false}
             keyboardDismissMode="interactive"
