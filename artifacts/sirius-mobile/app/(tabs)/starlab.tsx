@@ -5,6 +5,8 @@ import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system";
+import { Audio } from "expo-av";
+import * as ImagePicker from "expo-image-picker";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -161,6 +163,11 @@ export default function StarLabScreen() {
   const [briefText, setBriefText]     = useState("");
   const [generatingBrief, setGeneratingBrief]     = useState(false);
   const [briefSubmitted, setBriefSubmitted]       = useState(false);
+
+  // ── Voice & image capture state ─────────────────────────────────────────
+  const [isRecording, setIsRecording]             = useState(false);
+  const [selectedImageBase64, setSelectedImageBase64] = useState<string | null>(null);
+  const recordingRef = useRef<Audio.Recording | null>(null);
 
   const flatListRef = useRef<FlatList>(null);
   const abortRef    = useRef<AbortController | null>(null);
@@ -489,8 +496,8 @@ export default function StarLabScreen() {
     setSelectedDocBase64(null);
     setSelectedDocName(null);
     setView("chat");
-    // For general (product design) mode, ensure the lab project exists up-front
-    if (mode === "general") {
+    // Pre-fetch lab project for modes that use the lab endpoint
+    if (mode === "general" || mode === "appbuilder") {
       getOrCreateLabProject().catch(() => {});
     }
   };
@@ -513,21 +520,89 @@ export default function StarLabScreen() {
     } catch {}
   };
 
+  // ── Voice recording ──────────────────────────────────────────────────────
+  const toggleVoiceRecording = async () => {
+    if (isRecording) {
+      setIsRecording(false);
+      const recording = recordingRef.current;
+      if (!recording) return;
+      try {
+        await recording.stopAndUnloadAsync();
+        recordingRef.current = null;
+        const uri = recording.getURI();
+        if (!uri) return;
+        const base64 = await FileSystem.readAsStringAsync(uri, { encoding: "base64" as any });
+        const apiBase = getApiBase();
+        const transcRes = await fetch(`${apiBase}lab/voice-transcribe`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-user-id": "garry" },
+          body: JSON.stringify({ audioBase64: base64, mimeType: "audio/m4a" }),
+        });
+        if (transcRes.ok) {
+          const { text } = await transcRes.json();
+          if (text) setInputText(prev => prev ? `${prev} ${text}` : text);
+        }
+      } catch { Alert.alert("Transcription failed", "Could not process audio."); }
+    } else {
+      try {
+        const { status } = await Audio.requestPermissionsAsync();
+        if (status !== "granted") { Alert.alert("Permission needed", "Microphone access is required for voice input."); return; }
+        await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+        const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+        recordingRef.current = recording;
+        setIsRecording(true);
+      } catch { Alert.alert("Recording failed", "Could not start microphone."); }
+    }
+  };
+
+  // ── Trade show scanner — camera / library → send as image for analysis ──
+  const pickTradeShowImage = async () => {
+    Alert.alert("Trade Show Scanner", "Capture or upload a product photo to reverse-engineer it.", [
+      {
+        text: "📷 Take Photo",
+        onPress: async () => {
+          const { status } = await ImagePicker.requestCameraPermissionsAsync();
+          if (status !== "granted") { Alert.alert("Permission needed", "Camera access required."); return; }
+          const result = await ImagePicker.launchCameraAsync({ base64: true, quality: 0.8 });
+          if (!result.canceled && result.assets?.[0]?.base64) {
+            setSelectedImageBase64(result.assets[0].base64);
+            setInputText("Reverse engineer this product — give me the full spec: dimensions, materials, manufacturing process, cost breakdown, and who makes it.");
+          }
+        },
+      },
+      {
+        text: "🖼 Choose from Library",
+        onPress: async () => {
+          const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+          if (status !== "granted") { Alert.alert("Permission needed", "Photo library access required."); return; }
+          const result = await ImagePicker.launchImageLibraryAsync({ base64: true, quality: 0.8 });
+          if (!result.canceled && result.assets?.[0]?.base64) {
+            setSelectedImageBase64(result.assets[0].base64);
+            setInputText("Reverse engineer this product — give me the full spec: dimensions, materials, manufacturing process, cost breakdown, and who makes it.");
+          }
+        },
+      },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  };
+
   const handleSend = useCallback(async () => {
     const trimmed = inputText.trim();
-    if (!trimmed && !selectedDocBase64) return;
+    if (!trimmed && !selectedDocBase64 && !selectedImageBase64) return;
     if (isStreaming) return;
 
     const uid = labAuth?.userId || userId || (await getUserId());
-    const docB64  = selectedDocBase64;
-    const docName = selectedDocName;
-    const displayContent = trimmed || (docName ? `[Attached: ${docName}]` : "");
+    const docB64   = selectedDocBase64;
+    const docName  = selectedDocName;
+    const imgB64   = selectedImageBase64;
+    const displayContent = trimmed || (docName ? `[Attached: ${docName}]` : imgB64 ? "[Product image attached]" : "");
 
     const userMsg: Message = { id: generateId(), role: "user", content: displayContent };
     setMessages(prev => [...prev, userMsg]);
     setInputText("");
     setSelectedDocBase64(null);
     setSelectedDocName(null);
+    setSelectedImageBase64(null);
     setIsStreaming(true);
 
     try {
@@ -537,14 +612,16 @@ export default function StarLabScreen() {
 
       let res: Response;
 
-      if (chatMode === "general") {
-        // ── Lab project chat — full tool access (renders, web search, save_to_project) ──
+      if (chatMode === "general" || chatMode === "appbuilder") {
+        // ── Lab project chat — full tool access (renders, patent check, web search, save_to_project) ──
         let projId = labProjectId;
         if (!projId) projId = await getOrCreateLabProject();
         if (!projId) throw new Error("Could not create lab project");
 
         const body: Record<string, any> = { message: displayContent };
-        if (docB64) { body.documentBase64 = docB64; body.documentName = docName; }
+        if (chatMode === "appbuilder") body.mode = "bot";
+        if (docB64)  { body.documentBase64 = docB64;  body.documentName = docName; }
+        if (imgB64)  { body.imageBase64 = imgB64; }
 
         res = await fetch(`${base}lab/projects/${projId}/chat`, {
           method: "POST",
@@ -556,7 +633,7 @@ export default function StarLabScreen() {
           signal: ctrl.signal,
         });
       } else {
-        // ── General conversation endpoint (appbuilder / code modes) ──
+        // ── General conversation endpoint (code mode only now) ──
         let convoId = conversationId;
         if (!convoId) {
           const convo = await createConversation(MODE_LABELS[chatMode], uid);
@@ -625,7 +702,7 @@ export default function StarLabScreen() {
       setIsStreaming(false);
       abortRef.current = null;
     }
-  }, [inputText, selectedDocBase64, selectedDocName, isStreaming, userId, labAuth, conversationId, chatMode, labProjectId]);
+  }, [inputText, selectedDocBase64, selectedDocName, selectedImageBase64, isStreaming, userId, labAuth, conversationId, chatMode, labProjectId]);
 
   const generateBrief = useCallback(async () => {
     if (messages.length === 0 || generatingBrief) return;
@@ -672,10 +749,23 @@ export default function StarLabScreen() {
     finally { setGeneratingBrief(false); }
   }, [messages, generatingBrief, userId, labAuth, conversationId]);
 
-  const submitBrief = () => {
-    const subject = encodeURIComponent("App Build Brief — Sirius Star Lab");
-    const body = encodeURIComponent(`Hello,\n\nI have designed an app using Sirius Star Lab and I'd like to submit it for building.\n\n${briefText}\n\nPlease get back to me with next steps.\n\nThank you`);
-    Linking.openURL(`mailto:support@sirius-ai.live?subject=${subject}&body=${body}`);
+  const submitBrief = async () => {
+    try {
+      const base = getApiBase();
+      const uid = labAuth?.userId || userId || (await getUserId());
+      const res = await fetch(`${base}lab/app-briefs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-user-id": uid || "garry" },
+        body: JSON.stringify({ brief: briefText, userId: uid }),
+      });
+      // Fire and forget — also send email as fallback
+      if (!res.ok) throw new Error("API failed");
+    } catch {
+      // Fallback to mailto if server unreachable
+      const subject = encodeURIComponent("App Build Brief — Sirius Star Lab");
+      const mailBody = encodeURIComponent(`Hello,\n\nI have designed an app using Sirius Star Lab and I'd like to submit it for building.\n\n${briefText}\n\nPlease get back to me with next steps.\n\nThank you`);
+      Linking.openURL(`mailto:support@sirius-ai.live?subject=${subject}&body=${mailBody}`);
+    }
     setBriefSubmitted(true);
   };
 
@@ -1430,11 +1520,28 @@ export default function StarLabScreen() {
           </View>
         )}
 
+        {selectedImageBase64 && (
+          <View style={s.docBar}>
+            <Feather name="camera" size={14} color="#f59e0b" />
+            <Text style={[s.docBarName, { color: "#f59e0b" }]}>Product image attached</Text>
+            <Pressable onPress={() => setSelectedImageBase64(null)} hitSlop={10}>
+              <Feather name="x" size={14} color={Colors.textDim} />
+            </Pressable>
+          </View>
+        )}
+
         <View style={[s.inputArea, { paddingBottom: Math.max(bottomPad, 8) }]}>
           <View style={s.inputRow}>
+            {/* Doc attach */}
             <Pressable onPress={pickDocument} style={s.inputBtn} hitSlop={8}>
               <Feather name="plus" size={20} color={Colors.textDim} />
             </Pressable>
+            {/* Trade show scanner — only in general / appbuilder lab modes */}
+            {(chatMode === "general" || chatMode === "appbuilder") && (
+              <Pressable onPress={pickTradeShowImage} style={s.inputBtn} hitSlop={8}>
+                <Feather name="camera" size={18} color={selectedImageBase64 ? "#f59e0b" : Colors.textDim} />
+              </Pressable>
+            )}
             <TextInput
               style={s.textInput}
               value={inputText}
@@ -1445,12 +1552,23 @@ export default function StarLabScreen() {
               maxLength={4000}
               selectionColor={Colors.primary}
             />
+            {/* Voice input — lab modes only */}
+            {(chatMode === "general" || chatMode === "appbuilder") && (
+              <Pressable
+                onPress={toggleVoiceRecording}
+                disabled={isStreaming}
+                style={[s.inputBtn, isRecording && { backgroundColor: "rgba(239,68,68,0.15)", borderRadius: 20 }]}
+                hitSlop={8}
+              >
+                <Feather name={isRecording ? "square" : "mic"} size={18} color={isRecording ? "#ef4444" : Colors.textDim} />
+              </Pressable>
+            )}
             <Pressable
               onPress={handleSend}
-              disabled={isStreaming || (!inputText.trim() && !selectedDocBase64)}
+              disabled={isStreaming || (!inputText.trim() && !selectedDocBase64 && !selectedImageBase64)}
               style={({ pressed }) => [
                 s.sendBtn,
-                (isStreaming || (!inputText.trim() && !selectedDocBase64)) && { opacity: 0.4 },
+                (isStreaming || (!inputText.trim() && !selectedDocBase64 && !selectedImageBase64)) && { opacity: 0.4 },
                 pressed && { opacity: 0.7 },
               ]}
             >
