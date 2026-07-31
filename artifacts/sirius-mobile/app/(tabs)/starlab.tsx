@@ -193,10 +193,11 @@ export default function StarLabScreen() {
   const drawerAnim                    = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
   const overlayAnim                   = useRef(new Animated.Value(0)).current;
 
-  const flatListRef        = useRef<FlatList>(null);
-  const abortRef           = useRef<AbortController | null>(null);
-  const kateVoiceRef       = useRef<string | undefined>(undefined);
-  const speechCancelledRef = useRef<boolean>(false);
+  const flatListRef           = useRef<FlatList>(null);
+  const abortRef              = useRef<AbortController | null>(null);
+  const kateVoiceRef          = useRef<string | undefined>(undefined);
+  const speechCancelledRef    = useRef<boolean>(false);
+  const labAutoActivatedRef   = useRef(false); // prevents double-trigger of IAP auto-activation
 
   // ── Voice (TTS) ─────────────────────────────────────────────────────────
   const refreshKateVoice = useCallback(() => {
@@ -377,6 +378,43 @@ export default function StarLabScreen() {
       }
     })();
   }, []);
+
+  // ── Auto-activate Star Lab for main-app Pro subscribers ─────────────────
+  // If the user already paid for Pro through the main app (RevenueCat IAP),
+  // they should NOT have to create a separate Star Lab account or pay again.
+  useEffect(() => {
+    if (subscription.isLoading) return;       // wait for RC to finish loading
+    if (!subscription.isPro) return;           // only Pro unlocks Star Lab
+    if (labAutoActivatedRef.current) return;   // already ran this session
+    // Only fire when stuck at a gate screen (not already inside Star Lab)
+    const gateViews: LabView[] = ["loading", "login", "signup", "payment", "forgot", "forgot_sent"];
+    if (!gateViews.includes(view)) return;
+
+    labAutoActivatedRef.current = true;
+
+    (async () => {
+      // Use the main app's userId as the Lab userId — same person, no second account needed
+      const uid = userId ?? (await AsyncStorage.getItem("sirius_user_id")) ?? `iap_${Date.now()}`;
+      const account: LabAccount = { email: `${uid}@sirius-app.internal`, userId: uid };
+
+      // Persist so the next open skips straight through
+      await AsyncStorage.setItem(LAB_AUTH_KEY, JSON.stringify(account));
+      setLabAuth(account);
+
+      // Tell the server this user is Pro (same call Star Lab's own IAP flow makes)
+      try {
+        const base = getApiBase();
+        await fetch(`${base}stripe/activate-lab`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: uid }),
+        });
+      } catch {}
+
+      // Go through PIN setup / entry as normal (keeps security intact)
+      await proceedAfterPayment(account);
+    })();
+  }, [subscription.isLoading, subscription.isPro, view, userId]);
 
   // ── Poll for payment confirmation (Stripe / bank) ────────────────────────
   useEffect(() => {
