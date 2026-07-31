@@ -13,7 +13,6 @@ export default function TabLayout() {
       <Tabs.Screen name="learn" />
       <Tabs.Screen name="dreamlab" />
       <Tabs.Screen name="starlab" />
-      <Tabs.Screen name="guide" />
       <Tabs.Screen name="projects" />
       <Tabs.Screen name="history" />
       <Tabs.Screen name="settings" />
