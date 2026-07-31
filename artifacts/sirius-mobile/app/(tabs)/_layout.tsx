@@ -18,9 +18,6 @@ export default function TabLayout() {
       <Tabs.Screen name="history" />
       <Tabs.Screen name="settings" />
       <Tabs.Screen name="pricing" />
-      <Tabs.Screen name="wellbeing" options={{ href: null }} />
-      <Tabs.Screen name="universe" options={{ href: null }} />
-      <Tabs.Screen name="explore" options={{ href: null }} />
     </Tabs>
   );
 }
