@@ -86,6 +86,14 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
           Please reload the app to continue.
         </Text>
 
+        {/* Show error in production so crashes can be diagnosed */}
+        <Text
+          style={[styles.errorHint, { color: theme.textSecondary }]}
+          selectable
+        >
+          {error.message || "Unknown error"}
+        </Text>
+
         <Pressable
           onPress={handleRestart}
           style={({ pressed }) => [
@@ -205,6 +213,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: "center",
     lineHeight: 24,
+  },
+  errorHint: {
+    fontSize: 11,
+    textAlign: "center",
+    lineHeight: 16,
+    opacity: 0.5,
+    marginTop: 4,
+    fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }),
   },
   topButton: {
     position: "absolute",
