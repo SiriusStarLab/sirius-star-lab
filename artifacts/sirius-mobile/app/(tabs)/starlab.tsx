@@ -33,11 +33,13 @@ import { Message, createConversation, generateId, getApiBase, getUserId } from "
 import { useSubscription } from "@/lib/revenuecat";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
-const LAB_PIN_KEY      = "sirius_lab_pin";
-const LAB_AUTH_KEY     = "sirius_lab_auth";
-const LAB_PROJECT_KEY  = "sirius_lab_project_id"; // persisted default project for general chat
-const POLL_INTERVAL_MS = 3000;
-const POLL_MAX_ATTEMPTS = 40; // 40 × 3s = 2 minutes
+const LAB_PIN_KEY        = "sirius_lab_pin";
+const LAB_AUTH_KEY       = "sirius_lab_auth";
+const LAB_PROJECT_KEY    = "sirius_lab_project_id"; // persisted default project for general chat
+const LAB_HISTORY_PREFIX = "sirius_lab_history_v2_"; // per-mode message history
+const POLL_INTERVAL_MS   = 3000;
+const POLL_MAX_ATTEMPTS  = 40; // 40 × 3s = 2 minutes
+const MAX_SAVED_MESSAGES = 30; // messages kept in AsyncStorage per mode
 
 interface LabAccount { email: string; userId: string }
 
@@ -157,6 +159,7 @@ export default function StarLabScreen() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [conversationId, setConversationId] = useState<number | null>(null);
   const [labProjectId, setLabProjectId] = useState<string | null>(null); // lab project for general mode
+  const [voiceMode, setVoiceMode]     = useState(true); // TTS on by default
   const [inputText, setInputText]     = useState("");
   const [selectedDocBase64, setSelectedDocBase64] = useState<string | null>(null);
   const [selectedDocName, setSelectedDocName]     = useState<string | null>(null);
@@ -547,13 +550,43 @@ export default function StarLabScreen() {
   // CHAT HANDLERS
   // ─────────────────────────────────────────────────────────────────────────
 
+  // ── Persist last N messages per chat mode so they reload next session ──────
+  const saveHistory = useCallback(async (mode: ChatMode, msgs: Message[]) => {
+    try {
+      // Don't store base64 image uploads (too large) — strip them first
+      const slim = msgs.slice(-MAX_SAVED_MESSAGES).map(m => ({
+        ...m,
+        uploadedImageBase64: undefined,
+      }));
+      await AsyncStorage.setItem(
+        `${LAB_HISTORY_PREFIX}${mode}`,
+        JSON.stringify(slim)
+      );
+    } catch {}
+  }, []);
+
+  const loadHistory = useCallback(async (mode: ChatMode): Promise<Message[]> => {
+    try {
+      const raw = await AsyncStorage.getItem(`${LAB_HISTORY_PREFIX}${mode}`);
+      if (!raw) return [];
+      const msgs = JSON.parse(raw);
+      return Array.isArray(msgs) ? msgs : [];
+    } catch {
+      return [];
+    }
+  }, []);
+
   const openChat = async (mode: ChatMode) => {
     setChatMode(mode);
-    setMessages([]);
     setConversationId(null);
     setInputText("");
     setSelectedDocBase64(null);
     setSelectedDocName(null);
+
+    // Load previous session messages so the user can see the conversation history
+    const history = await loadHistory(mode);
+    setMessages(history);
+
     setView("chat");
     // Pre-fetch lab project for modes that use the lab endpoint
     if (mode === "general" || mode === "appbuilder") {
@@ -761,8 +794,16 @@ export default function StarLabScreen() {
           } catch {}
         }
       }
-      // Speak the full response
-      if (full) speakWithChunks(full);
+      // Speak the full response (only when voice mode is on)
+      if (voiceMode && full) speakWithChunks(full);
+
+      // Persist conversation history for next session
+      if (full) {
+        setMessages(prev => {
+          saveHistory(chatMode, prev);
+          return prev;
+        });
+      }
     } catch (e: any) {
       if (e?.name !== "AbortError") {
         setMessages(prev => [...prev, { id: generateId(), role: "assistant", content: "Something went wrong. Please try again." }]);
@@ -771,7 +812,7 @@ export default function StarLabScreen() {
       setIsStreaming(false);
       abortRef.current = null;
     }
-  }, [inputText, selectedDocBase64, selectedDocName, selectedImageBase64, isStreaming, userId, labAuth, conversationId, chatMode, labProjectId, stopSpeech, speakWithChunks]);
+  }, [inputText, selectedDocBase64, selectedDocName, selectedImageBase64, isStreaming, userId, labAuth, conversationId, chatMode, labProjectId, stopSpeech, speakWithChunks, voiceMode, saveHistory]);
 
   const generateBrief = useCallback(async () => {
     if (messages.length === 0 || generatingBrief) return;
@@ -1526,21 +1567,69 @@ export default function StarLabScreen() {
   return (
     <View style={[s.root, { paddingTop: topPad }]}>
       <View style={s.header}>
-        <Pressable onPress={() => { setView("home"); setMessages([]); setConversationId(null); }} style={s.backBtn} hitSlop={12}>
+        <Pressable
+          onPress={() => {
+            stopSpeech();
+            // Persist current messages before leaving chat view
+            if (messages.length > 0) saveHistory(chatMode, messages);
+            setView("home");
+            setConversationId(null);
+          }}
+          style={s.backBtn}
+          hitSlop={12}
+        >
           <Feather name="chevron-left" size={22} color={Colors.primary} />
         </Pressable>
         <View style={{ alignItems: "center" }}>
           <Text style={s.headerTitle}>{MODE_LABELS[chatMode]}</Text>
           <Text style={{ fontSize: 11, color: Colors.textDim, fontFamily: "Inter_400Regular" }}>Star Lab</Text>
         </View>
-        {chatMode === "appbuilder" && messages.length > 0 ? (
-          <Pressable onPress={generateBrief} style={s.briefBtn} hitSlop={8}>
-            <Feather name="send" size={14} color="#6366f1" />
-            <Text style={s.briefBtnText}>Brief</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+          {/* Voice toggle */}
+          <Pressable
+            onPress={() => {
+              if (voiceMode) stopSpeech();
+              setVoiceMode(v => !v);
+            }}
+            hitSlop={10}
+            style={[s.backBtn, voiceMode && { backgroundColor: Colors.primary + "18", borderRadius: 18 }]}
+          >
+            <Feather
+              name={voiceMode ? "volume-2" : "volume-x"}
+              size={18}
+              color={voiceMode ? Colors.primary : Colors.textDim}
+            />
           </Pressable>
-        ) : (
-          <View style={{ width: 52 }} />
-        )}
+          {/* New session (clears history) */}
+          <Pressable
+            onPress={() => {
+              Alert.alert("New Session", "Clear this conversation and start fresh?", [
+                { text: "Cancel", style: "cancel" },
+                {
+                  text: "Clear",
+                  style: "destructive",
+                  onPress: async () => {
+                    stopSpeech();
+                    await AsyncStorage.removeItem(`${LAB_HISTORY_PREFIX}${chatMode}`);
+                    setMessages([]);
+                    setConversationId(null);
+                  },
+                },
+              ]);
+            }}
+            hitSlop={10}
+            style={s.backBtn}
+          >
+            <Feather name="rotate-ccw" size={16} color={Colors.textDim} />
+          </Pressable>
+          {/* Brief button (App Builder only) */}
+          {chatMode === "appbuilder" && messages.length > 0 ? (
+            <Pressable onPress={generateBrief} style={s.briefBtn} hitSlop={8}>
+              <Feather name="send" size={14} color="#6366f1" />
+              <Text style={s.briefBtnText}>Brief</Text>
+            </Pressable>
+          ) : null}
+        </View>
       </View>
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" keyboardVerticalOffset={0}>
