@@ -12,6 +12,8 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Animated,
+  Dimensions,
   FlatList,
   KeyboardAvoidingView,
   Linking,
@@ -36,11 +38,20 @@ import { useSubscription } from "@/lib/revenuecat";
 // ─── Constants ──────────────────────────────────────────────────────────────
 const LAB_PIN_KEY        = "sirius_lab_pin";
 const LAB_AUTH_KEY       = "sirius_lab_auth";
-const LAB_PROJECT_KEY    = "sirius_lab_project_id"; // persisted default project for general chat
-const LAB_HISTORY_PREFIX = "sirius_lab_history_v2_"; // per-mode message history
+const LAB_PROJECT_KEY    = "sirius_lab_project_id";
+const SESSIONS_KEY       = "sirius_lab_sessions_v1"; // replaces per-mode history
+const DRAWER_WIDTH       = Dimensions.get("window").width * 0.82;
 const POLL_INTERVAL_MS   = 3000;
-const POLL_MAX_ATTEMPTS  = 40; // 40 × 3s = 2 minutes
-const MAX_SAVED_MESSAGES = 30; // messages kept in AsyncStorage per mode
+const POLL_MAX_ATTEMPTS  = 40;
+const MAX_SESSIONS       = 50;
+
+interface LabSession {
+  id:       string;
+  mode:     ChatMode;
+  title:    string;
+  date:     string; // ISO
+  messages: Message[];
+}
 
 interface LabAccount { email: string; userId: string }
 
@@ -175,6 +186,13 @@ export default function StarLabScreen() {
   const [selectedImageBase64, setSelectedImageBase64] = useState<string | null>(null);
   const recordingRef = useRef<Audio.Recording | null>(null);
 
+  // ── History drawer state ─────────────────────────────────────────────────
+  const [drawerOpen, setDrawerOpen]   = useState(false);
+  const [sessions, setSessions]       = useState<LabSession[]>([]);
+  const currentSessionIdRef           = useRef<string | null>(null);
+  const drawerAnim                    = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
+  const overlayAnim                   = useRef(new Animated.Value(0)).current;
+
   const flatListRef        = useRef<FlatList>(null);
   const abortRef           = useRef<AbortController | null>(null);
   const kateVoiceRef       = useRef<string | undefined>(undefined);
@@ -235,6 +253,41 @@ export default function StarLabScreen() {
   }, []);
 
   useEffect(() => { refreshKateVoice(); }, [refreshKateVoice]);
+
+  // ── Load sessions on mount ───────────────────────────────────────────────
+  useEffect(() => { loadSessions(); }, [loadSessions]);
+
+  // ── Drawer open / close ──────────────────────────────────────────────────
+  const openDrawer = useCallback(() => {
+    loadSessions(); // refresh list every time drawer opens
+    setDrawerOpen(true);
+    Animated.parallel([
+      Animated.spring(drawerAnim,  { toValue: 0,            useNativeDriver: true, tension: 65, friction: 11 }),
+      Animated.timing(overlayAnim, { toValue: 1, duration: 250, useNativeDriver: true }),
+    ]).start();
+  }, [drawerAnim, overlayAnim, loadSessions]);
+
+  const closeDrawer = useCallback(() => {
+    Animated.parallel([
+      Animated.spring(drawerAnim,  { toValue: -DRAWER_WIDTH, useNativeDriver: true, tension: 65, friction: 11 }),
+      Animated.timing(overlayAnim, { toValue: 0, duration: 200, useNativeDriver: true }),
+    ]).start(() => setDrawerOpen(false));
+  }, [drawerAnim, overlayAnim]);
+
+  // ── Load a session from history ──────────────────────────────────────────
+  const loadSessionFromHistory = useCallback((session: LabSession) => {
+    closeDrawer();
+    stopSpeech();
+    setChatMode(session.mode);
+    setMessages(session.messages);
+    setConversationId(null);
+    setLabProjectId(null);
+    currentSessionIdRef.current = session.id;
+    setView("chat");
+    if (session.mode === "general" || session.mode === "appbuilder") {
+      getOrCreateLabProject().catch(() => {});
+    }
+  }, [closeDrawer, stopSpeech]);
 
   // ── Helpers ─────────────────────────────────────────────────────────────
   const clearPoll = () => {
@@ -552,45 +605,59 @@ export default function StarLabScreen() {
   // CHAT HANDLERS
   // ─────────────────────────────────────────────────────────────────────────
 
-  // ── Persist last N messages per chat mode so they reload next session ──────
-  const saveHistory = useCallback(async (mode: ChatMode, msgs: Message[]) => {
+  // ── Session-based history ────────────────────────────────────────────────
+  const loadSessions = useCallback(async () => {
     try {
-      // Don't store base64 image uploads (too large) — strip them first
-      const slim = msgs.slice(-MAX_SAVED_MESSAGES).map(m => ({
-        ...m,
-        uploadedImageBase64: undefined,
-      }));
-      await AsyncStorage.setItem(
-        `${LAB_HISTORY_PREFIX}${mode}`,
-        JSON.stringify(slim)
-      );
+      const raw = await AsyncStorage.getItem(SESSIONS_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) setSessions(parsed);
     } catch {}
   }, []);
 
-  const loadHistory = useCallback(async (mode: ChatMode): Promise<Message[]> => {
+  const upsertSession = useCallback(async (session: LabSession) => {
     try {
-      const raw = await AsyncStorage.getItem(`${LAB_HISTORY_PREFIX}${mode}`);
-      if (!raw) return [];
-      const msgs = JSON.parse(raw);
-      return Array.isArray(msgs) ? msgs : [];
-    } catch {
-      return [];
-    }
+      const raw = await AsyncStorage.getItem(SESSIONS_KEY);
+      const all: LabSession[] = raw ? JSON.parse(raw) : [];
+      const idx = all.findIndex(s => s.id === session.id);
+      if (idx >= 0) {
+        all[idx] = session;
+        // Move to top
+        all.unshift(all.splice(idx, 1)[0]);
+      } else {
+        all.unshift(session);
+      }
+      const trimmed = all.slice(0, MAX_SESSIONS);
+      await AsyncStorage.setItem(SESSIONS_KEY, JSON.stringify(trimmed));
+      setSessions(trimmed);
+    } catch {}
   }, []);
 
+  // Alias kept for call-sites inside streaming callback
+  const saveHistory = useCallback(async (_mode: ChatMode, msgs: Message[]) => {
+    if (!currentSessionIdRef.current || msgs.length === 0) return;
+    const firstUser = msgs.find(m => m.role === "user");
+    const title = firstUser?.content?.slice(0, 50) || "Lab session";
+    const slim = msgs.map(m => ({ ...m, uploadedImageBase64: undefined }));
+    await upsertSession({
+      id:       currentSessionIdRef.current,
+      mode:     chatMode,
+      title,
+      date:     new Date().toISOString(),
+      messages: slim,
+    });
+  }, [upsertSession, chatMode]);
+
   const openChat = async (mode: ChatMode) => {
+    currentSessionIdRef.current = null; // fresh session — ID assigned on first send
     setChatMode(mode);
     setConversationId(null);
     setInputText("");
     setSelectedDocBase64(null);
     setSelectedDocName(null);
-
-    // Load previous session messages so the user can see the conversation history
-    const history = await loadHistory(mode);
-    setMessages(history);
+    setMessages([]); // always start blank; load from drawer
 
     setView("chat");
-    // Pre-fetch lab project for modes that use the lab endpoint
     if (mode === "general" || mode === "appbuilder") {
       getOrCreateLabProject().catch(() => {});
     }
@@ -691,6 +758,11 @@ export default function StarLabScreen() {
     const docName  = selectedDocName;
     const imgB64   = selectedImageBase64;
     const displayContent = trimmed || (docName ? `[Attached: ${docName}]` : imgB64 ? "[Product image attached]" : "");
+
+    // Assign a session ID on the first message of this chat
+    if (!currentSessionIdRef.current) {
+      currentSessionIdRef.current = generateId();
+    }
 
     const userMsg: Message = { id: generateId(), role: "user", content: displayContent };
     setMessages(prev => [...prev, userMsg]);
@@ -1579,32 +1651,29 @@ export default function StarLabScreen() {
           <Text style={{ fontSize: 11, color: Colors.textDim, fontFamily: "Inter_400Regular" }}>Star Lab</Text>
         </View>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+          {/* History drawer */}
+          <Pressable onPress={openDrawer} hitSlop={10} style={s.backBtn}>
+            <Feather name="clock" size={17} color={Colors.textDim} />
+          </Pressable>
           {/* Voice toggle */}
           <Pressable
-            onPress={() => {
-              if (voiceMode) stopSpeech();
-              setVoiceMode(v => !v);
-            }}
+            onPress={() => { if (voiceMode) stopSpeech(); setVoiceMode(v => !v); }}
             hitSlop={10}
             style={[s.backBtn, voiceMode && { backgroundColor: Colors.primary + "18", borderRadius: 18 }]}
           >
-            <Feather
-              name={voiceMode ? "volume-2" : "volume-x"}
-              size={18}
-              color={voiceMode ? Colors.primary : Colors.textDim}
-            />
+            <Feather name={voiceMode ? "volume-2" : "volume-x"} size={18} color={voiceMode ? Colors.primary : Colors.textDim} />
           </Pressable>
-          {/* New session (clears history) */}
+          {/* New session */}
           <Pressable
             onPress={() => {
-              Alert.alert("New Session", "Clear this conversation and start fresh?", [
+              Alert.alert("New Session", "Save this conversation to history and start fresh?", [
                 { text: "Cancel", style: "cancel" },
                 {
-                  text: "Clear",
+                  text: "New Chat",
                   style: "destructive",
-                  onPress: async () => {
+                  onPress: () => {
                     stopSpeech();
-                    await AsyncStorage.removeItem(`${LAB_HISTORY_PREFIX}${chatMode}`);
+                    currentSessionIdRef.current = null;
                     setMessages([]);
                     setConversationId(null);
                   },
@@ -1614,7 +1683,7 @@ export default function StarLabScreen() {
             hitSlop={10}
             style={s.backBtn}
           >
-            <Feather name="rotate-ccw" size={16} color={Colors.textDim} />
+            <Feather name="plus-square" size={17} color={Colors.textDim} />
           </Pressable>
           {/* Brief button (App Builder only) */}
           {chatMode === "appbuilder" && messages.length > 0 ? (
@@ -1790,6 +1859,79 @@ export default function StarLabScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* ── History Drawer ─────────────────────────────────────────────── */}
+      {drawerOpen && (
+        <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+          {/* Backdrop */}
+          <Animated.View
+            style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(0,0,0,0.45)", opacity: overlayAnim }]}
+            pointerEvents="auto"
+          >
+            <Pressable style={{ flex: 1 }} onPress={closeDrawer} />
+          </Animated.View>
+
+          {/* Slide-in panel */}
+          <Animated.View
+            style={[s.histDrawer, { paddingTop: topPad, paddingBottom: insets.bottom + 16, transform: [{ translateX: drawerAnim }] }]}
+            pointerEvents="auto"
+          >
+            <View style={s.histDrawerHeader}>
+              <Text style={s.histDrawerTitle}>Lab History</Text>
+              <Pressable onPress={closeDrawer} hitSlop={12}>
+                <Feather name="x" size={20} color={Colors.textMuted} />
+              </Pressable>
+            </View>
+
+            {/* New Chat */}
+            <Pressable
+              onPress={() => { closeDrawer(); stopSpeech(); currentSessionIdRef.current = null; setMessages([]); setConversationId(null); }}
+              style={s.histNewChat}
+            >
+              <Feather name="plus-circle" size={16} color={Colors.primary} />
+              <Text style={s.histNewChatText}>New Chat</Text>
+            </Pressable>
+
+            {sessions.length === 0 ? (
+              <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingBottom: 60 }}>
+                <Feather name="clock" size={32} color={Colors.borderLight} />
+                <Text style={{ color: Colors.textDim, fontSize: 14, fontFamily: "Inter_400Regular", marginTop: 10 }}>No history yet</Text>
+              </View>
+            ) : (
+              <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1, marginTop: 8 }}>
+                {sessions.map(session => {
+                  const d = new Date(session.date);
+                  const now = new Date();
+                  const diffDays = Math.floor((now.getTime() - d.getTime()) / 86400000);
+                  const timeLabel = diffDays === 0
+                    ? d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
+                    : diffDays === 1 ? "Yesterday"
+                    : diffDays < 7  ? d.toLocaleDateString("en-GB", { weekday: "short" })
+                    : d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+                  const modeIcon  = session.mode === "appbuilder" ? "grid" : session.mode === "code" ? "code" : "message-circle";
+                  const modeColor = session.mode === "appbuilder" ? "#6366f1" : session.mode === "code" ? Colors.primary : "#f59e0b";
+                  const isActive  = session.id === currentSessionIdRef.current;
+                  return (
+                    <Pressable
+                      key={session.id}
+                      onPress={() => loadSessionFromHistory(session)}
+                      style={({ pressed }) => [s.histItem, isActive && s.histItemActive, pressed && { opacity: 0.65 }]}
+                    >
+                      <View style={[s.histItemIcon, { backgroundColor: modeColor + "18" }]}>
+                        <Feather name={modeIcon as any} size={14} color={modeColor} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.histItemTitle} numberOfLines={1}>{session.title}</Text>
+                        <Text style={s.histItemMeta}>{MODE_LABELS[session.mode]} · {timeLabel}</Text>
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            )}
+          </Animated.View>
+        </View>
+      )}
     </View>
   );
 }
@@ -2042,4 +2184,62 @@ const s = StyleSheet.create({
   briefNoteText: { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.textDim, lineHeight: 17 },
   briefSubmitBtn:{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#6366f1", borderRadius: 14, paddingVertical: 15, shadowColor: "#6366f1", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 4 },
   briefSubmitText: { color: "#fff", fontSize: 15, fontFamily: "Inter_700Bold" },
+
+  // ── History drawer ──────────────────────────────────────────────────────
+  histDrawer: {
+    position: "absolute",
+    top: 0, bottom: 0, left: 0,
+    width: DRAWER_WIDTH,
+    backgroundColor: Colors.surface,
+    borderRightWidth: 1,
+    borderRightColor: Colors.border,
+    shadowColor: "#000",
+    shadowOffset: { width: 4, height: 0 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  histDrawerHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  histDrawerTitle:   { fontSize: 17, fontFamily: "Inter_700Bold", color: Colors.text },
+  histNewChat: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginHorizontal: 12,
+    marginTop: 12,
+    marginBottom: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: Colors.primary + "12",
+    borderWidth: 1,
+    borderColor: Colors.primary + "30",
+  },
+  histNewChatText:  { fontSize: 14, fontFamily: "Inter_600SemiBold", color: Colors.primary },
+  histItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+    marginHorizontal: 8,
+    marginVertical: 1,
+    borderRadius: 10,
+  },
+  histItemActive:   { backgroundColor: Colors.primary + "10" },
+  histItemIcon: {
+    width: 32, height: 32, borderRadius: 8,
+    alignItems: "center", justifyContent: "center",
+    flexShrink: 0,
+  },
+  histItemTitle:    { fontSize: 14, fontFamily: "Inter_400Regular", color: Colors.text, marginBottom: 2 },
+  histItemMeta:     { fontSize: 11, fontFamily: "Inter_400Regular", color: Colors.textDim },
 });
