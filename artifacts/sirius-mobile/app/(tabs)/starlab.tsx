@@ -7,6 +7,7 @@ import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system";
 import { Audio } from "expo-av";
 import * as ImagePicker from "expo-image-picker";
+import * as Speech from "expo-speech";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -169,8 +170,66 @@ export default function StarLabScreen() {
   const [selectedImageBase64, setSelectedImageBase64] = useState<string | null>(null);
   const recordingRef = useRef<Audio.Recording | null>(null);
 
-  const flatListRef = useRef<FlatList>(null);
-  const abortRef    = useRef<AbortController | null>(null);
+  const flatListRef        = useRef<FlatList>(null);
+  const abortRef           = useRef<AbortController | null>(null);
+  const kateVoiceRef       = useRef<string | undefined>(undefined);
+  const speechCancelledRef = useRef<boolean>(false);
+
+  // ── Voice (TTS) ─────────────────────────────────────────────────────────
+  const refreshKateVoice = useCallback(() => {
+    Speech.getAvailableVoicesAsync()
+      .then(voices => {
+        const enGB = voices.filter(v => v.language.startsWith("en-GB"));
+        const enUS = voices.filter(v => v.language.startsWith("en-US"));
+        const preferred = [
+          enGB.find(v => v.name.toLowerCase().includes("serena")),
+          enGB.find(v => v.name.toLowerCase().includes("martha")),
+          enGB.find(v => v.name.toLowerCase().includes("daniel")),
+          enGB.find(v => (v as any).quality === "Enhanced" || (v as any).quality === "Premium"),
+          enGB[0],
+          enUS.find(v => v.name.toLowerCase().includes("samantha")),
+          enUS[0],
+        ].find(Boolean);
+        if (preferred) kateVoiceRef.current = preferred.identifier;
+      })
+      .catch(() => {});
+  }, []);
+
+  const stopSpeech = useCallback(() => {
+    speechCancelledRef.current = true;
+    Speech.stop();
+  }, []);
+
+  const speakWithChunks = useCallback((text: string) => {
+    speechCancelledRef.current = false;
+    const rawChunks = text
+      .split(/\n\n+/)
+      .flatMap(p => {
+        if (p.length > 500) {
+          return p.match(/[^.!?]*[.!?]+["']?\s*/g)?.map(s => s.trim()).filter(Boolean) ?? [p];
+        }
+        return [p];
+      })
+      .map(p => p.replace(/[#*`_~>]/g, "").trim())
+      .filter(p => p.length > 0);
+    if (rawChunks.length === 0) return;
+    let idx = 0;
+    const speakNext = () => {
+      if (speechCancelledRef.current || idx >= rawChunks.length) return;
+      const chunk = rawChunks[idx++];
+      Speech.speak(chunk, {
+        language: "en-GB",
+        ...(kateVoiceRef.current ? { voice: kateVoiceRef.current } : {}),
+        rate: 0.95,
+        pitch: 1.0,
+        onDone: () => { setTimeout(speakNext, 600); },
+        onStopped: () => { speechCancelledRef.current = true; },
+      });
+    };
+    speakNext();
+  }, []);
+
+  useEffect(() => { refreshKateVoice(); }, [refreshKateVoice]);
 
   // ── Helpers ─────────────────────────────────────────────────────────────
   const clearPoll = () => {
@@ -590,6 +649,7 @@ export default function StarLabScreen() {
     const trimmed = inputText.trim();
     if (!trimmed && !selectedDocBase64 && !selectedImageBase64) return;
     if (isStreaming) return;
+    stopSpeech();
 
     const uid = labAuth?.userId || userId || (await getUserId());
     const docB64   = selectedDocBase64;
@@ -681,9 +741,16 @@ export default function StarLabScreen() {
             const evt = JSON.parse(raw);
             if (evt.done || evt.type === "done") break;
             // Inline image render from generate_render tool
-            if (evt.type === "image" && evt.url) {
-              inlineImages.push(evt.url);
-              setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, images: [...inlineImages] } : m));
+            if (evt.type === "image") {
+              const imgSrc = evt.url
+                ? evt.url
+                : evt.b64
+                  ? `data:${evt.mimeType ?? "image/jpeg"};base64,${evt.b64}`
+                  : null;
+              if (imgSrc) {
+                inlineImages.push(imgSrc);
+                setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, images: [...inlineImages] } : m));
+              }
               continue;
             }
             const chunk = evt.content ?? (evt.type === "text" ? evt.delta : null);
@@ -694,6 +761,8 @@ export default function StarLabScreen() {
           } catch {}
         }
       }
+      // Speak the full response
+      if (full) speakWithChunks(full);
     } catch (e: any) {
       if (e?.name !== "AbortError") {
         setMessages(prev => [...prev, { id: generateId(), role: "assistant", content: "Something went wrong. Please try again." }]);
@@ -702,7 +771,7 @@ export default function StarLabScreen() {
       setIsStreaming(false);
       abortRef.current = null;
     }
-  }, [inputText, selectedDocBase64, selectedDocName, selectedImageBase64, isStreaming, userId, labAuth, conversationId, chatMode, labProjectId]);
+  }, [inputText, selectedDocBase64, selectedDocName, selectedImageBase64, isStreaming, userId, labAuth, conversationId, chatMode, labProjectId, stopSpeech, speakWithChunks]);
 
   const generateBrief = useCallback(async () => {
     if (messages.length === 0 || generatingBrief) return;
