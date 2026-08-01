@@ -99,7 +99,29 @@ export default function ChatScreen() {
       Animated.spring(drawerAnim, { toValue: 0, useNativeDriver: true, tension: 65, friction: 11 }),
       Animated.timing(overlayAnim, { toValue: 1, duration: 250, useNativeDriver: true }),
     ]).start();
-  }, [drawerAnim, overlayAnim]);
+    // Load conversation history inline every time the drawer opens
+    setHistoryLoading(true);
+    (async () => {
+      try {
+        const uid = userId || (await getUserId());
+        let convos = await fetchConversations(uid);
+        if ((!convos || convos.length === 0) && uid) {
+          try { convos = await fetchConversations(undefined); } catch {}
+        }
+        const filtered = (convos || [])
+          .filter((c: { title?: string }) => c.title !== "health check" && c.title !== "probe")
+          .sort((a: { createdAt: string }, b: { createdAt: string }) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          )
+          .slice(0, 50);
+        setHistoryList(filtered);
+      } catch {
+        setHistoryList([]);
+      } finally {
+        setHistoryLoading(false);
+      }
+    })();
+  }, [drawerAnim, overlayAnim, userId]);
 
   const closeDrawer = useCallback(() => {
     Animated.parallel([
@@ -738,38 +760,6 @@ export default function ChatScreen() {
         </View>
       </Modal>
 
-      {/* ── History modal ── */}
-      <Modal visible={showHistory} transparent animationType="slide" onRequestClose={() => setShowHistory(false)}>
-        <View style={histStyles.overlay}>
-          <View style={histStyles.sheet}>
-            <View style={histStyles.headerRow}>
-              <Text style={histStyles.title}>Past conversations</Text>
-              <Pressable onPress={() => setShowHistory(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                <Feather name="x" size={22} color={Colors.textMuted} />
-              </Pressable>
-            </View>
-            {historyLoading ? (
-              <Text style={histStyles.empty}>Loading…</Text>
-            ) : historyList.length === 0 ? (
-              <Text style={histStyles.empty}>No conversations yet.</Text>
-            ) : (
-              <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
-                {historyList.map(c => {
-                  const d = new Date(c.createdAt);
-                  const label = d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
-                  return (
-                    <Pressable key={c.id} onPress={() => loadConversation(c.id)} style={({ pressed }) => [histStyles.item, pressed && { opacity: 0.6 }]}>
-                      <Text style={histStyles.itemTitle} numberOfLines={1}>{c.title || "Untitled"}</Text>
-                      <Text style={histStyles.itemDate}>{label}</Text>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
-            )}
-          </View>
-        </View>
-      </Modal>
-
       {/* ── Drawer overlay + panel ── */}
       {drawerOpen && (
         <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
@@ -808,11 +798,27 @@ export default function ChatScreen() {
               <DrawerItem icon="zap" label="Star Lab" badge="PRO" badgeColor="#6366f1" dot onPress={() => { closeDrawer(); router.push("/(tabs)/starlab" as any); }} />
 
               <View style={styles.drawerDivider} />
-              <Text style={styles.drawerSectionLabel}>SESSION HISTORY</Text>
-              <DrawerItem icon="credit-card" label="Plans & Pricing" onPress={() => { closeDrawer(); router.push("/(tabs)/pricing" as any); }} />
-              <DrawerItem icon="clock" label="Past Conversations" onPress={openHistory} />
+              <Text style={styles.drawerSectionLabel}>RECENT CONVERSATIONS</Text>
+              {historyLoading ? (
+                <ActivityIndicator size="small" color={Colors.primary} style={{ marginLeft: 18, marginVertical: 10 }} />
+              ) : historyList.length === 0 ? (
+                <Text style={styles.drawerHistoryEmpty}>No conversations yet</Text>
+              ) : (
+                historyList.slice(0, 20).map(c => {
+                  const d = new Date(c.createdAt);
+                  const dateLabel = d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+                  return (
+                    <Pressable key={c.id} onPress={() => loadConversation(c.id)} style={({ pressed }) => [styles.drawerHistoryItem, pressed && { opacity: 0.6 }]}>
+                      <Feather name="message-square" size={13} color={Colors.textMuted} />
+                      <Text style={styles.drawerHistoryTitle} numberOfLines={1}>{c.title || "Untitled"}</Text>
+                      <Text style={styles.drawerHistoryDate}>{dateLabel}</Text>
+                    </Pressable>
+                  );
+                })
+              )}
 
               <View style={styles.drawerDivider} />
+              <DrawerItem icon="credit-card" label="Plans & Pricing" onPress={() => { closeDrawer(); router.push("/(tabs)/pricing" as any); }} />
 
               <DrawerItem icon="user" label="My Account" onPress={() => navigateTo("/(tabs)/settings")} />
 
@@ -1067,6 +1073,23 @@ const styles = StyleSheet.create({
   drawerFooterLink: { fontSize: 11, color: Colors.textMuted, fontFamily: "Inter_400Regular" },
   drawerFooterDot: { fontSize: 11, color: Colors.textDim },
   drawerFooterText: { fontSize: 11, color: Colors.textDim, fontFamily: "Inter_400Regular" },
+
+  /* ── Inline history in drawer ── */
+  drawerHistoryItem: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    paddingHorizontal: 18, paddingVertical: 10,
+    borderBottomWidth: 1, borderBottomColor: Colors.border,
+  },
+  drawerHistoryTitle: {
+    flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", color: Colors.text,
+  },
+  drawerHistoryDate: {
+    fontSize: 11, fontFamily: "Inter_400Regular", color: Colors.textDim, flexShrink: 0,
+  },
+  drawerHistoryEmpty: {
+    fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.textDim,
+    paddingHorizontal: 18, paddingVertical: 10,
+  },
 });
 
 const upgradeStyles = StyleSheet.create({

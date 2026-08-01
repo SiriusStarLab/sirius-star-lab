@@ -255,6 +255,16 @@ export default function StarLabScreen() {
 
   useEffect(() => { refreshKateVoice(); }, [refreshKateVoice]);
 
+  // ── Session history — defined early so openDrawer and useEffect can reference it ──
+  const loadSessions = useCallback(async () => {
+    try {
+      const raw = await AsyncStorage.getItem(SESSIONS_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) setSessions(parsed);
+    } catch {}
+  }, []);
+
   // ── Load sessions on mount ───────────────────────────────────────────────
   useEffect(() => { loadSessions(); }, [loadSessions]);
 
@@ -354,13 +364,13 @@ export default function StarLabScreen() {
   // ── Init: check stored auth on mount ────────────────────────────────────
   useEffect(() => {
     (async () => {
-      // ── Garry bypass: skip ALL auth, payment, and PIN ───────────────────
-      const GARRY_BYPASS = true;
-      if (GARRY_BYPASS) {
+      // ── Owner bypass: only skip auth for the actual owner account ────────
+      const mainUserId = await AsyncStorage.getItem("sirius_user_id");
+      if (mainUserId === "garry") {
         const garryAccount: LabAccount = { email: "garry@sirius-ai.live", userId: "garry" };
         await AsyncStorage.setItem(LAB_AUTH_KEY, JSON.stringify(garryAccount));
         setLabAuth(garryAccount);
-        setView("home"); // Skip PIN entirely for owner
+        setView("home");
         return;
       }
       // ── Normal auth flow ─────────────────────────────────────────────────
@@ -644,15 +654,6 @@ export default function StarLabScreen() {
   // ─────────────────────────────────────────────────────────────────────────
 
   // ── Session-based history ────────────────────────────────────────────────
-  const loadSessions = useCallback(async () => {
-    try {
-      const raw = await AsyncStorage.getItem(SESSIONS_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) setSessions(parsed);
-    } catch {}
-  }, []);
-
   const upsertSession = useCallback(async (session: LabSession) => {
     try {
       const raw = await AsyncStorage.getItem(SESSIONS_KEY);
@@ -898,6 +899,25 @@ export default function StarLabScreen() {
                 inlineImages.push(imgSrc);
                 setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, images: [...inlineImages] } : m));
               }
+              continue;
+            }
+            // Render queue events — show status so user sees progress
+            if (evt.type === "render_queued") {
+              if (!full) {
+                full = "🎨 Generating render…";
+                setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: full } : m));
+              }
+              continue;
+            }
+            if (evt.type === "render_started") {
+              if (!full || full === "🎨 Generating render…") {
+                full = "🎨 Rendering…";
+                setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: full } : m));
+              }
+              continue;
+            }
+            // Tool/action events — swallow silently (visible in action log)
+            if (evt.type === "tool_call" || evt.type === "action" || evt.type === "tool_result") {
               continue;
             }
             const chunk = evt.content ?? (evt.type === "text" ? evt.delta : null);

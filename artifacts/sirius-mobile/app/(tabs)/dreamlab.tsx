@@ -13,6 +13,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import Markdown from "react-native-markdown-display";
@@ -171,7 +172,7 @@ function DreamChat({ dream, onBack }: { dream: Dream; onBack: () => void }) {
         language: "en-GB",
         ...(kateVoiceRef.current ? { voice: kateVoiceRef.current } : {}),
         rate: 0.95, pitch: 1.0,
-        onDone: () => setTimeout(next, 600),
+        onDone: () => { setTimeout(next, 600); },
         onStopped: () => { speechCancelledRef.current = true; },
       });
     };

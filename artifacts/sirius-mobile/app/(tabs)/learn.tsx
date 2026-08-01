@@ -5,6 +5,7 @@ import * as FileSystem from "expo-file-system";
 import React, { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -14,6 +15,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import Markdown from "react-native-markdown-display";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 
@@ -78,21 +80,32 @@ function ChatView({ panel, onBack }: { panel: typeof PANELS[0]; onBack: () => vo
                "application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
         copyToCacheDirectory: true,
       });
-      if (result.canceled || !result.assets?.[0]) return;
+      if (result.canceled || !result.assets?.[0]) return; // user cancelled — silent is correct
       const asset = result.assets[0];
-      const isPDF = asset.mimeType === "application/pdf" || asset.name?.toLowerCase().endsWith(".pdf");
+      const name = asset.name ?? "document";
+      const ext = name.split(".").pop()?.toLowerCase() ?? "";
+
+      if (ext === "doc" || ext === "docx") {
+        // DOC/DOCX can't be read as text — warn the user
+        Alert.alert("Format not supported", "Word documents (.doc/.docx) can't be read directly. Please paste the text instead, or save it as a PDF or .txt file first.");
+        return;
+      }
+
+      const isPDF = asset.mimeType === "application/pdf" || ext === "pdf";
       if (isPDF) {
-        // For PDFs, read as base64 and send via the document API
         const base64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: "base64" as any });
-        setAttachedDoc({ name: asset.name ?? "document.pdf", base64 });
-        setInput(prev => prev || `[PDF attached: ${asset.name}] Please summarise and analyse this document.`);
+        setAttachedDoc({ name, base64 });
+        setInput(prev => prev || `[PDF attached: ${name}] Please summarise and analyse this document.`);
       } else {
-        // For text files, paste content directly into input
         const content = await FileSystem.readAsStringAsync(asset.uri, { encoding: "utf8" as any });
         setInput(prev => prev ? prev + "\n\n" + content : content);
       }
-    } catch {
-      // silently ignore picker cancellation
+    } catch (err: any) {
+      // Only surface real errors — not picker cancellations
+      const msg = err?.message ?? "";
+      if (!msg.includes("cancel") && !msg.includes("Cancel")) {
+        Alert.alert("Could not open file", "There was a problem reading this file. Please try a different file or paste the text directly.");
+      }
     }
   }, []);
 
@@ -123,6 +136,7 @@ function ChatView({ panel, onBack }: { panel: typeof PANELS[0]; onBack: () => vo
           content: text,
           userId: uid,
           mode: "guru",
+          systemPrompt: panel.system,
           ...(docToSend ? { documentBase64: docToSend.base64, documentName: docToSend.name } : {}),
         }),
       } as any);
@@ -146,8 +160,10 @@ function ChatView({ panel, onBack }: { panel: typeof PANELS[0]; onBack: () => vo
           if (!line.startsWith("data: ")) continue;
           try {
             const parsed = JSON.parse(line.slice(6));
-            if (parsed.content) {
-              full += parsed.content;
+            // Handle both `content` (standard) and `delta` (some server variants)
+            const chunk = parsed.content ?? (parsed.type === "text" ? parsed.delta : null);
+            if (chunk) {
+              full += chunk;
               if (!added) {
                 setMessages(prev => [...prev, { id: aId, role: "assistant", content: full }]);
                 added = true;
@@ -209,7 +225,9 @@ function ChatView({ panel, onBack }: { panel: typeof PANELS[0]; onBack: () => vo
         )}
         {messages.map(m => (
           <View key={m.id} style={m.role === "user" ? styles.userBubble : styles.aiBubble}>
-            <Text style={m.role === "user" ? styles.userText : styles.aiText}>{m.content}</Text>
+            {m.role === "user"
+              ? <Text style={styles.userText}>{m.content}</Text>
+              : <Markdown style={learnMarkdownStyles}>{m.content}</Markdown>}
           </View>
         ))}
         {isStreaming && messages[messages.length - 1]?.role === "user" && (
@@ -315,6 +333,24 @@ export default function LearnScreen() {
     </ScrollView>
   );
 }
+
+const learnMarkdownStyles = {
+  body:      { color: Colors.text, fontSize: 15, lineHeight: 22, fontFamily: "Inter_400Regular" },
+  paragraph: { color: Colors.text, fontSize: 15, lineHeight: 22, fontFamily: "Inter_400Regular", marginTop: 0, marginBottom: 6 },
+  strong:    { color: Colors.text, fontFamily: "Inter_700Bold" },
+  em:        { color: Colors.text, fontFamily: "Inter_400Regular", fontStyle: "italic" as const },
+  heading1:  { color: Colors.text, fontSize: 18, fontFamily: "Inter_700Bold", marginBottom: 4 },
+  heading2:  { color: Colors.text, fontSize: 16, fontFamily: "Inter_700Bold", marginBottom: 4 },
+  bullet_list: { marginTop: 4, marginBottom: 4 },
+  ordered_list: { marginTop: 4, marginBottom: 4 },
+  list_item: { color: Colors.text, fontSize: 15, lineHeight: 22, fontFamily: "Inter_400Regular", flexDirection: "row" as const, marginBottom: 2 },
+  bullet_list_icon: { color: Colors.primary, fontSize: 15, lineHeight: 22, marginRight: 6 },
+  ordered_list_icon: { color: Colors.primary, fontSize: 15, fontFamily: "Inter_600SemiBold", marginRight: 6 },
+  code_inline: { color: Colors.primary, backgroundColor: "rgba(0,212,255,0.1)", fontFamily: "Inter_400Regular", fontSize: 13, paddingHorizontal: 4, borderRadius: 4 },
+  fence: { backgroundColor: "rgba(0,0,0,0.35)", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, marginVertical: 4 },
+  code_block: { color: Colors.primary, fontFamily: "Inter_400Regular", fontSize: 13 },
+  link: { color: Colors.primary },
+};
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
