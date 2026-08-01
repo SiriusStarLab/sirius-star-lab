@@ -4,6 +4,7 @@ import { router } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Modal,
   Platform,
   Pressable,
@@ -280,7 +281,16 @@ export default function PricingScreen() {
                   />
 
                   <Pressable
-                    onPress={handleConfirm}
+                    onPress={() => {
+                      Alert.alert(
+                        "Confirm bank transfer",
+                        `Have you already sent £${payTier === "plus" ? "9.99" : "19.99"} to the account above using the exact reference shown?\n\nOnly tap Confirm if the transfer has been made. We will check and upgrade your account within a few hours.`,
+                        [
+                          { text: "Not yet", style: "cancel" },
+                          { text: "Yes, I've sent it", onPress: handleConfirm },
+                        ]
+                      );
+                    }}
                     disabled={payLoading}
                     style={({ pressed }) => [p.confirmBtn, pressed && { opacity: 0.85 }, payLoading && { opacity: 0.6 }]}
                   >
