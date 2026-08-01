@@ -1480,7 +1480,16 @@ export default function StarLabScreen() {
           </Text>
 
           <Pressable
-            onPress={() => { setView("waiting"); }}
+            onPress={() => {
+              Alert.alert(
+                "Confirm bank transfer",
+                "Have you already sent £19.99 to the account above using the exact reference shown?\n\nOnly confirm if the transfer has been made. We will check and upgrade your account within a few hours.",
+                [
+                  { text: "Not yet", style: "cancel" },
+                  { text: "Yes, I've sent it", onPress: () => setView("waiting") },
+                ]
+              );
+            }}
             style={({ pressed }) => [s.primaryBtn, { marginTop: 20 }, pressed && { opacity: 0.85 }]}
           >
             <Feather name="check" size={16} color="#fff" />
