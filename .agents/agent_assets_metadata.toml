@@ -413,3 +413,10 @@ id = "CuncP39jtke144wj8bat-"
 uri = "file://migration-pack/README.md"
 type = "text"
 title = "Sirius — Migration Pack README"
+
+[[outputs]]
+id = "WSKpQR9FjZC6QbRUryhnF"
+uri = "file://SIRIUS_COMPLETE_EXPORT.md"
+type = "text"
+title = "Sirius Star Lab — Complete Export"
+description = "Full source code, build history, architecture, and handover documentation for the entire Sirius project."
