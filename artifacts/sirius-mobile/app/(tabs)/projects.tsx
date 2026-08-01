@@ -246,7 +246,7 @@ export default function ProjectsScreen() {
       const pin   = await AsyncStorage.getItem(LAB_PIN_KEY);
       const headers: Record<string, string> = pin
         ? { "x-lab-pin": pin }
-        : { "x-user-id": "garry" }; // fallback: owner device bypass
+        : {}; // no PIN and no userId — server will reject with 401
 
       const res = await fetch(`${base}lab/projects?limit=60`, { headers });
       if (res.status === 401 || res.status === 403) { setAuthError(true); }

@@ -332,7 +332,7 @@ export default function StarLabScreen() {
       const base = getApiBase();
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
-        "x-user-id": "garry",
+        "x-user-id": labAuth?.userId ?? userId ?? "unknown",
       };
       // Check stored project ID first
       const stored = await AsyncStorage.getItem(LAB_PROJECT_KEY);
@@ -735,7 +735,7 @@ export default function StarLabScreen() {
         const apiBase = getApiBase();
         const transcRes = await fetch(`${apiBase}lab/voice-transcribe`, {
           method: "POST",
-          headers: { "Content-Type": "application/json", "x-user-id": "garry" },
+          headers: { "Content-Type": "application/json", "x-user-id": labAuth?.userId ?? userId ?? "unknown" },
           body: JSON.stringify({ audioBase64: base64, mimeType: "audio/m4a" }),
         });
         if (transcRes.ok) {
@@ -834,7 +834,7 @@ export default function StarLabScreen() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "x-user-id": "garry",
+            "x-user-id": labAuth?.userId ?? userId ?? "unknown",
           },
           body: JSON.stringify(body),
           signal: ctrl.signal,
@@ -1000,7 +1000,7 @@ export default function StarLabScreen() {
       const uid = labAuth?.userId || userId || (await getUserId());
       const res = await fetch(`${base}lab/app-briefs`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-user-id": uid || "garry" },
+        headers: { "Content-Type": "application/json", "x-user-id": uid || "unknown" },
         body: JSON.stringify({ brief: briefText, userId: uid }),
       });
       // Fire and forget — also send email as fallback
