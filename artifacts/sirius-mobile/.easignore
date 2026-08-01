@@ -23,3 +23,11 @@ nohup.out
 package-lock.json
 pnpm-lock.yaml
 store-metadata/
+*.sql
+*.tar.gz
+*.zip
+*.mp4
+public/
+lib/
+sirius-screenshots.zip
+nohup.out
