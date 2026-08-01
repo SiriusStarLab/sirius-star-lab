@@ -420,3 +420,10 @@ uri = "file://SIRIUS_COMPLETE_EXPORT.md"
 type = "text"
 title = "Sirius Star Lab — Complete Export"
 description = "Full source code, build history, architecture, and handover documentation for the entire Sirius project."
+
+[[outputs]]
+id = "KSoMvbNVkp9y0udhdc3yj"
+uri = "file://Sirius_Star_Lab_Export.docx"
+type = "word_document"
+title = "Sirius Star Lab — Export (Word Document)"
+description = "Full project documentation, build history, source code, and architecture in a readable Word document."
