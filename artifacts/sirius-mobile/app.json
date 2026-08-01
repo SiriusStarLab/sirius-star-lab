@@ -18,7 +18,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "live.siriusai.app",
-      "buildNumber": "18",
+      "buildNumber": "164",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "SiriusBuildRef": "20260725-d",
