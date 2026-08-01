@@ -1,7 +1,7 @@
 import { fetch } from "expo/fetch";
 import { Feather } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import React, { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -91,13 +91,18 @@ function ChatView({ panel, onBack }: { panel: typeof PANELS[0]; onBack: () => vo
         return;
       }
 
+      // Copy to app cache first — iOS document picker URIs are not always
+      // directly readable by expo-file-system without this step
+      const destUri = (FileSystem.cacheDirectory ?? "") + name.replace(/[^a-zA-Z0-9._-]/g, "_");
+      await FileSystem.copyAsync({ from: asset.uri, to: destUri });
+
       const isPDF = asset.mimeType === "application/pdf" || ext === "pdf";
       if (isPDF) {
-        const base64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: "base64" as any });
+        const base64 = await FileSystem.readAsStringAsync(destUri, { encoding: FileSystem.EncodingType.Base64 });
         setAttachedDoc({ name, base64 });
         setInput(prev => prev || `[PDF attached: ${name}] Please summarise and analyse this document.`);
       } else {
-        const content = await FileSystem.readAsStringAsync(asset.uri, { encoding: "utf8" as any });
+        const content = await FileSystem.readAsStringAsync(destUri, { encoding: FileSystem.EncodingType.UTF8 });
         setInput(prev => prev ? prev + "\n\n" + content : content);
       }
     } catch (err: any) {
