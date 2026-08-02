@@ -127,9 +127,15 @@ router.post("/stripe/webhook", async (req, res) => {
   let event: Stripe.Event;
 
   try {
-    if (webhookSecret && sig) {
+    if (webhookSecret) {
+      // Secret is configured — always verify; reject unsigned requests
+      if (!sig) {
+        res.status(400).send("Missing stripe-signature header");
+        return;
+      }
       event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
     } else {
+      // No secret configured (dev/test) — accept unsigned events
       event = req.body as Stripe.Event;
     }
   } catch (err) {
