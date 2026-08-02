@@ -187,7 +187,7 @@ const SECTIONS: Section[] = [
       },
       {
         title: "Changing or cancelling",
-        body: "To cancel, simply stop your monthly bank transfer — no forms, no lock-in. Drop us an email at siriusailab@gmail.com and we'll confirm the cancellation.",
+        body: "To cancel, visit your Stripe billing portal from the account panel, or email siriusailab@gmail.com and we'll handle it immediately — no lock-in.",
       },
     ],
   },

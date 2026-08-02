@@ -339,7 +339,7 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
             <Zap size={15} fill="currentColor" /> Get Plus for £9.99/month
           </button>
           <p style={{ fontSize: 11, color: "rgba(255,255,255,0.2)", marginTop: 12 }}>
-            Pay by bank transfer · Cancel any time
+            Secure checkout · Cancel any time
           </p>
         </div>
         <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>

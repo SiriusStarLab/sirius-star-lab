@@ -1,15 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Zap, Check, Crown, Loader2, Building2, Copy, CheckCheck, CreditCard } from "lucide-react";
+import { X, Zap, Check, Crown, Loader2, CreditCard } from "lucide-react";
 import { getUserId } from "@/lib/user-id";
 import { getApiBase } from "@/lib/api-base";
-
-const BANK = {
-  name: "GCTH Supplies Ltd",
-  account: "26359434",
-  sortCode: "04-03-33",
-  bank: "Mettle",
-};
 
 interface PricingModalProps {
   isOpen: boolean;
@@ -19,15 +12,8 @@ interface PricingModalProps {
 }
 
 export function PricingModal({ isOpen, onClose, currentTier = "free", defaultTier }: PricingModalProps) {
-  const [step, setStep] = useState<"plans" | "pay">("plans");
-  const [selectedTier, setSelectedTier] = useState<"plus" | "pro">(defaultTier ?? "plus");
-  const [loading, setLoading] = useState(false);
-  const [done, setDone] = useState(false);
-  const [reference, setReference] = useState("");
-  const [copied, setCopied] = useState<string | null>(null);
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [payMethod] = useState<"bank">("bank");
+  const [loading, setLoading] = useState<"plus" | "pro" | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const userId = getUserId();
   const isPremium = currentTier !== "free";
   const historyPushedRef = useRef(false);
@@ -42,7 +28,6 @@ export function PricingModal({ isOpen, onClose, currentTier = "free", defaultTie
       if (!closingRef.current) {
         closingRef.current = true;
         historyPushedRef.current = false;
-        setStep("plans"); setDone(false); setName(""); setEmail("");
         onClose();
       }
     };
@@ -50,61 +35,30 @@ export function PricingModal({ isOpen, onClose, currentTier = "free", defaultTie
     return () => window.removeEventListener("popstate", onPop);
   }, [isOpen]);
 
-  const PRICES = {
-    plus: { amount: "£9.99", label: "Sirius Plus", monthly: "£9.99/month" },
-    pro: { amount: "£14.99", label: "Sirius Pro", monthly: "£14.99/month" },
-  };
-
-  function copy(val: string, key: string) {
-    navigator.clipboard.writeText(val).catch(() => {});
-    setCopied(key);
-    setTimeout(() => setCopied(null), 2000);
-  }
-
-  async function handleConfirm() {
-    setLoading(true);
-    try {
-      const base = getApiBase();
-      const res = await fetch(`${base}payment/request`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, tier: selectedTier, name, email }),
-      });
-      const data = await res.json();
-      setReference(data.reference ?? "");
-      setDone(true);
-    } catch {
-      setDone(true);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleStripeCheckout() {
-    setLoading(true);
+  async function handleCheckout(tier: "plus" | "pro") {
+    setLoading(tier);
+    setError(null);
     try {
       const base = getApiBase();
       const res = await fetch(`${base}stripe/checkout`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, tier: selectedTier }),
+        body: JSON.stringify({ userId, tier }),
       });
       const data = await res.json();
       if (data.url) {
         window.location.href = data.url;
+      } else {
+        setError("Could not start checkout. Please try again.");
       }
-    } catch (e) {
-      console.error("Stripe checkout failed", e);
+    } catch {
+      setError("Could not connect. Please try again.");
     } finally {
-      setLoading(false);
+      setLoading(null);
     }
   }
 
   function handleClose() {
-    setStep("plans");
-    setDone(false);
-    setName("");
-    setEmail("");
     if (historyPushedRef.current) {
       historyPushedRef.current = false;
       closingRef.current = true;
@@ -112,13 +66,6 @@ export function PricingModal({ isOpen, onClose, currentTier = "free", defaultTie
     }
     onClose();
   }
-
-  function startPay(tier: "plus" | "pro") {
-    setSelectedTier(tier);
-    setStep("pay");
-  }
-
-  const price = PRICES[selectedTier];
 
   return (
     <>
@@ -178,15 +125,45 @@ export function PricingModal({ isOpen, onClose, currentTier = "free", defaultTie
 
               <div style={{ padding: "12px 24px 32px", maxHeight: "85vh", overflowY: "auto" }}>
 
-                {/* ── PLANS VIEW ── */}
-                {step === "plans" && !isPremium && (
+                {/* ── ACTIVE PLAN ── */}
+                {isPremium ? (
                   <>
+                    <div style={{ textAlign: "center", marginBottom: 24 }}>
+                      <h2 style={{ fontSize: 22, fontWeight: 800, color: "#fff", marginBottom: 6 }}>Your Sirius plan</h2>
+                      <p style={{ fontSize: 14, color: "rgba(255,255,255,0.45)" }}>You're already a partner. Thank you.</p>
+                    </div>
+                    <div style={{
+                      borderRadius: 14, background: "rgba(0,212,255,0.04)",
+                      border: "1.5px solid rgba(0,212,255,0.2)",
+                      padding: "16px 20px", marginBottom: 20,
+                      display: "flex", alignItems: "center", gap: 14,
+                    }}>
+                      <div style={{ width: 40, height: 40, borderRadius: 10, background: currentTier === "pro" ? "rgba(245,158,11,0.1)" : "rgba(0,212,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        {currentTier === "pro" ? <Crown size={18} style={{ color: "#f59e0b" }} /> : <Zap size={18} style={{ color: "#00d4ff" }} fill="#00d4ff" />}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <p style={{ fontSize: 14, fontWeight: 700, color: currentTier === "pro" ? "#f59e0b" : "#00d4ff" }}>
+                          Sirius {currentTier === "pro" ? "Pro" : "Plus"} — Active
+                        </p>
+                        <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>
+                          {currentTier === "pro" ? "Unlimited everything" : "200 messages/day"} · {currentTier === "pro" ? "£19.99" : "£9.99"}/month
+                        </p>
+                      </div>
+                      <Check size={18} style={{ color: currentTier === "pro" ? "#f59e0b" : "#00d4ff" }} />
+                    </div>
+                    <p style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", textAlign: "center" }}>
+                      To cancel, visit your Stripe billing portal or contact us.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    {/* ── PLANS ── */}
                     <div style={{ textAlign: "center", marginBottom: 24 }}>
                       <h2 style={{ fontSize: 22, fontWeight: 800, color: "#fff", marginBottom: 6 }}>
                         Get more from Sirius
                       </h2>
                       <p style={{ fontSize: 14, color: "rgba(255,255,255,0.45)", lineHeight: 1.5 }}>
-                        Bank transfer, Apple Pay, Google Pay, or card.
+                        Secure checkout · Cancel any time
                       </p>
                     </div>
 
@@ -214,7 +191,7 @@ export function PricingModal({ isOpen, onClose, currentTier = "free", defaultTie
                         </div>
                       </div>
                       <ul style={{ listStyle: "none", padding: 0, margin: "0 0 18px" }}>
-                        {["200 messages every day", "Sirius remembers you between sessions", "Image analysis", "Full conversation history", "Real-time web search"].map(f => (
+                        {["200 messages every day", "Sirius remembers you between sessions", "Image analysis", "Full conversation history", "Real-time web search", "Dream Lab access"].map(f => (
                           <li key={f} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
                             <div style={{ width: 18, height: 18, borderRadius: "50%", background: "rgba(0,212,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                               <Check size={10} style={{ color: "#00d4ff" }} strokeWidth={3} />
@@ -224,215 +201,86 @@ export function PricingModal({ isOpen, onClose, currentTier = "free", defaultTie
                         ))}
                       </ul>
                       <button
-                        onClick={() => startPay("plus")}
+                        onClick={() => handleCheckout("plus")}
+                        disabled={loading !== null}
                         style={{
                           width: "100%", padding: "15px", borderRadius: 12, border: "none",
-                          background: "#00d4ff", color: "#080c1a", fontSize: 15, fontWeight: 700,
-                          cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                          background: loading === "plus" ? "rgba(0,212,255,0.3)" : "#00d4ff",
+                          color: loading === "plus" ? "#00d4ff" : "#080c1a",
+                          fontSize: 15, fontWeight: 700,
+                          cursor: loading !== null ? "not-allowed" : "pointer",
+                          display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                         }}
                       >
-                        <Zap size={15} fill="currentColor" /> Pay £9.99/month by bank transfer
+                        {loading === "plus"
+                          ? <><Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> Opening checkout…</>
+                          : <><CreditCard size={15} /> Get Plus — £9.99/month</>
+                        }
                       </button>
                     </div>
 
                     {/* Pro */}
-                    <button
-                      onClick={() => startPay("pro")}
-                      style={{
-                        width: "100%", borderRadius: 14,
-                        background: "rgba(245,158,11,0.05)",
-                        border: "1px solid rgba(245,158,11,0.2)",
-                        padding: "16px 18px",
-                        display: "flex", alignItems: "center", gap: 14,
-                        cursor: "pointer", marginBottom: 20,
-                      }}
-                    >
-                      <div style={{ width: 40, height: 40, borderRadius: 10, background: "rgba(245,158,11,0.1)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                        <Crown size={18} style={{ color: "#f59e0b" }} />
+                    <div style={{
+                      borderRadius: 18,
+                      background: "linear-gradient(135deg, rgba(245,158,11,0.08), rgba(245,158,11,0.03))",
+                      border: "1.5px solid rgba(245,158,11,0.3)",
+                      padding: "20px 20px 18px", marginBottom: 20,
+                    }}>
+                      <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 14 }}>
+                        <div style={{
+                          width: 44, height: 44, borderRadius: 12,
+                          background: "rgba(245,158,11,0.12)",
+                          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                        }}>
+                          <Crown size={20} style={{ color: "#f59e0b" }} />
+                        </div>
+                        <div>
+                          <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                            <span style={{ fontSize: 28, fontWeight: 800, color: "#fff" }}>£19.99</span>
+                            <span style={{ fontSize: 13, color: "rgba(255,255,255,0.4)" }}>/month</span>
+                          </div>
+                          <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginTop: 1 }}>Sirius Pro · billed monthly</p>
+                        </div>
                       </div>
-                      <div style={{ flex: 1, textAlign: "left" }}>
-                        <p style={{ fontSize: 14, fontWeight: 700, color: "#f59e0b" }}>Go Pro — £14.99/month</p>
-                        <p style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", marginTop: 2 }}>Unlimited everything · Deep memory · Priority speed</p>
-                      </div>
-                      <span style={{ fontSize: 18, color: "rgba(245,158,11,0.5)" }}>→</span>
-                    </button>
+                      <ul style={{ listStyle: "none", padding: 0, margin: "0 0 18px" }}>
+                        {["Unlimited messages", "Deep memory & full context", "Priority response speed", "Star Lab access", "Everything in Plus"].map(f => (
+                          <li key={f} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                            <div style={{ width: 18, height: 18, borderRadius: "50%", background: "rgba(245,158,11,0.12)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                              <Check size={10} style={{ color: "#f59e0b" }} strokeWidth={3} />
+                            </div>
+                            <span style={{ fontSize: 13, color: "rgba(255,255,255,0.8)" }}>{f}</span>
+                          </li>
+                        ))}
+                      </ul>
+                      <button
+                        onClick={() => handleCheckout("pro")}
+                        disabled={loading !== null}
+                        style={{
+                          width: "100%", padding: "15px", borderRadius: 12, border: "none",
+                          background: loading === "pro" ? "rgba(245,158,11,0.2)" : "#f59e0b",
+                          color: loading === "pro" ? "#f59e0b" : "#080c1a",
+                          fontSize: 15, fontWeight: 700,
+                          cursor: loading !== null ? "not-allowed" : "pointer",
+                          display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                        }}
+                      >
+                        {loading === "pro"
+                          ? <><Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> Opening checkout…</>
+                          : <><CreditCard size={15} /> Get Pro — £19.99/month</>
+                        }
+                      </button>
+                    </div>
+
+                    {error && (
+                      <p style={{ fontSize: 13, color: "#f87171", textAlign: "center", marginBottom: 12 }}>{error}</p>
+                    )}
 
                     <div style={{ textAlign: "center" }}>
-                      <p style={{ fontSize: 11, color: "rgba(255,255,255,0.25)" }}>Bank transfer · Cancel any time by emailing us</p>
-                    </div>
-                  </>
-                )}
-
-                {/* ── ACTIVE PLAN ── */}
-                {step === "plans" && isPremium && (
-                  <>
-                    <div style={{ textAlign: "center", marginBottom: 24 }}>
-                      <h2 style={{ fontSize: 22, fontWeight: 800, color: "#fff", marginBottom: 6 }}>Your Sirius plan</h2>
-                      <p style={{ fontSize: 14, color: "rgba(255,255,255,0.45)" }}>You're already a partner. Thank you.</p>
-                    </div>
-                    <div style={{
-                      borderRadius: 14, background: "rgba(0,212,255,0.04)",
-                      border: "1.5px solid rgba(0,212,255,0.2)",
-                      padding: "16px 20px", marginBottom: 20,
-                      display: "flex", alignItems: "center", gap: 14,
-                    }}>
-                      <div style={{ width: 40, height: 40, borderRadius: 10, background: currentTier === "pro" ? "rgba(245,158,11,0.1)" : "rgba(0,212,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        {currentTier === "pro" ? <Crown size={18} style={{ color: "#f59e0b" }} /> : <Zap size={18} style={{ color: "#00d4ff" }} fill="#00d4ff" />}
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <p style={{ fontSize: 14, fontWeight: 700, color: currentTier === "pro" ? "#f59e0b" : "#00d4ff" }}>
-                          Sirius {currentTier === "pro" ? "Pro" : "Plus"} — Active
-                        </p>
-                        <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>
-                          {currentTier === "pro" ? "Unlimited everything" : "200 messages/day"} · {currentTier === "pro" ? "£14.99" : "£9.99"}/month
-                        </p>
-                      </div>
-                      <Check size={18} style={{ color: currentTier === "pro" ? "#f59e0b" : "#00d4ff" }} />
-                    </div>
-                    <p style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", textAlign: "center" }}>
-                      To cancel, stop your monthly bank transfer and contact us.
-                    </p>
-                  </>
-                )}
-
-                {/* ── PAYMENT DETAILS VIEW ── */}
-                {step === "pay" && !done && (
-                  <>
-                    <button
-                      onClick={() => setStep("plans")}
-                      style={{ background: "none", border: "none", color: "rgba(255,255,255,0.4)", cursor: "pointer", fontSize: 13, marginBottom: 16, display: "flex", alignItems: "center", gap: 6 }}
-                    >
-                      ← Back
-                    </button>
-
-                    <div style={{ textAlign: "center", marginBottom: 20 }}>
-                      <h2 style={{ fontSize: 20, fontWeight: 800, color: "#fff", marginBottom: 4 }}>
-                        {price.label} · {price.monthly}
-                      </h2>
-                      <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)" }}>
-                        Choose how you'd like to pay
+                      <p style={{ fontSize: 11, color: "rgba(255,255,255,0.25)" }}>
+                        Powered by Stripe · Secure · Cancel any time
                       </p>
                     </div>
-
-                    {/* Bank transfer */}
-                    {payMethod === "bank" && (
-                      <>
-                        <div style={{
-                          borderRadius: 16, background: "rgba(0,212,255,0.06)",
-                          border: "1px solid rgba(0,212,255,0.2)", padding: "18px 20px", marginBottom: 16,
-                        }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
-                            <Building2 size={16} style={{ color: "#00d4ff" }} />
-                            <span style={{ fontSize: 13, fontWeight: 700, color: "#00d4ff" }}>Bank Transfer Details</span>
-                          </div>
-
-                          {[
-                            { label: "Pay to", value: BANK.name, key: "name" },
-                            { label: "Bank", value: BANK.bank, key: "bank" },
-                            { label: "Account number", value: BANK.account, key: "account" },
-                            { label: "Sort code", value: BANK.sortCode, key: "sort" },
-                            { label: "Amount", value: price.amount, key: "amount" },
-                            { label: "Reference", value: `SIRIUS-${userId.substring(0, 8).toUpperCase()}-${selectedTier.toUpperCase()}`, key: "ref" },
-                          ].map(({ label, value, key }) => (
-                            <div key={key} style={{
-                              display: "flex", alignItems: "center", justifyContent: "space-between",
-                              padding: "8px 0",
-                              borderBottom: "1px solid rgba(255,255,255,0.05)",
-                            }}>
-                              <span style={{ fontSize: 12, color: "rgba(255,255,255,0.35)" }}>{label}</span>
-                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                <span style={{ fontSize: 13, fontWeight: 600, color: "#fff" }}>{value}</span>
-                                <button
-                                  onClick={() => copy(value, key)}
-                                  style={{ background: "none", border: "none", cursor: "pointer", color: copied === key ? "#00d4ff" : "rgba(255,255,255,0.3)", padding: 2 }}
-                                >
-                                  {copied === key ? <CheckCheck size={13} /> : <Copy size={13} />}
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-
-                        <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginBottom: 16, lineHeight: 1.6 }}>
-                          Make the transfer in your banking app, then tap the button below. Your account will be upgraded within a few hours once we confirm receipt.
-                        </p>
-
-                        <div style={{ marginBottom: 16 }}>
-                          <input
-                            placeholder="Your name (optional)"
-                            value={name}
-                            onChange={e => setName(e.target.value)}
-                            style={{
-                              width: "100%", padding: "12px 14px", borderRadius: 10,
-                              background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)",
-                              color: "#fff", fontSize: 14, marginBottom: 8, boxSizing: "border-box",
-                              outline: "none",
-                            }}
-                          />
-                          <input
-                            placeholder="Email for confirmation (optional)"
-                            value={email}
-                            onChange={e => setEmail(e.target.value)}
-                            style={{
-                              width: "100%", padding: "12px 14px", borderRadius: 10,
-                              background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)",
-                              color: "#fff", fontSize: 14, boxSizing: "border-box",
-                              outline: "none",
-                            }}
-                          />
-                        </div>
-
-                        <button
-                          onClick={handleConfirm}
-                          disabled={loading}
-                          style={{
-                            width: "100%", padding: "15px", borderRadius: 12, border: "none",
-                            background: loading ? "rgba(0,212,255,0.2)" : "#00d4ff",
-                            color: loading ? "#00d4ff" : "#080c1a",
-                            fontSize: 15, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer",
-                            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                          }}
-                        >
-                          {loading
-                            ? <><Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> Sending…</>
-                            : "I've made the transfer"}
-                        </button>
-                      </>
-                    )}
                   </>
-                )}
-
-                {/* ── DONE VIEW ── */}
-                {step === "pay" && done && (
-                  <div style={{ textAlign: "center", padding: "20px 0" }}>
-                    <div style={{ fontSize: 48, marginBottom: 16 }}>🎉</div>
-                    <h2 style={{ fontSize: 20, fontWeight: 800, color: "#fff", marginBottom: 8 }}>
-                      You're now on {price.label}!
-                    </h2>
-                    <p style={{ fontSize: 14, color: "rgba(255,255,255,0.5)", lineHeight: 1.6, marginBottom: 20 }}>
-                      Your account has been upgraded. Just make the bank transfer and you're all set — no further steps needed.
-                    </p>
-                    {reference && (
-                      <div style={{
-                        borderRadius: 10, background: "rgba(0,212,255,0.08)",
-                        border: "1px solid rgba(0,212,255,0.2)",
-                        padding: "10px 16px", marginBottom: 20, display: "inline-block",
-                      }}>
-                        <p style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", marginBottom: 2 }}>Use this as your payment reference</p>
-                        <p style={{ fontSize: 14, fontWeight: 700, color: "#00d4ff" }}>{reference}</p>
-                      </div>
-                    )}
-                    <button
-                      onClick={handleClose}
-                      style={{
-                        padding: "12px 32px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.1)",
-                        background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.6)",
-                        fontSize: 14, cursor: "pointer",
-                      }}
-                    >
-                      Start using Sirius
-                    </button>
-                  </div>
                 )}
 
               </div>

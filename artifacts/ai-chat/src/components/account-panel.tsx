@@ -141,7 +141,7 @@ export function AccountPanel({ isOpen, onClose }: AccountPanelProps) {
                 )}
                 {isPremium && (
                   <p className="text-xs text-muted-foreground">
-                    To cancel, stop your monthly bank transfer and email{" "}
+                    To cancel, use the Stripe billing portal or email{" "}
                     <a href="mailto:siriusailab@gmail.com" className="text-primary underline">
                       siriusailab@gmail.com
                     </a>
