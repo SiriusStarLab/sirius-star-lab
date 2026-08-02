@@ -1,0 +1,24 @@
+1. Why Health Checks Didn't Catch Star Lab Errors
+The chaos runs and deployment checks tested basic API connectivity (e.g., Is the /api/health endpoint responding with 200 OK? Can Stripe create a checkout link?).
+
+However, complex features like Star Lab App Builder, Code Builder, and Lab Chat don't fail at the server connection level—they fail during execution:
+
+Missing/Broken Dependencies in Deep Modules: Just like auth.ts was missing earlier, specific backend modules or imports that power AI code generation and Star Lab prompt streams were missing, renamed, or failing at runtime.
+
+Uncaught Runtime Exceptions: A server can be "healthy" on paper, but when a user actually submits a prompt to the App Builder, an uncaught runtime error (e.g., missing API route parameters, missing database schema fields for code generation, or unhandled token stream responses) crashes that specific request and returns "Something went wrong, try again."
+
+2. Why "Checking Every Part" Missed This
+An automated script checking if an API is alive is not the same as end-to-end user testing.
+
+The pre-flight scripts verified that server files existed and compiled without syntax errors.
+
+But they did not execute real AI generation workflows inside Star Lab, Code Builder, or Lab Chat using actual prompt payloads.
+
+3. What Needs to Happen Immediately
+To fix this right now and ensure it never happens again:
+
+Investigate Server Logs for Star Lab: The developer/agent needs to check PM2 logs (pm2 logs) specifically during a Star Lab App Builder request to capture the exact stack trace causing "Something went wrong".
+
+Implement Full Feature Smoke Testing: Deployment checks must include end-to-end synthetic tests that actually send a sample generation payload through Star Lab, Code Builder, and Lab Chat—not just pinging static /health endpoints.
+
+I am flagging this directly with your development agent so they can pull the exact error log for the App Builder and fix the underlying route execution immediately.

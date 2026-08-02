@@ -1,4 +1,3 @@
-import { useState, useEffect } from "react";
 import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -9,21 +8,18 @@ import { PrivacyPage } from "@/pages/privacy";
 import { CheckoutSuccessPage } from "@/pages/checkout-success";
 import { CheckoutCancelPage } from "@/pages/checkout-cancel";
 import { StarLabPage } from "@/pages/star-lab";
-import { CreatorLabPage } from "@/pages/creator-lab";
 import { MarketingPage } from "@/pages/marketing";
-import { PricingPage } from "@/pages/pricing";
 import { DreamLabPage } from "@/pages/dream-lab";
 import { WellbeingPage } from "@/pages/wellbeing";
 import { UniversePage } from "@/pages/universe";
 import { DiscoverPage } from "@/pages/discover";
 import { LearnPage } from "@/pages/learn";
 import { ComparePage } from "@/pages/compare";
-import { MemoriesPage } from "@/pages/memories";
-import { AuthGate } from "@/components/auth-gate";
+import { CreatorLabPage } from "@/pages/creator-lab";
 import NotFound from "@/pages/not-found";
 import { PWAInstallPrompt } from "@/components/pwa-install-prompt";
+import { ReconnectionBanner } from "@/components/reconnection-banner";
 import { LabAuthGate } from "@/components/lab-auth-gate";
-import { SWUpdateBanner } from "@/components/sw-update-banner";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -34,8 +30,6 @@ const queryClient = new QueryClient({
     }
   }
 });
-
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 function Router() {
   return (
@@ -53,9 +47,8 @@ function Router() {
       <Route path="/learn" component={LearnPage} />
       <Route path="/why-sirius" component={MarketingPage} />
       <Route path="/agency" component={MarketingPage} />
-      <Route path="/pricing" component={PricingPage} />
+      <Route path="/pricing" component={MarketingPage} />
       <Route path="/compare" component={ComparePage} />
-      <Route path="/memories" component={MemoriesPage} />
       <Route path="/discover" component={DiscoverPage} />
       {/*
         ChatPage is the catch-all — it handles "/" and "/c/:id" internally
@@ -68,82 +61,16 @@ function Router() {
   );
 }
 
-function isLocallyAuthenticated(): boolean {
-  const userId = localStorage.getItem("sirius_user_id");
-  return !!userId && (userId.startsWith("acct_") || userId === "garry");
-}
-
-const PUBLIC_PATHS = ["/pricing", "/checkout-success", "/checkout/success", "/checkout-cancel", "/checkout/cancel", "/terms", "/privacy"];
-
-function isPublicRoute(): boolean {
-  const base = import.meta.env.BASE_URL.replace(/\/$/, "");
-  const path = window.location.pathname.replace(base, "") || "/";
-  return PUBLIC_PATHS.some(p => path === p || path.startsWith(p + "?") || path.startsWith(p + "/"));
-}
-
 function App() {
-  const isPublic = isPublicRoute();
-
-  // Start authenticated if localStorage has a valid userId (fast path, same device)
-  const [authed, setAuthed] = useState(() => isLocallyAuthenticated());
-  // Public pages skip the session-check spinner entirely
-  const [sessionChecked, setSessionChecked] = useState(() => isLocallyAuthenticated() || isPublic);
-
-  useEffect(() => {
-    // Already authed or on a public page — no need to hit the server
-    if (authed || isPublic) return;
-
-    // Try to restore from server-side session cookie (cross-device / cleared localStorage)
-    fetch(`${BASE}/api/auth/me`, { credentials: "include" })
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (data?.userId) {
-          localStorage.setItem("sirius_user_id", data.userId);
-          if (data.email) localStorage.setItem("sirius_account_email", data.email);
-          setAuthed(true);
-        }
-      })
-      .catch(() => { /* network error — show auth gate */ })
-      .finally(() => setSessionChecked(true));
-  }, []);
-
-  // Brief loading state while we check the session cookie (never shown on public pages)
-  if (!sessionChecked) {
-    return (
-      <div style={{
-        minHeight: "100vh",
-        background: "linear-gradient(160deg, #0D1E3A 0%, #0F2040 40%, #0A1830 100%)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-      }}>
-        <div style={{ width: 32, height: 32, borderRadius: "50%", border: "2px solid rgba(0,196,255,0.3)", borderTopColor: "#00C4FF", animation: "spin 0.8s linear infinite" }} />
-        <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
-      </div>
-    );
-  }
-
-  if (!authed && !isPublic) {
-    return <AuthGate onAuth={() => setAuthed(true)} />;
-  }
-
-  if (!authed && isPublic) {
-    return (
-      <QueryClientProvider client={queryClient}>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <Router />
-        </WouterRouter>
-      </QueryClientProvider>
-    );
-  }
-
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider delayDuration={300}>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
           <Router />
         </WouterRouter>
+        <ReconnectionBanner />
         <Toaster />
         <PWAInstallPrompt />
-        <SWUpdateBanner />
       </TooltipProvider>
     </QueryClientProvider>
   );
