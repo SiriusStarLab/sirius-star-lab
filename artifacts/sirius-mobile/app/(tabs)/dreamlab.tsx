@@ -19,6 +19,7 @@ import {
 import Markdown from "react-native-markdown-display";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
+import * as WebBrowser from "expo-web-browser";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { ChatInput } from "@/components/ChatInput";
@@ -390,14 +391,23 @@ export default function DreamLabScreen() {
             Build and track your dreams with Sirius. Upgrade to Plus to unlock Dream Lab.
           </Text>
           <Pressable
-            onPress={() => router.push("/(tabs)/pricing" as any)}
+            onPress={() => WebBrowser.openBrowserAsync("https://sirius-ai.live/pricing?plan=plus")}
             style={({ pressed }) => [{
               backgroundColor: Colors.primary, borderRadius: 14, paddingVertical: 15,
-              paddingHorizontal: 32, opacity: pressed ? 0.85 : 1,
+              width: "100%" as any, alignItems: "center" as any,
+              opacity: pressed ? 0.85 : 1,
             }]}
           >
             <Text style={{ color: Colors.background, fontSize: 15, fontFamily: "Inter_700Bold" }}>
-              Upgrade to Plus
+              Subscribe to Plus — £9.99/mo
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => subscription.restore()}
+            style={{ marginTop: 16 }}
+          >
+            <Text style={{ color: Colors.textMuted, fontSize: 13, textAlign: "center" }}>
+              Already subscribed? Restore purchases
             </Text>
           </Pressable>
         </View>

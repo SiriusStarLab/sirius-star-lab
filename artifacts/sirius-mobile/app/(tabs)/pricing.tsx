@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { Linking } from "react-native";
+import * as WebBrowser from "expo-web-browser";
 import React from "react";
 import {
   ActivityIndicator,
@@ -76,10 +76,10 @@ export default function PricingScreen() {
         }
       } else {
         // IAP not available (pending Apple approval) — fall back to web checkout
-        Linking.openURL("https://sirius-ai.live/pricing");
+        WebBrowser.openBrowserAsync("https://sirius-ai.live/pricing");
       }
     } else {
-      Linking.openURL("https://sirius-ai.live/pricing");
+      WebBrowser.openBrowserAsync("https://sirius-ai.live/pricing");
     }
   };
 

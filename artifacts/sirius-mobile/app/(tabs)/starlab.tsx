@@ -8,6 +8,7 @@ import * as FileSystem from "expo-file-system";
 import { Audio } from "expo-av";
 import * as ImagePicker from "expo-image-picker";
 import * as Speech from "expo-speech";
+import * as WebBrowser from "expo-web-browser";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -1072,42 +1073,6 @@ export default function StarLabScreen() {
     );
   }
 
-  // ── Pro gate — non-Pro users see upgrade screen before login ─────────────
-  if (view === "login" && !subscription.isLoading && !subscription.isPro) {
-    return (
-      <View style={{ flex: 1, backgroundColor: Colors.background }}>
-        <View style={{ paddingTop: topPad + 8, paddingHorizontal: 16 }}>
-          <Pressable onPress={() => router.push("/(tabs)" as any)} style={s.backBtn}>
-            <Feather name="chevron-left" size={20} color={Colors.primary} />
-          </Pressable>
-        </View>
-        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32 }}>
-          <View style={[s.labIcon, { marginBottom: 20 }]}>
-            <Feather name="award" size={30} color="#f59e0b" />
-          </View>
-          <Text style={{ fontSize: 22, fontFamily: "Inter_700Bold", color: Colors.text, marginBottom: 8, textAlign: "center" }}>
-            Star Lab is a Pro feature
-          </Text>
-          <Text style={{ fontSize: 15, color: Colors.textMuted, textAlign: "center", lineHeight: 22, marginBottom: 32 }}>
-            App Builder, Code Builder, R&D intelligence and your private workspace. Upgrade to Pro to unlock Star Lab.
-          </Text>
-          <Pressable
-            onPress={() => router.push("/(tabs)/pricing" as any)}
-            style={({ pressed }) => [s.primaryBtn, { width: "100%" }, pressed && { opacity: 0.85 }]}
-          >
-            <Text style={s.primaryBtnText}>Upgrade to Pro</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => setView("login" as any)}
-            style={s.linkBtn}
-          >
-            <Text style={[s.linkText, { color: Colors.textMuted }]}>Already subscribed? Sign in</Text>
-          </Pressable>
-        </View>
-      </View>
-    );
-  }
-
   // ── Login ─────────────────────────────────────────────────────────────────
   if (view === "login") {
     return (
@@ -1434,12 +1399,12 @@ export default function StarLabScreen() {
           {/* Web checkout fallback (non-iOS or no IAP package) */}
           {(!isIOS || !hasAppleIAP) && (
             <Pressable
-              onPress={() => Linking.openURL("https://sirius-ai.live/pricing")}
+              onPress={() => WebBrowser.openBrowserAsync("https://sirius-ai.live/pricing?plan=pro")}
               disabled={payLoading}
               style={({ pressed }) => [s.primaryBtn, pressed && { opacity: 0.85 }, payLoading && { opacity: 0.7 }]}
             >
               <Feather name="credit-card" size={16} color="#fff" />
-              <Text style={s.primaryBtnText}>Subscribe via sirius-ai.live</Text>
+              <Text style={s.primaryBtnText}>Subscribe — £19.99/mo</Text>
             </Pressable>
           )}
 
