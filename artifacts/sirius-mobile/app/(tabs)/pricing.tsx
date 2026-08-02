@@ -1,27 +1,21 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import { Linking } from "react-native";
+import React from "react";
 import {
   ActivityIndicator,
-  Alert,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
-import { getApiBase, USER_ID_KEY } from "@/lib/api";
 import { useSubscription } from "@/lib/revenuecat";
-
-const BANK = { name: "GCTH Supplies Ltd", account: "26359434", sortCode: "04-03-33", bank: "Mettle" };
 
 const PLANS = [
   {
@@ -32,9 +26,10 @@ const PLANS = [
     icon: "zap" as const,
     tagline: "For daily users who want more",
     features: [
-      "75 messages per day",
+      "200 messages per day",
       "Dream Lab — build & track your dreams",
-      "Sirius remembers you across sessions",
+      "Learn — study plans, quizzes, deep learning",
+      "Sirius remembers you between sessions",
       "Full memory & personalisation",
       "Priority response speed",
     ],
@@ -48,7 +43,7 @@ const PLANS = [
     tagline: "For power users — no limits",
     featured: true,
     features: [
-      "500 messages per day",
+      "Unlimited messages per day",
       "Everything in Plus",
       "Voice conversations",
       "Star Lab — App Builder, Code Builder & R&D intelligence",
@@ -60,65 +55,30 @@ const PLANS = [
 
 export default function PricingScreen() {
   const insets = useSafeAreaInsets();
-  const { userId, profile } = useApp();
+  const { profile } = useApp();
   const subscription = useSubscription();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
   const isIOS = Platform.OS === "ios";
 
-  const [showPayment, setShowPayment] = useState(false);
-  const [payTier, setPayTier] = useState<"plus" | "pro">("plus");
-  const [payStep, setPayStep] = useState<"details" | "done">("details");
-  const [payLoading, setPayLoading] = useState(false);
-  const [payRef, setPayRef] = useState("");
-  const [payName, setPayName] = useState("");
-  const [payEmail, setPayEmail] = useState("");
-
   const currentTier = profile.subscriptionTier;
   const isActive = (tier: string) => currentTier === tier;
 
-  const openPayment = (tier: "plus" | "pro") => {
-    setPayTier(tier);
-    setPayStep("details");
-    setPayRef("");
-    setPayName("");
-    setPayEmail("");
-    setShowPayment(true);
-  };
-
-  const handleIAPPurchase = async (pkg: any) => {
-    if (!pkg) return;
-    try {
-      await subscription.purchase(pkg);
-    } catch (err: any) {
-      if (!err?.userCancelled) {
-        // Fall through to bank transfer
-        openPayment(payTier);
+  const handleUpgrade = async (planId: "plus" | "pro") => {
+    if (isIOS) {
+      // iOS: use RevenueCat IAP only
+      const pkg = planId === "plus" ? subscription.plusPackage : subscription.proPackage;
+      if (!pkg) return;
+      try {
+        await subscription.purchase(pkg);
+      } catch (err: any) {
+        // User cancelled — do nothing. No bank transfer fallback.
       }
+    } else {
+      // Android/web: direct to the web app pricing page
+      Linking.openURL("https://sirius-ai.live/pricing");
     }
   };
-
-  const handleConfirm = async () => {
-    setPayLoading(true);
-    try {
-      const base = getApiBase();
-      const uid = userId || (await AsyncStorage.getItem(USER_ID_KEY)) || "";
-      const res = await fetch(`${base}payment/request`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: uid, tier: payTier, name: payName, email: payEmail }),
-      });
-      const data = await res.json();
-      setPayRef(data.reference ?? "");
-      setPayStep("done");
-    } catch {
-      setPayStep("done");
-    } finally {
-      setPayLoading(false);
-    }
-  };
-
-  const prices = { plus: "£9.99", pro: "£19.99" };
 
   return (
     <View style={{ flex: 1, backgroundColor: Colors.background }}>
@@ -149,7 +109,7 @@ export default function PricingScreen() {
               <Text style={p.planPer}>/month</Text>
             </View>
           </View>
-          <Text style={p.freeFeature}>30 messages per day · Chat, Learn, Dream Lab · Always free</Text>
+          <Text style={p.freeFeature}>30 messages per day · Chat, wellbeing & universe · Always free</Text>
           {currentTier === "free" && (
             <View style={p.currentBadge}><Text style={p.currentBadgeText}>Current plan</Text></View>
           )}
@@ -158,6 +118,8 @@ export default function PricingScreen() {
         {/* Plus & Pro */}
         {PLANS.map(plan => {
           const active = isActive(plan.id);
+          const pkg = plan.id === "plus" ? subscription.plusPackage : subscription.proPackage;
+
           return (
             <View key={plan.id} style={[p.planCard, plan.featured && p.featuredCard, { borderColor: plan.color + "30" }]}>
               {plan.featured && (
@@ -197,25 +159,25 @@ export default function PricingScreen() {
                 <View style={[p.ctaBtn, { backgroundColor: plan.color }]}>
                   <ActivityIndicator color={Colors.background} size="small" />
                 </View>
-              ) : isIOS && (plan.id === "plus" ? subscription.plusPackage : subscription.proPackage) ? (
-                <Pressable
-                  onPress={() => handleIAPPurchase(plan.id === "plus" ? subscription.plusPackage : subscription.proPackage)}
-                  disabled={subscription.isPurchasing}
-                  style={({ pressed }) => [p.ctaBtn, { backgroundColor: plan.color }, pressed && { opacity: 0.85 }]}
-                >
-                  {subscription.isPurchasing
-                    ? <ActivityIndicator color={Colors.background} size="small" />
-                    : <Text style={p.ctaText}>
-                        Get {plan.name} — {plan.id === "plus" ? subscription.plusPackage?.product.priceString : subscription.proPackage?.product.priceString}/mo
-                      </Text>
-                  }
-                </Pressable>
+              ) : isIOS && !pkg ? (
+                // Packages not yet loaded or unavailable — disabled state
+                <View style={[p.ctaBtn, { backgroundColor: plan.color + "40" }]}>
+                  <Text style={p.ctaText}>Loading…</Text>
+                </View>
               ) : (
                 <Pressable
-                  onPress={() => openPayment(plan.id)}
+                  onPress={() => handleUpgrade(plan.id)}
+                  disabled={isIOS && subscription.isPurchasing}
                   style={({ pressed }) => [p.ctaBtn, { backgroundColor: plan.color }, pressed && { opacity: 0.85 }]}
                 >
-                  <Text style={p.ctaText}>Get {plan.name} — {plan.price}/mo</Text>
+                  {isIOS && subscription.isPurchasing
+                    ? <ActivityIndicator color={Colors.background} size="small" />
+                    : <Text style={p.ctaText}>
+                        {isIOS && pkg
+                          ? `Get ${plan.name} — ${pkg.product.priceString}/mo`
+                          : `Get ${plan.name} — ${plan.price}/mo`}
+                      </Text>
+                  }
                 </Pressable>
               )}
             </View>
@@ -228,105 +190,12 @@ export default function PricingScreen() {
           </Pressable>
         )}
 
-        <Text style={p.footerNote}>Pay securely by bank transfer · No card details stored · Cancel any time by stopping your transfer</Text>
+        {!isIOS && (
+          <Text style={p.footerNote}>
+            Tap a plan to subscribe securely via sirius-ai.live
+          </Text>
+        )}
       </ScrollView>
-
-      {/* Bank transfer payment modal */}
-      <Modal visible={showPayment} transparent animationType="slide" onRequestClose={() => setShowPayment(false)}>
-        <View style={p.modalOverlay}>
-          <View style={[p.modalSheet, { paddingBottom: bottomPad + 16 }]}>
-            <View style={p.modalHandle} />
-            <Pressable onPress={() => setShowPayment(false)} style={p.modalClose} hitSlop={12}>
-              <Feather name="x" size={18} color={Colors.textDim} />
-            </Pressable>
-
-            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-              {payStep === "details" ? (
-                <>
-                  <Text style={p.modalTitle}>Pay by bank transfer</Text>
-                  <Text style={p.modalSub}>{payTier === "plus" ? "Sirius Plus · £9.99/month" : "Sirius Pro · £19.99/month"}</Text>
-
-                  <View style={p.bankBox}>
-                    {[
-                      ["Pay to", BANK.name],
-                      ["Bank", BANK.bank],
-                      ["Account number", BANK.account],
-                      ["Sort code", BANK.sortCode],
-                      ["Amount", prices[payTier]],
-                      ["Reference", `SIRIUS-${(userId ?? "GUEST").substring(0, 8).toUpperCase()}-${payTier.toUpperCase()}`],
-                    ].map(([label, value]) => (
-                      <View key={label} style={p.bankRow}>
-                        <Text style={p.bankLabel}>{label}</Text>
-                        <Text style={p.bankValue}>{value}</Text>
-                      </View>
-                    ))}
-                  </View>
-
-                  <Text style={p.bankNote}>Make the transfer in your banking app using the details above, then tap the button below. We'll upgrade your account within a few hours.</Text>
-
-                  <TextInput
-                    placeholder="Your name (optional)"
-                    placeholderTextColor={Colors.textDim}
-                    value={payName}
-                    onChangeText={setPayName}
-                    style={p.modalInput}
-                  />
-                  <TextInput
-                    placeholder="Email for confirmation (optional)"
-                    placeholderTextColor={Colors.textDim}
-                    value={payEmail}
-                    onChangeText={setPayEmail}
-                    keyboardType="email-address"
-                    style={[p.modalInput, { marginBottom: 20 }]}
-                  />
-
-                  <Pressable
-                    onPress={() => {
-                      Alert.alert(
-                        "Confirm bank transfer",
-                        `Have you already sent £${payTier === "plus" ? "9.99" : "19.99"} to the account above using the exact reference shown?\n\nOnly tap Confirm if the transfer has been made. We will check and upgrade your account within a few hours.`,
-                        [
-                          { text: "Not yet", style: "cancel" },
-                          { text: "Yes, I've sent it", onPress: handleConfirm },
-                        ]
-                      );
-                    }}
-                    disabled={payLoading}
-                    style={({ pressed }) => [p.confirmBtn, pressed && { opacity: 0.85 }, payLoading && { opacity: 0.6 }]}
-                  >
-                    {payLoading ? <ActivityIndicator color={Colors.background} /> : <Text style={p.confirmBtnText}>I've made the transfer</Text>}
-                  </Pressable>
-                </>
-              ) : (
-                <View style={{ alignItems: "center", paddingVertical: 20 }}>
-                  <Text style={{ fontSize: 48, marginBottom: 16 }}>🎉</Text>
-                  <Text style={p.modalTitle}>Transfer received!</Text>
-                  <Text style={[p.modalSub, { textAlign: "center", lineHeight: 20 }]}>
-                    Your account will be upgraded within a few hours once we confirm receipt.
-                  </Text>
-                  {payRef ? (
-                    <View style={p.refBox}>
-                      <Text style={p.refLabel}>Your reference</Text>
-                      <Text style={p.refValue}>{payRef}</Text>
-                    </View>
-                  ) : null}
-                  {payTier === "pro" && (
-                    <Pressable
-                      onPress={() => { setShowPayment(false); setTimeout(() => router.push("/(tabs)/starlab" as any), 300); }}
-                      style={[p.confirmBtn, { marginTop: 20, backgroundColor: "#6366f1" }]}
-                    >
-                      <Text style={p.confirmBtnText}>Set up your Star Lab →</Text>
-                    </Pressable>
-                  )}
-                  <Pressable onPress={() => setShowPayment(false)} style={{ alignItems: "center", padding: 14 }}>
-                    <Text style={{ color: Colors.textDim, fontSize: 14, fontFamily: "Inter_400Regular" }}>Done</Text>
-                  </Pressable>
-                </View>
-              )}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -386,67 +255,4 @@ const p = StyleSheet.create({
   restoreBtn: { alignItems: "center", marginBottom: 16 },
   restoreBtnText: { fontSize: 13, color: Colors.textDim, fontFamily: "Inter_400Regular" },
   footerNote: { fontSize: 11, fontFamily: "Inter_400Regular", color: Colors.textMuted, textAlign: "center", lineHeight: 17 },
-
-  // Modal
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-  modalSheet: {
-    backgroundColor: Colors.surface,
-    borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    borderTopWidth: 1, borderTopColor: Colors.border,
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    maxHeight: "90%",
-  },
-  modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: Colors.borderLight, alignSelf: "center", marginBottom: 16 },
-  modalClose: { position: "absolute", top: 16, right: 20 },
-  modalTitle: { fontSize: 20, fontFamily: "Inter_700Bold", color: Colors.text, marginBottom: 4 },
-  modalSub: { fontSize: 13, fontFamily: "Inter_400Regular", color: Colors.textDim, marginBottom: 20 },
-
-  bankBox: {
-    backgroundColor: Colors.primary + "08",
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: Colors.primary + "20",
-    padding: 14,
-    marginBottom: 14,
-  },
-  bankRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingVertical: 7,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  bankLabel: { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.textDim },
-  bankValue: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: Colors.text },
-  bankNote: { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.textDim, lineHeight: 18, marginBottom: 14 },
-
-  modalInput: {
-    backgroundColor: Colors.background,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    paddingHorizontal: 12,
-    paddingVertical: 11,
-    color: Colors.text,
-    fontSize: 14,
-    fontFamily: "Inter_400Regular",
-    marginBottom: 8,
-  },
-  confirmBtn: {
-    backgroundColor: Colors.primary,
-    borderRadius: 12,
-    paddingVertical: 15,
-    alignItems: "center",
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 4,
-  },
-  confirmBtnText: { color: Colors.background, fontSize: 15, fontFamily: "Inter_700Bold" },
-
-  refBox: { backgroundColor: Colors.primary + "10", borderRadius: 10, borderWidth: 1, borderColor: Colors.primary + "25", padding: 14, marginTop: 12, alignItems: "center" },
-  refLabel: { fontSize: 11, fontFamily: "Inter_400Regular", color: Colors.textDim, marginBottom: 4 },
-  refValue: { fontSize: 15, fontFamily: "Inter_700Bold", color: Colors.primary },
 });

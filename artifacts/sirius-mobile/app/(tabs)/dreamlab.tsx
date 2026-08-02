@@ -26,6 +26,7 @@ import { TypingIndicator } from "@/components/TypingIndicator";
 import Colors from "@/constants/colors";
 import { createConversation, generateId, getApiBase, getUserId } from "@/lib/api";
 import { useApp } from "@/context/AppContext";
+import { useSubscription } from "@/lib/revenuecat";
 import { resilientFetch, startNetworkMonitoring, onQueueResolved } from "@/lib/resilient-fetch";
 import { ConnectionBanner } from "@/components/ConnectionBanner";
 
@@ -349,11 +350,60 @@ function DreamChat({ dream, onBack }: { dream: Dream; onBack: () => void }) {
 
 export default function DreamLabScreen() {
   const insets = useSafeAreaInsets();
-  const { userId: ctxUserId } = useApp();
+  const { userId: ctxUserId, profile } = useApp();
+  const subscription = useSubscription();
   const [dreams, setDreams] = useState<Dream[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [activeDream, setActiveDream] = useState<Dream | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // ── Subscription gate ─────────────────────────────────────────────────────
+  const isSubscribed = Platform.OS === "ios"
+    ? (subscription.isPlus || subscription.isPro)
+    : profile.subscriptionTier !== "free";
+
+  if (Platform.OS === "ios" && subscription.isLoading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: Colors.background, alignItems: "center", justifyContent: "center" }}>
+        <ActivityIndicator color={Colors.primary} />
+      </View>
+    );
+  }
+
+  if (!isSubscribed) {
+    return (
+      <View style={{ flex: 1, backgroundColor: Colors.background }}>
+        <View style={{ paddingTop: insets.top + 8, paddingHorizontal: 16 }}>
+          <Pressable onPress={() => router.push("/(tabs)" as any)} style={d.backBtn}>
+            <Feather name="chevron-left" size={20} color={Colors.primary} />
+            <Text style={d.backBtnText}>Home</Text>
+          </Pressable>
+        </View>
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32 }}>
+          <View style={[d.heroIcon, { backgroundColor: "#6366f1", marginBottom: 20 }]}>
+            <Feather name="star" size={28} color="#fff" />
+          </View>
+          <Text style={{ fontSize: 22, fontFamily: "Inter_700Bold", color: Colors.text, marginBottom: 8, textAlign: "center" }}>
+            Dream Lab is a Plus feature
+          </Text>
+          <Text style={{ fontSize: 15, color: Colors.textMuted, textAlign: "center", lineHeight: 22, marginBottom: 32 }}>
+            Build and track your dreams with Sirius. Upgrade to Plus to unlock Dream Lab.
+          </Text>
+          <Pressable
+            onPress={() => router.push("/(tabs)/pricing" as any)}
+            style={({ pressed }) => [{
+              backgroundColor: Colors.primary, borderRadius: 14, paddingVertical: 15,
+              paddingHorizontal: 32, opacity: pressed ? 0.85 : 1,
+            }]}
+          >
+            <Text style={{ color: Colors.background, fontSize: 15, fontFamily: "Inter_700Bold" }}>
+              Upgrade to Plus
+            </Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
 
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY).then(raw => {
