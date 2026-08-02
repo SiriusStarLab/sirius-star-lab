@@ -66,16 +66,19 @@ export default function PricingScreen() {
 
   const handleUpgrade = async (planId: "plus" | "pro") => {
     if (isIOS) {
-      // iOS: use RevenueCat IAP only
       const pkg = planId === "plus" ? subscription.plusPackage : subscription.proPackage;
-      if (!pkg) return;
-      try {
-        await subscription.purchase(pkg);
-      } catch (err: any) {
-        // User cancelled — do nothing. No bank transfer fallback.
+      if (pkg) {
+        // IAP available — use Apple in-app purchase
+        try {
+          await subscription.purchase(pkg);
+        } catch (err: any) {
+          // User cancelled — do nothing
+        }
+      } else {
+        // IAP not available (pending Apple approval) — fall back to web checkout
+        Linking.openURL("https://sirius-ai.live/pricing");
       }
     } else {
-      // Android/web: direct to the web app pricing page
       Linking.openURL("https://sirius-ai.live/pricing");
     }
   };
@@ -158,11 +161,6 @@ export default function PricingScreen() {
               ) : isIOS && subscription.isLoading ? (
                 <View style={[p.ctaBtn, { backgroundColor: plan.color }]}>
                   <ActivityIndicator color={Colors.background} size="small" />
-                </View>
-              ) : isIOS && !pkg ? (
-                // Packages not yet loaded or unavailable — disabled state
-                <View style={[p.ctaBtn, { backgroundColor: plan.color + "40" }]}>
-                  <Text style={p.ctaText}>Loading…</Text>
                 </View>
               ) : (
                 <Pressable

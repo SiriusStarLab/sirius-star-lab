@@ -793,7 +793,6 @@ export default function ChatScreen() {
 
               {/* Nav items */}
               <DrawerItem icon="plus-circle" label="New Session" onPress={handleNewChat} color={Colors.primary} tint={Colors.primary + "15"} />
-              <DrawerItem icon="award" label="Learn" badge="NEW" badgeColor={Colors.primary} onPress={() => navigateTo("/(tabs)/learn")} />
               <DrawerItem icon="star" label="Dream Lab" badge="NEW" badgeColor="#a78bfa" dot onPress={() => navigateTo("/(tabs)/dreamlab")} />
               <DrawerItem icon="zap" label="Star Lab" badge="PRO" badgeColor="#6366f1" dot onPress={() => { closeDrawer(); router.push("/(tabs)/starlab" as any); }} />
 
