@@ -30,3 +30,4 @@
 - [PM2 ecosystem env reload](pm2-ecosystem-env-reload.md) — `pm2 restart --update-env` reads from PM2 dump, NOT ecosystem.config.json; new env vars require stop/delete/start from the file.
 - [Sirius disk fill pattern](sirius-disk-fill-pattern.md) — backup cron fills /tmp → Postgres crashes → everything stops; trap fix applied; recovery steps inside.
 - [Sirius server build missing files](sirius-server-build-missing-files.md) — lib files Sirius forgets to create that break `pnpm build`; exact stubs and build commands inside.
+- [sirius-core config and restart](sirius-core-config.md) — NOT in main ecosystem; own .env with wrong DB creds (fixed to siriusdb/sirius); NODE_PATH needed for helmet; restart recipe inside.
