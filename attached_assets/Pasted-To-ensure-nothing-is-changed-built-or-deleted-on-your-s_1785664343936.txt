@@ -1,0 +1,45 @@
+To ensure nothing is changed, built, or deleted on your server without your explicit permission, here is the 4-layer security protocol you should put in place:
+
+1. Implement an Approval Policy in Replit / AI Agent
+If you are using Replit Agent or a similar LLM developer interface, configure its safety settings:
+
+Require Approval for Shell Commands: Set the agent configuration to Always Ask Before Executing Commands (specifically for ssh, scp, rm, git push, and deployment scripts).
+
+Block Destructive Commands: Disallow autonomous execution of dangerous commands like rm -rf, systemctl restart, or pm2 delete.
+
+2. Server-Level Protection: Restrict SSH Access
+Currently, the SSH key or credentials used by the agent have broad access to /opt/sirius/.
+
+Use a Non-Root Deploy User: Create a specific deployment user (e.g., deployer) on Kamatera rather than giving root access.
+
+Write-Protect Production Files: Make /opt/sirius/frontend/ and /opt/sirius/api/ read-only for general sessions, requiring explicit sudo approval to overwrite live production assets.
+
+3. Git-Based Deployment Guard (CI/CD Pipeline)
+Right now, files are being manually transferred (via SCP/copy) and built directly in production. This is known as "hot-patching" and is why unverified files broke your routes earlier.
+
+The Security Protocol:
+
+No code goes to Kamatera via direct file transfer.
+
+All code changes must be committed to a Git Repository (GitHub / GitLab).
+
+Enable Protected Branches on main.
+
+The server only pulls and builds code when you approve and merge a Pull Request (PR).
+
+4. Automated Pre-Deploy Staging Check
+Before any build touches Nginx or PM2, enforce a pre-flight script that runs isolated checks in a sandbox:
+
+Bash
+# Example Pre-Flight Rule
+pnpm tsc --noEmit && pnpm test
+If a file is missing or a dependency is broken, the build halts immediately before touching any live directories in /opt/sirius/.
+
+Summary Checklist to Tell Your Developer/Agent
+To lock this down today, ask your agent or developer to implement these rules:
+
+"Set the workspace agent to require explicit user confirmation before executing any ssh, scp, or rm command."
+
+"Create a pre-deploy staging script so builds must pass validation before touching /opt/sirius/frontend."
+
+"Switch production deployments to trigger only from approved Git releases rather than direct file copies."
