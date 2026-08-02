@@ -64,6 +64,42 @@ export function useChat(conversationId?: number) {
     return [];
   });
   const [isTyping, setIsTyping] = useState(false);
+
+  // ── Contextual recap bridge ─────────────────────────────────────────────
+  // On a fresh chat (no conversationId), check if the user was last active
+  // more than 12 hours ago and surface a one-line context bridge so they
+  // don't face a blank screen.
+  useEffect(() => {
+    if (conversationId !== undefined) return; // existing conversation — skip
+    const userId = getUserId();
+    if (!userId) return;
+
+    fetch(`/api/openai/conversations?userId=${encodeURIComponent(userId)}`)
+      .then(r => r.ok ? r.json() : [])
+      .then((convos: Array<{ id: number; title: string; updatedAt?: string; createdAt: string }>) => {
+        if (!convos.length) return;
+        const last = convos[0]; // already sorted newest-first
+        const lastActive = new Date(last.updatedAt || last.createdAt);
+        const hoursAgo = (Date.now() - lastActive.getTime()) / 3_600_000;
+        if (hoursAgo < 12) return; // too recent — no bridge needed
+
+        const hoursLabel = hoursAgo < 48
+          ? `${Math.round(hoursAgo)} hours ago`
+          : `${Math.floor(hoursAgo / 24)} days ago`;
+
+        setMessages(prev => {
+          // Don't overwrite if user already typed something
+          if (prev.length > 0) return prev;
+          return [{
+            id: "recap-bridge",
+            role: "assistant" as const,
+            content: `Last time (${hoursLabel}) we were working on: **"${last.title}"**.\n\n[Pick up where we left off →](/c/${last.id})`,
+          }];
+        });
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId]);
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -115,7 +151,7 @@ export function useChat(conversationId?: number) {
 
       if (!activeId) {
         const title = content.length > 40 ? content.slice(0, 40) + "..." : content;
-        const newConvo = await createConversation({ data: { title, userId: getUserId() } });
+        const newConvo = await createConversation({ data: { title } });
         activeId = newConvo.id;
 
         // Populate the bridge BEFORE navigation so the new ChatPage instance

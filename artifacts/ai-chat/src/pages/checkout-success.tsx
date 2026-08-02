@@ -30,7 +30,7 @@ export function CheckoutSuccessPage() {
     } else {
       setActivated(true);
     }
-  }, [userId]);
+  }, [localUserId]);
 
   useEffect(() => {
     if (!activated) return;

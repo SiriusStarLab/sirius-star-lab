@@ -64,14 +64,14 @@ export function PricingPage() {
     setError(null);
     try {
       const base = getApiBase();
-      const res = await fetch(`${base}payment/request`, {
+      const res = await fetch(`${base}stripe/checkout`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId, tier }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Something went wrong");
-      setConfirmation({ reference: data.reference, amount: data.amount, label: data.label });
+      if (data.url) window.location.href = data.url;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {

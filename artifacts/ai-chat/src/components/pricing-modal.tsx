@@ -115,7 +115,6 @@ export function PricingModal({ isOpen, onClose, currentTier = "free", defaultTie
 
   function startPay(tier: "plus" | "pro") {
     setSelectedTier(tier);
-    setPayMethod("bank");
     setStep("pay");
   }
 

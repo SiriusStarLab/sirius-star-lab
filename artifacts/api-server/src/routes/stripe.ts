@@ -65,7 +65,7 @@ router.post("/stripe/checkout", async (req, res) => {
           quantity: 1,
         },
       ],
-      success_url: `${origin}/checkout-success?tier=${tier}&session_id={CHECKOUT_SESSION_ID}${userId ? `&userId=${userId}` : ""}`,
+      success_url: `${origin}/checkout/success?tier=${tier}&session_id={CHECKOUT_SESSION_ID}${userId ? `&userId=${userId}` : ""}`,
       cancel_url:  `${origin}/pricing`,
       allow_promotion_codes: true,
       metadata: { userId: userId || "", tier },

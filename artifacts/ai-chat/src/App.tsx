@@ -18,6 +18,7 @@ import { UniversePage } from "@/pages/universe";
 import { DiscoverPage } from "@/pages/discover";
 import { LearnPage } from "@/pages/learn";
 import { ComparePage } from "@/pages/compare";
+import { MemoriesPage } from "@/pages/memories";
 import { AuthGate } from "@/components/auth-gate";
 import NotFound from "@/pages/not-found";
 import { PWAInstallPrompt } from "@/components/pwa-install-prompt";
@@ -54,6 +55,7 @@ function Router() {
       <Route path="/agency" component={MarketingPage} />
       <Route path="/pricing" component={PricingPage} />
       <Route path="/compare" component={ComparePage} />
+      <Route path="/memories" component={MemoriesPage} />
       <Route path="/discover" component={DiscoverPage} />
       {/*
         ChatPage is the catch-all — it handles "/" and "/c/:id" internally
