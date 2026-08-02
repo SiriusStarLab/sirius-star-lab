@@ -30,10 +30,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { MessageBubble } from "@/components/MessageBubble";
 import { TypingIndicator } from "@/components/TypingIndicator";
+import { ConnectionBanner } from "@/components/ConnectionBanner";
 import Colors from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 import { Message, createConversation, generateId, getApiBase, getUserId } from "@/lib/api";
 import { useSubscription } from "@/lib/revenuecat";
+import { resilientFetch, startNetworkMonitoring, onQueueResolved } from "@/lib/resilient-fetch";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 const LAB_PIN_KEY        = "sirius_lab_pin";
@@ -198,6 +200,22 @@ export default function StarLabScreen() {
   const kateVoiceRef          = useRef<string | undefined>(undefined);
   const speechCancelledRef    = useRef<boolean>(false);
   const labAutoActivatedRef   = useRef(false); // prevents double-trigger of IAP auto-activation
+
+  // ── Network resilience (Tier 1) ──────────────────────────────────────────
+  useEffect(() => {
+    startNetworkMonitoring();
+    const unsub = onQueueResolved(screen => {
+      if (screen === "starlab") {
+        // Queue flushed successfully — update all queued messages to 'sent'
+        setMessages(prev => prev.map(m =>
+          m.status === "queued" || m.status === "retrying"
+            ? { ...m, status: "sent" as const }
+            : m
+        ));
+      }
+    });
+    return () => unsub();
+  }, []);
 
   // ── Voice (TTS) ─────────────────────────────────────────────────────────
   const refreshKateVoice = useCallback(() => {
@@ -803,7 +821,7 @@ export default function StarLabScreen() {
       currentSessionIdRef.current = generateId();
     }
 
-    const userMsg: Message = { id: generateId(), role: "user", content: displayContent };
+    const userMsg: Message = { id: generateId(), role: "user", content: displayContent, status: "sent" };
     setMessages(prev => [...prev, userMsg]);
     setInputText("");
     setSelectedDocBase64(null);
@@ -830,7 +848,7 @@ export default function StarLabScreen() {
         if (docB64)  { body.documentBase64 = docB64;  body.documentName = docName; }
         if (imgB64)  { body.imageBase64 = imgB64; }
 
-        res = await fetch(`${base}lab/projects/${projId}/chat`, {
+        res = await resilientFetch(`${base}lab/projects/${projId}/chat`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -838,7 +856,7 @@ export default function StarLabScreen() {
           },
           body: JSON.stringify(body),
           signal: ctrl.signal,
-        });
+        }, "starlab");
       } else {
         // ── General conversation endpoint (code mode only now) ──
         let convoId = conversationId;
@@ -856,12 +874,12 @@ export default function StarLabScreen() {
         };
         if (docB64) { body.documentBase64 = docB64; body.documentName = docName; }
 
-        res = await fetch(`${base}openai/conversations/${convoId}/messages`, {
+        res = await resilientFetch(`${base}openai/conversations/${convoId}/messages`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
           signal: ctrl.signal,
-        });
+        }, "starlab");
       }
 
       if (!res.ok || !res.body) throw new Error("Stream failed");
@@ -940,7 +958,15 @@ export default function StarLabScreen() {
       }
     } catch (e: any) {
       if (e?.name !== "AbortError") {
-        setMessages(prev => [...prev, { id: generateId(), role: "assistant", content: "Something went wrong. Please try again." }]);
+        const isNetworkErr = e?.isOffline || e?.isRetryable || e instanceof TypeError;
+        if (isNetworkErr) {
+          // resilientFetch already saved to AsyncStorage — mark message as queued in UI
+          setMessages(prev => prev.map(m =>
+            m.id === userMsg.id ? { ...m, status: "queued" as const } : m
+          ));
+        } else {
+          setMessages(prev => [...prev, { id: generateId(), role: "assistant", content: "Something went wrong. Please try again." }]);
+        }
       }
     } finally {
       setIsStreaming(false);
@@ -1699,6 +1725,7 @@ export default function StarLabScreen() {
   const reversed = [...messages].reverse();
   return (
     <View style={[s.root, { paddingTop: topPad }]}>
+      <ConnectionBanner />
       <View style={s.header}>
         <Pressable
           onPress={() => {
@@ -1789,7 +1816,22 @@ export default function StarLabScreen() {
             ref={flatListRef}
             data={reversed}
             keyExtractor={item => item.id}
-            renderItem={({ item }) => <MessageBubble message={item} />}
+            renderItem={({ item }) => (
+              <View>
+                <MessageBubble message={item} />
+                {item.role === "user" && item.status === "queued" && (
+                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "flex-end", paddingRight: 16, marginTop: -4, marginBottom: 4 }}>
+                    <Feather name="clock" size={10} color="#f59e0b" />
+                    <Text style={{ fontSize: 10, color: "#f59e0b", marginLeft: 3 }}>Queued</Text>
+                  </View>
+                )}
+                {item.role === "user" && item.status === "sent" && (
+                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "flex-end", paddingRight: 16, marginTop: -4, marginBottom: 4 }}>
+                    <Feather name="check" size={10} color="#22c55e" />
+                  </View>
+                )}
+              </View>
+            )}
             inverted
             ListHeaderComponent={
               showTyping ? (

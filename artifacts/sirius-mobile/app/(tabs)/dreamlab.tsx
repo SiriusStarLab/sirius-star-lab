@@ -26,8 +26,10 @@ import { TypingIndicator } from "@/components/TypingIndicator";
 import Colors from "@/constants/colors";
 import { createConversation, generateId, getApiBase, getUserId } from "@/lib/api";
 import { useApp } from "@/context/AppContext";
+import { resilientFetch, startNetworkMonitoring, onQueueResolved } from "@/lib/resilient-fetch";
+import { ConnectionBanner } from "@/components/ConnectionBanner";
 
-interface Msg { id: string; role: "user" | "assistant"; content: string; }
+interface Msg { id: string; role: "user" | "assistant"; content: string; status?: "queued" | "retrying" | "sent"; }
 interface Dream { id: string; title: string; category: string; emoji: string; color: string; note: string; createdAt: string; }
 
 const CATEGORIES = [
@@ -181,6 +183,21 @@ function DreamChat({ dream, onBack }: { dream: Dream; onBack: () => void }) {
 
   useEffect(() => { refreshKateVoice(); }, [refreshKateVoice]);
 
+  // ── Network resilience (Tier 1) ──────────────────────────────────────────
+  useEffect(() => {
+    startNetworkMonitoring();
+    const unsub = onQueueResolved(screen => {
+      if (screen === "dreamlab") {
+        setMessages(prev => prev.map(m =>
+          m.status === "queued" || m.status === "retrying"
+            ? { ...m, status: "sent" as const }
+            : m
+        ));
+      }
+    });
+    return () => unsub();
+  }, []);
+
   const sendMsg = useCallback(async (text: string, _imgB64?: string, _docB64?: string, _docName?: string) => {
     if (!text.trim() || isStreaming) return;
     stopSpeech();
@@ -200,11 +217,11 @@ function DreamChat({ dream, onBack }: { dream: Dream; onBack: () => void }) {
       }
 
       const base = getApiBase();
-      const response = await fetch(`${base}openai/conversations/${activeId}/messages`, {
+      const response = await resilientFetch(`${base}openai/conversations/${activeId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
         body: JSON.stringify({ content: text, userId: uid, mode: "coach" }),
-      } as any);
+      } as any, "dreamlab");
 
       if (!response.ok) throw new Error("Failed");
 
@@ -242,9 +259,17 @@ function DreamChat({ dream, onBack }: { dream: Dream; onBack: () => void }) {
         }
       }
       if (voiceMode && full) speakWithChunks(full);
-    } catch {
+    } catch (e: any) {
       setShowTyping(false);
-      setMessages(prev => [...prev, { id: generateId(), role: "assistant", content: "Something went wrong. Please try again." }]);
+      const isNetworkErr = e?.isOffline || e?.isRetryable || e instanceof TypeError;
+      if (isNetworkErr) {
+        // resilientFetch already queued it — mark the user message as queued in UI
+        setMessages(prev => prev.map(m =>
+          m.id === userMsg.id ? { ...m, status: "queued" as const } : m
+        ));
+      } else {
+        setMessages(prev => [...prev, { id: generateId(), role: "assistant", content: "Something went wrong. Please try again." }]);
+      }
     } finally {
       setIsStreaming(false);
       setShowTyping(false);
@@ -260,6 +285,7 @@ function DreamChat({ dream, onBack }: { dream: Dream; onBack: () => void }) {
   return (
     <KeyboardAvoidingView style={[d.flex, { backgroundColor: Colors.background }]}
       behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <ConnectionBanner />
       <View style={[d.header, { paddingTop: insets.top + 8 }]}>
         <Pressable onPress={() => { stopSpeech(); onBack(); }} style={d.iconBtn} hitSlop={12}>
           <Feather name="arrow-left" size={20} color={Colors.text} />
@@ -283,10 +309,23 @@ function DreamChat({ dream, onBack }: { dream: Dream; onBack: () => void }) {
         data={reversed}
         keyExtractor={item => item.id}
         renderItem={({ item }) => (
-          <View style={item.role === "user" ? d.userBubble : d.aiBubble}>
-            {item.role === "user"
-              ? <Text style={d.userText}>{item.content}</Text>
-              : <Markdown style={dreamMarkdownStyles}>{item.content}</Markdown>}
+          <View>
+            <View style={item.role === "user" ? d.userBubble : d.aiBubble}>
+              {item.role === "user"
+                ? <Text style={d.userText}>{item.content}</Text>
+                : <Markdown style={dreamMarkdownStyles}>{item.content}</Markdown>}
+            </View>
+            {item.role === "user" && item.status === "queued" && (
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "flex-end", paddingRight: 14, marginTop: -4, marginBottom: 4 }}>
+                <Feather name="clock" size={10} color="#f59e0b" />
+                <Text style={{ fontSize: 10, color: "#f59e0b", marginLeft: 3 }}>Queued</Text>
+              </View>
+            )}
+            {item.role === "user" && item.status === "sent" && (
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "flex-end", paddingRight: 14, marginTop: -4, marginBottom: 4 }}>
+                <Feather name="check" size={10} color="#22c55e" />
+              </View>
+            )}
           </View>
         )}
         inverted

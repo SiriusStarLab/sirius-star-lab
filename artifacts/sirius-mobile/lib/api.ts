@@ -81,6 +81,8 @@ export interface Message {
   imageB64?: string;
   imageMimeType?: string;
   uploadedImageBase64?: string;
+  /** Resilient-fetch delivery status for outgoing user messages */
+  status?: "queued" | "retrying" | "sent";
 }
 
 let messageCounter = 0;

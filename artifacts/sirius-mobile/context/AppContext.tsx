@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AppState, AppStateStatus, Platform } from "react-native";
+import { flushQueue } from "@/lib/resilient-fetch";
 import React, {
   createContext,
   useCallback,
@@ -138,6 +139,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       appStateRef.current = nextState;
       if (prev.match(/inactive|background/) && nextState === "active") {
         refreshProfile();
+        // Item A: flush any messages queued while offline or API was recovering
+        flushQueue().catch(() => {});
       }
     });
     return () => subscription.remove();
