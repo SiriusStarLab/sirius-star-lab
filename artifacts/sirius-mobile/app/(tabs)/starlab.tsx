@@ -1399,7 +1399,7 @@ export default function StarLabScreen() {
           {/* Web checkout fallback (non-iOS or no IAP package) */}
           {(!isIOS || !hasAppleIAP) && (
             <Pressable
-              onPress={() => WebBrowser.openBrowserAsync("https://sirius-ai.live/pricing?plan=pro")}
+              onPress={() => WebBrowser.openBrowserAsync("https://sirius-ai.live/pricing?plan=pro&source=app")}
               disabled={payLoading}
               style={({ pressed }) => [s.primaryBtn, pressed && { opacity: 0.85 }, payLoading && { opacity: 0.7 }]}
             >

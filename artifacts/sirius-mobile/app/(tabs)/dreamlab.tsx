@@ -391,7 +391,7 @@ export default function DreamLabScreen() {
             Build and track your dreams with Sirius. Upgrade to Plus to unlock Dream Lab.
           </Text>
           <Pressable
-            onPress={() => WebBrowser.openBrowserAsync("https://sirius-ai.live/pricing?plan=plus")}
+            onPress={() => WebBrowser.openBrowserAsync("https://sirius-ai.live/pricing?plan=plus&source=app")}
             style={({ pressed }) => [{
               backgroundColor: Colors.primary, borderRadius: 14, paddingVertical: 15,
               width: "100%" as any, alignItems: "center" as any,

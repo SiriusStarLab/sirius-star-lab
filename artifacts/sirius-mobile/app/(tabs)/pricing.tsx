@@ -76,10 +76,10 @@ export default function PricingScreen() {
         }
       } else {
         // IAP not available (pending Apple approval) — fall back to web checkout
-        WebBrowser.openBrowserAsync("https://sirius-ai.live/pricing");
+        WebBrowser.openBrowserAsync("https://sirius-ai.live/pricing?source=app");
       }
     } else {
-      WebBrowser.openBrowserAsync("https://sirius-ai.live/pricing");
+      WebBrowser.openBrowserAsync("https://sirius-ai.live/pricing?source=app");
     }
   };
 
