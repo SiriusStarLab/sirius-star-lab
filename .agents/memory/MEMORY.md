@@ -28,3 +28,5 @@
 - [Mission Guardian deploy protocol](mission-guardian-deploy.md) — EXPECTED_MODEL="anthropic/claude-opus-4.8" (dot not dash); bundleModel() uses multi-pattern+env-var fallback; pre-set baseline hash in DB before PM2 restart; use `pm2 reload ecosystem.config.json --update-env` to pick up new env vars.
 - [Sirius AI Router](sirius-ai-router.md) — mini OpenRouter proxy at localhost:5000; all Sirius AI calls now route through it for cost tracking.
 - [PM2 ecosystem env reload](pm2-ecosystem-env-reload.md) — `pm2 restart --update-env` reads from PM2 dump, NOT ecosystem.config.json; new env vars require stop/delete/start from the file.
+- [Sirius disk fill pattern](sirius-disk-fill-pattern.md) — backup cron fills /tmp → Postgres crashes → everything stops; trap fix applied; recovery steps inside.
+- [Sirius server build missing files](sirius-server-build-missing-files.md) — lib files Sirius forgets to create that break `pnpm build`; exact stubs and build commands inside.
