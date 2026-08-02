@@ -59,6 +59,7 @@ async function buildAll() {
     "@aws-sdk/client-s3",
     "@aws-sdk/s3-request-presigner",
     "openai",
+    "pg",  // native addon — bundle fails on server; always resolve at runtime
   ];
   for (const pkg of alwaysExternal) {
     if (!externals.includes(pkg)) externals.push(pkg);
