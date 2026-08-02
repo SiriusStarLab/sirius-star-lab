@@ -1,0 +1,36 @@
+1. Start with the Highest ROI: Client-Side Request Queueing (Tier 1)
+This is the single biggest gap left after today's server fixes. When sirius-api goes down for a 15–60 second self-healing restart, the frontend shouldn't throw an error or drop the message.
+
+Web (IndexedDB) & Mobile (AsyncStorage): Intercept outgoing API calls using an Axios/Fetch wrapper. If the request fails due to a network drop or 502/503 Bad Gateway, automatically catch it and place it into a persistent queue.
+
+Exponential Backoff & Silent Retry: Ping /health every 2–3 seconds. Once green, flush the queue automatically.
+
+UX State: Show a subtle, reassuring indicator in the UI (e.g., "Reconnecting to Sirius...") instead of a destructive error banner. To the user, it just looks like a brief network lag rather than a broken app.
+
+2. Extend the Daemon: Nightly Chaos Audits (Tier 2)
+Since the watchdog daemon is already running every 60 seconds on your Kamatera server, turning it into a proactive auditor takes minimal effort:
+
+3 AM Scheduled Trigger: Have the daemon run a quick, controlled fault injection during off-peak hours (e.g., temporarily stopping sirius-api for 30 seconds or filling a dummy file in /tmp).
+
+Metric Tracking: Measure the exact timestamp from fault injection to full service recovery.
+
+Alerting on Drift: If recovery time starts creeping above 30 seconds, write an alert to your incident file before real users ever experience latency degradation.
+
+3. Leverage Internal Intelligence: Semantic Log Analysis (Tier 3)
+Skip heavy external collectors like OpenTelemetry. You already have PM2 logging locally and an AI agent capable of reading text:
+
+Have Sirius inspect her own PM2 logs during maintenance windows or boot checks.
+
+Focus on trend detection rather than raw error counting (e.g., "Warning logs for database timeouts increased 4x over the last 12 hours"). This surfaces memory leaks, unindexed queries, or slow API dependencies early.
+
+4. Keep Blue-Green Simple: Nginx Port Swap (Tier 4)
+When you're ready for true zero-downtime deploys, avoid complex orchestrators:
+
+Spin up the new build bundle on an alternate port (e.g., 4001).
+
+Run automated health checks against port 4001.
+
+If green, run nginx -s reload to swap the upstream directive from 4000 to 4001 seamlessly, then gracefully spin down the old instance.
+
+Summary Recommendation
+I recommend kicking off with Step 1 (Client-Side Queueing). We can draft the network retry logic for your React Native/Web client so that any future watchdog restart on the server becomes completely invisible to anyone using the app.
