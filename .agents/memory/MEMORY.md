@@ -1,3 +1,4 @@
+- [Server security protocol — MANDATORY](server-security-protocol.md) — 4-layer gate: ask before ssh/scp/rm/pm2, deploy-bundle.sh only, pre-flight tsc+file-sync, Git gate pending.
 - [Frontend deploy rule — MANDATORY](frontend-deploy-rule.md) — NEVER rebuild frontend from Replit workspace. Always build from `/opt/sirius-source/artifacts/ai-chat/` ON THE SERVER. Workspace is months stale; rebuilding from it wipes Jenny voice, logo, bidirectional voice, and all Sirius self-improvements.
 - [Kamatera deploy path](kamatera-deploy-path.md) — PM2 runs from `/opt/sirius/artifacts/api-server/dist/index.cjs`; `/opt/sirius/dist/index.cjs` is a symlink to it. Always SCP to the canonical path.
 - [Sirius independence roadmap](independence-roadmap.md) — status of moving off Replit; AI proxy cut, GitHub set up, Kamatera self-builds, object storage migrated to AWS S3. Clerk still on Replit.

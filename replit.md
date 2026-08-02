@@ -19,6 +19,38 @@ Do not make changes to the folder `lib/api-spec`.
 Changes to `artifacts/ai-chat/src/pages/star-lab.tsx` are permitted — Garry explicitly approved this. The previous restriction is lifted.
 **Avoid OpenAI, OpenRouter, and Replit dependencies wherever possible.** Use them only as a last resort. Prefer self-hosted, open-source, or alternative solutions (e.g. Piper for TTS, local models, direct APIs) over routing through these platforms.
 
+## ★ SERVER SECURITY PROTOCOL (NON-NEGOTIABLE) ★
+
+**4-layer security protocol. All four rules apply in every session, automatically.**
+
+### Layer 1 — Agent Approval Gate (MANDATORY)
+**ALWAYS ask Garry for explicit confirmation before executing any of these on the server:**
+- `ssh` commands that modify files, restart services, or delete anything
+- `scp` / file transfers to the server
+- `rm`, `rm -rf` on server paths
+- `pm2 restart`, `pm2 reload`, `pm2 delete`, `pm2 stop`
+- Any command that writes to `/opt/sirius/`, `/opt/sirius-source/`, or `/opt/sirius-apps/`
+
+**Exceptions (safe to run without asking):** read-only commands (`ssh ... cat`, `ssh ... ls`, `ssh ... grep`, `curl` health checks, diagnostic reads).
+
+### Layer 2 — Deploy Script Only
+- **No code goes to Kamatera via ad-hoc file copy.** All API deploys go through `/opt/sirius/scripts/deploy-bundle.sh`.
+- **No ad-hoc `pm2 restart`** — only via the deploy script or explicit Garry approval.
+- Frontend deploys: build on server from `/opt/sirius-source/artifacts/ai-chat/`, copy to `/opt/sirius/frontend/`, then run `/opt/sirius/scripts/lock-frontend.sh`.
+
+### Layer 3 — Pre-Flight Checks (built into deploy-bundle.sh v2)
+Deploy script now enforces before any live file is touched:
+1. `tsc --noEmit` — TypeScript must be clean
+2. Route file sync check — all required source files must exist on server
+3. Health check post-deploy — rolls back automatically if `/api/health` ≠ 200
+4. Hash verification — SHA-256 of deployed bundle must match expected
+
+### Layer 4 — Git Gate (in progress — see task #7)
+Target state: no direct SCP. All changes committed to GitHub, server pulls only from approved branches.
+Until task #7 is done: SCP is permitted but requires Layer 1 approval first.
+
+---
+
 ## ★ PRIME DIRECTIVE — KAMATERA DEPLOYMENT (NON-NEGOTIABLE, HARDWIRED PROTOCOL) ★
 
 **ALL production traffic for Sirius Star Lab runs on the Kamatera VPS at 185.247.118.196, NOT Replit.**
