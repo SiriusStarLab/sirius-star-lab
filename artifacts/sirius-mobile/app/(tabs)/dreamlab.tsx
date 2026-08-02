@@ -412,6 +412,28 @@ export default function DreamLabScreen() {
     });
   }, []);
 
+  // ── Learn shortcut (rendered at top of Dream Lab for subscribers) ─────────
+  const LearnCard = () => (
+    <Pressable
+      onPress={() => router.push("/(tabs)/learn" as any)}
+      style={({ pressed }) => ({
+        flexDirection: "row", alignItems: "center", gap: 12,
+        backgroundColor: "rgba(99,102,241,0.10)", borderRadius: 14,
+        padding: 16, marginBottom: 16, opacity: pressed ? 0.8 : 1,
+        borderWidth: 1, borderColor: "rgba(99,102,241,0.25)",
+      })}
+    >
+      <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: "#6366f1", alignItems: "center", justifyContent: "center" }}>
+        <Feather name="book-open" size={18} color="#fff" />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: Colors.text }}>Learn</Text>
+        <Text style={{ fontSize: 13, color: Colors.textMuted, marginTop: 2 }}>Study plans, quizzes & deep learning</Text>
+      </View>
+      <Feather name="chevron-right" size={18} color={Colors.textMuted} />
+    </Pressable>
+  );
+
   const saveDreams = (updated: Dream[]) => {
     setDreams(updated);
     AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
@@ -451,6 +473,11 @@ export default function DreamLabScreen() {
           </View>
           <Text style={d.heroTitle}>Dream Lab</Text>
           <Text style={d.heroSub}>Build the life you're meant to live</Text>
+        </View>
+
+        {/* Learn shortcut */}
+        <View style={{ paddingHorizontal: 16 }}>
+          <LearnCard />
         </View>
 
         {/* Add button */}

@@ -60,7 +60,7 @@ interface LabAccount { email: string; userId: string }
 type LabView =
   | "loading"
   | "login" | "signup" | "forgot" | "forgot_sent"
-  | "payment" | "payment_bank" | "waiting"
+  | "payment" | "waiting"
   | "pin_create" | "pin_enter"
   | "home" | "chat";
 
@@ -603,10 +603,6 @@ export default function StarLabScreen() {
     }
   };
 
-  const handleBankTransfer = () => {
-    setView("payment_bank");
-  };
-
   const handleCheckPayment = async () => {
     if (!labAuth) return;
     const tier = await checkTier(labAuth.userId);
@@ -1076,6 +1072,42 @@ export default function StarLabScreen() {
     );
   }
 
+  // ── Pro gate — non-Pro users see upgrade screen before login ─────────────
+  if (view === "login" && !subscription.isLoading && !subscription.isPro) {
+    return (
+      <View style={{ flex: 1, backgroundColor: Colors.background }}>
+        <View style={{ paddingTop: topPad + 8, paddingHorizontal: 16 }}>
+          <Pressable onPress={() => router.push("/(tabs)" as any)} style={s.backBtn}>
+            <Feather name="chevron-left" size={20} color={Colors.primary} />
+          </Pressable>
+        </View>
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32 }}>
+          <View style={[s.labIcon, { marginBottom: 20 }]}>
+            <Feather name="award" size={30} color="#f59e0b" />
+          </View>
+          <Text style={{ fontSize: 22, fontFamily: "Inter_700Bold", color: Colors.text, marginBottom: 8, textAlign: "center" }}>
+            Star Lab is a Pro feature
+          </Text>
+          <Text style={{ fontSize: 15, color: Colors.textMuted, textAlign: "center", lineHeight: 22, marginBottom: 32 }}>
+            App Builder, Code Builder, R&D intelligence and your private workspace. Upgrade to Pro to unlock Star Lab.
+          </Text>
+          <Pressable
+            onPress={() => router.push("/(tabs)/pricing" as any)}
+            style={({ pressed }) => [s.primaryBtn, { width: "100%" }, pressed && { opacity: 0.85 }]}
+          >
+            <Text style={s.primaryBtnText}>Upgrade to Pro</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => setView("login" as any)}
+            style={s.linkBtn}
+          >
+            <Text style={[s.linkText, { color: Colors.textMuted }]}>Already subscribed? Sign in</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
   // ── Login ─────────────────────────────────────────────────────────────────
   if (view === "login") {
     return (
@@ -1399,15 +1431,17 @@ export default function StarLabScreen() {
             </Pressable>
           )}
 
-          {/* Bank transfer payment */}
-          <Pressable
-            onPress={handleBankTransfer}
-            disabled={payLoading}
-            style={({ pressed }) => [s.primaryBtn, pressed && { opacity: 0.85 }, payLoading && { opacity: 0.7 }]}
-          >
-            <Feather name="credit-card" size={16} color="#fff" />
-            <Text style={s.primaryBtnText}>Subscribe — £19.99/mo</Text>
-          </Pressable>
+          {/* Web checkout fallback (non-iOS or no IAP package) */}
+          {(!isIOS || !hasAppleIAP) && (
+            <Pressable
+              onPress={() => Linking.openURL("https://sirius-ai.live/pricing")}
+              disabled={payLoading}
+              style={({ pressed }) => [s.primaryBtn, pressed && { opacity: 0.85 }, payLoading && { opacity: 0.7 }]}
+            >
+              <Feather name="credit-card" size={16} color="#fff" />
+              <Text style={s.primaryBtnText}>Subscribe via sirius-ai.live</Text>
+            </Pressable>
+          )}
 
           {/* Restore purchases (iOS) */}
           {isIOS && (
@@ -1456,76 +1490,6 @@ export default function StarLabScreen() {
             <Text style={[s.linkText, { color: Colors.textMuted }]}>Back</Text>
           </Pressable>
         </View>
-      </View>
-    );
-  }
-
-  // ── Bank Transfer ─────────────────────────────────────────────────────────
-  if (view === "payment_bank") {
-    const ref = labAuth ? `SIRIUSLAB-${labAuth.userId.toUpperCase()}` : "SIRIUSLAB-PRO";
-    const copyField = (label: string, value: string) => (
-      <Pressable
-        key={label}
-        onPress={() => {
-          ExpoClipboard.setStringAsync(value);
-          Alert.alert("Copied", `${label} copied to clipboard.`);
-        }}
-        style={s.bankRow}
-      >
-        <Text style={s.bankLabel}>{label}</Text>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-          <Text style={s.bankValue}>{value}</Text>
-          <Feather name="copy" size={13} color={Colors.textDim} />
-        </View>
-      </Pressable>
-    );
-
-    return (
-      <View style={[s.root, { paddingTop: topPad }]}>
-        <Header title="Pay by Bank Transfer" onBack={() => setView("payment")} />
-        <ScrollView contentContainerStyle={[s.authWrap, { paddingBottom: bottomPad + 32 }]} showsVerticalScrollIndicator={false}>
-          <View style={[s.labIcon, { width: 52, height: 52, borderRadius: 16, marginBottom: 8 }]}>
-            <Feather name="dollar-sign" size={24} color="#6366f1" />
-          </View>
-          <Text style={s.authTitle}>Bank Transfer</Text>
-          <Text style={[s.authSub, { marginBottom: 20 }]}>
-            Sirius Pro · £19.99/month{"\n"}Transfer the exact amount using the details below.
-          </Text>
-
-          <View style={s.bankCard}>
-            {copyField("Pay to", "GCTH Supplies Ltd")}
-            {copyField("Bank", "Mettle")}
-            {copyField("Account number", "26359434")}
-            {copyField("Sort code", "04-03-33")}
-            {copyField("Amount", "£19.99")}
-            {copyField("Reference", ref)}
-          </View>
-
-          <Text style={[s.payNote, { marginTop: 16 }]}>
-            Make the transfer using your banking app, then tap the button below. Your account will be upgraded within a few hours once we confirm receipt.
-          </Text>
-
-          <Pressable
-            onPress={() => {
-              Alert.alert(
-                "Confirm bank transfer",
-                "Have you already sent £19.99 to the account above using the exact reference shown?\n\nOnly confirm if the transfer has been made. We will check and upgrade your account within a few hours.",
-                [
-                  { text: "Not yet", style: "cancel" },
-                  { text: "Yes, I've sent it", onPress: () => setView("waiting") },
-                ]
-              );
-            }}
-            style={({ pressed }) => [s.primaryBtn, { marginTop: 20 }, pressed && { opacity: 0.85 }]}
-          >
-            <Feather name="check" size={16} color="#fff" />
-            <Text style={s.primaryBtnText}>I've Made the Transfer</Text>
-          </Pressable>
-
-          <Pressable onPress={() => setView("payment")} style={s.linkBtn}>
-            <Text style={[s.linkText, { color: Colors.textMuted }]}>Back</Text>
-          </Pressable>
-        </ScrollView>
       </View>
     );
   }
