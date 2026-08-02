@@ -202,6 +202,14 @@ function StudyPlanPanel() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId, topic, level, duration }),
       });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        setPlanError(res.status === 403
+          ? "Learn is available on Plus and Pro plans. Upgrade at /pricing"
+          : (err.error || "Something went wrong — please try again"));
+        setStreaming(false);
+        return;
+      }
       const reader = res.body!.getReader();
       const decoder = new TextDecoder();
       while (true) {
@@ -961,6 +969,16 @@ function DocumentPanel() {
 export function LearnPage() {
   const [, navigate] = useLocation();
   const [panel, setPanel] = useState<Panel>("home");
+  const [upgradeRequired, setUpgradeRequired] = useState<boolean | null>(null); // null = checking
+  const base = getApiBase();
+  const userId = getUserId();
+
+  useEffect(() => {
+    // Quick tier check — study-plans returns 403 for free users
+    fetch(`${base}learn/study-plans?userId=${encodeURIComponent(userId)}`)
+      .then(r => { setUpgradeRequired(r.status === 403); })
+      .catch(() => { setUpgradeRequired(false); }); // network error → let them try
+  }, [base, userId]);
 
   const PANEL_META: Record<Panel, { label: string; icon: React.ElementType; color: string } | null> = {
     home: null,
@@ -970,6 +988,45 @@ export function LearnPage() {
   };
 
   const meta = panel !== "home" ? PANEL_META[panel] : null;
+
+  // Still checking tier
+  if (upgradeRequired === null) {
+    return (
+      <div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: BASE_BG }}>
+        <Loader2 className="w-6 h-6 animate-spin" style={{ color: TEAL }} />
+      </div>
+    );
+  }
+
+  // Free user — show upgrade prompt
+  if (upgradeRequired) {
+    return (
+      <div style={{
+        height: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+        background: "linear-gradient(160deg, #04081a 0%, #070d20 55%, #050e1b 100%)",
+        color: "#fff", fontFamily: "'Inter', system-ui, sans-serif", padding: "32px 24px", textAlign: "center",
+      }}>
+        <div style={{ fontSize: 52, marginBottom: 20 }}>🎓</div>
+        <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 10, lineHeight: 1.2 }}>Learn is a Plus feature</h2>
+        <p style={{ fontSize: 15, color: "rgba(255,255,255,0.5)", maxWidth: 380, lineHeight: 1.65, marginBottom: 32 }}>
+          Get AI-generated study plans, interactive quizzes, and deep learning from any document. Available on Plus and Pro.
+        </p>
+        <button
+          onClick={() => navigate("/pricing")}
+          style={{
+            padding: "14px 32px", borderRadius: 12, border: "none",
+            background: "hsl(193,100%,45%)", color: "#04081a",
+            fontSize: 15, fontWeight: 700, cursor: "pointer",
+          }}>
+          Upgrade to Plus — £9.99/month
+        </button>
+        <button onClick={() => navigate("/")} style={{
+          marginTop: 14, background: "none", border: "none", color: "rgba(255,255,255,0.3)",
+          fontSize: 13, cursor: "pointer",
+        }}>← Back to Sirius</button>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-screen" style={{ background: BASE_BG }}>

@@ -1,11 +1,32 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { desc, eq } from "drizzle-orm";
-import { db, studyPlans } from "@workspace/db";
+import { db, studyPlans, userProfilesTable } from "@workspace/db";
 import { openai } from "@workspace/ai-client";
 
 const router: IRouter = Router();
 
 const TODAY = () => new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+
+// ── Middleware: require Plus or Pro ───────────────────────────────────────────
+async function requirePaid(req: Request, res: Response, next: () => void) {
+  const userId = (
+    req.headers["x-user-id"] ||
+    req.body?.userId ||
+    (req.query?.userId as string)
+  ) as string;
+  if (!userId || userId.length < 4) { res.status(401).json({ error: "User ID required" }); return; }
+  if (userId === "garry") { next(); return; }
+  try {
+    const [profile] = await db.select({ tier: userProfilesTable.subscriptionTier })
+      .from(userProfilesTable).where(eq(userProfilesTable.userId, userId));
+    if ((profile?.tier || "free") === "free") {
+      res.status(403).json({ error: "Learn is available on Plus and Pro plans.", upgrade: true });
+      return;
+    }
+    next();
+  } catch { res.status(500).json({ error: "Could not verify subscription" }); }
+}
+router.use(requirePaid);
 
 // ── STUDY PLAN ──────────────────────────────────────────────────────────────
 

@@ -322,7 +322,7 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
             You've used all {status.dailyLimit} messages today
           </p>
           <p style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", marginBottom: 20, lineHeight: 1.5 }}>
-            Your free messages reset at midnight. Upgrade to Plus for 200 a day — or go Pro for unlimited.
+            Your free messages reset at midnight. Upgrade to Plus for 200/day + Dream Lab & Learn — or go Pro for unlimited.
           </p>
           <button
             onClick={handleLimitUpgrade}

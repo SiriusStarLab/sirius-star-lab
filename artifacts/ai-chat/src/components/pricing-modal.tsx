@@ -146,7 +146,7 @@ export function PricingModal({ isOpen, onClose, currentTier = "free", defaultTie
                           Sirius {currentTier === "pro" ? "Pro" : "Plus"} — Active
                         </p>
                         <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>
-                          {currentTier === "pro" ? "Unlimited everything" : "200 messages/day"} · {currentTier === "pro" ? "£19.99" : "£9.99"}/month
+                          {currentTier === "pro" ? "Unlimited messages · Voice · Telegram" : "200 messages/day · Dream Lab · Learn"} · {currentTier === "pro" ? "£19.99" : "£9.99"}/month
                         </p>
                       </div>
                       <Check size={18} style={{ color: currentTier === "pro" ? "#f59e0b" : "#00d4ff" }} />
@@ -191,7 +191,7 @@ export function PricingModal({ isOpen, onClose, currentTier = "free", defaultTie
                         </div>
                       </div>
                       <ul style={{ listStyle: "none", padding: 0, margin: "0 0 18px" }}>
-                        {["200 messages every day", "Sirius remembers you between sessions", "Image analysis", "Full conversation history", "Real-time web search", "Dream Lab access"].map(f => (
+                        {["200 messages per day", "Dream Lab — build & track your dreams", "Learn — study plans, quizzes, deep learning", "Sirius remembers you between sessions", "Image analysis & understanding", "Real-time web search"].map(f => (
                           <li key={f} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
                             <div style={{ width: 18, height: 18, borderRadius: "50%", background: "rgba(0,212,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                               <Check size={10} style={{ color: "#00d4ff" }} strokeWidth={3} />
@@ -243,7 +243,7 @@ export function PricingModal({ isOpen, onClose, currentTier = "free", defaultTie
                         </div>
                       </div>
                       <ul style={{ listStyle: "none", padding: 0, margin: "0 0 18px" }}>
-                        {["Unlimited messages", "Deep memory & full context", "Priority response speed", "Star Lab access", "Everything in Plus"].map(f => (
+                        {["Unlimited messages", "Everything in Plus", "Voice conversations", "Priority response speed", "Telegram — Sirius messages you proactively"].map(f => (
                           <li key={f} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
                             <div style={{ width: 18, height: 18, borderRadius: "50%", background: "rgba(245,158,11,0.12)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                               <Check size={10} style={{ color: "#f59e0b" }} strokeWidth={3} />

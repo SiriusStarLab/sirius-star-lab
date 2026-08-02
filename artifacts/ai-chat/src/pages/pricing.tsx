@@ -13,11 +13,12 @@ const PLANS = [
     color: "hsl(193,100%,45%)",
     icon: Zap,
     features: [
-      "75 messages per day",
+      "200 messages per day",
       "Dream Lab — build & track your dreams",
-      "Sirius remembers you across sessions",
-      "Full memory & personalisation",
-      "Priority response speed",
+      "Learn — study plans, quizzes, deep learning",
+      "Sirius remembers you between sessions",
+      "Image analysis & understanding",
+      "Real-time web search",
     ],
   },
   {
@@ -29,11 +30,11 @@ const PLANS = [
     color: "hsl(45,100%,52%)",
     icon: Star,
     features: [
-      "500 messages per day",
+      "Unlimited messages",
       "Everything in Plus",
       "Voice conversations",
+      "Priority response speed",
       "Telegram — Sirius messages you proactively",
-      "Early access to new features",
     ],
     featured: true,
   },
@@ -117,7 +118,7 @@ export function PricingPage() {
             }}>
               <div>
                 <p style={{ fontWeight: 600, fontSize: 14, marginBottom: 2 }}>Free</p>
-                <p style={{ fontSize: 12, color: "rgba(255,255,255,0.35)" }}>10 messages per day · chat, wellbeing, learn & universe · always free</p>
+                <p style={{ fontSize: 12, color: "rgba(255,255,255,0.35)" }}>30 messages per day · chat, wellbeing & universe · always free</p>
               </div>
               <span style={{
                 fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 999,

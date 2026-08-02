@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { eq, desc, and, asc } from "drizzle-orm";
-import { db, dreamLabProfiles, dreamLabIdeas, dreamLabManifestations, dreamLabJournal, dreamLabMessages, userProfilesTable } from "@workspace/db";
+import { db, dreamLabProfiles, dreamLabIdeas, dreamLabManifestations, dreamLabJournal, userProfilesTable } from "@workspace/db";
 import { openai } from "@workspace/ai-client";
 
 const router: IRouter = Router();
@@ -31,9 +31,13 @@ async function requirePaid(req: Request, res: Response, next: () => void) {
     }
     next();
   } catch {
-    next();
+    res.status(500).json({ error: "Could not verify subscription" });
   }
 }
+
+// ── Apply gates to all dream-lab routes ──────────────────────────────────────
+router.use(requireUser);
+router.use(requirePaid);
 
 // ── Content guard: reject dark/harmful material ───────────────────────────────
 const BLOCKED_TERMS = [
