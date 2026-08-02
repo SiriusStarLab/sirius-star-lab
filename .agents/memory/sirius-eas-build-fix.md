@@ -5,6 +5,11 @@ description: Root cause of all EAS build failures for sirius-mobile in the pnpm 
 
 # EAS Build — Standard Procedure
 
+## GitHub is now the source of truth for mobile code
+All mobile code is pushed to `SiriusStarLab/sirius-star-lab` (artifacts/sirius-mobile/) BEFORE building.
+The GitHub PAT is stored at `/root/.sirius-github-token` on Kamatera — rotated 2026-08-02.
+Future builds: push to GitHub from Kamatera, then EAS build from the archive. Replit workspace is NOT the source.
+
 ## ALWAYS build from Kamatera server (not Replit)
 
 Running from Replit causes a 327MB archive (node_modules included despite .easignore) that takes >2min to compress, hitting the tool timeout. Replit also kills background processes when the shell exits. Kamatera server produces a 6.8MB archive and uploads in 1 second.
