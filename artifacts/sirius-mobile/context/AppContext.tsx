@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AppState, AppStateStatus, Platform } from "react-native";
+import { flushQueue } from "@/lib/resilient-fetch";
 import React, {
   createContext,
   useCallback,
@@ -25,6 +26,7 @@ interface AppContextValue {
   profile: AppProfile;
   loading: boolean;
   refreshProfile: () => Promise<void>;
+  reloadUser: () => Promise<void>;
   updateLocalProfile: (updates: Partial<Pick<AppProfile, "aiName" | "userName">>) => Promise<void>;
 }
 
@@ -51,6 +53,7 @@ const AppContext = createContext<AppContextValue>({
   profile: defaultProfile,
   loading: true,
   refreshProfile: async () => {},
+  reloadUser: async () => {},
   updateLocalProfile: async () => {},
 });
 
@@ -61,25 +64,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
 
   const initUser = useCallback(async () => {
-    let stored = await AsyncStorage.getItem(USER_ID_KEY);
-    if (!stored) {
-      stored = `mobile-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      await AsyncStorage.setItem(USER_ID_KEY, stored);
+    const stored = await AsyncStorage.getItem(USER_ID_KEY);
+    if (stored) {
+      setUserId(stored);
     }
-    setUserId(stored);
-    return stored;
+    return stored ?? null;
   }, []);
 
   const refreshProfile = useCallback(async () => {
-    if (Platform.OS === "ios") {
-      const saved = await AsyncStorage.getItem(PROFILE_KEY);
-      if (saved) {
-        const local = JSON.parse(saved);
-        setProfile(prev => ({ ...iosProfile, aiName: local.aiName ?? prev.aiName, userName: local.userName ?? prev.userName }));
-      }
-      return;
-    }
     const id = userId || (await initUser());
+    if (!id) return;
     try {
       const data = await fetchSubscription(id);
       setProfile(data);
@@ -102,27 +96,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     (async () => {
       setLoading(true);
-      await initUser();
-      if (Platform.OS === "ios") {
-        const saved = await AsyncStorage.getItem(PROFILE_KEY);
-        if (saved) {
-          const local = JSON.parse(saved);
-          setProfile({ ...iosProfile, aiName: local.aiName ?? iosProfile.aiName, userName: local.userName ?? iosProfile.userName });
-        } else {
-          setProfile(iosProfile);
-        }
-        setLoading(false);
-        return;
-      }
       try {
         const id = await initUser();
+        if (!id) { setLoading(false); return; }
         const data = await fetchSubscription(id);
         setProfile(data);
       } catch {
         const saved = await AsyncStorage.getItem(PROFILE_KEY);
         if (saved) {
           const local = JSON.parse(saved);
-          setProfile(prev => ({ ...prev, ...local }));
+          setProfile(prev => ({ ...prev, aiName: local.aiName ?? prev.aiName, userName: local.userName ?? prev.userName }));
         }
       } finally {
         setLoading(false);
@@ -136,13 +119,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       appStateRef.current = nextState;
       if (prev.match(/inactive|background/) && nextState === "active") {
         refreshProfile();
+        // Item A: flush any messages queued while offline or API was recovering
+        flushQueue().catch(() => {});
       }
     });
     return () => subscription.remove();
   }, [refreshProfile]);
 
+  const reloadUser = useCallback(async () => {
+    await initUser();
+  }, [initUser]);
+
   return (
-    <AppContext.Provider value={{ userId, profile, loading, refreshProfile, updateLocalProfile }}>
+    <AppContext.Provider value={{ userId, profile, loading, refreshProfile, reloadUser, updateLocalProfile }}>
       {children}
     </AppContext.Provider>
   );
