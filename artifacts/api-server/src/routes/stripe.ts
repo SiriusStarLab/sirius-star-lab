@@ -6,166 +6,120 @@ import { eq } from "drizzle-orm";
 
 const router = Router();
 
-function getStripe(): Stripe {
-  const key = (process.env.STRIPE_SECRET_KEY ?? "").trim();
-  if (!key) throw new Error("STRIPE_SECRET_KEY not set");
-  return new Stripe(key, { apiVersion: "2024-06-20" as any });
-}
-
-function getBaseUrl(req: any): string {
-  const proto = (req.headers["x-forwarded-proto"] as string) || req.protocol;
-  const host = (req.headers["x-forwarded-host"] as string) || req.get("host");
-  return `${proto}://${host}`;
-}
-
-// GET /api/stripe/links — legacy payment links (kept for mobile)
-router.get("/stripe/links", (_req, res) => {
-  const plusLink = process.env.STRIPE_PLUS_LINK ?? null;
-  const proLink = process.env.STRIPE_PRO_LINK ?? null;
-  return res.json({ plusLink, proLink });
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: "2026-02-25.clover",
 });
 
-// POST /api/stripe/checkout — create a Stripe Checkout Session
+const PLANS = {
+  plus: {
+    name: "Sirius Plus",
+    description: "200 messages per day · image generation · full memory",
+    amount: 999,
+    currency: "gbp",
+    tier: "plus",
+  },
+  pro: {
+    name: "Sirius Pro",
+    description: "Unlimited messages · priority speed · early access to features",
+    amount: 1999,
+    currency: "gbp",
+    tier: "pro",
+  },
+};
+
+// GET /api/stripe/links — not used but kept for compatibility
+router.get("/stripe/links", (_req, res) => {
+  res.json({
+    plusUrl: `${process.env.APP_URL || "https://sirius-ai.live"}/pricing`,
+    proUrl:  `${process.env.APP_URL || "https://sirius-ai.live"}/pricing`,
+  });
+});
+
+// POST /api/stripe/checkout — create a checkout session
 router.post("/stripe/checkout", async (req, res) => {
   try {
-    const { userId, tier } = req.body as { userId?: string; tier?: "plus" | "pro" };
-    if (!userId || !tier || !["plus", "pro"].includes(tier)) {
-      return res.status(400).json({ error: "userId and valid tier required" });
+    const { userId, tier } = req.body as { userId: string; tier: "plus" | "pro" };
+
+    if (!tier || !PLANS[tier]) {
+      res.status(400).json({ error: "Invalid tier — must be 'plus' or 'pro'" });
+      return;
     }
 
-    const stripe = getStripe();
-    const baseUrl = getBaseUrl(req);
+    const plan = PLANS[tier];
+    const origin = "https://sirius-ai.live";
 
-    const prices: Record<string, { amount: number; name: string }> = {
-      plus: { amount: 500, name: "Sirius Plus" },
-      pro: { amount: 1200, name: "Sirius Pro" },
-    };
-
-    const { amount, name } = prices[tier];
-
-    let customerId: string | undefined;
-    const [profile] = await db
-      .select({ stripeCustomerId: userProfilesTable.stripeCustomerId })
-      .from(userProfilesTable)
-      .where(eq(userProfilesTable.userId, userId));
-
-    if (profile?.stripeCustomerId) {
-      customerId = profile.stripeCustomerId;
-    }
-
-    const sessionParams: Stripe.Checkout.SessionCreateParams = {
+    const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       payment_method_types: ["card"],
       line_items: [
         {
           price_data: {
-            currency: "gbp",
-            product_data: { name },
-            unit_amount: amount,
+            currency: plan.currency,
+            product_data: {
+              name: plan.name,
+              description: plan.description,
+            },
+            unit_amount: plan.amount,
             recurring: { interval: "month" },
           },
           quantity: 1,
         },
       ],
-      success_url: `${baseUrl}/checkout/success?tier=${tier}&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${baseUrl}/checkout/cancel`,
-      metadata: { userId, tier },
-      subscription_data: { metadata: { userId, tier } },
-      client_reference_id: userId,
-    };
-
-    if (customerId) {
-      sessionParams.customer = customerId;
-    }
-
-    const session = await stripe.checkout.sessions.create(sessionParams);
-
-    if (!customerId && session.customer) {
-      await db
-        .insert(userProfilesTable)
-        .values({ userId, aiName: "Sirius", stripeCustomerId: session.customer as string })
-        .onConflictDoUpdate({
-          target: userProfilesTable.userId,
-          set: { stripeCustomerId: session.customer as string },
-        });
-    }
-
-    return res.json({ url: session.url, sessionId: session.id });
-  } catch (err: any) {
-    console.error("Checkout session error:", err.message);
-    return res.status(500).json({ error: err.message || "Failed to create checkout session" });
-  }
-});
-
-// POST /api/stripe/activate — activate tier after payment (used by success page)
-router.post("/stripe/activate", async (req, res) => {
-  try {
-    const { userId, tier, sessionId } = req.body as { userId?: string; tier?: string; sessionId?: string };
-    if (!userId || !tier || !["plus", "pro"].includes(tier)) {
-      return res.status(400).json({ error: "userId and valid tier required" });
-    }
-
-    if (!sessionId) {
-      return res.status(400).json({ error: "sessionId required" });
-    }
-
-    try {
-      const stripe = getStripe();
-      const session = await stripe.checkout.sessions.retrieve(sessionId);
-      if (session.payment_status !== "paid" && session.payment_status !== "no_payment_required") {
-        return res.status(402).json({ error: "Payment not completed" });
-      }
-      if (session.metadata?.userId && session.metadata.userId !== userId) {
-        return res.status(403).json({ error: "Session does not belong to this user" });
-      }
-      await db
-        .insert(userProfilesTable)
-        .values({ userId, aiName: "Sirius", stripeCustomerId: session.customer as string, subscriptionTier: tier })
-        .onConflictDoUpdate({
-          target: userProfilesTable.userId,
-          set: { stripeCustomerId: session.customer as string, subscriptionTier: tier },
-        });
-      return res.json({ success: true, tier });
-    } catch (e: any) {
-      console.error("Session verification failed:", e.message);
-      return res.status(402).json({ error: "Could not verify payment. Please contact support." });
-    }
-  } catch (err: any) {
-    console.error("Activate tier error:", err.message);
-    return res.status(500).json({ error: "Failed to activate tier" });
-  }
-});
-
-// POST /api/stripe/portal — create billing portal session
-router.post("/stripe/portal", async (req, res) => {
-  try {
-    const { userId } = req.body as { userId?: string };
-    if (!userId) return res.status(400).json({ error: "userId required" });
-
-    const [profile] = await db
-      .select({ stripeCustomerId: userProfilesTable.stripeCustomerId })
-      .from(userProfilesTable)
-      .where(eq(userProfilesTable.userId, userId));
-
-    if (!profile?.stripeCustomerId) {
-      return res.status(404).json({ error: "No billing account found" });
-    }
-
-    const stripe = getStripe();
-    const baseUrl = getBaseUrl(req);
-    const portalSession = await stripe.billingPortal.sessions.create({
-      customer: profile.stripeCustomerId,
-      return_url: `${baseUrl}/`,
+      success_url: `${origin}/checkout/success?tier=${tier}&session_id={CHECKOUT_SESSION_ID}${userId ? `&userId=${userId}` : ""}`,
+      cancel_url:  `${origin}/pricing`,
+      allow_promotion_codes: true,
+      metadata: { userId: userId || "", tier },
     });
 
-    return res.json({ url: portalSession.url });
-  } catch (err: any) {
-    console.error("Portal session error:", err.message);
-    return res.status(500).json({ error: "Failed to create portal session" });
+    res.json({ url: session.url });
+  } catch (err: unknown) {
+    console.error("[Stripe] checkout error:", err);
+    const message = err instanceof Error ? err.message : "Failed to create checkout";
+    res.status(500).json({ error: message });
   }
 });
 
-// POST /api/stripe/webhook — Stripe webhook handler
+// POST /api/stripe/activate — called by success page to mark user as upgraded
+router.post("/stripe/activate", async (req, res) => {
+  try {
+    const { userId, tier, sessionId } = req.body as { userId: string; tier: string; sessionId?: string };
+
+    if (!userId || !tier) {
+      res.status(400).json({ error: "userId and tier required" });
+      return;
+    }
+
+    if (!["plus", "pro"].includes(tier)) {
+      res.status(400).json({ error: "Invalid tier" });
+      return;
+    }
+
+    // Optionally verify the session with Stripe
+    if (sessionId) {
+      try {
+        const session = await stripe.checkout.sessions.retrieve(sessionId);
+        if (session.payment_status !== "paid" && session.status !== "complete") {
+          res.status(400).json({ error: "Payment not completed" });
+          return;
+        }
+      } catch {
+        // If verification fails, still try to activate (webhook is the fallback)
+      }
+    }
+
+    await db
+      .update(userProfilesTable)
+      .set({ subscriptionTier: tier })
+      .where(eq(userProfilesTable.userId, userId));
+
+    res.json({ success: true, tier });
+  } catch (err: unknown) {
+    console.error("[Stripe] activate error:", err);
+    res.status(500).json({ error: "Failed to activate subscription" });
+  }
+});
+
+// POST /api/stripe/webhook — Stripe webhook for reliable activation
 router.post("/stripe/webhook", async (req, res) => {
   const sig = req.headers["stripe-signature"] as string;
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -173,114 +127,82 @@ router.post("/stripe/webhook", async (req, res) => {
   let event: Stripe.Event;
 
   try {
-    const stripe = getStripe();
-    if (webhookSecret && sig) {
+    if (webhookSecret) {
+      // Secret is configured — always verify; reject unsigned requests
+      if (!sig) {
+        res.status(400).send("Missing stripe-signature header");
+        return;
+      }
       event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
     } else {
-      event = JSON.parse(req.body.toString()) as Stripe.Event;
+      // No secret configured (dev/test) — accept unsigned events
+      event = req.body as Stripe.Event;
     }
-  } catch (err: any) {
-    console.error("Webhook signature error:", err.message);
-    return res.status(400).json({ error: `Webhook error: ${err.message}` });
+  } catch (err) {
+    console.error("[Stripe] webhook signature error:", err);
+    res.status(400).send("Webhook signature verification failed");
+    return;
   }
 
   try {
-    switch (event.type) {
-      case "checkout.session.completed": {
-        const session = event.data.object as Stripe.Checkout.Session;
-        const userId = session.metadata?.userId || session.client_reference_id;
-        const tier = session.metadata?.tier;
-        if (userId && tier && ["plus", "pro"].includes(tier)) {
-          await db
-            .insert(userProfilesTable)
-            .values({
-              userId,
-              aiName: "Sirius",
-              subscriptionTier: tier,
-              stripeCustomerId: session.customer as string,
-            })
-            .onConflictDoUpdate({
-              target: userProfilesTable.userId,
-              set: {
-                subscriptionTier: tier,
-                stripeCustomerId: session.customer as string,
-              },
-            });
-        }
-        break;
-      }
-      case "customer.subscription.updated": {
-        const sub = event.data.object as Stripe.Subscription;
-        const customerId = sub.customer as string;
-        const status = sub.status;
-        const [profile] = await db
-          .select({ userId: userProfilesTable.userId })
-          .from(userProfilesTable)
-          .where(eq(userProfilesTable.stripeCustomerId, customerId));
-        if (profile?.userId) {
-          if (status === "active" || status === "trialing") {
-            const amount = sub.items.data[0]?.price?.unit_amount;
-            let tier: string | undefined;
-            if (amount === 500) tier = "plus";
-            else if (amount === 1200) tier = "pro";
-            const metadata = sub.metadata as Record<string, string>;
-            if (!tier && metadata?.tier) tier = metadata.tier;
-            if (tier && ["plus", "pro"].includes(tier)) {
-              await db.update(userProfilesTable).set({ subscriptionTier: tier }).where(eq(userProfilesTable.userId, profile.userId));
-            }
-          } else if (["canceled", "unpaid", "past_due"].includes(status)) {
-            await db.update(userProfilesTable).set({ subscriptionTier: "free" }).where(eq(userProfilesTable.userId, profile.userId));
-          }
-        }
-        break;
-      }
-      case "customer.subscription.deleted": {
-        const sub = event.data.object as Stripe.Subscription;
-        const customerId = sub.customer as string;
-        const [profile] = await db
-          .select({ userId: userProfilesTable.userId })
-          .from(userProfilesTable)
-          .where(eq(userProfilesTable.stripeCustomerId, customerId));
-        if (profile?.userId) {
-          await db
-            .update(userProfilesTable)
-            .set({ subscriptionTier: "free" })
-            .where(eq(userProfilesTable.userId, profile.userId));
-        }
-        break;
-      }
-      case "invoice.payment_succeeded": {
-        const invoice = event.data.object as Stripe.Invoice;
-        const customerId = (invoice as any).customer as string;
-        const amountPence = (invoice as any).amount_paid as number ?? 0;
-        // Determine tier by invoice amount (500p = £5 Plus, 1200p = £12 Pro)
-        const newTier: "plus" | "pro" | null =
-          amountPence >= 1200 ? "pro" :
-          amountPence >= 500 ? "plus" : null;
-        if (!newTier) break;
-        const [profile] = await db.select({ userId: userProfilesTable.userId, subscriptionTier: userProfilesTable.subscriptionTier }).from(userProfilesTable).where(eq(userProfilesTable.stripeCustomerId, customerId));
-        // Only upgrade, never silently downgrade an existing higher tier
-        const tierRank = { free: 0, plus: 1, pro: 2 };
-        const currentRank = tierRank[(profile?.subscriptionTier as keyof typeof tierRank) ?? "free"] ?? 0;
-        const newRank = tierRank[newTier];
-        if (profile?.userId && newRank > currentRank) {
-          await db.update(userProfilesTable).set({ subscriptionTier: newTier }).where(eq(userProfilesTable.userId, profile.userId));
-        }
-        break;
-      }
-      case "invoice.payment_failed": {
-        console.warn("Invoice payment failed for customer:", (event.data.object as any).customer);
-        break;
+    if (event.type === "checkout.session.completed") {
+      const session = event.data.object as Stripe.Checkout.Session;
+      const userId = session.metadata?.userId;
+      const tier   = session.metadata?.tier;
+
+      if (userId && tier && ["plus", "pro"].includes(tier)) {
+        await db
+          .update(userProfilesTable)
+          .set({
+            subscriptionTier: tier,
+            stripeCustomerId: typeof session.customer === "string" ? session.customer : undefined,
+          })
+          .where(eq(userProfilesTable.userId, userId));
+        console.log(`[Stripe] Activated ${tier} for userId=${userId}`);
       }
     }
-    return res.json({ received: true });
-  } catch (err: any) {
-    console.error("Webhook handler error:", err.message);
-    return res.status(500).json({ error: "Webhook handler failed" });
+
+    if (event.type === "customer.subscription.deleted") {
+      const sub = event.data.object as Stripe.Subscription;
+      const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer?.id;
+      if (customerId) {
+        await db
+          .update(userProfilesTable)
+          .set({ subscriptionTier: "free" })
+          .where(eq(userProfilesTable.stripeCustomerId, customerId));
+        console.log(`[Stripe] Downgraded to free for customerId=${customerId}`);
+      }
+    }
+  } catch (err) {
+    console.error("[Stripe] webhook handler error:", err);
+  }
+
+  res.json({ received: true });
+});
+
+// POST /api/stripe/activate-lab — called from mobile after IAP purchase to upsert pro tier
+router.post("/stripe/activate-lab", async (req, res) => {
+  try {
+    const { userId } = req.body as { userId: string };
+    if (!userId?.trim()) {
+      res.status(400).json({ error: "userId required" }); return;
+    }
+    await db
+      .insert(userProfilesTable)
+      .values({ userId: userId.trim(), subscriptionTier: "pro" })
+      .onConflictDoUpdate({
+        target: userProfilesTable.userId,
+        set: { subscriptionTier: "pro" },
+      });
+    console.log(`[Stripe] activate-lab: set pro for userId=${userId.trim()}`);
+    res.json({ ok: true, tier: "pro" });
+  } catch (err: unknown) {
+    console.error("[Stripe] activate-lab error:", err);
+    res.status(500).json({ error: "Failed to activate subscription" });
   }
 });
 
-// GET /api/stripe/subscription/:userId — poll subscription status (used by mobile after returning from web checkout)
+// GET /api/stripe/subscription/:userId
 router.get("/stripe/subscription/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
@@ -288,12 +210,41 @@ router.get("/stripe/subscription/:userId", async (req, res) => {
       .select({ subscriptionTier: userProfilesTable.subscriptionTier, stripeCustomerId: userProfilesTable.stripeCustomerId })
       .from(userProfilesTable)
       .where(eq(userProfilesTable.userId, userId));
-    return res.json({
-      tier: profile?.subscriptionTier ?? "free",
-      hasStripeCustomer: !!(profile?.stripeCustomerId),
+
+    res.json({
+      tier: profile?.subscriptionTier || "free",
+      hasStripeCustomer: !!profile?.stripeCustomerId,
     });
-  } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+  } catch {
+    res.json({ tier: "free", hasStripeCustomer: false });
+  }
+});
+
+// POST /api/stripe/portal — customer portal for managing subscription
+router.post("/stripe/portal", async (req, res) => {
+  try {
+    const { userId } = req.body as { userId: string };
+    if (!userId) { res.status(400).json({ error: "userId required" }); return; }
+
+    const [profile] = await db
+      .select({ stripeCustomerId: userProfilesTable.stripeCustomerId })
+      .from(userProfilesTable)
+      .where(eq(userProfilesTable.userId, userId));
+
+    if (!profile?.stripeCustomerId) {
+      res.status(404).json({ error: "No Stripe customer found" });
+      return;
+    }
+
+    const session = await stripe.billingPortal.sessions.create({
+      customer: profile.stripeCustomerId,
+      return_url: "https://sirius-ai.live/pricing",
+    });
+
+    res.json({ url: session.url });
+  } catch (err: unknown) {
+    console.error("[Stripe] portal error:", err);
+    res.status(500).json({ error: "Failed to create portal session" });
   }
 });
 

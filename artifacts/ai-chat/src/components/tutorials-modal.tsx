@@ -178,16 +178,16 @@ const SECTIONS: Section[] = [
         body: "The Free plan gives you 10 messages per day — a great way to explore what Sirius can do. No credit card required to start.",
       },
       {
-        title: "Sirius Plus — £5/month",
+        title: "Sirius Plus — £9.99/month",
         body: "Unlimited messages, priority response times, and access to the full Topic Hub. Ideal for everyday use and regular creative or research work.",
       },
       {
-        title: "Sirius Pro — £12/month",
+        title: "Sirius Pro — £14.99/month",
         body: "Everything in Plus, plus enhanced memory, advanced file analysis, voice I/O, and early access to new features. Designed for power users and professionals.",
       },
       {
         title: "Changing or cancelling",
-        body: "Manage your subscription at any time from the account settings. Changes take effect at the start of your next billing cycle. Cancellations are immediate with no lock-in.",
+        body: "To cancel, visit your Stripe billing portal from the account panel, or email siriusailab@gmail.com and we'll handle it immediately — no lock-in.",
       },
     ],
   },

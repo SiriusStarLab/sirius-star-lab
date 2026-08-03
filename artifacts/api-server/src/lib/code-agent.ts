@@ -25,21 +25,28 @@ const WORKSPACE = process.env.SIRIUS_WORKSPACE ?? path.resolve(_dirname, "../../
 // Safe paths Sirius is allowed to operate in
 const ALLOWED_PATHS = [
   "artifacts/ai-chat/src",
-  "artifacts/api-server/src",
+  "artifacts/api-server",
   "artifacts/sirius-mobile/app",
   "artifacts/fitstack-crm/src",
+  "artifacts/new-dimensions/src",
   "lib",
   "packages",
+  "package.json",
+  "pnpm-workspace.yaml",
 ];
 
 // Commands Sirius is allowed to run
 const ALLOWED_COMMANDS = [
-  /^pnpm\s+(install|add|remove|run\s+build|run\s+lint|run\s+typecheck|run\s+db:push|audit)/,
+  // pnpm with optional --filter flag: covers both bare and filtered invocations
+  /^pnpm(\s+--filter\s+\S+)?\s+(install|add|remove|run\s+(build|lint|typecheck|db:push|test)|audit)/,
   /^npx\s+tsc/,
   /^ls(\s|$)/,
   /^cat\s/,
   /^echo\s/,
   /^mkdir\s+-p\s/,
+  /^grep\s/,
+  /^find\s/,
+  /^pm2\s+(logs|show|list|status)/,
 ];
 
 function isPathAllowed(filePath: string): boolean {

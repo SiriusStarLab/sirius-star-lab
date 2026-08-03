@@ -90,6 +90,8 @@ async function alreadyLogged(message: string): Promise<boolean> {
 
 // ── Step 1: Watch PM2 error logs ──────────────────────────────────────────────
 async function watchPm2Logs(): Promise<void> {
+  // PM2 only exists on the production VPS — skip silently in dev
+  if (process.env.NODE_ENV !== "production") return;
   try {
     const { stdout } = await execAsync(
       "pm2 logs sirius-api --lines 80 --nostream 2>&1",
@@ -298,4 +300,40 @@ export function startSelfRepairEngine(intervalMinutes = 5): void {
   // First run 45 seconds after boot so other systems are settled
   setTimeout(() => runSelfRepair().catch(console.error), 45_000);
   setInterval(() => runSelfRepair().catch(console.error), intervalMinutes * 60 * 1_000);
+}
+
+// ─── Custom tools backup / restore ───────────────────────────────────────────
+// These are called from index.ts to persist Sirius's self-defined tools across restarts.
+
+const CUSTOM_TOOLS_KEY = 'sirius_custom_tools_backup';
+
+export async function backupCustomTools(): Promise<void> {
+  try {
+    const { db, siriusConfig } = await import('@workspace/db');
+    const { eq } = await import('drizzle-orm');
+    const rows = await db.select().from(siriusConfig).where(eq(siriusConfig.key, 'custom_tools')).limit(1);
+    const tools = rows[0]?.value;
+    if (!tools) return;
+    await db.insert(siriusConfig).values({ key: CUSTOM_TOOLS_KEY, value: tools })
+      .onConflictDoUpdate({ target: siriusConfig.key, set: { value: tools } });
+    console.log('[SelfRepair] Custom tools backed up');
+  } catch (e: any) {
+    console.error('[SelfRepair] Backup failed:', e.message);
+  }
+}
+
+export async function restoreCustomToolsIfEmpty(): Promise<void> {
+  try {
+    const { db, siriusConfig } = await import('@workspace/db');
+    const { eq } = await import('drizzle-orm');
+    const current = await db.select().from(siriusConfig).where(eq(siriusConfig.key, 'custom_tools')).limit(1);
+    if (current[0]?.value) return; // already populated
+    const backup = await db.select().from(siriusConfig).where(eq(siriusConfig.key, CUSTOM_TOOLS_KEY)).limit(1);
+    if (!backup[0]?.value) return;
+    await db.insert(siriusConfig).values({ key: 'custom_tools', value: backup[0].value })
+      .onConflictDoUpdate({ target: siriusConfig.key, set: { value: backup[0].value } });
+    console.log('[SelfRepair] Custom tools restored from backup');
+  } catch (e: any) {
+    console.error('[SelfRepair] Restore failed:', e.message);
+  }
 }

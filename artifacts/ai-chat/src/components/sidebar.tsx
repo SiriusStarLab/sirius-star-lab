@@ -1,18 +1,20 @@
 import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { PlusCircle, MessageSquare, Trash2, X, Settings, Zap, Loader2, Sparkles, FlaskConical, BookOpen, GraduationCap, Globe2, Heart } from "lucide-react";
+import { PlusCircle, MessageSquare, Trash2, X, Settings, Zap, Loader2, Sparkles, FlaskConical, BookOpen, GraduationCap, Globe2, Heart, Smartphone, User } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { SettingsPanel } from "@/components/settings-panel";
+import { AccountPanel } from "@/components/account-panel";
 import { MemoryPortrait } from "@/components/memory-portrait";
 import { PricingModal, startCheckout } from "@/components/pricing-modal";
 import { TutorialsModal } from "@/components/tutorials-modal";
+import { IOSInstallGuide } from "@/components/pwa-install-prompt";
 import { useProfile } from "@/hooks/use-profile";
 import { useSubscription } from "@/hooks/use-subscription";
-import { getUserId } from "@/lib/user-id";
+import { getUserId, isOwner } from "@/lib/user-id";
 import { getApiBase } from "@/lib/api-base";
 import {
   useListOpenaiConversations,
@@ -49,20 +51,57 @@ interface SidebarProps {
   onClose: () => void;
   forceOpenPricing?: "plus" | "pro" | null;
   onNewSession?: () => void;
+  chatMode?: string;
+  onChatModeChange?: (mode: string) => void;
 }
 
-export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession }: SidebarProps) {
+const SIDEBAR_MODES = [
+  { id: "guru",        label: "Guru" },
+  { id: "coach",       label: "Coach" },
+  { id: "scientist",   label: "Scientist" },
+  { id: "philosopher", label: "Philosopher" },
+  { id: "creative",    label: "Creative" },
+  { id: "friend",      label: "Friend" },
+  { id: "tutor",       label: "Tutor" },
+  { id: "research",    label: "Research" },
+  { id: "think",       label: "Think" },
+  { id: "manifest",   label: "Manifest" },
+];
+
+function isIOS() { return /iphone|ipad|ipod/i.test(navigator.userAgent); }
+function isIOSSafari() {
+  const ua = navigator.userAgent;
+  return isIOS() && /safari/i.test(ua) && !/crios|fxios|edgios|opios/i.test(ua);
+}
+function isInStandaloneMode() {
+  return window.matchMedia("(display-mode: standalone)").matches || (window.navigator as any).standalone === true;
+}
+function isMobileDevice() { return /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent); }
+
+export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession, chatMode = "guru", onChatModeChange }: SidebarProps) {
   const [location, setLocation] = useLocation();
   const labPendingCount = useLabPendingCount();
   const queryClient = useQueryClient();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isAccountOpen, setIsAccountOpen] = useState(false);
   const [isPortraitOpen, setIsPortraitOpen] = useState(false);
   const [isPricingOpen, setIsPricingOpen] = useState(false);
   const [isTutorialsOpen, setIsTutorialsOpen] = useState(false);
+  const [showInstallGuide, setShowInstallGuide] = useState(false);
   const [checkingOut, setCheckingOut] = useState(false);
   const { profile } = useProfile();
   const { status, usagePercent, isPremium } = useSubscription();
   const userId = getUserId();
+  const [installEventReady, setInstallEventReady] = useState(() => !!(window as any).__siriusPWAInstallEvent);
+  useEffect(() => {
+    if (installEventReady) return;
+    const onReady = () => setInstallEventReady(true);
+    window.addEventListener("sirius-pwa-installable", onReady);
+    return () => window.removeEventListener("sirius-pwa-installable", onReady);
+  }, [installEventReady]);
+  // Show on mobile UAs (guide flow) OR any device — desktop/laptop Chrome/Edge
+  // included — once the browser has actually fired the native install prompt
+  const showInstallButton = !isIOS() && !isInStandaloneMode() && (isMobileDevice() || installEventReady);
 
   useEffect(() => {
     if (forceOpenPricing) setIsPricingOpen(true);
@@ -132,7 +171,33 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession }: Sid
         </Button>
       </div>
 
-      <div className="px-4 pb-2 space-y-2">
+      {/* ── Conversation Mode ── */}
+      <div className="px-4 pb-1 pt-1">
+        <p className="text-[10px] font-mono font-semibold uppercase tracking-[0.2em] mb-2"
+          style={{ color: "hsl(193 100% 52% / 0.85)" }}>Conversation Mode</p>
+        <div className="flex flex-wrap gap-1.5">
+          {SIDEBAR_MODES.map(m => {
+            const active = chatMode === m.id;
+            return (
+              <button
+                key={m.id}
+                onClick={() => { onChatModeChange?.(m.id); onClose(); }}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all duration-200"
+                style={{
+                  background: active ? "hsl(193 100% 52% / 0.18)" : "hsl(193 100% 52% / 0.07)",
+                  border: active ? "1px solid hsl(193 100% 52% / 0.6)" : "1px solid hsl(193 100% 52% / 0.25)",
+                  color: active ? "hsl(193 100% 35%)" : "hsl(193 100% 70%)",
+                  boxShadow: active ? "0 0 10px hsl(193 100% 52% / 0.15)" : "none",
+                }}
+              >
+                <span>{m.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="px-4 pb-2 space-y-2 pt-2">
         <button
           onClick={() => { if (onNewSession) { onNewSession(); } else { setLocation("/"); } onClose(); }}
           className="w-full flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200"
@@ -216,7 +281,7 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession }: Sid
 
         {/* Dream Lab entry */}
         <button
-          onClick={() => { setLocation("/dream-lab"); onClose(); }}
+          onClick={() => { if (!isPremium) { setLocation("/pricing"); onClose(); return; } setLocation("/dream-lab"); onClose(); }}
           className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 relative overflow-hidden group"
           style={{
             background: location === "/dream-lab" ? "hsla(280,70%,55%,0.1)" : "hsla(280,70%,55%,0.05)",
@@ -302,14 +367,14 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession }: Sid
           </span>
         </button>
 
-        {/* Star Lab entry */}
+        {/* Star Lab entry — Garry gets PIN-gated full lab, subscribers get Creator Lab */}
         <button
-          onClick={() => { setLocation("/star-lab"); onClose(); }}
+          onClick={() => { if (isOwner()) { setLocation("/star-lab"); onClose(); return; } if (!isPremium) { setLocation("/pricing"); onClose(); return; } setLocation("/creator-lab"); onClose(); }}
           className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 relative overflow-hidden group"
           style={{
-            background: location === "/star-lab" ? "hsla(193,100%,35%,0.1)" : "hsla(193,100%,35%,0.05)",
-            border: location === "/star-lab" ? "1px solid hsla(193,100%,35%,0.35)" : "1px solid hsla(193,100%,35%,0.15)",
-            color: location === "/star-lab" ? "hsl(193,100%,24%)" : "hsl(193,60%,32%)",
+            background: location === "/star-lab" || location === "/creator-lab" ? "hsla(193,100%,35%,0.1)" : "hsla(193,100%,35%,0.05)",
+            border: location === "/star-lab" || location === "/creator-lab" ? "1px solid hsla(193,100%,35%,0.35)" : "1px solid hsla(193,100%,35%,0.15)",
+            color: location === "/star-lab" || location === "/creator-lab" ? "hsl(193,100%,24%)" : "hsl(193,60%,32%)",
           }}
           onMouseEnter={e => {
             e.currentTarget.style.background = "hsla(193,100%,35%,0.1)";
@@ -317,7 +382,7 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession }: Sid
             e.currentTarget.style.color = "hsl(193,100%,24%)";
           }}
           onMouseLeave={e => {
-            if (location !== "/star-lab") {
+            if (location !== "/star-lab" && location !== "/creator-lab") {
               e.currentTarget.style.background = "hsla(193,100%,35%,0.05)";
               e.currentTarget.style.borderColor = "hsla(193,100%,35%,0.15)";
               e.currentTarget.style.color = "hsl(193,60%,32%)";
@@ -430,7 +495,7 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession }: Sid
               : <Zap size={14} style={{ color: "hsl(193,100%,30%)" }} fill="currentColor" />}
             <div className="flex-1 text-left">
               <p className="text-[12px] font-semibold" style={{ color: "hsl(193,100%,24%)" }}>
-                {checkingOut ? "Preparing checkout…" : "Get Plus — £5/month"}
+                {checkingOut ? "Preparing checkout…" : "Get Plus — £9.99/month"}
               </p>
               {!checkingOut && (
                 <p className="text-[10px]" style={{ color: "hsl(193,60%,38%)" }}>
@@ -497,7 +562,76 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession }: Sid
           </span>
         </button>
 
+        {/* Memories management page */}
+        <a
+          href="/memories"
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 text-sm"
+          style={{
+            color: "hsl(270 70% 65% / 0.7)",
+            background: "hsl(270 70% 55% / 0.04)",
+            border: "1px solid hsl(270 70% 55% / 0.12)",
+            textDecoration: "none",
+          }}
+          onMouseEnter={e => {
+            (e.currentTarget as HTMLAnchorElement).style.color = "hsl(270 70% 75%)";
+            (e.currentTarget as HTMLAnchorElement).style.background = "hsl(270 70% 55% / 0.08)";
+            (e.currentTarget as HTMLAnchorElement).style.boxShadow = "0 0 12px hsl(270 70% 55% / 0.08)";
+          }}
+          onMouseLeave={e => {
+            (e.currentTarget as HTMLAnchorElement).style.color = "hsl(270 70% 65% / 0.7)";
+            (e.currentTarget as HTMLAnchorElement).style.background = "hsl(270 70% 55% / 0.04)";
+            (e.currentTarget as HTMLAnchorElement).style.boxShadow = "none";
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96-.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2Z"/>
+            <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2Z"/>
+          </svg>
+          <span className="text-[13px] font-medium">My Memory</span>
+        </a>
 
+        {/* Account button */}
+        <button
+          onClick={() => setIsAccountOpen(true)}
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 text-sm"
+          style={{
+            color: "hsl(193 100% 52% / 0.65)",
+            background: "hsl(193 100% 52% / 0.03)",
+            border: "1px solid hsl(193 100% 52% / 0.1)",
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.color = "hsl(193 100% 52%)";
+            e.currentTarget.style.background = "hsl(193 100% 52% / 0.08)";
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.color = "hsl(193 100% 52% / 0.65)";
+            e.currentTarget.style.background = "hsl(193 100% 52% / 0.03)";
+          }}
+        >
+          <User size={14} />
+          <span className="text-[13px] font-medium">My Account</span>
+        </button>
+
+
+
+        {/* Add to Home Screen — mobile only, hidden once installed */}
+        {showInstallButton && (
+          <button
+            onClick={() => { setShowInstallGuide(true); localStorage.removeItem("sirius_pwa_dismissed"); }}
+            className="mx-3 mb-2 flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl transition-all duration-200"
+            style={{
+              background: "hsl(193 100% 52% / 0.06)",
+              border: "1px solid hsl(193 100% 52% / 0.2)",
+              color: "hsl(193 100% 40%)",
+            }}
+          >
+            <Smartphone size={14} style={{ flexShrink: 0 }} />
+            <div style={{ textAlign: "left" }}>
+              <div style={{ fontSize: 12, fontWeight: 600 }}>Add to Home Screen</div>
+              <div style={{ fontSize: 10, opacity: 0.6, marginTop: 1 }}>Install Sirius as an app</div>
+            </div>
+          </button>
+        )}
 
         {/* Legal links */}
         <div className="flex items-center gap-3 px-3 pt-2 pb-1">
@@ -519,24 +653,31 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession }: Sid
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40 lg:hidden"
+            className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40"
           />
         )}
       </AnimatePresence>
 
       <motion.div
         className={cn(
-          "fixed inset-y-0 left-0 z-50 lg:static lg:block transition-transform duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)]",
-          !isOpen && "-translate-x-full lg:translate-x-0"
+          "fixed inset-y-0 left-0 z-50 transition-transform duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)]",
+          !isOpen && "-translate-x-full"
         )}
       >
         {SidebarContent}
       </motion.div>
 
       <SettingsPanel isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+      <AccountPanel isOpen={isAccountOpen} onClose={() => setIsAccountOpen(false)} />
       <MemoryPortrait isOpen={isPortraitOpen} onClose={() => setIsPortraitOpen(false)} aiName={aiName} />
       <PricingModal isOpen={isPricingOpen} onClose={() => setIsPricingOpen(false)} currentTier={status.tier} />
       <TutorialsModal open={isTutorialsOpen} onClose={() => setIsTutorialsOpen(false)} />
+
+      <AnimatePresence>
+        {showInstallGuide && (
+          <IOSInstallGuide onClose={() => setShowInstallGuide(false)} />
+        )}
+      </AnimatePresence>
     </>
   );
 }

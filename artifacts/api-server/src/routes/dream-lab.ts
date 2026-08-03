@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { eq, desc, and } from "drizzle-orm";
-import { db, dreamLabProfiles, dreamLabIdeas, dreamLabManifestations, dreamLabJournal } from "@workspace/db";
+import { eq, desc, and, asc } from "drizzle-orm";
+import { db, dreamLabProfiles, dreamLabIdeas, dreamLabManifestations, dreamLabJournal, userProfilesTable, labMessages as dreamLabMessages } from "@workspace/db";
 import { openai } from "@workspace/ai-client";
 
 const router: IRouter = Router();
@@ -14,6 +14,30 @@ function requireUser(req: Request, res: Response, next: () => void) {
   }
   next();
 }
+
+// ── Middleware: require paid tier (plus or pro) ───────────────────────────────
+async function requirePaid(req: Request, res: Response, next: () => void) {
+  const userId = req.headers["x-dream-user"] as string;
+  if (!userId || userId.length < 4) { res.status(401).json({ error: "User ID required" }); return; }
+  // Garry always gets access
+  if (userId === "garry") { next(); return; }
+  try {
+    const [profile] = await db.select({ tier: userProfilesTable.subscriptionTier })
+      .from(userProfilesTable).where(eq(userProfilesTable.userId, userId));
+    const tier = profile?.tier || "free";
+    if (tier === "free") {
+      res.status(403).json({ error: "Dream Lab is available on Plus and Pro plans.", upgrade: true });
+      return;
+    }
+    next();
+  } catch {
+    res.status(500).json({ error: "Could not verify subscription" });
+  }
+}
+
+// ── Apply gates to all dream-lab routes ──────────────────────────────────────
+router.use((req: Request, res: Response, next: () => void) => { if (!req.path.startsWith("/dream-lab")) return next(); return requireUser(req, res, next); });
+router.use((req: Request, res: Response, next: () => void) => { if (!req.path.startsWith("/dream-lab")) return next(); return requirePaid(req, res, next); });
 
 // ── Content guard: reject dark/harmful material ───────────────────────────────
 const BLOCKED_TERMS = [
@@ -65,7 +89,7 @@ router.post("/dream-lab/profile", requireUser, async (req: Request, res: Respons
 });
 
 // ── GET /dream-lab/ideas ──────────────────────────────────────────────────────
-router.get("/dream-lab/ideas", requireUser, async (req: Request, res: Response) => {
+router.get("/dream-lab/ideas", requirePaid, async (req: Request, res: Response) => {
   try {
     const userId = req.headers["x-dream-user"] as string;
     const ideas = await db.select().from(dreamLabIdeas)
@@ -78,7 +102,7 @@ router.get("/dream-lab/ideas", requireUser, async (req: Request, res: Response) 
 });
 
 // ── POST /dream-lab/ideas ─────────────────────────────────────────────────────
-router.post("/dream-lab/ideas", requireUser, async (req: Request, res: Response) => {
+router.post("/dream-lab/ideas", requirePaid, async (req: Request, res: Response) => {
   try {
     const userId = req.headers["x-dream-user"] as string;
     const { title, description, category, colour, emoji, energyLevel } = req.body;
@@ -97,7 +121,7 @@ router.post("/dream-lab/ideas", requireUser, async (req: Request, res: Response)
 });
 
 // ── PUT /dream-lab/ideas/:id ──────────────────────────────────────────────────
-router.put("/dream-lab/ideas/:id", requireUser, async (req: Request, res: Response) => {
+router.put("/dream-lab/ideas/:id", requirePaid, async (req: Request, res: Response) => {
   try {
     const userId = req.headers["x-dream-user"] as string;
     const id = parseInt(req.params.id as string);
@@ -118,7 +142,7 @@ router.put("/dream-lab/ideas/:id", requireUser, async (req: Request, res: Respon
 });
 
 // ── DELETE /dream-lab/ideas/:id ───────────────────────────────────────────────
-router.delete("/dream-lab/ideas/:id", requireUser, async (req: Request, res: Response) => {
+router.delete("/dream-lab/ideas/:id", requirePaid, async (req: Request, res: Response) => {
   try {
     const userId = req.headers["x-dream-user"] as string;
     const id = parseInt(req.params.id as string);
@@ -131,7 +155,7 @@ router.delete("/dream-lab/ideas/:id", requireUser, async (req: Request, res: Res
 
 // ── POST /dream-lab/ideas/:id/sirius ─────────────────────────────────────────
 // Sirius enhances an idea — returns insight + affirmations (streaming)
-router.post("/dream-lab/ideas/:id/sirius", requireUser, async (req: Request, res: Response) => {
+router.post("/dream-lab/ideas/:id/sirius", requirePaid, async (req: Request, res: Response) => {
   try {
     const userId = req.headers["x-dream-user"] as string;
     const id = parseInt(req.params.id as string);
@@ -175,7 +199,7 @@ Format your response naturally — flowing prose, then list the affirmations cle
         { role: "system", content: systemPrompt },
         { role: "user", content: `Help me develop this idea:\n\nTitle: ${idea.title}\nDescription: ${idea.description || "(no description yet)"}\nCategory: ${idea.category}\nEnergy level: ${idea.energyLevel}/10` },
       ],
-      max_tokens: 800,
+      max_tokens: 1500,
     });
 
     let full = "";
@@ -218,12 +242,12 @@ router.post("/dream-lab/sirius-chat", requireUser, async (req: Request, res: Res
     const ideas = await db.select().from(dreamLabIdeas)
       .where(eq(dreamLabIdeas.userId, userId))
       .orderBy(desc(dreamLabIdeas.createdAt))
-      .limit(8);
+      .limit(12);
 
     const journalEntries = await db.select().from(dreamLabJournal)
       .where(eq(dreamLabJournal.userId, userId))
       .orderBy(desc(dreamLabJournal.createdAt))
-      .limit(4);
+      .limit(6);
 
     const ideasContext = ideas.length > 0
       ? `\nIDEAS & DREAMS IN THEIR BOARD:\n${ideas.map(i => `- "${i.title}"${i.description ? `: ${i.description}` : ""} [${i.status || "seed"}]`).join("\n")}`
@@ -272,17 +296,17 @@ NEVER engage with harmful, violent, exploitative, or hateful content. Gently red
 
     const messages: any[] = [{ role: "system", content: systemPrompt }];
     if (Array.isArray(history)) {
-      for (const h of history.slice(-12)) {
+      for (const h of history.slice(-30)) {
         if (h.role && h.content) messages.push({ role: h.role, content: h.content });
       }
     }
     messages.push({ role: "user", content: message });
 
     const stream = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4-5",
+      model: "anthropic/claude-sonnet-4.5",
       stream: true,
       messages,
-      max_tokens: 1500,
+      max_tokens: 2500,
       temperature: 0.8,
     });
 
@@ -299,7 +323,7 @@ NEVER engage with harmful, violent, exploitative, or hateful content. Gently red
 });
 
 // ── GET /dream-lab/manifestations ─────────────────────────────────────────────
-router.get("/dream-lab/manifestations", requireUser, async (req: Request, res: Response) => {
+router.get("/dream-lab/manifestations", requirePaid, async (req: Request, res: Response) => {
   try {
     const userId = req.headers["x-dream-user"] as string;
     const items = await db.select().from(dreamLabManifestations)
@@ -312,7 +336,7 @@ router.get("/dream-lab/manifestations", requireUser, async (req: Request, res: R
 });
 
 // ── POST /dream-lab/manifestations ────────────────────────────────────────────
-router.post("/dream-lab/manifestations", requireUser, async (req: Request, res: Response) => {
+router.post("/dream-lab/manifestations", requirePaid, async (req: Request, res: Response) => {
   try {
     const userId = req.headers["x-dream-user"] as string;
     const { text, type, frequency, ideaId } = req.body;
@@ -331,7 +355,7 @@ router.post("/dream-lab/manifestations", requireUser, async (req: Request, res: 
 });
 
 // ── DELETE /dream-lab/manifestations/:id ──────────────────────────────────────
-router.delete("/dream-lab/manifestations/:id", requireUser, async (req: Request, res: Response) => {
+router.delete("/dream-lab/manifestations/:id", requirePaid, async (req: Request, res: Response) => {
   try {
     const userId = req.headers["x-dream-user"] as string;
     const id = parseInt(req.params.id as string);
@@ -343,7 +367,7 @@ router.delete("/dream-lab/manifestations/:id", requireUser, async (req: Request,
 });
 
 // ── GET /dream-lab/journal ────────────────────────────────────────────────────
-router.get("/dream-lab/journal", requireUser, async (req: Request, res: Response) => {
+router.get("/dream-lab/journal", requirePaid, async (req: Request, res: Response) => {
   try {
     const userId = req.headers["x-dream-user"] as string;
     const entries = await db.select().from(dreamLabJournal)
@@ -357,7 +381,7 @@ router.get("/dream-lab/journal", requireUser, async (req: Request, res: Response
 });
 
 // ── DELETE /dream-lab/journal/:id ────────────────────────────────────────────
-router.delete("/dream-lab/journal/:id", requireUser, async (req: Request, res: Response) => {
+router.delete("/dream-lab/journal/:id", requirePaid, async (req: Request, res: Response) => {
   try {
     const userId = req.headers["x-dream-user"] as string;
     const id = parseInt(req.params.id as string);
@@ -369,7 +393,7 @@ router.delete("/dream-lab/journal/:id", requireUser, async (req: Request, res: R
 });
 
 // ── POST /dream-lab/journal ───────────────────────────────────────────────────
-router.post("/dream-lab/journal", requireUser, async (req: Request, res: Response) => {
+router.post("/dream-lab/journal", requirePaid, async (req: Request, res: Response) => {
   try {
     const userId = req.headers["x-dream-user"] as string;
     const { title, content, mood, tags } = req.body;
@@ -389,7 +413,7 @@ router.post("/dream-lab/journal", requireUser, async (req: Request, res: Respons
 
 // ── POST /dream-lab/generate-affirmations ─────────────────────────────────────
 // Sirius generates a batch of personalised affirmations
-router.post("/dream-lab/generate-affirmations", requireUser, async (req: Request, res: Response) => {
+router.post("/dream-lab/generate-affirmations", requirePaid, async (req: Request, res: Response) => {
   try {
     const userId = req.headers["x-dream-user"] as string;
     const { theme, count = 5 } = req.body;
@@ -431,6 +455,240 @@ Rules:
     res.json({ affirmations });
   } catch (err: any) {
     res.status(500).json({ error: err?.message });
+  }
+});
+
+// ── GET /dream-lab/dreams/:dreamId/messages ────────────────────────────────────
+// Load full conversation history for a specific dream
+router.get("/dream-lab/dreams/:dreamId/messages", requirePaid, async (req: Request, res: Response) => {
+  try {
+    const userId = req.headers["x-dream-user"] as string;
+    const dreamId = parseInt(req.params.dreamId as string);
+    if (isNaN(dreamId)) { res.status(400).json({ error: "Invalid dream ID" }); return; }
+
+    // Verify dream belongs to this user
+    const [dream] = await db.select().from(dreamLabIdeas)
+      .where(and(eq(dreamLabIdeas.id, dreamId), eq(dreamLabIdeas.userId, userId)));
+    if (!dream) { res.status(404).json({ error: "Dream not found" }); return; }
+
+    const msgs = await db.select().from(dreamLabMessages)
+      .where(and(eq(dreamLabMessages.userId, userId), eq(dreamLabMessages.dreamId, dreamId)))
+      .orderBy(asc(dreamLabMessages.createdAt));
+
+    res.json(msgs);
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+
+// ── POST /dream-lab/dreams/:dreamId/chat ───────────────────────────────────────
+// Send a message about a dream — streams Sirius response, saves both to DB
+router.post("/dream-lab/dreams/:dreamId/chat", requirePaid, async (req: Request, res: Response) => {
+  try {
+    const userId = req.headers["x-dream-user"] as string;
+    const dreamId = parseInt(req.params.dreamId as string);
+    if (isNaN(dreamId)) { res.status(400).json({ error: "Invalid dream ID" }); return; }
+    const { message } = req.body;
+    if (!message?.trim()) { res.status(400).json({ error: "Message required" }); return; }
+    if (!isContentSafe(message)) {
+      res.status(400).json({ error: "Let's keep the Dream Lab a high-vibration space. Please rephrase." });
+      return;
+    }
+
+    // Load dream + profile
+    const [dream] = await db.select().from(dreamLabIdeas)
+      .where(and(eq(dreamLabIdeas.id, dreamId), eq(dreamLabIdeas.userId, userId)));
+    if (!dream) { res.status(404).json({ error: "Dream not found" }); return; }
+
+    const [profile] = await db.select().from(dreamLabProfiles)
+      .where(eq(dreamLabProfiles.userId, userId));
+
+    // Load full conversation history from DB (no limit — full memory)
+    const history = await db.select().from(dreamLabMessages)
+      .where(and(eq(dreamLabMessages.userId, userId), eq(dreamLabMessages.dreamId, dreamId)))
+      .orderBy(asc(dreamLabMessages.createdAt));
+
+    // Save the user message
+    await db.insert(dreamLabMessages).values({
+      userId, dreamId, role: "user", content: message.trim(),
+    });
+
+    const stageDescriptions: Record<string, string> = {
+      seed:       "This dream is in the SEED stage — it's freshly planted. Help them clarify what it is, understand their motivation, and explore the landscape of possibilities. Ask deep questions about why this matters, what the dream looks like when fully alive.",
+      growing:    "This dream is GROWING — it has roots and is taking shape. Help them build a concrete plan, identify specific obstacles, set timelines, and take first actions. Move from vision to execution.",
+      blooming:   "This dream is BLOOMING — it's really developing. Help them track progress, celebrate wins, work through specific challenges, and stay on track. They're building momentum.",
+      manifested: "This dream has been MANIFESTED — it's happened! Help them reflect on the journey, capture what they learned, and start thinking about what's next. Celebrate and plant the next seed.",
+    };
+
+    const systemPrompt = `You are Sirius — a deeply engaged, warm, and brilliant intelligence partner. You are the private thinking partner inside someone's Dream Lab. This is their sacred space.
+
+DREAM YOU ARE WORKING ON:
+- Title: "${dream.title}"
+- Description: "${dream.description || "Not yet described in depth"}"
+- Stage: ${dream.status?.toUpperCase() || "SEED"}
+- Energy level: ${dream.energyLevel}/10
+
+${stageDescriptions[dream.status || "seed"] || stageDescriptions.seed}
+
+${profile ? `WHO YOU ARE TALKING TO:
+- Name: ${profile.displayName || "them"}
+- Big dream: ${profile.bigDream || ""}
+- Personality: ${profile.personality || ""}
+- Core values: ${profile.coreValues || ""}
+- Manifestation style: ${profile.manifestationStyle || ""}` : ""}
+
+YOUR ROLE IN EVERY RESPONSE:
+1. LISTEN deeply — reflect back what you actually heard, show you understood
+2. ADD something real — a new angle, pattern you noticed, something they haven't considered
+3. MOVE IT FORWARD — end with a question, challenge, or next step that creates momentum
+4. BUILD on the full story — you have the whole conversation history. Reference earlier things. Connect dots. Remember everything.
+5. COACH them — if they're stuck, name the block. If they're making progress, celebrate it specifically. If you think they're ready for the next stage, say so naturally (e.g. "This feels like it's growing into something real — you might be ready to move from Seed to Growing.").
+
+STYLE: Warm but real. Specific, not generic. Use their actual words. Conversational, not a lecture. Length: enough to be genuinely helpful.
+
+NEVER engage with harmful content. Keep everything high-vibration and constructive.`;
+
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+
+    const messages: any[] = [{ role: "system", content: systemPrompt }];
+    // Add full history as message context
+    for (const h of history) {
+      messages.push({ role: h.role, content: h.content });
+    }
+    messages.push({ role: "user", content: message.trim() });
+
+    const stream = await openai.chat.completions.create({
+      model: "anthropic/claude-sonnet-4.5",
+      stream: true,
+      messages,
+      max_tokens: 2500,
+      temperature: 0.82,
+    });
+
+    let fullReply = "";
+    for await (const chunk of stream) {
+      const text = chunk.choices[0]?.delta?.content || "";
+      if (text) {
+        fullReply += text;
+        res.write(`data: ${JSON.stringify({ text })}\n\n`);
+      }
+    }
+
+    // Save assistant reply to DB
+    if (fullReply) {
+      await db.insert(dreamLabMessages).values({
+        userId, dreamId, role: "assistant", content: fullReply,
+      });
+    }
+
+    // Auto stage progression — count total messages and suggest next stage
+    const stageOrder = ["seed", "growing", "blooming", "manifested"];
+    const currentStage = dream.status || "seed";
+    const currentIdx = stageOrder.indexOf(currentStage);
+    const nextStage = stageOrder[currentIdx + 1];
+    if (nextStage) {
+      const totalMessages = await db.select().from(dreamLabMessages)
+        .where(and(eq(dreamLabMessages.userId, userId), eq(dreamLabMessages.dreamId, dreamId)));
+      // Thresholds: seed→growing at 8 msgs, growing→blooming at 20, blooming→manifested at 36
+      const thresholds: Record<string, number> = { seed: 8, growing: 20, blooming: 36 };
+      const threshold = thresholds[currentStage] ?? 999;
+      if (totalMessages.length >= threshold) {
+        res.write(`data: ${JSON.stringify({ suggestStage: nextStage })}\n\n`);
+      }
+    }
+
+    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+    res.end();
+  } catch (err: any) {
+    res.write(`data: ${JSON.stringify({ error: err?.message })}\n\n`);
+    res.end();
+  }
+});
+
+// ── POST /dream-lab/dreams/:dreamId/initiate ──────────────────────────────────
+// Sirius opens the conversation — no user message saved, only assistant reply
+router.post("/dream-lab/dreams/:dreamId/initiate", requirePaid, async (req: Request, res: Response) => {
+  try {
+    const userId = req.headers["x-dream-user"] as string;
+    const dreamId = parseInt(req.params.dreamId as string);
+    if (isNaN(dreamId)) { res.status(400).json({ error: "Invalid dream ID" }); return; }
+
+    const [dream] = await db.select().from(dreamLabIdeas)
+      .where(and(eq(dreamLabIdeas.id, dreamId), eq(dreamLabIdeas.userId, userId)));
+    if (!dream) { res.status(404).json({ error: "Dream not found" }); return; }
+
+    const [profile] = await db.select().from(dreamLabProfiles)
+      .where(eq(dreamLabProfiles.userId, userId));
+
+    const stageDescriptions: Record<string, string> = {
+      seed:       "This dream is brand new — freshly planted. Open the conversation by reflecting the dream back to them with genuine curiosity and excitement. Ask a deep, specific question that will help them articulate WHY this dream matters and what it looks like when fully real.",
+      growing:    "This dream is GROWING — it has roots. Open by acknowledging the progress and asking what the most important next concrete step is.",
+      blooming:   "This dream is BLOOMING. Open by celebrating the momentum and asking what's working and what's the current edge they're pushing against.",
+      manifested: "This dream has MANIFESTED. Open with genuine celebration and ask them to reflect on what the journey taught them.",
+    };
+
+    const systemPrompt = `You are Sirius — a deeply engaged, warm, and brilliant intelligence partner. You are opening a Dream Lab conversation for the very first time with someone about their dream.
+
+DREAM:
+- Title: "${dream.title}"
+- Description: "${dream.description || "Not yet described"}"
+- Stage: ${dream.status?.toUpperCase() || "SEED"}
+- Energy level: ${dream.energyLevel}/10
+
+${stageDescriptions[dream.status || "seed"] || stageDescriptions.seed}
+
+${profile ? `WHO YOU ARE TALKING TO:
+- Name: ${profile.displayName || "this person"}
+- Their big dream: ${profile.bigDream || ""}
+- Personality: ${profile.personality || ""}
+- Core values: ${profile.coreValues || ""}
+- Manifestation style: ${profile.manifestationStyle || ""}` : ""}
+
+YOUR OPENING MESSAGE:
+- Start warm but direct — no generic openers
+- Reference something specific about THEIR dream title or description
+- Show you understand what this dream is really about
+- End with ONE powerful question that opens the conversation wide
+- Keep it to 3-4 short paragraphs maximum
+- Make them feel immediately heard and excited to talk`;
+
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+
+    const stream = await openai.chat.completions.create({
+      model: "anthropic/claude-sonnet-4.5",
+      stream: true,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: "Please open this dream conversation." },
+      ],
+      max_tokens: 800,
+      temperature: 0.9,
+    });
+
+    let fullReply = "";
+    for await (const chunk of stream) {
+      const text = chunk.choices[0]?.delta?.content || "";
+      if (text) {
+        fullReply += text;
+        res.write(`data: ${JSON.stringify({ text })}\n\n`);
+      }
+    }
+
+    if (fullReply) {
+      await db.insert(dreamLabMessages).values({
+        userId, dreamId, role: "assistant", content: fullReply,
+      });
+    }
+
+    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+    res.end();
+  } catch (err: any) {
+    res.write(`data: ${JSON.stringify({ error: err?.message })}\n\n`);
+    res.end();
   }
 });
 

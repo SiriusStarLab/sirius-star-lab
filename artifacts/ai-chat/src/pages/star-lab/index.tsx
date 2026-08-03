@@ -56,7 +56,6 @@ const NAV_LABELS: Record<NavMode, string> = {
   outreach:    "Outreach Hub",
 };
 import { speakText, parseSpokenPin } from "./voice-utils";
-import { LabFloatingChat } from "./LabFloatingChat";
 import { SiriusLabChatPanel } from "./SiriusLabChatPanel";
 
 const INDUSTRIES = [
@@ -8682,18 +8681,6 @@ export function StarLabPage() {
         )}
       </div>
 
-      {/* Persistent floating twin chat — always visible on every page */}
-      <LabFloatingChat
-        pin={pin}
-        navMode={navMode}
-        activeProject={activeProject}
-        accessLevel={accessLevel}
-        onNavigate={m => setNavMode(m as NavMode)}
-        onOpenProject={id => {
-          loadProject(id);
-          setNavMode("projects");
-        }}
-      />
 
       {/* Change PIN modal */}
       {changePinOpen && (

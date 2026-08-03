@@ -5,8 +5,8 @@
  * for maintaining chat history across sessions.
  */
 
-import { db, messages as messagesTable } from "@workspace/db";
-import { eq, desc } from "drizzle-orm";
+import { db, messages as messagesTable, conversations as conversationsTable } from "@workspace/db";
+import { eq, desc, and, ne } from "drizzle-orm";
 
 export interface ConversationMessage {
   role: "system" | "user" | "assistant";
@@ -42,6 +42,64 @@ export async function loadConversationContext(
     }));
   } catch (error) {
     console.error("Error loading conversation context:", error);
+    return [];
+  }
+}
+
+/**
+ * Load messages from the LAST COMPLETE conversation for this user.
+ * This gives Sirius proper continuity — she sees what actually happened
+ * in the most recent session, not a random scatter of messages.
+ */
+export async function loadCrossSessionContext(
+  userId: string,
+  limit: number = 50,
+  excludeConversationId?: number,
+): Promise<ConversationMessage[]> {
+  try {
+    // Step 1: Find the most recent previous conversations (by DB id desc = most recent first)
+    const recentConvs = await db
+      .select({ id: conversationsTable.id, title: conversationsTable.title })
+      .from(conversationsTable)
+      .where(
+        excludeConversationId !== undefined
+          ? and(eq(conversationsTable.userId, userId), ne(conversationsTable.id, excludeConversationId))
+          : eq(conversationsTable.userId, userId),
+      )
+      .orderBy(desc(conversationsTable.id))
+      .limit(3);
+
+    if (recentConvs.length === 0) return [];
+
+    // Step 2: Load messages from the most recent conversation first
+    // If it was too short (< 4 messages), also load from the next one
+    const allMessages: Array<{ role: string; content: string; convId: number }> = [];
+
+    for (const conv of recentConvs) {
+      const msgs = await db
+        .select({ role: messagesTable.role, content: messagesTable.content })
+        .from(messagesTable)
+        .where(eq(messagesTable.conversationId, conv.id))
+        .orderBy(desc(messagesTable.createdAt))
+        .limit(limit);
+
+      const reversed = msgs.reverse().map(m => ({ ...m, convId: conv.id }));
+      allMessages.unshift(...reversed);
+
+      // If the most recent conversation had substantial content, that's enough
+      if (reversed.length >= 6) break;
+    }
+
+    // Return up to `limit` messages, most recent last
+    const slice = allMessages.slice(-limit);
+    console.log(`[Mnemosyne] Loaded ${slice.length} messages from last ${recentConvs.length} conversation(s)`);
+
+    return slice.map(m => ({
+      role: m.role as "user" | "assistant",
+      content: m.content,
+    }));
+  } catch (error) {
+    console.error("Error loading cross-session context:", error);
     return [];
   }
 }

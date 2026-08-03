@@ -1,16 +1,30 @@
 import { db, siriusAutomations, siriusCustomTools, siriusConfig, siriusErrors } from "@workspace/db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
+
+
+// ── DB migration — add columns that may be missing from older deployments ─────
+export async function migrateAutomationsTable(): Promise<void> {
+  try {
+    await db.execute(sql`ALTER TABLE sirius_automations ADD COLUMN IF NOT EXISTS last_run_at timestamptz`);
+    await db.execute(sql`ALTER TABLE sirius_automations ADD COLUMN IF NOT EXISTS last_run_result text DEFAULT ''`);
+    await db.execute(sql`ALTER TABLE sirius_automations ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now()`);
+    console.log('[Sirius Automations] DB columns verified/migrated');
+  } catch (err: any) {
+    console.warn('[Sirius Automations] Migration warning:', err?.message);
+  }
+}
 
 // ── Cron helper — returns true if it's time to run based on trigger config ──
 function shouldRunNow(triggerConfig: string, lastRunAt: Date | null): boolean {
   try {
     const config = JSON.parse(triggerConfig || "{}");
-    if (!config.interval_minutes) return false;
-    if (!lastRunAt) return true;
+    // Default to 24-hour interval if not configured — never silently skip
+    const intervalMinutes = config.interval_minutes ?? config.intervalMinutes ?? 1440;
+    if (!lastRunAt) return true; // Never run before — run now
     const minutesSince = (Date.now() - new Date(lastRunAt).getTime()) / 60000;
-    return minutesSince >= config.interval_minutes;
+    return minutesSince >= intervalMinutes;
   } catch {
-    return false;
+    return true; // If config is unparseable, run it — better to over-run than never run
   }
 }
 
@@ -38,15 +52,34 @@ async function executeStep(step: any): Promise<string> {
 
 // ── Run a single automation ───────────────────────────────────────────────────
 export async function runAutomation(automation: any): Promise<string> {
-  const steps = JSON.parse(automation.steps || "[]");
+  let steps: any[] = [];
+  try {
+    const raw = automation.steps || "[]";
+    // Guard against [object Object] — happens when steps were stored without JSON.stringify
+    if (typeof raw !== "string" || raw.includes("[object Object]")) {
+      console.warn(`[Sirius Automations] "${automation.name}" has corrupted steps — skipping steps, marking as run`);
+      await db.update(siriusAutomations)
+        .set({ lastRunAt: new Date(), lastRunResult: "Steps data corrupted — please redefine this automation" })
+        .where(eq(siriusAutomations.id, automation.id));
+      return "Corrupted steps — automation marked as run";
+    }
+    const parsed = JSON.parse(raw);
+    steps = Array.isArray(parsed) ? parsed : [];
+  } catch {
+    console.warn(`[Sirius Automations] "${automation.name}" steps parse failed — marking as run`);
+    await db.update(siriusAutomations)
+      .set({ lastRunAt: new Date(), lastRunResult: "Steps JSON invalid — please redefine this automation" })
+      .where(eq(siriusAutomations.id, automation.id));
+    return "Invalid steps JSON — automation marked as run";
+  }
   const results: string[] = [];
   for (const step of steps) {
     const result = await executeStep(step);
     results.push(result);
   }
-  const summary = results.join(" | ");
+  const summary = results.length > 0 ? results.join(" | ") : "No steps defined";
   await db.update(siriusAutomations)
-    .set({ lastRunAt: new Date(), lastRunResult: summary.slice(0, 500), updatedAt: new Date() })
+    .set({ lastRunAt: new Date(), lastRunResult: summary.slice(0, 500) })
     .where(eq(siriusAutomations.id, automation.id));
   return summary;
 }
@@ -113,8 +146,8 @@ export async function getSiriusConfigValue(key: string): Promise<string> {
 
 export async function setSiriusConfigValue(key: string, value: string): Promise<void> {
   await db.insert(siriusConfig)
-    .values({ key, value, updatedAt: new Date() })
-    .onConflictDoUpdate({ target: siriusConfig.key, set: { value, updatedAt: new Date() } });
+    .values({ key, value })
+    .onConflictDoUpdate({ target: siriusConfig.key, set: { value } });
 }
 
 // ── Log an error Sirius encountered ──────────────────────────────────────────
@@ -139,8 +172,13 @@ export async function tickAutomations(): Promise<void> {
     const automations = await db.select().from(siriusAutomations)
       .where(eq(siriusAutomations.enabled, true));
     for (const automation of automations) {
-      if (automation.triggerType === "schedule" && shouldRunNow(automation.triggerConfig || "", automation.lastRunAt)) {
-        await runAutomation(automation);
+      // Treat missing triggerType as "schedule" — don't silently skip
+      const isSchedule = !automation.triggerType || automation.triggerType === "schedule";
+      if (isSchedule && shouldRunNow(automation.triggerConfig || "", automation.lastRunAt)) {
+        console.log(`[Sirius Automations] Running: "${automation.name}"`);
+        runAutomation(automation).catch((err: any) =>
+          console.error(`[Sirius Automations] Error in "${automation.name}":`, err?.message)
+        );
       }
     }
   } catch (err: any) {

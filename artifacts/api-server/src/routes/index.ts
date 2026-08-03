@@ -15,9 +15,14 @@ import publicRouter from "./public";
 import fitstackRouter from "./fitstack";
 import dreamLabRouter from "./dream-lab";
 import paymentRouter from "./payment";
+import intelligenceProxyRouter from "./intelligence-proxy.js";
+import selfModifyRouter from "./self-modify.js";
+import authRouter from "./auth.js";
+import subscriberLabRouter from "./subscriber-lab.js";
 
 const router: IRouter = Router();
 
+router.use(authRouter);
 router.use(publicRouter);
 router.use(healthRouter);
 router.use(openaiRouter);
@@ -28,11 +33,14 @@ router.use(labRouter);
 router.use(labAppBuilderRouter);
 router.use(intelligenceFeedRouter);
 router.use(outreachRouter);
+router.use(subscriberLabRouter);
 router.use(learnRouter);
 router.use(revenueRouter);
 router.use(agencyRouter);
 router.use("/fitstack", fitstackRouter);
 router.use(dreamLabRouter);
 router.use(paymentRouter);
+router.use(intelligenceProxyRouter);
+router.use("/lab", selfModifyRouter);
 
 export default router;

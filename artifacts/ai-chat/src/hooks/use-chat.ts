@@ -22,6 +22,14 @@ export type ChatSource = {
   title: string;
 };
 
+export type ActionStep = {
+  tool: string;
+  label: string;
+  detail?: string;
+  color?: string;
+  icon?: string;
+};
+
 export type ChatMessage = {
   id: string | number;
   role: "user" | "assistant" | "system";
@@ -35,6 +43,9 @@ export type ChatMessage = {
   imagePrompt?: string;
   uploadedImageBase64?: string;
   sources?: ChatSource[];
+  actions?: ActionStep[];
+  followups?: string[];
+  thinkingContent?: string;
 };
 
 export function useChat(conversationId?: number) {
@@ -53,6 +64,42 @@ export function useChat(conversationId?: number) {
     return [];
   });
   const [isTyping, setIsTyping] = useState(false);
+
+  // ── Contextual recap bridge ─────────────────────────────────────────────
+  // On a fresh chat (no conversationId), check if the user was last active
+  // more than 12 hours ago and surface a one-line context bridge so they
+  // don't face a blank screen.
+  useEffect(() => {
+    if (conversationId !== undefined) return; // existing conversation — skip
+    const userId = getUserId();
+    if (!userId) return;
+
+    fetch(`/api/openai/conversations?userId=${encodeURIComponent(userId)}`)
+      .then(r => r.ok ? r.json() : [])
+      .then((convos: Array<{ id: number; title: string; updatedAt?: string; createdAt: string }>) => {
+        if (!convos.length) return;
+        const last = convos[0]; // already sorted newest-first
+        const lastActive = new Date(last.updatedAt || last.createdAt);
+        const hoursAgo = (Date.now() - lastActive.getTime()) / 3_600_000;
+        if (hoursAgo < 12) return; // too recent — no bridge needed
+
+        const hoursLabel = hoursAgo < 48
+          ? `${Math.round(hoursAgo)} hours ago`
+          : `${Math.floor(hoursAgo / 24)} days ago`;
+
+        setMessages(prev => {
+          // Don't overwrite if user already typed something
+          if (prev.length > 0) return prev;
+          return [{
+            id: "recap-bridge",
+            role: "assistant" as const,
+            content: `Last time (${hoursLabel}) we were working on: **"${last.title}"**.\n\n[Pick up where we left off →](/c/${last.id})`,
+          }];
+        });
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId]);
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -167,6 +214,13 @@ export function useChat(conversationId?: number) {
                 if (onResponseComplete && fullResponseText) {
                   onResponseComplete(fullResponseText);
                 }
+              } else if (data.type === "replace_content" && data.content !== undefined) {
+                fullResponseText = data.content;
+                setMessages(prev => prev.map(m =>
+                  m.id === assistantMsgId
+                    ? { ...m, content: data.content }
+                    : m
+                ));
               } else if (data.type === "image_generating") {
                 setMessages(prev => prev.map(m =>
                   m.id === assistantMsgId
@@ -179,10 +233,37 @@ export function useChat(conversationId?: number) {
                     ? { ...m, isGeneratingImage: false, imageB64: data.b64, imagePrompt: data.prompt }
                     : m
                 ));
+              } else if (data.type === "action") {
+                const step: ActionStep = {
+                  tool: data.tool || "",
+                  label: data.label || data.tool || "",
+                  detail: data.detail,
+                  color: data.color,
+                  icon: data.icon,
+                };
+                setMessages(prev => prev.map(m =>
+                  m.id === assistantMsgId
+                    ? { ...m, actions: [...(m.actions || []), step] }
+                    : m
+                ));
               } else if (data.type === "searching") {
                 setMessages(prev => prev.map(m =>
                   m.id === assistantMsgId
                     ? { ...m, isSearching: true, wasSearched: true }
+                    : m
+                ));
+              } else if (data.type === "thinking_chunk" && data.content) {
+                setMessages(prev => prev.map(m =>
+                  m.id === assistantMsgId
+                    ? { ...m, thinkingContent: (m.thinkingContent || "") + data.content }
+                    : m
+                ));
+              } else if (data.type === "thinking_done") {
+                // thinking complete — no state change needed, content streaming begins
+              } else if (data.type === "followups" && Array.isArray(data.questions)) {
+                setMessages(prev => prev.map(m =>
+                  m.id === assistantMsgId
+                    ? { ...m, followups: data.questions }
                     : m
                 ));
               } else if (data.sources) {

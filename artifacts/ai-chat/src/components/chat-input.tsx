@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, KeyboardEvent, useState, useCallback } from "react";
-import { Send, Square, Mic, MicOff, X, Loader2, Zap, FileText, ImageIcon, HelpCircle, Volume2, VolumeX, Keyboard } from "lucide-react";
+import { Send, Square, Mic, MicOff, X, Loader2, Zap, FileText, ImageIcon, HelpCircle, Volume2, VolumeX, Keyboard, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useSubscription } from "@/hooks/use-subscription";
@@ -7,7 +7,7 @@ import { getUserId } from "@/lib/user-id";
 import { startCheckout } from "@/components/pricing-modal";
 
 const PLACEHOLDERS = [
-  "Initialise session — I'm ready...",
+  "Ask me anything...",
   "What's alive in you right now?",
   "Begin anywhere. I'll follow.",
   "I'm listening. Take your time.",
@@ -21,7 +21,6 @@ const MODES = [
   {
     id: "guru",
     label: "Guru",
-    emoji: "🧿",
     desc: "Deep expertise & thorough answers",
     detail: "The default. Sirius gives you its full depth — comprehensive, well-structured, and thorough. Best when you want a complete picture of something.",
     when: "Researching a topic, getting a full explanation, understanding something complex",
@@ -29,7 +28,6 @@ const MODES = [
   {
     id: "coach",
     label: "Coach",
-    emoji: "🏋️",
     desc: "Action plans & accountability",
     detail: "Direct, energising, and action-focused. Sirius cuts through vagueness, asks what you actually want, and ends every reply with a clear next step.",
     when: "Feeling stuck, building habits, wanting to move forward on a goal",
@@ -37,7 +35,6 @@ const MODES = [
   {
     id: "scientist",
     label: "Scientist",
-    emoji: "🔬",
     desc: "Evidence-based & methodical",
     detail: "Everything must be evidenced. Sirius cites studies, separates strong consensus from weak findings, and is honest when the evidence is thin.",
     when: "Health questions, understanding research, fact-checking, anything where accuracy matters",
@@ -45,7 +42,6 @@ const MODES = [
   {
     id: "philosopher",
     label: "Philosopher",
-    emoji: "🦉",
     desc: "Reflective & exploratory",
     detail: "Explores from first principles. Challenges your assumptions, draws on philosophy from across cultures, and sits comfortably with questions that don't have neat answers.",
     when: "Big life questions, ethical dilemmas, understanding your own thinking, exploring meaning",
@@ -53,7 +49,6 @@ const MODES = [
   {
     id: "creative",
     label: "Creative",
-    emoji: "🎨",
     desc: "Imaginative & generative",
     detail: "Thinks laterally. Sirius deliberately avoids the obvious and comes at things from unexpected angles — using metaphor, imagination, and surprise.",
     when: "Writing, brainstorming, creative projects, when you want the non-obvious take",
@@ -61,7 +56,6 @@ const MODES = [
   {
     id: "friend",
     label: "Friend",
-    emoji: "🤝",
     desc: "Warm, honest conversation",
     detail: "All formality dropped. Sirius talks like a present, warm friend — sharing its own view, being real, not lecturing. Just genuine conversation.",
     when: "When you need to talk something through, want a honest opinion, or just want company",
@@ -69,10 +63,30 @@ const MODES = [
   {
     id: "tutor",
     label: "Tutor",
-    emoji: "🎓",
     desc: "Guides your thinking — asks questions, doesn't just give answers",
     detail: "Sirius won't hand you the answer. It asks what you already know, reveals things layer by layer, and checks your understanding. Based on the Socratic method.",
     when: "Learning something new, studying, preparing for an exam, wanting to actually understand — not just be told",
+  },
+  {
+    id: "research",
+    label: "Research",
+    desc: "Deep web research with cited sources",
+    detail: "Sirius runs live web searches, cross-references sources, and synthesises a comprehensive research brief with citations. Also searches PubMed and arXiv for academic papers. Takes a little longer — worth it for important questions.",
+    when: "Market research, academic topics, current events, fact-checking, competitive analysis, scientific literature, anything that needs the latest information",
+  },
+  {
+    id: "think",
+    label: "Think",
+    desc: "Extended reasoning — works through problems step by step",
+    detail: "Sirius uses an extended thinking model that reasons through your question carefully before answering. You can see the full reasoning chain. Best for complex problems that need depth over speed.",
+    when: "Complex reasoning, maths, logic, strategy, ethical dilemmas, anything that benefits from careful step-by-step thought",
+  },
+  {
+    id: "manifest",
+    label: "Manifest",
+    desc: "Clarify your vision and bring it into being",
+    detail: "Sirius becomes your manifestation guide — helping you get crystal clear on what you want, dissolve the beliefs blocking you, align your emotions with your intention, and build the bridge between vision and reality. Grounded in neuroscience, HeartMath research, and the wisdom of Neville Goddard, Joe Dispenza, and Vedic Sankalpa tradition.",
+    when: "When you want to manifest something specific, clear mental blocks, set powerful intentions, or work through visualisation and scripting",
   },
 ];
 
@@ -82,21 +96,31 @@ interface ChatInputProps {
   onStop: () => void;
   voiceMode?: boolean;
   onToggleVoice?: () => void;
+  externalMode?: string;
 }
 
-export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggleVoice }: ChatInputProps) {
+export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggleVoice, externalMode }: ChatInputProps) {
   const [input, setInput] = React.useState("");
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [phVisible, setPhVisible] = useState(true);
-  const [mode, setMode] = useState("guru");
+  const [internalMode, setInternalMode] = useState("guru");
+  const mode = externalMode ?? internalMode;
+  const setMode = (m: string) => { if (!externalMode) setInternalMode(m); };
   const [imageBase64, setImageBase64] = useState<string | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [documentBase64, setDocumentBase64] = useState<string | null>(null);
   const [documentName, setDocumentName] = useState<string | null>(null);
+  const [youtubeDetected, setYoutubeDetected] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [upgradingFromLimit, setUpgradingFromLimit] = useState(false);
   const [showModeGuide, setShowModeGuide] = useState(false);
+  const [modeBarCanScrollRight, setModeBarCanScrollRight] = useState(false);
+  const [hoveredModeId, setHoveredModeId] = useState<string | null>(null);
+  const [tooltipRect, setTooltipRect] = useState<{ left: number; bottom: number } | null>(null);
+  const modeBarRef = useRef<HTMLDivElement>(null);
+  const attachMenuRef = useRef<HTMLDivElement>(null);
+  const [showAttachMenu, setShowAttachMenu] = useState(false);
   const { status } = useSubscription();
   const userId = getUserId();
 
@@ -106,6 +130,7 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -121,12 +146,40 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
     return () => clearInterval(iv);
   }, []);
 
+  // Close attach menu when clicking outside
+  useEffect(() => {
+    if (!showAttachMenu) return;
+    const handler = (e: MouseEvent) => {
+      if (attachMenuRef.current && !attachMenuRef.current.contains(e.target as Node)) {
+        setShowAttachMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showAttachMenu]);
+
+  // Mode bar scroll indicator — show fade when more modes are hidden to the right
+  useEffect(() => {
+    const el = modeBarRef.current;
+    if (!el) return;
+    const check = () => setModeBarCanScrollRight(el.scrollWidth > el.clientWidth + el.scrollLeft + 4);
+    check();
+    el.addEventListener("scroll", check);
+    window.addEventListener("resize", check);
+    return () => { el.removeEventListener("scroll", check); window.removeEventListener("resize", check); };
+  }, []);
+
   const adjustHeight = () => {
     const t = textareaRef.current;
     if (t) { t.style.height = "auto"; t.style.height = `${Math.min(t.scrollHeight, 200)}px`; }
   };
 
   useEffect(() => { adjustHeight(); }, [input]);
+
+  useEffect(() => {
+    const ytRegex = /(?:youtube\.com\/watch|youtu\.be\/|youtube\.com\/shorts\/)/i;
+    setYoutubeDetected(ytRegex.test(input));
+  }, [input]);
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
@@ -152,7 +205,7 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
     const reader = new FileReader();
     reader.onload = (ev) => {
       const result = ev.target?.result as string;
-      setImageBase64(result.split(",")[1]);
+      setImageBase64(result);
       setImagePreview(result);
       setDocumentBase64(null);
       setDocumentName(null);
@@ -164,13 +217,21 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
   const handleDocSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const isImage = file.type.startsWith("image/");
     const reader = new FileReader();
     reader.onload = (ev) => {
       const result = ev.target?.result as string;
-      setDocumentBase64(result.split(",")[1]);
-      setDocumentName(file.name);
-      setImageBase64(null);
-      setImagePreview(null);
+      if (isImage) {
+        setImageBase64(result);
+        setImagePreview(result);
+        setDocumentBase64(null);
+        setDocumentName(null);
+      } else {
+        setDocumentBase64(result.split(",")[1]);
+        setDocumentName(file.name);
+        setImageBase64(null);
+        setImagePreview(null);
+      }
     };
     reader.readAsDataURL(file);
     e.target.value = "";
@@ -245,7 +306,7 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
   // Show upgrade wall when daily limit is hit
   if (status.dailyLimit !== null && !status.canSendMessage) {
     return (
-      <div className="relative w-full max-w-3xl mx-auto">
+      <div className="relative w-full max-w-4xl mx-auto">
         <div
           style={{
             borderRadius: 18,
@@ -261,7 +322,7 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
             You've used all {status.dailyLimit} messages today
           </p>
           <p style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", marginBottom: 20, lineHeight: 1.5 }}>
-            Your free messages reset at midnight. Upgrade to Plus for 200 a day — or go Pro for unlimited.
+            Your free messages reset at midnight. Upgrade to Plus for 200/day + Dream Lab & Learn — or go Pro for unlimited.
           </p>
           <button
             onClick={handleLimitUpgrade}
@@ -275,10 +336,10 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
               transition: "all 0.2s",
             }}
           >
-            <Zap size={15} fill="currentColor" /> Get Plus for £5/month
+            <Zap size={15} fill="currentColor" /> Get Plus for £9.99/month
           </button>
           <p style={{ fontSize: 11, color: "rgba(255,255,255,0.2)", marginTop: 12 }}>
-            Pay by bank transfer · Cancel any time
+            Secure checkout · Cancel any time
           </p>
         </div>
         <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
@@ -287,31 +348,44 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
   }
 
   return (
-    <div className="relative w-full max-w-3xl mx-auto">
+    <div className="relative w-full max-w-4xl mx-auto">
 
-      {/* Mode selector */}
-      <div className="flex items-center gap-1.5 mb-1.5">
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 flex-1" style={{ scrollbarWidth: "none" }}>
+      {/* Mode selector — hidden when mode is controlled externally (via sidebar) */}
+      <div className="flex items-center gap-1.5 mb-1.5" style={{ display: externalMode ? "none" : undefined }}>
+        <div className="relative flex-1 min-w-0">
+        <div ref={modeBarRef} className="flex items-center gap-1.5 overflow-x-auto pb-0.5" style={{ scrollbarWidth: "none" }}>
           {MODES.map((m) => {
             const active = mode === m.id;
             return (
               <button
                 key={m.id}
-                title={m.detail}
                 onClick={() => { setMode(m.id); setShowModeGuide(false); setTimeout(() => textareaRef.current?.focus(), 0); }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium whitespace-nowrap transition-all duration-200 shrink-0"
+                onMouseEnter={(e) => {
+                  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                  setHoveredModeId(m.id);
+                  setTooltipRect({ left: rect.left + rect.width / 2, bottom: window.innerHeight - rect.top + 8 });
+                }}
+                onMouseLeave={() => { setHoveredModeId(null); setTooltipRect(null); }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold whitespace-nowrap transition-all duration-200 shrink-0"
                 style={{
                   background: active ? "hsl(193 100% 52% / 0.12)" : "hsl(210 30% 95%)",
                   border: active ? "1px solid hsl(193 100% 52% / 0.5)" : "1px solid hsl(210 25% 87%)",
-                  color: active ? "hsl(193 100% 35%)" : "hsl(220 20% 52%)",
+                  color: active ? "hsl(193 100% 35%)" : "hsl(220 20% 28%)",
                   boxShadow: active ? "0 0 12px hsl(193 100% 52% / 0.15)" : "none",
                 }}
               >
-                <span>{m.emoji}</span>
                 <span>{m.label}</span>
               </button>
             );
           })}
+        </div>
+        {/* Right-fade hint — shows when modes are hidden off-screen */}
+        {modeBarCanScrollRight && (
+          <div
+            className="absolute right-0 top-0 bottom-0 w-8 pointer-events-none"
+            style={{ background: "linear-gradient(to right, transparent, hsl(210 30% 97%))" }}
+          />
+        )}
         </div>
         <button
           onClick={() => setShowModeGuide(g => !g)}
@@ -350,7 +424,6 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
                 style={{ background: mode === m.id ? "hsl(193 100% 52% / 0.07)" : "transparent" }}
               >
                 <div className="flex items-start gap-3">
-                  <span className="text-base mt-0.5 shrink-0">{m.emoji}</span>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
                       <span className="text-[12px] font-semibold" style={{ color: mode === m.id ? "hsl(193 100% 35%)" : "hsl(220 15% 25%)" }}>
@@ -374,15 +447,26 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
         </div>
       )}
 
-      {/* Active mode description */}
+      {/* Active mode description — desktop only */}
       {!showModeGuide && (
-        <div className="mb-2.5 h-4 flex items-center">
+        <div className="hidden sm:flex mb-2.5 h-4 items-center">
           {MODES.find(m => m.id === mode) && (
             <p className="text-[10px] font-mono tracking-[0.18em] transition-all duration-200"
               style={{ color: mode !== "guru" ? "hsl(193 100% 40% / 0.75)" : "hsl(220 14% 60% / 0.5)" }}>
               ↳ {MODES.find(m => m.id === mode)?.desc}
             </p>
           )}
+        </div>
+      )}
+
+      {/* YouTube URL detection badge */}
+      {youtubeDetected && !imageBase64 && !documentBase64 && (
+        <div className="mb-2 flex items-center gap-2">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg"
+            style={{ background: "hsl(0 72% 51% / 0.07)", border: "1px solid hsl(0 72% 51% / 0.2)" }}>
+            <span className="text-sm">📺</span>
+            <span className="text-xs font-medium" style={{ color: "hsl(0 72% 45%)" }}>YouTube video detected — Sirius will analyse it</span>
+          </div>
         </div>
       )}
 
@@ -429,7 +513,7 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
 
       {/* Input box */}
       <div
-        className="relative flex items-end w-full rounded-xl overflow-hidden transition-all duration-300"
+        className="relative flex items-end w-full rounded-xl transition-all duration-300"
         style={{
           background: "hsl(0 0% 100% / 0.95)",
           backdropFilter: "blur(20px)",
@@ -448,37 +532,77 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
             opacity: (input || imageBase64) ? 1 : 0
           }} />
 
-        {/* Attachment tab buttons */}
-        <div className="flex-shrink-0 self-end mb-2.5 ml-2.5 flex items-center gap-1.5">
+        {/* Attachment "+" button */}
+        <div className="relative flex-shrink-0 self-end mb-2.5 ml-3" ref={attachMenuRef}>
           <button
-            onClick={() => imageInputRef.current?.click()}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all duration-200"
+            onClick={() => setShowAttachMenu(v => !v)}
+            className="flex items-center justify-center w-8 h-8 rounded-full transition-all duration-200"
             style={{
-              background: imageBase64 ? "hsl(193 100% 52% / 0.18)" : "hsl(210 25% 94%)",
-              color: imageBase64 ? "hsl(193 100% 35%)" : "hsl(220 14% 45%)",
-              border: imageBase64 ? "1px solid hsl(193 100% 52% / 0.4)" : "1px solid hsl(210 25% 87%)",
+              background: (imageBase64 || documentBase64)
+                ? "hsl(193 100% 52% / 0.18)"
+                : showAttachMenu ? "hsl(210 25% 89%)" : "hsl(210 25% 94%)",
+              border: (imageBase64 || documentBase64)
+                ? "1px solid hsl(193 100% 52% / 0.4)"
+                : "1px solid hsl(210 25% 87%)",
+              color: (imageBase64 || documentBase64) ? "hsl(193 100% 35%)" : "hsl(220 14% 35%)",
+              transform: showAttachMenu ? "rotate(45deg)" : "rotate(0deg)",
             }}
-            title="Attach an image"
+            title="Attach a file"
           >
-            <ImageIcon size={12} />
-            Image
+            <Plus size={16} strokeWidth={2.5} />
           </button>
-          <button
-            onClick={() => docInputRef.current?.click()}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all duration-200"
-            style={{
-              background: documentBase64 ? "hsl(193 100% 52% / 0.18)" : "hsl(210 25% 94%)",
-              color: documentBase64 ? "hsl(193 100% 35%)" : "hsl(220 14% 45%)",
-              border: documentBase64 ? "1px solid hsl(193 100% 52% / 0.4)" : "1px solid hsl(210 25% 87%)",
-            }}
-            title="Attach a document (PDF, Word, CSV, TXT)"
-          >
-            <FileText size={12} />
-            Document
-          </button>
+
+          {/* Popup menu */}
+          {showAttachMenu && (
+            <div
+              className="absolute z-50 rounded-2xl overflow-hidden"
+              style={{
+                bottom: "calc(100% + 8px)",
+                left: 0,
+                background: "hsl(0 0% 100%)",
+                border: "1px solid hsl(210 20% 88%)",
+                boxShadow: "0 8px 40px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.08)",
+                minWidth: 200,
+              }}
+            >
+              <button
+                onClick={() => { cameraInputRef.current?.click(); setShowAttachMenu(false); }}
+                className="w-full flex items-center gap-3 px-4 py-3.5 text-[13.5px] font-medium transition-all duration-150 hover:bg-slate-50 active:bg-slate-100"
+                style={{ color: "hsl(220 15% 18%)" }}
+              >
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "hsl(210 25% 94%)" }}>
+                  <span style={{ fontSize: 15 }}>📷</span>
+                </div>
+                Take Photo
+              </button>
+              <div style={{ height: 1, background: "hsl(210 20% 93%)", margin: "0 12px" }} />
+              <button
+                onClick={() => { imageInputRef.current?.click(); setShowAttachMenu(false); }}
+                className="w-full flex items-center gap-3 px-4 py-3.5 text-[13.5px] font-medium transition-all duration-150 hover:bg-slate-50 active:bg-slate-100"
+                style={{ color: "hsl(220 15% 18%)" }}
+              >
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "hsl(210 25% 94%)" }}>
+                  <ImageIcon size={14} style={{ color: "hsl(220 14% 38%)" }} />
+                </div>
+                Photo from Gallery
+              </button>
+              <div style={{ height: 1, background: "hsl(210 20% 93%)", margin: "0 12px" }} />
+              <button
+                onClick={() => { docInputRef.current?.click(); setShowAttachMenu(false); }}
+                className="w-full flex items-center gap-3 px-4 py-3.5 text-[13.5px] font-medium transition-all duration-150 hover:bg-slate-50 active:bg-slate-100"
+                style={{ color: "hsl(220 15% 18%)" }}
+              >
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "hsl(210 25% 94%)" }}>
+                  <FileText size={14} style={{ color: "hsl(220 14% 38%)" }} />
+                </div>
+                Document / File
+              </button>
+            </div>
+          )}
         </div>
         <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageSelect} />
-        <input ref={docInputRef} type="file" accept=".pdf,.docx,.doc,.txt,.csv,.md,.json,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,text/plain,text/csv,text/markdown,application/json" className="hidden" onChange={handleDocSelect} />
+        <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleImageSelect} />
+        <input ref={docInputRef} type="file" accept="image/*,.pdf,.docx,.doc,.txt,.csv,.md,.json,.py,.js,.ts,.tsx,.jsx,.java,.cpp,.c,.h,.cs,.go,.rs,.php,.rb,.swift,.kt,.vue,.html,.css,.scss,.sql,.sh,.bash,.yml,.yaml,.toml,.xml,.env,.gitignore,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,text/plain,text/csv,text/markdown,application/json" className="hidden" onChange={handleDocSelect} />
 
         <Textarea
           ref={textareaRef}
@@ -511,10 +635,10 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
             </button>
           )}
 
-          {/* Keyboard / type button */}
+          {/* Keyboard / type button — desktop only (redundant on mobile) */}
           <button
             onClick={() => { setTimeout(() => textareaRef.current?.focus(), 0); }}
-            className="h-8 w-8 rounded-lg flex items-center justify-center transition-all duration-200"
+            className="hidden sm:flex h-8 w-8 rounded-lg items-center justify-center transition-all duration-200"
             style={{
               background: "hsl(210 30% 95%)",
               border: "1px solid hsl(210 25% 87%)",
@@ -579,6 +703,49 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
           {isRecording ? "🔴 Recording — click mic to stop" : isTranscribing ? "Transcribing your voice..." : "Secure · Private · Always on"}
         </p>
       </div>
+
+      {/* Mode hover tooltip — fixed so it floats above the tab bar */}
+      {hoveredModeId && tooltipRect && (() => {
+        const m = MODES.find(x => x.id === hoveredModeId);
+        if (!m) return null;
+        const CARD_W = 260;
+        const safeLeft = Math.min(Math.max(tooltipRect.left - CARD_W / 2, 12), window.innerWidth - CARD_W - 12);
+        return (
+          <div
+            style={{
+              position: "fixed",
+              bottom: tooltipRect.bottom,
+              left: safeLeft,
+              width: CARD_W,
+              zIndex: 9999,
+              background: "hsl(224 28% 8%)",
+              border: "1px solid hsl(193 100% 52% / 0.25)",
+              borderRadius: 14,
+              padding: "12px 14px",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.45), 0 0 24px hsl(193 100% 52% / 0.08)",
+              pointerEvents: "none",
+            }}
+          >
+            {/* arrow */}
+            <div style={{
+              position: "absolute", bottom: -6, left: "50%", transform: "translateX(-50%)",
+              width: 10, height: 6,
+              borderLeft: "5px solid transparent",
+              borderRight: "5px solid transparent",
+              borderTop: "6px solid hsl(193 100% 52% / 0.25)",
+            }} />
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "hsl(193 100% 70%)", letterSpacing: "0.04em" }}>{m.label}</span>
+            </div>
+            <p style={{ fontSize: 11, color: "rgba(200,220,240,0.85)", lineHeight: 1.5, margin: "0 0 6px" }}>
+              {m.detail}
+            </p>
+            <p style={{ fontSize: 10, color: "hsl(193 100% 52% / 0.55)", lineHeight: 1.4, margin: 0 }}>
+              Best for: {m.when}
+            </p>
+          </div>
+        );
+      })()}
     </div>
   );
 }

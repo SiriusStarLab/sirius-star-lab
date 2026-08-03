@@ -61,9 +61,7 @@ export async function extractAndSaveMemories(
     try {
       response = await openai.chat.completions.create(
         {
-          // OpenRouter requires the full provider/model format
           model: "openai/gpt-4o-mini",
-          response_format: { type: "json_object" },
           messages: [
             {
               role: "system",

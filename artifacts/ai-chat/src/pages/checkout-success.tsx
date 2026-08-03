@@ -7,12 +7,15 @@ export function CheckoutSuccessPage() {
   const [activated, setActivated] = useState(false);
   const [tier, setTier] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(5);
-  const userId = getUserId();
+  const localUserId = getUserId();
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const tierParam = params.get("tier");
     const sessionId = params.get("session_id");
+    // userId comes from URL param (mobile → Safari flow) or localStorage (web flow)
+    const urlUserId = params.get("userId") || "";
+    const resolvedUserId = urlUserId || localUserId;
 
     if (tierParam && ["plus", "pro"].includes(tierParam)) {
       setTier(tierParam);
@@ -20,14 +23,14 @@ export function CheckoutSuccessPage() {
       fetch(`${base}stripe/activate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, tier: tierParam, sessionId }),
+        body: JSON.stringify({ userId: resolvedUserId, tier: tierParam, sessionId }),
       })
         .then(() => setActivated(true))
         .catch(() => setActivated(true));
     } else {
       setActivated(true);
     }
-  }, [userId]);
+  }, [localUserId]);
 
   useEffect(() => {
     if (!activated) return;

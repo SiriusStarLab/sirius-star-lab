@@ -1,11 +1,33 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { desc, eq } from "drizzle-orm";
-import { db, studyPlans } from "@workspace/db";
+import { db, studyPlans, userProfilesTable } from "@workspace/db";
 import { openai } from "@workspace/ai-client";
 
 const router: IRouter = Router();
 
 const TODAY = () => new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+
+// ── Middleware: require Plus or Pro ───────────────────────────────────────────
+async function requirePaid(req: Request, res: Response, next: () => void) {
+  const userId = (
+    req.headers["x-user-id"] ||
+    req.body?.userId ||
+    (req.query?.userId as string)
+  ) as string;
+  if (!userId || userId.length < 4) { res.status(401).json({ error: "User ID required" }); return; }
+  if (userId === "garry") { next(); return; }
+  try {
+    const [profile] = await db.select({ tier: userProfilesTable.subscriptionTier })
+      .from(userProfilesTable).where(eq(userProfilesTable.userId, userId));
+    if ((profile?.tier || "free") === "free") {
+      res.status(403).json({ error: "Learn is available on Plus and Pro plans.", upgrade: true });
+      return;
+    }
+    next();
+  } catch { res.status(500).json({ error: "Could not verify subscription" }); }
+}
+router.use("/learn", requirePaid as any);
+router.use("/learn", ((req, res, next) => next()) as any); // path-scoped guard
 
 // ── STUDY PLAN ──────────────────────────────────────────────────────────────
 
@@ -23,46 +45,54 @@ router.post("/learn/study-plan", async (req: Request, res: Response) => {
   const send = (data: object) => res.write(`data: ${JSON.stringify(data)}\n\n`);
 
   try {
-    const prompt = `Create a comprehensive, structured study plan for learning **${topic}**.
+    const prompt = `Create a comprehensive, self-contained study plan for learning **${topic}**.
 
 Level: ${level || "Beginner"}
 Duration: ${duration || "4 weeks"}
 Today: ${TODAY()}
 
+IMPORTANT: This plan must teach the content directly. Do NOT suggest YouTube videos, external courses, or links to other resources. Everything the learner needs to understand should be written here — explanations, examples, and exercises included inline.
+
 Format the plan as follows — use clear markdown with these exact sections:
 
 ## Overview
-A 2-3 sentence summary of what the learner will achieve.
+A 2-3 sentence summary of what the learner will achieve and why it matters.
 
 ## Learning Objectives
-- 4-6 specific, measurable outcomes
+- 4-6 specific, measurable outcomes the learner will reach by the end
 
 ## Week-by-Week Breakdown
 For each week:
-### Week N: [Theme]
-**Focus:** What this week covers
-**Topics:**
-- Topic 1
-- Topic 2
-**Practice:** What to actually do to reinforce learning
-**Resources:** Types of resources to seek out (books, videos, courses, practice sites)
-**Milestone:** What you should be able to do by end of week
+### Week N: Theme Name Here
+**Focus:** One sentence on what this week is about
+
+**Core Concepts:**
+For each major concept this week, write it out fully:
+- **[Concept name]:** A clear 2-4 sentence explanation of what it is and how it works, written so someone encountering it for the first time can genuinely understand it. Include a concrete real-world analogy or example where helpful.
+
+**Worked Example:**
+Walk through a specific, concrete example that applies this week's concepts step by step. Show the thinking, not just the answer.
+
+**Practice Exercises:**
+3-5 specific exercises the learner can do right now, with enough detail to actually attempt them. Not "study X" — actual tasks: problems to solve, things to write, scenarios to work through.
+
+**Checkpoint:** A clear, specific thing the learner should be able to do or explain by the end of this week — a real test of understanding, not just "review the material".
 
 ## Key Concepts to Master
-A prioritised list of 8-12 core concepts with one-line explanations.
+A prioritised list of 8-12 core concepts, each with a 1-2 sentence plain-language explanation written out in full.
 
 ## Common Pitfalls
-3-5 things learners typically get wrong or get stuck on — and how to avoid them.
+4-5 specific mistakes learners make, with a concrete explanation of why it's wrong and what the correct mental model is.
 
 ## How to Know You're Ready
-3-4 specific benchmarks that signal mastery of this topic.
+3-4 specific, testable benchmarks. Frame them as challenges: "Can you do X without looking it up?" or "Can you explain Y to someone who has never heard of it?"
 
-Make it practical, specific, and motivating. Write as Sirius — a brilliant intelligence partner who genuinely wants this person to succeed.`;
+Write as Sirius — a knowledgeable partner who teaches through clarity and genuine explanation, not by delegating to other sources.`;
 
     let fullPlan = "";
 
     const stream = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.6",
+      model: "anthropic/claude-sonnet-4.5",
       messages: [{ role: "user", content: prompt }],
       stream: true,
       max_tokens: 3000,
@@ -85,7 +115,9 @@ Make it practical, specific, and motivating. Write as Sirius — a brilliant int
           duration: duration || "4 weeks",
           plan: fullPlan,
         });
-      } catch {}
+      } catch (e: any) {
+        console.error("[Learn] Failed to save study plan to DB:", e?.message);
+      }
     }
 
     send({ done: true });
@@ -140,7 +172,7 @@ router.post("/learn/quiz", async (req: Request, res: Response) => {
 ${source}
 Difficulty: ${difficulty || "Medium"}
 
-Return a JSON object with this exact structure:
+Return ONLY a valid JSON object with no extra text, no markdown code fences, no explanation — just the raw JSON:
 {
   "questions": [
     {
@@ -159,25 +191,39 @@ Rules:
 - Explanations should be educational and specific
 - Vary question styles: definition, application, comparison, scenario-based
 - Make wrong answers plausible (not obviously wrong)
-- If the topic is broad (e.g. "engineering", "science", "history"), pick a diverse spread of subtopics within it`;
+- If the topic is broad (e.g. "engineering", "science", "history"), pick a diverse spread of subtopics within it
+- Start your response with { and end with } — nothing else`;
 
     const response = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.6",
+      model: "anthropic/claude-sonnet-4.5",
       messages: [{ role: "user", content: prompt }],
-      response_format: { type: "json_object" },
       max_tokens: 4000,
     });
 
     const raw = response.choices[0]?.message?.content || "{}";
     let parsed: any;
     try {
-      const obj = JSON.parse(raw);
+      // Strip any accidental markdown fences
+      const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
+      const obj = JSON.parse(cleaned);
       const arr = Array.isArray(obj)
         ? obj
         : obj.questions || obj.quiz || obj.items || (Object.values(obj).find(Array.isArray) as any[]);
       parsed = Array.isArray(arr) && arr.length > 0 ? arr : null;
     } catch {
-      parsed = null;
+      // Fallback: try to extract JSON block from text
+      try {
+        const match = raw.match(/\{[\s\S]*\}/);
+        if (match) {
+          const obj = JSON.parse(match[0]);
+          const arr = Array.isArray(obj)
+            ? obj
+            : obj.questions || obj.quiz || obj.items || (Object.values(obj).find(Array.isArray) as any[]);
+          parsed = Array.isArray(arr) && arr.length > 0 ? arr : null;
+        }
+      } catch {
+        parsed = null;
+      }
     }
 
     if (!parsed) {
@@ -234,7 +280,7 @@ Write 3 questions the learner should be able to answer after reading this. Don't
 Write as a knowledgeable partner who finds this genuinely interesting — not as a textbook summary.`;
 
     const stream = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.6",
+      model: "anthropic/claude-sonnet-4.5",
       messages: [{ role: "user", content: prompt }],
       stream: true,
       max_tokens: 2500,

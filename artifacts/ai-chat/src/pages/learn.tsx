@@ -69,7 +69,7 @@ function HomePanel({ onSelect }: { onSelect: (p: Panel) => void }) {
       {/* Hero strip */}
       <div className="px-6 pt-10 pb-8 flex flex-col items-center text-center">
         <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
+          initial={{ opacity: 1, scale: 1 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.4 }}
           className="w-16 h-16 rounded-2xl flex items-center justify-center mb-5"
@@ -78,7 +78,7 @@ function HomePanel({ onSelect }: { onSelect: (p: Panel) => void }) {
           <GraduationCap className="w-8 h-8 text-white" />
         </motion.div>
         <motion.h1
-          initial={{ opacity: 0, y: 10 }}
+          initial={{ opacity: 1, y: 0 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.05 }}
           className="text-3xl font-bold mb-2"
@@ -87,7 +87,7 @@ function HomePanel({ onSelect }: { onSelect: (p: Panel) => void }) {
           Learn with Sirius
         </motion.h1>
         <motion.p
-          initial={{ opacity: 0, y: 8 }}
+          initial={{ opacity: 1, y: 0 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.1 }}
           className="text-sm max-w-md"
@@ -104,7 +104,7 @@ function HomePanel({ onSelect }: { onSelect: (p: Panel) => void }) {
           return (
             <motion.button
               key={card.id}
-              initial={{ opacity: 0, y: 16 }}
+              initial={{ opacity: 1, y: 0 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.08, duration: 0.4 }}
               onClick={() => onSelect(card.id)}
@@ -169,6 +169,7 @@ function StudyPlanPanel() {
   const [duration, setDuration] = useState("4 weeks");
   const [streaming, setStreaming] = useState(false);
   const [plan, setPlan] = useState("");
+  const [planError, setPlanError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [savedPlans, setSavedPlans] = useState<SavedPlan[]>([]);
   const [showSaved, setShowSaved] = useState(false);
@@ -193,7 +194,7 @@ function StudyPlanPanel() {
 
   const generate = async () => {
     if (!topic.trim() || streaming) return;
-    setStreaming(true); setPlan(""); setSaved(false);
+    setStreaming(true); setPlan(""); setSaved(false); setPlanError(null);
     let result = "";
     try {
       const res = await fetch(`${base}learn/study-plan`, {
@@ -201,6 +202,14 @@ function StudyPlanPanel() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId, topic, level, duration }),
       });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        setPlanError(res.status === 403
+          ? "Learn is available on Plus and Pro plans. Upgrade at /pricing"
+          : (err.error || "Something went wrong — please try again"));
+        setStreaming(false);
+        return;
+      }
       const reader = res.body!.getReader();
       const decoder = new TextDecoder();
       while (true) {
@@ -211,11 +220,14 @@ function StudyPlanPanel() {
               const d = JSON.parse(line.slice(6));
               if (d.delta) { result += d.delta; setPlan(result); }
               if (d.done) { setSaved(true); loadSaved(); }
+              if (d.error) { setPlanError(d.error); }
             } catch {}
           }
         }
       }
-    } catch {}
+    } catch (e: any) {
+      setPlanError("Connection error — please try again");
+    }
     setStreaming(false);
   };
 
@@ -247,8 +259,8 @@ function StudyPlanPanel() {
             <Trash2 className="w-4 h-4" />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto px-6 py-6">
-          <div className="max-w-2xl mx-auto prose prose-sm prose-gray max-w-none">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden px-6 py-6">
+          <div className="max-w-2xl mx-auto prose prose-sm prose-gray max-w-none break-words">
             <ReactMarkdown>{viewingPlan.plan}</ReactMarkdown>
           </div>
         </div>
@@ -257,9 +269,9 @@ function StudyPlanPanel() {
   }
 
   return (
-    <div className="flex-1 flex min-h-0">
+    <div className="flex-1 flex flex-col min-h-0">
       {/* Config */}
-      <div className="w-72 border-r flex-shrink-0 flex flex-col overflow-y-auto"
+      <div className="border-b flex-shrink-0 flex flex-col overflow-y-auto"
         style={{ borderColor: "hsl(210 25% 90%)", background: "white" }}>
         <div className="p-5">
           <div className="flex items-center gap-3 mb-5">
@@ -357,7 +369,19 @@ function StudyPlanPanel() {
 
       {/* Output */}
       <div className="flex-1 flex flex-col min-h-0" style={{ background: BASE_BG }}>
-        {!plan && !streaming ? (
+        {planError && !plan && (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center space-y-3 max-w-sm px-6">
+              <div className="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center" style={{ background: "hsl(0 80% 97%)" }}>
+                <XCircle className="w-7 h-7 text-red-400" />
+              </div>
+              <p className="text-sm font-medium text-gray-600">Something went wrong</p>
+              <p className="text-xs text-gray-400 leading-relaxed">{planError}</p>
+              <button onClick={() => setPlanError(null)} className="text-xs px-3 py-1.5 rounded-lg" style={{ background: `${TEAL}15`, color: TEAL }}>Try again</button>
+            </div>
+          </div>
+        )}
+        {!plan && !streaming && !planError ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center space-y-3 max-w-sm px-6">
               <div className="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center"
@@ -393,9 +417,9 @@ function StudyPlanPanel() {
                 </button>
               </div>
             )}
-            <div className="flex-1 overflow-y-auto px-6 py-6">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden px-6 py-6">
               <div className="max-w-2xl mx-auto">
-                <div className="prose prose-sm prose-gray max-w-none">
+                <div className="prose prose-sm prose-gray max-w-none break-words">
                   <ReactMarkdown>{plan}</ReactMarkdown>
                 </div>
                 {streaming && (
@@ -491,9 +515,9 @@ function QuizPanel() {
   const pct = questions.length > 0 ? Math.round((score / questions.length) * 100) : 0;
 
   return (
-    <div className="flex-1 flex min-h-0">
+    <div className="flex-1 flex flex-col min-h-0">
       {/* Config */}
-      <div className="w-72 border-r flex-shrink-0 flex flex-col overflow-y-auto"
+      <div className="border-b flex-shrink-0 flex flex-col overflow-y-auto"
         style={{ borderColor: "hsl(210 25% 90%)", background: "white" }}>
         <div className="p-5">
           <div className="flex items-center gap-3 mb-5">
@@ -812,9 +836,9 @@ function DocumentPanel() {
   const copy = () => { navigator.clipboard.writeText(output); setCopied(true); setTimeout(() => setCopied(false), 2000); };
 
   return (
-    <div className="flex-1 flex min-h-0">
+    <div className="flex-1 flex flex-col min-h-0">
       {/* Config */}
-      <div className="w-72 border-r flex-shrink-0 flex flex-col overflow-y-auto"
+      <div className="border-b flex-shrink-0 flex flex-col overflow-y-auto"
         style={{ borderColor: "hsl(210 25% 90%)", background: "white" }}>
         <div className="p-5">
           <div className="flex items-center gap-3 mb-5">
@@ -919,9 +943,9 @@ function DocumentPanel() {
                 </button>
               </div>
             )}
-            <div className="flex-1 overflow-y-auto px-6 py-6">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden px-6 py-6">
               <div className="max-w-2xl mx-auto">
-                <div className="prose prose-sm prose-gray max-w-none">
+                <div className="prose prose-sm prose-gray max-w-none break-words">
                   <ReactMarkdown>{output}</ReactMarkdown>
                 </div>
                 {streaming && (
@@ -945,6 +969,16 @@ function DocumentPanel() {
 export function LearnPage() {
   const [, navigate] = useLocation();
   const [panel, setPanel] = useState<Panel>("home");
+  const [upgradeRequired, setUpgradeRequired] = useState<boolean | null>(null); // null = checking
+  const base = getApiBase();
+  const userId = getUserId();
+
+  useEffect(() => {
+    // Quick tier check — study-plans returns 403 for free users
+    fetch(`${base}learn/study-plans?userId=${encodeURIComponent(userId)}`)
+      .then(r => { setUpgradeRequired(r.status === 403); })
+      .catch(() => { setUpgradeRequired(false); }); // network error → let them try
+  }, [base, userId]);
 
   const PANEL_META: Record<Panel, { label: string; icon: React.ElementType; color: string } | null> = {
     home: null,
@@ -954,6 +988,45 @@ export function LearnPage() {
   };
 
   const meta = panel !== "home" ? PANEL_META[panel] : null;
+
+  // Still checking tier
+  if (upgradeRequired === null) {
+    return (
+      <div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: BASE_BG }}>
+        <Loader2 className="w-6 h-6 animate-spin" style={{ color: TEAL }} />
+      </div>
+    );
+  }
+
+  // Free user — show upgrade prompt
+  if (upgradeRequired) {
+    return (
+      <div style={{
+        height: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+        background: "linear-gradient(160deg, #04081a 0%, #070d20 55%, #050e1b 100%)",
+        color: "#fff", fontFamily: "'Inter', system-ui, sans-serif", padding: "32px 24px", textAlign: "center",
+      }}>
+        <div style={{ fontSize: 52, marginBottom: 20 }}>🎓</div>
+        <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 10, lineHeight: 1.2 }}>Learn is a Plus feature</h2>
+        <p style={{ fontSize: 15, color: "rgba(255,255,255,0.5)", maxWidth: 380, lineHeight: 1.65, marginBottom: 32 }}>
+          Get AI-generated study plans, interactive quizzes, and deep learning from any document. Available on Plus and Pro.
+        </p>
+        <button
+          onClick={() => navigate("/pricing")}
+          style={{
+            padding: "14px 32px", borderRadius: 12, border: "none",
+            background: "hsl(193,100%,45%)", color: "#04081a",
+            fontSize: 15, fontWeight: 700, cursor: "pointer",
+          }}>
+          Upgrade to Plus — £9.99/month
+        </button>
+        <button onClick={() => navigate("/")} style={{
+          marginTop: 14, background: "none", border: "none", color: "rgba(255,255,255,0.3)",
+          fontSize: 13, cursor: "pointer",
+        }}>← Back to Sirius</button>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-screen" style={{ background: BASE_BG }}>
@@ -1012,22 +1085,22 @@ export function LearnPage() {
       <div className="flex-1 flex min-h-0">
         <AnimatePresence mode="wait">
           {panel === "home" && (
-            <motion.div key="home" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 flex min-h-0">
+            <motion.div key="home" initial={{ opacity: 1 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 flex min-h-0">
               <HomePanel onSelect={setPanel} />
             </motion.div>
           )}
           {panel === "study-plan" && (
-            <motion.div key="study-plan" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 flex min-h-0">
+            <motion.div key="study-plan" initial={{ opacity: 1 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 flex min-h-0">
               <StudyPlanPanel />
             </motion.div>
           )}
           {panel === "quiz" && (
-            <motion.div key="quiz" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 flex min-h-0">
+            <motion.div key="quiz" initial={{ opacity: 1 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 flex min-h-0">
               <QuizPanel />
             </motion.div>
           )}
           {panel === "document" && (
-            <motion.div key="document" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 flex min-h-0">
+            <motion.div key="document" initial={{ opacity: 1 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 flex min-h-0">
               <DocumentPanel />
             </motion.div>
           )}

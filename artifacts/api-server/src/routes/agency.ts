@@ -166,7 +166,7 @@ Focus on ${searchFocus}.
 Format with clear headers, be specific and actionable. Name real types of companies, real platforms they use, real pain points — not generic advice.`;
 
     const stream = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.6",
+      model: "anthropic/claude-sonnet-4-6",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: `Identify the best prospect categories for Sirius Star Lab business intelligence services in the ${searchRegion} ${searchSector} space, specifically for: ${searchFocus}. I want real, actionable prospect categories I can go after this week.` }
@@ -246,7 +246,7 @@ Recommended package: ${selectedPkg.name} (£${selectedPkg.price}/month)
 Features: ${selectedPkg.features}`;
 
     const stream = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.6",
+      model: "anthropic/claude-sonnet-4-6",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userMsg }
@@ -305,7 +305,7 @@ Do NOT use phrases like "I hope this finds you well", "circle back", "synergy", 
 Return the complete message, ready to send.`;
 
     const stream = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.6",
+      model: "anthropic/claude-sonnet-4-6",
       messages: [{ role: "user", content: prompt }],
       stream: true,
       max_tokens: 400,
