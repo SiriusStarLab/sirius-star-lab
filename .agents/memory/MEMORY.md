@@ -9,6 +9,7 @@
 - [Lab.ts agentic loop](lab-agentic-loop.md) — Round 1 timeout must be 90s (3000+ memories = huge context, >30s to first token). Rolling timer 45s. MAX_TOOL_ROUNDS=25. If tools don't fire, timeout is aborting round 1.
 - [Sirius context budget](sirius-context-budget.md) — prompt hit 223K tokens with claude-haiku-4.5's 200K limit; caps: memories 4K chars, cross-session 8 msgs/600 chars each, selfConfigBlock 2K chars.
 - [Sirius self-repair guardrails](sirius-self-repair-guardrails.md) — autonomous restarts broke every session; cooldown + system prompt rewrite deployed.
+- [Sirius auth routes and subscription table](sirius-auth-routes.md) — user_profiles table; x-dream-user for dream-lab; authMiddleware patched to accept x-user-id for Pro/Plus; DELETE /api/users/:id missing.
 - [Stripe on web vs iOS](payments-not-stripe.md) — Stripe IS valid for web subscriptions; forbidden for iOS IAP (Apple 3.1.1). LIVE keys set, no products created yet.
 - [Sirius OpenRouter key source](sirius-openrouter-key.md) — NEVER use Replit's $OPENROUTER_API_KEY to restart PM2; always read from ecosystem.config.json on server.
 - [Sirius AI Router key architecture](sirius-ai-router-key.md) — OPENROUTER_API_KEY in sirius-api is an internal router key; real OR key is in sirius-router. ai-client MUST use OPENROUTER_BASE_URL env var, not hardcoded openrouter.ai URL.
