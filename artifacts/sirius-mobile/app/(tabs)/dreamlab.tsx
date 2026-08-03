@@ -25,9 +25,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ChatInput } from "@/components/ChatInput";
 import { TypingIndicator } from "@/components/TypingIndicator";
 import Colors from "@/constants/colors";
-import { createConversation, generateId, getApiBase, getUserId } from "@/lib/api";
+import { USER_ID_KEY, createConversation, generateId, getApiBase, getUserId } from "@/lib/api";
 import { useApp } from "@/context/AppContext";
-import { useSubscription } from "@/lib/revenuecat";
 import { resilientFetch, startNetworkMonitoring, onQueueResolved } from "@/lib/resilient-fetch";
 import { ConnectionBanner } from "@/components/ConnectionBanner";
 
@@ -351,19 +350,60 @@ function DreamChat({ dream, onBack }: { dream: Dream; onBack: () => void }) {
 
 export default function DreamLabScreen() {
   const insets = useSafeAreaInsets();
-  const { userId: ctxUserId, profile } = useApp();
-  const subscription = useSubscription();
+  const { userId: ctxUserId, profile, loading: profileLoading, refreshProfile } = useApp();
   const [dreams, setDreams] = useState<Dream[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [activeDream, setActiveDream] = useState<Dream | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // ── Subscription gate ─────────────────────────────────────────────────────
-  const isSubscribed = Platform.OS === "ios"
-    ? (subscription.isPlus || subscription.isPro)
-    : profile.subscriptionTier !== "free";
+  // ── Gate auth state ───────────────────────────────────────────────────────
+  const [gateView, setGateView] = useState<"signin" | "signup">("signin");
+  const [gateEmail, setGateEmail] = useState("");
+  const [gatePassword, setGatePassword] = useState("");
+  const [gateConfirm, setGateConfirm] = useState("");
+  const [gateError, setGateError] = useState("");
+  const [gateLoading, setGateLoading] = useState(false);
+  const [subscribing, setSubscribing] = useState(false);
 
-  if (Platform.OS === "ios" && subscription.isLoading) {
+  const handleGateAuth = async () => {
+    const email = gateEmail.trim().toLowerCase();
+    const pw = gatePassword.trim();
+    if (!email || !pw) { setGateError("Please enter your email and password."); return; }
+    if (gateView === "signup" && pw.length < 8) { setGateError("Password must be at least 8 characters."); return; }
+    if (gateView === "signup" && pw !== gateConfirm.trim()) { setGateError("Passwords do not match."); return; }
+    setGateLoading(true);
+    setGateError("");
+    try {
+      const base = getApiBase();
+      const res = await fetch(`${base}${gateView === "signin" ? "auth/login" : "auth/signup"}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password: pw }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setGateError(data.error ?? "Something went wrong. Please try again."); return; }
+      await AsyncStorage.setItem(USER_ID_KEY, data.userId);
+      await refreshProfile();
+    } catch {
+      setGateError("Connection error. Please check your internet and try again.");
+    } finally {
+      setGateLoading(false);
+    }
+  };
+
+  const handleSubscribe = async () => {
+    setSubscribing(true);
+    try {
+      await WebBrowser.openBrowserAsync("https://sirius-ai.live/pricing?plan=plus");
+      // Browser closed — re-fetch subscription tier from server
+      await refreshProfile();
+    } finally {
+      setSubscribing(false);
+    }
+  };
+
+  // ── Profile loading ───────────────────────────────────────────────────────
+  if (profileLoading) {
     return (
       <View style={{ flex: 1, backgroundColor: Colors.background, alignItems: "center", justifyContent: "center" }}>
         <ActivityIndicator color={Colors.primary} />
@@ -371,7 +411,95 @@ export default function DreamLabScreen() {
     );
   }
 
-  if (!isSubscribed) {
+  // ── Not signed in → inline sign in / sign up ──────────────────────────────
+  if (!ctxUserId) {
+    return (
+      <View style={{ flex: 1, backgroundColor: Colors.background }}>
+        <View style={{ paddingTop: insets.top + 8, paddingHorizontal: 16 }}>
+          <Pressable onPress={() => router.push("/(tabs)" as any)} style={d.backBtn}>
+            <Feather name="chevron-left" size={20} color={Colors.primary} />
+            <Text style={d.backBtnText}>Home</Text>
+          </Pressable>
+        </View>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+          <ScrollView
+            contentContainerStyle={{ flexGrow: 1, justifyContent: "center", paddingHorizontal: 28, paddingBottom: 40 }}
+            keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}
+          >
+            {/* Hero */}
+            <View style={{ alignItems: "center", marginBottom: 28 }}>
+              <View style={[d.heroIcon, { backgroundColor: "#6366f1", marginBottom: 14 }]}>
+                <Feather name="star" size={28} color="#fff" />
+              </View>
+              <Text style={{ fontSize: 24, fontFamily: "Inter_700Bold", color: Colors.text, marginBottom: 6 }}>Dream Lab</Text>
+              <Text style={{ fontSize: 14, color: Colors.textMuted, textAlign: "center", lineHeight: 20 }}>
+                {gateView === "signin" ? "Sign in to access your dreams" : "Create an account to get started"}
+              </Text>
+            </View>
+
+            {/* Sign in / Sign up toggle */}
+            <View style={{ flexDirection: "row", backgroundColor: Colors.surface, borderRadius: 12, padding: 4,
+              marginBottom: 24, borderWidth: 1, borderColor: Colors.border }}>
+              {(["signin", "signup"] as const).map(v => (
+                <Pressable key={v} onPress={() => { setGateView(v); setGateError(""); }}
+                  style={{ flex: 1, paddingVertical: 10, borderRadius: 9, alignItems: "center",
+                    backgroundColor: gateView === v ? Colors.primary : "transparent" }}>
+                  <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold",
+                    color: gateView === v ? "#fff" : Colors.textMuted }}>
+                    {v === "signin" ? "Sign In" : "Sign Up"}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            {/* Email */}
+            <View style={{ marginBottom: 14 }}>
+              <Text style={g.fieldLabel}>Email</Text>
+              <TextInput style={g.input} value={gateEmail} onChangeText={setGateEmail}
+                placeholder="you@example.com" placeholderTextColor={Colors.textMuted}
+                autoCapitalize="none" autoCorrect={false} keyboardType="email-address"
+                selectionColor={Colors.primary} />
+            </View>
+
+            {/* Password */}
+            <View style={{ marginBottom: gateView === "signup" ? 14 : 24 }}>
+              <Text style={g.fieldLabel}>Password</Text>
+              <TextInput style={g.input} value={gatePassword} onChangeText={setGatePassword}
+                placeholder={gateView === "signup" ? "At least 8 characters" : "Your password"}
+                placeholderTextColor={Colors.textMuted}
+                secureTextEntry autoCapitalize="none" autoCorrect={false}
+                selectionColor={Colors.primary} />
+            </View>
+
+            {/* Confirm password (sign up only) */}
+            {gateView === "signup" && (
+              <View style={{ marginBottom: 24 }}>
+                <Text style={g.fieldLabel}>Confirm Password</Text>
+                <TextInput style={g.input} value={gateConfirm} onChangeText={setGateConfirm}
+                  placeholder="Repeat your password" placeholderTextColor={Colors.textMuted}
+                  secureTextEntry autoCapitalize="none" autoCorrect={false}
+                  selectionColor={Colors.primary} />
+              </View>
+            )}
+
+            {gateError ? (
+              <Text style={{ color: "#ef4444", fontSize: 13, marginBottom: 14, textAlign: "center" }}>{gateError}</Text>
+            ) : null}
+
+            <Pressable onPress={handleGateAuth} disabled={gateLoading}
+              style={({ pressed }) => [g.btn, { opacity: pressed || gateLoading ? 0.8 : 1 }]}>
+              {gateLoading
+                ? <ActivityIndicator color="#fff" />
+                : <Text style={g.btnText}>{gateView === "signin" ? "Sign In" : "Create Account"}</Text>}
+            </Pressable>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </View>
+    );
+  }
+
+  // ── Signed in but free → subscribe gate ──────────────────────────────────
+  if (profile.subscriptionTier === "free") {
     return (
       <View style={{ flex: 1, backgroundColor: Colors.background }}>
         <View style={{ paddingTop: insets.top + 8, paddingHorizontal: 16 }}>
@@ -388,26 +516,24 @@ export default function DreamLabScreen() {
             Dream Lab is a Plus feature
           </Text>
           <Text style={{ fontSize: 15, color: Colors.textMuted, textAlign: "center", lineHeight: 22, marginBottom: 32 }}>
-            Build and track your dreams with Sirius. Upgrade to Plus to unlock Dream Lab.
+            Build and track your dreams with Sirius.{"\n"}Subscribe to Plus to unlock Dream Lab.
           </Text>
-          <Pressable
-            onPress={() => WebBrowser.openBrowserAsync("https://sirius-ai.live/pricing?plan=plus&source=app")}
+          <Pressable onPress={handleSubscribe} disabled={subscribing}
             style={({ pressed }) => [{
               backgroundColor: Colors.primary, borderRadius: 14, paddingVertical: 15,
               width: "100%" as any, alignItems: "center" as any,
-              opacity: pressed ? 0.85 : 1,
-            }]}
-          >
-            <Text style={{ color: Colors.background, fontSize: 15, fontFamily: "Inter_700Bold" }}>
-              Subscribe to Plus — £9.99/mo
-            </Text>
+              opacity: pressed || subscribing ? 0.85 : 1,
+            }]}>
+            {subscribing
+              ? <ActivityIndicator color={Colors.background} />
+              : <Text style={{ color: Colors.background, fontSize: 15, fontFamily: "Inter_700Bold" }}>
+                  Subscribe to Plus — £9.99/mo
+                </Text>}
           </Pressable>
-          <Pressable
-            onPress={() => subscription.restore()}
-            style={{ marginTop: 16 }}
-          >
+          <Pressable onPress={async () => { setSubscribing(true); await refreshProfile(); setSubscribing(false); }}
+            style={{ marginTop: 16 }}>
             <Text style={{ color: Colors.textMuted, fontSize: 13, textAlign: "center" }}>
-              Already subscribed? Restore purchases
+              Already subscribed? Tap to check access
             </Text>
           </Pressable>
         </View>
@@ -533,6 +659,13 @@ export default function DreamLabScreen() {
     </View>
   );
 }
+
+const g = StyleSheet.create({
+  fieldLabel: { fontSize: 12, color: Colors.textMuted, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 },
+  input: { backgroundColor: Colors.surface, borderRadius: 12, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 14, paddingVertical: 14, color: Colors.text, fontSize: 15, fontFamily: "Inter_400Regular" },
+  btn: { backgroundColor: Colors.primary, borderRadius: 14, paddingVertical: 15, alignItems: "center" },
+  btnText: { color: "#fff", fontSize: 15, fontFamily: "Inter_700Bold" },
+});
 
 const d = StyleSheet.create({
   flex: { flex: 1 },

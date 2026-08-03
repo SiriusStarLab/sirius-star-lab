@@ -1399,12 +1399,30 @@ export default function StarLabScreen() {
           {/* Web checkout fallback (non-iOS or no IAP package) */}
           {(!isIOS || !hasAppleIAP) && (
             <Pressable
-              onPress={() => WebBrowser.openBrowserAsync("https://sirius-ai.live/pricing?plan=pro&source=app")}
+              onPress={async () => {
+                setPayLoading(true);
+                setPayError("");
+                try {
+                  await WebBrowser.openBrowserAsync("https://sirius-ai.live/pricing?plan=pro");
+                  // Browser closed — auto-check if payment went through
+                  if (labAuth) {
+                    const tier = await checkTier(labAuth.userId);
+                    if (tier === "pro") {
+                      await proceedAfterPayment(labAuth);
+                    } else {
+                      setPayError("Payment not confirmed yet. If you completed checkout, tap 'Check Payment Status' below.");
+                    }
+                  }
+                } finally {
+                  setPayLoading(false);
+                }
+              }}
               disabled={payLoading}
               style={({ pressed }) => [s.primaryBtn, pressed && { opacity: 0.85 }, payLoading && { opacity: 0.7 }]}
             >
-              <Feather name="credit-card" size={16} color="#fff" />
-              <Text style={s.primaryBtnText}>Subscribe — £19.99/mo</Text>
+              {payLoading
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <><Feather name="credit-card" size={16} color="#fff" /><Text style={s.primaryBtnText}>Subscribe — £19.99/mo</Text></>}
             </Pressable>
           )}
 

@@ -72,14 +72,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const refreshProfile = useCallback(async () => {
-    if (Platform.OS === "ios") {
-      const saved = await AsyncStorage.getItem(PROFILE_KEY);
-      if (saved) {
-        const local = JSON.parse(saved);
-        setProfile(prev => ({ ...iosProfile, aiName: local.aiName ?? prev.aiName, userName: local.userName ?? prev.userName }));
-      }
-      return;
-    }
     const id = userId || (await initUser());
     if (!id) return;
     try {
@@ -104,18 +96,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     (async () => {
       setLoading(true);
-      await initUser();
-      if (Platform.OS === "ios") {
-        const saved = await AsyncStorage.getItem(PROFILE_KEY);
-        if (saved) {
-          const local = JSON.parse(saved);
-          setProfile({ ...iosProfile, aiName: local.aiName ?? iosProfile.aiName, userName: local.userName ?? iosProfile.userName });
-        } else {
-          setProfile(iosProfile);
-        }
-        setLoading(false);
-        return;
-      }
       try {
         const id = await initUser();
         if (!id) { setLoading(false); return; }
@@ -125,7 +105,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const saved = await AsyncStorage.getItem(PROFILE_KEY);
         if (saved) {
           const local = JSON.parse(saved);
-          setProfile(prev => ({ ...prev, ...local }));
+          setProfile(prev => ({ ...prev, aiName: local.aiName ?? prev.aiName, userName: local.userName ?? prev.userName }));
         }
       } finally {
         setLoading(false);
