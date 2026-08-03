@@ -3,6 +3,7 @@
 - [Kamatera deploy path](kamatera-deploy-path.md) — PM2 runs from `/opt/sirius/artifacts/api-server/dist/index.cjs`; `/opt/sirius/dist/index.cjs` is a symlink to it. Always SCP to the canonical path.
 - [Sirius independence roadmap](independence-roadmap.md) — status of moving off Replit; AI proxy cut, GitHub set up, Kamatera self-builds, object storage migrated to AWS S3. Clerk still on Replit.
 - [Object storage S3 migration](object-storage-migration.md) — @aws-sdk and openai must be EXTERNAL (not in allowlist); they are in alwaysExternal in build.ts and installed on the server.
+- [Sirius frontend serve path — CRITICAL](sirius-frontend-serve-path.md) — nginx serves from /opt/sirius/frontend/ NOT /opt/sirius/artifacts/ai-chat/dist/public/. Always copy there.
 - [Sirius Intelligence Layer](sirius-intelligence-layer.md) — Docker service on port 3001, deploy pattern, Garry's userId="garry", DB tables, context sync hook locations.
 - [Sirius Self-Modification System](sirius-self-modify.md) — review gate, protected files, deploy pipeline, Star Lab tool names, fetch-not-openai rule.
 - [Sirius server self-build pipeline](sirius-server-self-build.md) — what files were missing on the server and how the build.ts was fixed for server-side self-rebuild.
