@@ -281,7 +281,7 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession, chatM
 
         {/* Dream Lab entry */}
         <button
-          onClick={() => { if (!isPremium) { setLocation("/pricing"); onClose(); return; } setLocation("/dream-lab"); onClose(); }}
+          onClick={() => { setLocation("/dream-lab"); onClose(); }}
           className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 relative overflow-hidden group"
           style={{
             background: location === "/dream-lab" ? "hsla(280,70%,55%,0.1)" : "hsla(280,70%,55%,0.05)",
@@ -369,7 +369,7 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession, chatM
 
         {/* Star Lab entry — Garry gets PIN-gated full lab, subscribers get Creator Lab */}
         <button
-          onClick={() => { if (isOwner()) { setLocation("/star-lab"); onClose(); return; } if (!isPremium) { setLocation("/pricing"); onClose(); return; } setLocation("/creator-lab"); onClose(); }}
+          onClick={() => { setLocation("/star-lab"); onClose(); }}
           className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 relative overflow-hidden group"
           style={{
             background: location === "/star-lab" || location === "/creator-lab" ? "hsla(193,100%,35%,0.1)" : "hsla(193,100%,35%,0.05)",

@@ -20,7 +20,6 @@ import { CreatorLabPage } from "@/pages/creator-lab";
 import NotFound from "@/pages/not-found";
 import { PWAInstallPrompt } from "@/components/pwa-install-prompt";
 import { ReconnectionBanner } from "@/components/reconnection-banner";
-import { LabAuthGate } from "@/components/lab-auth-gate";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -39,12 +38,12 @@ function Router() {
       <Route path="/privacy" component={PrivacyPage} />
       <Route path="/checkout/success" component={CheckoutSuccessPage} />
       <Route path="/checkout/cancel" component={CheckoutCancelPage} />
-      <Route path="/star-lab" component={() => <LabAuthGate><StarLabPage /></LabAuthGate>} />
+      <Route path="/star-lab" component={StarLabPage} />
       <Route path="/creator-lab" component={CreatorLabPage} />
       <Route path="/dream-lab" component={DreamLabPage} />
       <Route path="/wellbeing" component={WellbeingPage} />
       <Route path="/universe" component={UniversePage} />
-      <Route path="/admin" component={() => <LabAuthGate><StarLabPage /></LabAuthGate>} />
+      <Route path="/admin" component={StarLabPage} />
       <Route path="/learn" component={LearnPage} />
       <Route path="/why-sirius" component={MarketingPage} />
       <Route path="/agency" component={MarketingPage} />
