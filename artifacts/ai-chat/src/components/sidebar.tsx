@@ -653,15 +653,15 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession, chatM
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40"
+            className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40 lg:hidden"
           />
         )}
       </AnimatePresence>
 
       <motion.div
         className={cn(
-          "fixed inset-y-0 left-0 z-50 transition-transform duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)]",
-          !isOpen && "-translate-x-full"
+          "fixed lg:static lg:inset-auto inset-y-0 left-0 z-50 lg:z-auto transition-transform duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)]",
+          !isOpen && "max-lg:-translate-x-full"
         )}
       >
         {SidebarContent}
