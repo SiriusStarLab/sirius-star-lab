@@ -467,6 +467,15 @@ export default function StarLabScreen() {
         const garryAccount: LabAccount = { email: "garry@sirius-ai.live", userId: "garry" };
         await AsyncStorage.setItem(LAB_AUTH_KEY, JSON.stringify(garryAccount));
         setLabAuth(garryAccount);
+        // Ensure garry has Pro access in the lab system for Lab Chat
+        try {
+          const base = getApiBase();
+          await fetch(`${base}stripe/activate-lab`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ userId: "garry" }),
+          });
+        } catch {}
         setView("home");
         return;
       }
@@ -958,7 +967,12 @@ export default function StarLabScreen() {
         }, "starlab");
       }
 
-      if (!res.ok || !res.body) throw new Error("Stream failed");
+      if (!res.ok) {
+        let errText = "";
+        try { const j = await res.json(); errText = j.error ?? JSON.stringify(j); } catch { try { errText = await res.text(); } catch {} }
+        throw new Error(`Server error ${res.status}: ${errText}`);
+      }
+      if (!res.body) throw new Error("Stream not supported on this device");
 
       const assistantId = generateId();
       setShowTyping(false);
@@ -1041,7 +1055,7 @@ export default function StarLabScreen() {
             m.id === userMsg.id ? { ...m, status: "queued" as const } : m
           ));
         } else {
-          setMessages(prev => [...prev, { id: generateId(), role: "assistant", content: "Something went wrong. Please try again." }]);
+          setMessages(prev => [...prev, { id: generateId(), role: "assistant", content: `Error: ${(e as any)?.message ?? "Unknown"}. Please try again.` }]);
         }
       }
     } finally {
