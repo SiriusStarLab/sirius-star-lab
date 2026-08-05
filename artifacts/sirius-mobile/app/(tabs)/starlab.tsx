@@ -1512,9 +1512,6 @@ export default function StarLabScreen() {
             </Pressable>
           )}
 
-          <Text style={s.payNote}>
-            Payment is processed securely via Stripe or Apple. Access is granted as soon as payment is confirmed — no delays.
-          </Text>
 
           <Pressable onPress={handleSignOut} style={s.linkBtn}>
             <Text style={[s.linkText, { color: Colors.textMuted }]}>Sign out</Text>
