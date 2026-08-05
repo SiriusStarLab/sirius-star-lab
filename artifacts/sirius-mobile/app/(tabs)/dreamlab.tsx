@@ -29,6 +29,7 @@ import { USER_ID_KEY, createConversation, generateId, getApiBase, getUserId } fr
 import { useApp } from "@/context/AppContext";
 import { resilientFetch, startNetworkMonitoring, onQueueResolved } from "@/lib/resilient-fetch";
 import { ConnectionBanner } from "@/components/ConnectionBanner";
+import { useSubscription } from "@/lib/revenuecat";
 
 interface Msg { id: string; role: "user" | "assistant"; content: string; status?: "queued" | "retrying" | "sent"; }
 interface Dream { id: string; title: string; category: string; emoji: string; color: string; note: string; createdAt: string; }
@@ -351,6 +352,7 @@ function DreamChat({ dream, onBack }: { dream: Dream; onBack: () => void }) {
 export default function DreamLabScreen() {
   const insets = useSafeAreaInsets();
   const { userId: ctxUserId, profile, loading: profileLoading, refreshProfile } = useApp();
+  const subscription = useSubscription();
   const [dreams, setDreams] = useState<Dream[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [activeDream, setActiveDream] = useState<Dream | null>(null);
@@ -394,9 +396,17 @@ export default function DreamLabScreen() {
   const handleSubscribe = async () => {
     setSubscribing(true);
     try {
-      await WebBrowser.openBrowserAsync("https://sirius-ai.live/pricing?plan=plus");
-      // Browser closed — re-fetch subscription tier from server
-      await refreshProfile();
+      if (Platform.OS === "ios" && subscription.plusPackage) {
+        // iOS — use Apple IAP via RevenueCat (required by App Store guideline 3.1.1)
+        await subscription.purchase(subscription.plusPackage);
+        await refreshProfile();
+      } else {
+        // Android or IAP package not yet available — fall back to web checkout
+        await WebBrowser.openBrowserAsync("https://sirius-ai.live/pricing?plan=plus");
+        await refreshProfile();
+      }
+    } catch {
+      // User cancelled purchase — do nothing
     } finally {
       setSubscribing(false);
     }
