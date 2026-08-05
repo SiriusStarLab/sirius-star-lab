@@ -84,9 +84,16 @@ function packageFromOffering(
   productId: string
 ): IAPPackage | undefined {
   if (!offering?.availablePackages) return undefined;
-  const pkg = offering.availablePackages.find(
-    (p: any) => p.product?.productIdentifier === productId
-  );
+  // Try exact match first, then partial match (handles bundle-ID prefix differences)
+  const keyword = productId.replace("live.siriusai.app.", "").toLowerCase();
+  const pkg =
+    offering.availablePackages.find(
+      (p: any) => p.product?.productIdentifier === productId
+    ) ??
+    offering.availablePackages.find(
+      (p: any) =>
+        (p.product?.productIdentifier ?? "").toLowerCase().includes(keyword)
+    );
   if (!pkg) return undefined;
   return {
     identifier: pkg.identifier,

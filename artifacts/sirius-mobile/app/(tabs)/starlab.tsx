@@ -669,9 +669,18 @@ export default function StarLabScreen() {
   // ─────────────────────────────────────────────────────────────────────────
 
   const handleAppleIAP = async () => {
-    if (!labAuth || !subscription.proPackage) return;
+    if (!labAuth) return;
     setPayLoading(true);
     setPayError("");
+    // If package not loaded yet, try refreshing once
+    if (!subscription.proPackage) {
+      await subscription.refetchCustomerInfo();
+      if (!subscription.proPackage) {
+        setPayError("Subscription unavailable right now. Please try again in a moment.");
+        setPayLoading(false);
+        return;
+      }
+    }
     try {
       await subscription.purchase(subscription.proPackage);
       // RC purchase succeeded — sync to our server

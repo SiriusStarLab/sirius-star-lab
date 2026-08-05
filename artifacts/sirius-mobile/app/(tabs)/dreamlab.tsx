@@ -396,12 +396,24 @@ export default function DreamLabScreen() {
   const handleSubscribe = async () => {
     setSubscribing(true);
     try {
-      if (Platform.OS === "ios" && subscription.plusPackage) {
-        // iOS — use Apple IAP via RevenueCat (required by App Store guideline 3.1.1)
-        await subscription.purchase(subscription.plusPackage);
+      if (Platform.OS === "ios") {
+        // iOS — MUST use Apple IAP (App Store guideline 3.1.1)
+        const pkg = subscription.plusPackage;
+        if (!pkg) {
+          // Packages not yet loaded — try refreshing once
+          await subscription.refetchCustomerInfo();
+          // Still not available after refresh — show error, never open browser on iOS
+          if (!subscription.plusPackage) {
+            Alert.alert("Unavailable", "Subscription is not available right now. Please try again in a moment.");
+            return;
+          }
+          await subscription.purchase(subscription.plusPackage);
+        } else {
+          await subscription.purchase(pkg);
+        }
         await refreshProfile();
       } else {
-        // Android or IAP package not yet available — fall back to web checkout
+        // Android — web checkout fallback
         await WebBrowser.openBrowserAsync("https://sirius-ai.live/pricing?plan=plus");
         await refreshProfile();
       }
