@@ -942,7 +942,7 @@ export default function StarLabScreen() {
         }
 
         const body: Record<string, any> = {
-          message: displayContent,
+          content: displayContent,
           mode: "guru",
           systemPrompt: SYSTEM_PROMPTS[chatMode],
           userId: uid,
@@ -1070,7 +1070,7 @@ export default function StarLabScreen() {
       const res = await fetch(`${base}openai/conversations/${convoId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: summaryPrompt, mode: "guru", systemPrompt: SYSTEM_PROMPTS.appbuilder, userId: uid }),
+        body: JSON.stringify({ content: summaryPrompt, mode: "guru", systemPrompt: SYSTEM_PROMPTS.appbuilder, userId: uid }),
       });
       if (!res.ok || !res.body) throw new Error("Failed");
       const reader = (res.body as any).getReader();
