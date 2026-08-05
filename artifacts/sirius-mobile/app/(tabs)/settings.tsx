@@ -414,6 +414,11 @@ export default function SettingsScreen() {
       <View style={styles.card}>
         <SectionHeader title="ACCOUNT" />
         <SettingRow
+          icon="credit-card"
+          label="Plans & Pricing"
+          onPress={() => router.push("/(tabs)/pricing" as any)}
+        />
+        <SettingRow
           icon="refresh-cw"
           label={isIOS ? "Refresh account" : "Refresh subscription"}
           onPress={() => refreshProfile()}

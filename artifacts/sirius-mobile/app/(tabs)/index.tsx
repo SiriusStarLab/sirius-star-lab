@@ -817,8 +817,6 @@ export default function ChatScreen() {
               )}
 
               <View style={styles.drawerDivider} />
-              <DrawerItem icon="credit-card" label="Plans & Pricing" onPress={() => { closeDrawer(); router.push("/(tabs)/pricing" as any); }} />
-
               <DrawerItem icon="user" label="My Account" onPress={() => navigateTo("/(tabs)/settings")} />
 
               {/* Footer */}
