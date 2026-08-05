@@ -19,6 +19,15 @@ Do not make changes to the folder `lib/api-spec`.
 Changes to `artifacts/ai-chat/src/pages/star-lab.tsx` are permitted — Garry explicitly approved this. The previous restriction is lifted.
 **Avoid OpenAI, OpenRouter, and Replit dependencies wherever possible.** Use them only as a last resort. Prefer self-hosted, open-source, or alternative solutions (e.g. Piper for TTS, local models, direct APIs) over routing through these platforms.
 
+## ★ MOBILE / WEB SEPARATION RULE (NON-NEGOTIABLE) ★
+
+The Sirius mobile app (`artifacts/sirius-mobile`) and the main website (`sirius-ai.live`, served from the Kamatera server via `artifacts/ai-chat`) are **completely separate products**.
+
+- **When working on the mobile app: do NOT touch `artifacts/ai-chat`, the Kamatera server, or any live site files. Ever.**
+- **When working on the main site: do NOT touch `artifacts/sirius-mobile` or submit any EAS builds.**
+- If a task seems to require changes to both, stop and ask Garry to confirm scope before touching anything.
+- This rule exists because cross-contamination has caused repeated confusion, broken features, and wasted builds.
+
 ## ★ SERVER SECURITY PROTOCOL (NON-NEGOTIABLE) ★
 
 **4-layer security protocol. All four rules apply in every session, automatically.**
