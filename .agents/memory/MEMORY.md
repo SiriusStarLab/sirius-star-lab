@@ -22,6 +22,7 @@
 - [Sirius model names](sirius-model-names.md) — OpenRouter retires model IDs periodically; never trust a hardcoded name, always re-verify live via curl before patching. 20+ server files affected each time.
 - [Piper TTS stdout deadlock](piper-tts-stdout-deadlock.md) — piper hangs on long texts; fix is stdout.resume() after spawn.
 - [Sirius custom tools data loss](sirius-custom-tools-loss.md) — tools were never in Kamatera DB (migration gap); backup/restore now in self-repair.ts.
+- [expo/fetch streaming — MANDATORY](sirius-expo-fetch-streaming.md) — global React Native fetch silently breaks streaming on iOS; all streaming files MUST import fetch from "expo/fetch".
 - [Sirius EAS build fix — monorepo](sirius-eas-build-fix.md) — root cause of all EAS build failures in pnpm monorepo; expo-entry.js pattern, ios/ pre-generation, EAS_NO_VCS=1 behavior.
 - [Sirius DB tables — memories](sirius-db-memories-table.md) — save_memory() writes to `core_memories` table (columns: category, content, importance). `memories` does NOT exist. To insert directly via psql use core_memories. Conversation history: table is `messages` not `chat_messages`; conversations table has user_id='garry'.
 - [Sirius live state block](sirius-live-state-block.md) — injected into ownerSystemPrompt at session start; queries sirius_automations + sirius_tasks (NOT automations/background_jobs); ecosystem AI_INTEGRATIONS_OPENAI_MODEL must be opus-4.8 (dot not dash).

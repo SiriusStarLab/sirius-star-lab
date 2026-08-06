@@ -7,6 +7,7 @@
  * - `subscribeToStatus` / `onQueueResolved` let screens react without prop-drilling
  */
 
+import { fetch } from "expo/fetch";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import NetInfo from "@react-native-community/netinfo";
 
@@ -161,7 +162,7 @@ function isRetryableError(err: unknown, status?: number): boolean {
 
 export async function resilientFetch(
   url: string,
-  options: RequestInit = {},
+  options: RequestInit & { signal?: AbortSignal } = {},
   screen = "unknown"
 ): Promise<Response> {
   // ① Check device connectivity BEFORE attempting (saves timeout on offline devices)
@@ -178,7 +179,7 @@ export async function resilientFetch(
 
   // ② Attempt request
   try {
-    const res = await fetch(url, options);
+    const res = await fetch(url, options as any);
     if (isRetryableError(null, res.status)) {
       throw Object.assign(new Error(`HTTP ${res.status}`), { status: res.status, isRetryable: true });
     }
