@@ -377,11 +377,11 @@ export default function ChatScreen() {
           .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
         speakWithChunks(clean);
       }
-    } catch {
+    } catch (e: any) {
       setShowTyping(false);
       setMessages(prev => [
         ...prev,
-        { id: generateId(), role: "assistant", content: "Something went wrong. Please try again." },
+        { id: generateId(), role: "assistant", content: `Error: ${e?.message ?? String(e)}` },
       ]);
     } finally {
       setIsStreaming(false);
