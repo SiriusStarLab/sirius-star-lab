@@ -1935,6 +1935,28 @@ export default function StarLabScreen() {
           />
         )}
 
+        {/* Sirius Exchange springboard — shown after code/app is built */}
+        {(chatMode === "code" || chatMode === "appbuilder") && messages.length >= 2 && !isStreaming && (
+          <Pressable
+            onPress={() => WebBrowser.openBrowserAsync("https://siriusexchange.net")}
+            style={({ pressed }) => ({
+              flexDirection: "row", alignItems: "center", gap: 10,
+              marginHorizontal: 12, marginBottom: 8,
+              backgroundColor: "rgba(245,158,11,0.10)",
+              borderRadius: 14, padding: 14,
+              borderWidth: 1, borderColor: "rgba(245,158,11,0.3)",
+              opacity: pressed ? 0.8 : 1,
+            })}
+          >
+            <Feather name="trending-up" size={18} color="#f59e0b" />
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 13, fontFamily: "Inter_700Bold", color: "#f59e0b" }}>Ready to launch?</Text>
+              <Text style={{ fontSize: 12, color: Colors.textMuted, marginTop: 2 }}>Take your product to market on Sirius Exchange →</Text>
+            </View>
+            <Feather name="chevron-right" size={16} color="#f59e0b" />
+          </Pressable>
+        )}
+
         {selectedDocName && (
           <View style={s.docBar}>
             <Feather name="file-text" size={14} color={Colors.primary} />

@@ -126,9 +126,19 @@ const dreamMarkdownStyles = {
 function DreamChat({ dream, onBack }: { dream: Dream; onBack: () => void }) {
   const insets = useSafeAreaInsets();
   const { userId: ctxUserId } = useApp();
-  const opening = `I want to talk about my dream: "${dream.title}". ${dream.note ? `Here's some context: ${dream.note}` : "Help me explore it, break it down into actionable steps, and give me a clear next step I can take today."}`;
+  const opening = `My dream is: "${dream.title}".${dream.note ? ` Context: ${dream.note}.` : ""} In your first response, ask me 2 focused questions to quickly understand: (1) is this a personal goal or a product/business idea? (2) what does success look like in 30 days? Keep your response under 100 words and be direct.`;
+
+  const FAST_COACH_PROMPT = `You are Sirius, a fast and direct dream accelerator. Rules:
+- Keep every response under 150 words
+- Ask maximum 2 questions per message
+- By message 3, classify the dream clearly: personal goal, career move, or product/business idea
+- If it is a product or business idea, name it explicitly — say "this sounds like a product idea"
+- Always end with ONE specific action the user can take today
+- Never use filler phrases like "let's dream bigger" or "what if you could..."
+- Be direct, concise, and fast-moving`;
 
   const [messages, setMessages]   = useState<Msg[]>([]);
+  const [isProductDream, setIsProductDream] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [showTyping, setShowTyping]  = useState(false);
   const [convId, setConvId]       = useState<number | null>(null);
@@ -222,7 +232,7 @@ function DreamChat({ dream, onBack }: { dream: Dream; onBack: () => void }) {
       const response = await resilientFetch(`${base}openai/conversations/${activeId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
-        body: JSON.stringify({ content: text, userId: uid, mode: "coach" }),
+        body: JSON.stringify({ content: text, userId: uid, mode: "guru", systemPrompt: FAST_COACH_PROMPT }),
       } as any, "dreamlab");
 
       if (!response.ok) throw new Error("Failed");
@@ -261,6 +271,11 @@ function DreamChat({ dream, onBack }: { dream: Dream; onBack: () => void }) {
         }
       }
       if (voiceMode && full) speakWithChunks(full);
+      // Detect product/business ideas to show Star Lab springboard
+      const productKeywords = ["product", "app", "business", "startup", "revenue", "customers", "build", "launch", "platform", "service", "sell", "monetise", "monetize", "market"];
+      if (!isProductDream && productKeywords.some(kw => full.toLowerCase().includes(kw))) {
+        setIsProductDream(true);
+      }
     } catch (e: any) {
       setShowTyping(false);
       const isNetworkErr = e?.isOffline || e?.isRetryable || e instanceof TypeError;
@@ -337,6 +352,28 @@ function DreamChat({ dream, onBack }: { dream: Dream; onBack: () => void }) {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       />
+
+      {/* Star Lab springboard — shown when a product idea is detected */}
+      {isProductDream && !isStreaming && messages.length >= 2 && (
+        <Pressable
+          onPress={() => router.push("/(tabs)/starlab" as any)}
+          style={({ pressed }) => ({
+            flexDirection: "row", alignItems: "center", gap: 10,
+            marginHorizontal: 12, marginBottom: 8,
+            backgroundColor: "rgba(99,102,241,0.12)",
+            borderRadius: 14, padding: 14,
+            borderWidth: 1, borderColor: "rgba(99,102,241,0.3)",
+            opacity: pressed ? 0.8 : 1,
+          })}
+        >
+          <Feather name="zap" size={18} color="#6366f1" />
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 13, fontFamily: "Inter_700Bold", color: "#6366f1" }}>This sounds like a product idea</Text>
+            <Text style={{ fontSize: 12, color: Colors.textMuted, marginTop: 2 }}>Build it in Star Lab →</Text>
+          </View>
+          <Feather name="chevron-right" size={16} color="#6366f1" />
+        </Pressable>
+      )}
 
       <ChatInput
         onSend={sendMsg}
