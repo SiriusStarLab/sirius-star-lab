@@ -22,6 +22,7 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -798,6 +799,17 @@ export default function StarLabScreen() {
     });
   }, [upsertSession, chatMode]);
 
+  const handleExportChat = useCallback(async () => {
+    if (messages.length === 0) return;
+    const label = MODE_LABELS[chatMode] ?? "Star Lab";
+    const text = messages
+      .map(m => `${m.role === "user" ? "You" : label}:\n${m.content}`)
+      .join("\n\n---\n\n");
+    try {
+      await Share.share({ message: text, title: `${label} Chat` });
+    } catch {}
+  }, [messages, chatMode]);
+
   const openChat = async (mode: ChatMode) => {
     currentSessionIdRef.current = null; // fresh session — ID assigned on first send
     setChatMode(mode);
@@ -985,12 +997,21 @@ export default function StarLabScreen() {
 
       const assistantId = generateId();
       setShowTyping(false);
-      setMessages(prev => [...prev, { id: assistantId, role: "assistant", content: "", images: [] } as any]);
+      // Don't add the bubble upfront — only add it when first content arrives
+      // (prevents empty "ghost" bubble if the stream uses an unexpected format)
+      let assistantAdded = false;
 
       const reader = (res.body as any).getReader();
       const decoder = new TextDecoder();
       let buf = "", full = "";
       const inlineImages: string[] = [];
+
+      const ensureAssistantMsg = () => {
+        if (!assistantAdded) {
+          assistantAdded = true;
+          setMessages(prev => [...prev, { id: assistantId, role: "assistant", content: "", images: [] } as any]);
+        }
+      };
 
       while (true) {
         const { done, value } = await reader.read();
@@ -1013,6 +1034,7 @@ export default function StarLabScreen() {
                   ? `data:${evt.mimeType ?? "image/jpeg"};base64,${evt.b64}`
                   : null;
               if (imgSrc) {
+                ensureAssistantMsg();
                 inlineImages.push(imgSrc);
                 setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, images: [...inlineImages] } : m));
               }
@@ -1021,6 +1043,7 @@ export default function StarLabScreen() {
             // Render queue events — show status so user sees progress
             if (evt.type === "render_queued") {
               if (!full) {
+                ensureAssistantMsg();
                 full = "🎨 Generating render…";
                 setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: full } : m));
               }
@@ -1028,6 +1051,7 @@ export default function StarLabScreen() {
             }
             if (evt.type === "render_started") {
               if (!full || full === "🎨 Generating render…") {
+                ensureAssistantMsg();
                 full = "🎨 Rendering…";
                 setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: full } : m));
               }
@@ -1037,13 +1061,25 @@ export default function StarLabScreen() {
             if (evt.type === "tool_call" || evt.type === "action" || evt.type === "tool_result") {
               continue;
             }
-            const chunk = evt.content ?? (evt.type === "text" ? evt.delta : null);
+            // Robust chunk detection — handles multiple server SSE formats:
+            // {content}, {type:"text",delta}, {type:"text_delta",delta}, {text}, {message}
+            const chunk =
+              evt.content ??
+              (evt.type === "text" || evt.type === "text_delta" ? (evt.delta ?? evt.text) : null) ??
+              evt.text ??
+              evt.message ??
+              null;
             if (chunk) {
+              ensureAssistantMsg();
               full += chunk;
               setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: full } : m));
             }
           } catch {}
         }
+      }
+      // If stream ended but nothing rendered (format mismatch), remove typing and show error
+      if (!assistantAdded) {
+        throw new Error("No response received from server. Please try again.");
       }
       // Speak the full response (only when voice mode is on)
       if (voiceMode && full) speakWithChunks(full);
@@ -1825,6 +1861,12 @@ export default function StarLabScreen() {
           >
             <Feather name="plus-square" size={17} color={Colors.textDim} />
           </Pressable>
+          {/* Export / share chat */}
+          {messages.length > 0 && (
+            <Pressable onPress={handleExportChat} hitSlop={10} style={s.backBtn}>
+              <Feather name="share" size={17} color={Colors.textDim} />
+            </Pressable>
+          )}
           {/* Brief button (App Builder only) */}
           {chatMode === "appbuilder" && messages.length > 0 ? (
             <Pressable onPress={generateBrief} style={s.briefBtn} hitSlop={8}>
