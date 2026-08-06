@@ -396,10 +396,11 @@ export default function DreamLabScreen() {
   const [loading, setLoading] = useState(true);
 
   // ── Gate auth state ───────────────────────────────────────────────────────
-  const [gateView, setGateView] = useState<"signin" | "signup">("signin");
+  const [gateView, setGateView] = useState<"signin" | "signup" | "forgot" | "forgot_sent">("signin");
   const [gateEmail, setGateEmail] = useState("");
   const [gatePassword, setGatePassword] = useState("");
   const [gateConfirm, setGateConfirm] = useState("");
+  const [gateForgotEmail, setGateForgotEmail] = useState("");
   const [gateError, setGateError] = useState("");
   const [gateLoading, setGateLoading] = useState(false);
   const [subscribing, setSubscribing] = useState(false);
@@ -423,6 +424,27 @@ export default function DreamLabScreen() {
       if (!res.ok) { setGateError(data.error ?? "Something went wrong. Please try again."); return; }
       await AsyncStorage.setItem(USER_ID_KEY, data.userId);
       await refreshProfile();
+    } catch {
+      setGateError("Connection error. Please check your internet and try again.");
+    } finally {
+      setGateLoading(false);
+    }
+  };
+
+  const handleGateForgot = async () => {
+    const email = gateForgotEmail.trim().toLowerCase();
+    if (!email) { setGateError("Please enter your email address."); return; }
+    setGateLoading(true);
+    setGateError("");
+    try {
+      const base = getApiBase();
+      const res = await fetch(`${base}auth/request-reset`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      if (res.ok) { setGateView("forgot_sent"); }
+      else { setGateError("Something went wrong. Please try again."); }
     } catch {
       setGateError("Connection error. Please check your internet and try again.");
     } finally {
@@ -470,8 +492,73 @@ export default function DreamLabScreen() {
     );
   }
 
-  // ── Not signed in → inline sign in / sign up ──────────────────────────────
+  // ── Not signed in → inline sign in / sign up / forgot ────────────────────
   if (!ctxUserId) {
+    // Forgot password sent confirmation
+    if (gateView === "forgot_sent") {
+      return (
+        <View style={{ flex: 1, backgroundColor: Colors.background }}>
+          <View style={{ paddingTop: insets.top + 8, paddingHorizontal: 16 }}>
+            <Pressable onPress={() => router.push("/(tabs)" as any)} style={d.backBtn}>
+              <Feather name="chevron-left" size={20} color={Colors.primary} />
+              <Text style={d.backBtnText}>Home</Text>
+            </Pressable>
+          </View>
+          <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 28 }}>
+            <Feather name="check-circle" size={48} color={Colors.primary} style={{ marginBottom: 16 }} />
+            <Text style={{ fontSize: 22, fontFamily: "Inter_700Bold", color: Colors.text, marginBottom: 8 }}>Check your email</Text>
+            <Text style={{ fontSize: 14, color: Colors.textMuted, textAlign: "center", lineHeight: 22, marginBottom: 28 }}>
+              If {gateForgotEmail} is registered, a reset link has been sent. It expires in 1 hour.
+            </Text>
+            <Pressable onPress={() => { setGateView("signin"); setGateForgotEmail(""); }}
+              style={[g.btn, { paddingHorizontal: 32 }]}>
+              <Text style={g.btnText}>Back to Sign In</Text>
+            </Pressable>
+          </View>
+        </View>
+      );
+    }
+
+    // Forgot password form
+    if (gateView === "forgot") {
+      return (
+        <View style={{ flex: 1, backgroundColor: Colors.background }}>
+          <View style={{ paddingTop: insets.top + 8, paddingHorizontal: 16 }}>
+            <Pressable onPress={() => { setGateView("signin"); setGateError(""); }} style={d.backBtn}>
+              <Feather name="chevron-left" size={20} color={Colors.primary} />
+              <Text style={d.backBtnText}>Back to Sign In</Text>
+            </Pressable>
+          </View>
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+            <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "center", paddingHorizontal: 28, paddingBottom: 40 }}
+              keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+              <View style={{ alignItems: "center", marginBottom: 28 }}>
+                <View style={[d.heroIcon, { backgroundColor: "#6366f1", marginBottom: 14 }]}>
+                  <Feather name="star" size={28} color="#fff" />
+                </View>
+                <Text style={{ fontSize: 24, fontFamily: "Inter_700Bold", color: Colors.text, marginBottom: 6 }}>Reset Password</Text>
+                <Text style={{ fontSize: 14, color: Colors.textMuted, textAlign: "center", lineHeight: 20 }}>
+                  Enter your email and we'll send a reset link.
+                </Text>
+              </View>
+              <View style={{ marginBottom: 24 }}>
+                <Text style={g.fieldLabel}>Email</Text>
+                <TextInput style={g.input} value={gateForgotEmail} onChangeText={setGateForgotEmail}
+                  placeholder="you@example.com" placeholderTextColor={Colors.textMuted}
+                  autoCapitalize="none" autoCorrect={false} keyboardType="email-address"
+                  selectionColor={Colors.primary} autoFocus />
+              </View>
+              {gateError ? <Text style={{ color: "#ef4444", fontSize: 13, marginBottom: 14, textAlign: "center" }}>{gateError}</Text> : null}
+              <Pressable onPress={handleGateForgot} disabled={gateLoading}
+                style={({ pressed }) => [g.btn, { opacity: pressed || gateLoading ? 0.8 : 1 }]}>
+                {gateLoading ? <ActivityIndicator color="#fff" /> : <Text style={g.btnText}>Send Reset Link</Text>}
+              </Pressable>
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </View>
+      );
+    }
+
     return (
       <View style={{ flex: 1, backgroundColor: Colors.background }}>
         <View style={{ paddingTop: insets.top + 8, paddingHorizontal: 16 }}>
@@ -521,14 +608,22 @@ export default function DreamLabScreen() {
             </View>
 
             {/* Password */}
-            <View style={{ marginBottom: gateView === "signup" ? 14 : 24 }}>
-              <Text style={g.fieldLabel}>Password</Text>
+            <View style={{ marginBottom: gateView === "signup" ? 14 : 8 }}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                <Text style={g.fieldLabel}>Password</Text>
+                {gateView === "signin" && (
+                  <Pressable onPress={() => { setGateForgotEmail(gateEmail.trim().toLowerCase()); setGateError(""); setGateView("forgot"); }} hitSlop={8}>
+                    <Text style={{ fontSize: 13, color: Colors.primary, fontFamily: "Inter_500Medium" }}>Forgot password?</Text>
+                  </Pressable>
+                )}
+              </View>
               <TextInput style={g.input} value={gatePassword} onChangeText={setGatePassword}
                 placeholder={gateView === "signup" ? "At least 8 characters" : "Your password"}
                 placeholderTextColor={Colors.textMuted}
                 secureTextEntry autoCapitalize="none" autoCorrect={false}
                 selectionColor={Colors.primary} />
             </View>
+            {gateView === "signin" && <View style={{ height: 16 }} />}
 
             {/* Confirm password (sign up only) */}
             {gateView === "signup" && (
