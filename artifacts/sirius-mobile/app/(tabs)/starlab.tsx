@@ -432,15 +432,21 @@ export default function StarLabScreen() {
         "Content-Type": "application/json",
         "x-user-id": labAuth?.userId ?? userId ?? "unknown",
       };
-      // Check stored project ID first
+      // Check stored project ID first — must be a valid numeric ID
       const stored = await AsyncStorage.getItem(LAB_PROJECT_KEY);
-      if (stored) {
-        // Verify it still exists
+      if (stored && /^\d+$/.test(stored)) {
+        // Verify it still exists on the server
         const check = await fetch(`${base}lab/projects/${stored}`, { headers });
-        if (check.ok) {
+        const ct = check.headers.get("content-type") ?? "";
+        if (check.ok && ct.includes("application/json")) {
           setLabProjectId(stored);
           return stored;
         }
+        // Stale / invalid — clear it and create a new one
+        await AsyncStorage.removeItem(LAB_PROJECT_KEY);
+      } else if (stored) {
+        // Bad stored value ("null", "undefined", etc.) — clear it
+        await AsyncStorage.removeItem(LAB_PROJECT_KEY);
       }
       // Create a new default project
       const create = await fetch(`${base}lab/projects`, {
@@ -994,6 +1000,14 @@ export default function StarLabScreen() {
         throw new Error(`Server error ${res.status}: ${errText}`);
       }
       if (!res.body) throw new Error("Stream not supported on this device");
+      // Guard: if server returns HTML instead of SSE (nginx fallback on bad project ID),
+      // clear the stale project ID so next attempt creates a fresh one
+      const contentType = res.headers.get("content-type") ?? "";
+      if (chatMode === "general" && contentType.includes("text/html")) {
+        await AsyncStorage.removeItem(LAB_PROJECT_KEY);
+        setLabProjectId(null);
+        throw new Error("Lab session expired — please try again.");
+      }
 
       const assistantId = generateId();
       setShowTyping(false);
