@@ -124,8 +124,16 @@ export function SubscriptionProvider({
         Purchases.getCustomerInfo(),
       ]);
       const offering = offerings?.current ?? null;
-      const plusPkg = packageFromOffering(offering, PRODUCT_PLUS);
-      const proPackage = packageFromOffering(offering, PRODUCT_PRO);
+      // Try current offering first; fall back to searching all offerings
+      let plusPkg = packageFromOffering(offering, PRODUCT_PLUS);
+      let proPackage = packageFromOffering(offering, PRODUCT_PRO);
+      if ((!plusPkg || !proPackage) && offerings?.all) {
+        for (const o of Object.values(offerings.all as Record<string, any>)) {
+          if (!plusPkg) plusPkg = packageFromOffering(o, PRODUCT_PLUS);
+          if (!proPackage) proPackage = packageFromOffering(o, PRODUCT_PRO);
+          if (plusPkg && proPackage) break;
+        }
+      }
       const { isPlus, isPro } = parseCustomerInfo(info);
       setState((s) => ({
         ...s,

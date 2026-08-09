@@ -403,6 +403,7 @@ export default function DreamLabScreen() {
   const [gateForgotEmail, setGateForgotEmail] = useState("");
   const [gateError, setGateError] = useState("");
   const [gateLoading, setGateLoading] = useState(false);
+  const [gateShowPw, setGateShowPw] = useState(false);
   const [subscribing, setSubscribing] = useState(false);
 
   const handleGateAuth = async () => {
@@ -559,96 +560,115 @@ export default function DreamLabScreen() {
       );
     }
 
+    // ── Sign in / Sign up — matches Star Lab design exactly ──────────────────
     return (
-      <View style={{ flex: 1, backgroundColor: Colors.background }}>
-        <View style={{ paddingTop: insets.top + 8, paddingHorizontal: 16 }}>
-          <Pressable onPress={() => router.push("/(tabs)" as any)} style={d.backBtn}>
-            <Feather name="chevron-left" size={20} color={Colors.primary} />
-            <Text style={d.backBtnText}>Home</Text>
+      <KeyboardAvoidingView style={{ flex: 1, backgroundColor: Colors.background, paddingTop: insets.top }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+        {/* Header */}
+        <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 12 }}>
+          <Pressable onPress={() => router.push("/(tabs)" as any)} style={{ flexDirection: "row", alignItems: "center", gap: 4 }} hitSlop={12}>
+            <Feather name="chevron-left" size={22} color={Colors.primary} />
           </Pressable>
+          <Text style={{ flex: 1, textAlign: "center", fontSize: 17, fontFamily: "Inter_600SemiBold", color: Colors.text }}>Dream Lab</Text>
+          <View style={{ width: 36 }} />
         </View>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-          <ScrollView
-            contentContainerStyle={{ flexGrow: 1, justifyContent: "center", paddingHorizontal: 28, paddingBottom: 40 }}
-            keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}
-          >
-            {/* Hero */}
-            <View style={{ alignItems: "center", marginBottom: 28 }}>
-              <View style={[d.heroIcon, { backgroundColor: "#6366f1", marginBottom: 14 }]}>
-                <Feather name="star" size={28} color="#fff" />
-              </View>
-              <Text style={{ fontSize: 24, fontFamily: "Inter_700Bold", color: Colors.text, marginBottom: 6 }}>Dream Lab</Text>
-              <Text style={{ fontSize: 14, color: Colors.textMuted, textAlign: "center", lineHeight: 20 }}>
-                {gateView === "signin" ? "Sign in to access your dreams" : "Create an account to get started"}
-              </Text>
-            </View>
 
-            {/* Sign in / Sign up toggle */}
-            <View style={{ flexDirection: "row", backgroundColor: Colors.surface, borderRadius: 12, padding: 4,
-              marginBottom: 24, borderWidth: 1, borderColor: Colors.border }}>
-              {(["signin", "signup"] as const).map(v => (
-                <Pressable key={v} onPress={() => { setGateView(v); setGateError(""); }}
-                  style={{ flex: 1, paddingVertical: 10, borderRadius: 9, alignItems: "center",
-                    backgroundColor: gateView === v ? Colors.primary : "transparent" }}>
-                  <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold",
-                    color: gateView === v ? "#fff" : Colors.textMuted }}>
-                    {v === "signin" ? "Sign In" : "Sign Up"}
-                  </Text>
-                </Pressable>
-              ))}
+        <ScrollView contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 40, paddingTop: 12 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          {/* Hero */}
+          <View style={{ alignItems: "center", marginBottom: 32 }}>
+            <View style={{ width: 64, height: 64, borderRadius: 20, backgroundColor: "rgba(99,102,241,0.15)", borderWidth: 1, borderColor: "rgba(99,102,241,0.3)", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
+              <Feather name="star" size={30} color="#6366f1" />
             </View>
+            <Text style={{ fontSize: 22, fontFamily: "Inter_700Bold", color: Colors.text, marginBottom: 6 }}>
+              {gateView === "signin" ? "Sign in to Dream Lab" : "Create your account"}
+            </Text>
+            <Text style={{ fontSize: 14, color: Colors.textDim, textAlign: "center", lineHeight: 20 }}>
+              {gateView === "signin" ? "Dream Lab Plus — your personal dream accelerator." : "Sign up, then subscribe to unlock Dream Lab."}
+            </Text>
+          </View>
 
-            {/* Email */}
-            <View style={{ marginBottom: 14 }}>
-              <Text style={g.fieldLabel}>Email</Text>
-              <TextInput style={g.input} value={gateEmail} onChangeText={setGateEmail}
-                placeholder="you@example.com" placeholderTextColor={Colors.textMuted}
-                autoCapitalize="none" autoCorrect={false} keyboardType="email-address"
-                selectionColor={Colors.primary} />
+          {/* Email */}
+          <View style={{ marginBottom: 16 }}>
+            <Text style={{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: Colors.textMuted, letterSpacing: 0.8, marginBottom: 8 }}>EMAIL</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: Colors.surface, borderRadius: 12, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 14, paddingVertical: 14, gap: 10 }}>
+              <Feather name="mail" size={15} color={Colors.textDim} />
+              <TextInput
+                style={{ flex: 1, fontSize: 15, color: Colors.text, fontFamily: "Inter_400Regular" }}
+                value={gateEmail} onChangeText={t => { setGateEmail(t); setGateError(""); }}
+                placeholder="you@example.com" placeholderTextColor={Colors.textDim}
+                keyboardType="email-address" autoCapitalize="none" autoCorrect={false} selectionColor={Colors.primary}
+              />
             </View>
+          </View>
 
-            {/* Password */}
-            <View style={{ marginBottom: gateView === "signup" ? 14 : 8 }}>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-                <Text style={g.fieldLabel}>Password</Text>
-                {gateView === "signin" && (
-                  <Pressable onPress={() => { setGateForgotEmail(gateEmail.trim().toLowerCase()); setGateError(""); setGateView("forgot"); }} hitSlop={8}>
-                    <Text style={{ fontSize: 13, color: Colors.primary, fontFamily: "Inter_500Medium" }}>Forgot password?</Text>
-                  </Pressable>
-                )}
-              </View>
-              <TextInput style={g.input} value={gatePassword} onChangeText={setGatePassword}
-                placeholder={gateView === "signup" ? "At least 8 characters" : "Your password"}
-                placeholderTextColor={Colors.textMuted}
-                secureTextEntry autoCapitalize="none" autoCorrect={false}
-                selectionColor={Colors.primary} />
+          {/* Password */}
+          <View style={{ marginBottom: 16 }}>
+            <Text style={{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: Colors.textMuted, letterSpacing: 0.8, marginBottom: 8 }}>PASSWORD</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: Colors.surface, borderRadius: 12, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 14, paddingVertical: 14, gap: 10 }}>
+              <Feather name="lock" size={15} color={Colors.textDim} />
+              <TextInput
+                style={{ flex: 1, fontSize: 15, color: Colors.text, fontFamily: "Inter_400Regular" }}
+                value={gatePassword} onChangeText={t => { setGatePassword(t); setGateError(""); }}
+                placeholder={gateView === "signup" ? "Minimum 8 characters" : "Your password"}
+                placeholderTextColor={Colors.textDim}
+                secureTextEntry={!gateShowPw} autoCapitalize="none" autoCorrect={false}
+                selectionColor={Colors.primary} returnKeyType={gateView === "signin" ? "go" : "next"}
+                onSubmitEditing={gateView === "signin" ? handleGateAuth : undefined}
+              />
+              <Pressable onPress={() => setGateShowPw(v => !v)} hitSlop={10}>
+                <Feather name={gateShowPw ? "eye-off" : "eye"} size={15} color={Colors.textDim} />
+              </Pressable>
             </View>
-            {gateView === "signin" && <View style={{ height: 16 }} />}
+          </View>
 
-            {/* Confirm password (sign up only) */}
-            {gateView === "signup" && (
-              <View style={{ marginBottom: 24 }}>
-                <Text style={g.fieldLabel}>Confirm Password</Text>
-                <TextInput style={g.input} value={gateConfirm} onChangeText={setGateConfirm}
-                  placeholder="Repeat your password" placeholderTextColor={Colors.textMuted}
+          {/* Confirm Password (sign up only) */}
+          {gateView === "signup" && (
+            <View style={{ marginBottom: 16 }}>
+              <Text style={{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: Colors.textMuted, letterSpacing: 0.8, marginBottom: 8 }}>CONFIRM PASSWORD</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: Colors.surface, borderRadius: 12, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 14, paddingVertical: 14, gap: 10 }}>
+                <Feather name="lock" size={15} color={Colors.textDim} />
+                <TextInput
+                  style={{ flex: 1, fontSize: 15, color: Colors.text, fontFamily: "Inter_400Regular" }}
+                  value={gateConfirm} onChangeText={t => { setGateConfirm(t); setGateError(""); }}
+                  placeholder="Repeat your password" placeholderTextColor={Colors.textDim}
                   secureTextEntry autoCapitalize="none" autoCorrect={false}
-                  selectionColor={Colors.primary} />
+                  selectionColor={Colors.primary} returnKeyType="go" onSubmitEditing={handleGateAuth}
+                />
               </View>
-            )}
+            </View>
+          )}
 
-            {gateError ? (
-              <Text style={{ color: "#ef4444", fontSize: 13, marginBottom: 14, textAlign: "center" }}>{gateError}</Text>
-            ) : null}
+          {gateError ? <Text style={{ color: "#ef4444", fontSize: 13, marginBottom: 12, textAlign: "center" }}>{gateError}</Text> : null}
 
-            <Pressable onPress={handleGateAuth} disabled={gateLoading}
-              style={({ pressed }) => [g.btn, { opacity: pressed || gateLoading ? 0.8 : 1 }]}>
-              {gateLoading
-                ? <ActivityIndicator color="#fff" />
-                : <Text style={g.btnText}>{gateView === "signin" ? "Sign In" : "Create Account"}</Text>}
+          {/* Primary button */}
+          <Pressable onPress={handleGateAuth} disabled={gateLoading}
+            style={({ pressed }) => ({ backgroundColor: Colors.primary, borderRadius: 14, paddingVertical: 16, alignItems: "center", marginTop: 4, marginBottom: 12, opacity: pressed || gateLoading ? 0.8 : 1 })}>
+            {gateLoading ? <ActivityIndicator color="#fff" /> : <Text style={{ color: "#fff", fontSize: 16, fontFamily: "Inter_700Bold" }}>{gateView === "signin" ? "Sign In" : "Create Account"}</Text>}
+          </Pressable>
+
+          {/* Forgot password (sign in only) */}
+          {gateView === "signin" && (
+            <Pressable onPress={() => { setGateForgotEmail(gateEmail.trim().toLowerCase()); setGateError(""); setGateView("forgot"); }} style={{ alignItems: "center", paddingVertical: 8 }}>
+              <Text style={{ fontSize: 14, color: Colors.primary, fontFamily: "Inter_500Medium" }}>Forgot your password?</Text>
             </Pressable>
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </View>
+          )}
+
+          {/* Divider + toggle */}
+          <View style={{ flexDirection: "row", alignItems: "center", marginVertical: 20, gap: 12 }}>
+            <View style={{ flex: 1, height: 1, backgroundColor: Colors.border }} />
+            <Text style={{ fontSize: 13, color: Colors.textDim, fontFamily: "Inter_400Regular" }}>
+              {gateView === "signin" ? "New to Dream Lab?" : "Already have an account?"}
+            </Text>
+            <View style={{ flex: 1, height: 1, backgroundColor: Colors.border }} />
+          </View>
+
+          <Pressable onPress={() => { setGateError(""); setGatePassword(""); setGateConfirm(""); setGateView(gateView === "signin" ? "signup" : "signin"); }}
+            style={({ pressed }) => ({ borderWidth: 1.5, borderColor: Colors.primary, borderRadius: 14, paddingVertical: 15, alignItems: "center", opacity: pressed ? 0.8 : 1 })}>
+            <Text style={{ color: Colors.primary, fontSize: 16, fontFamily: "Inter_700Bold" }}>
+              {gateView === "signin" ? "Create an Account" : "Back to Sign In"}
+            </Text>
+          </Pressable>
+        </ScrollView>
+      </KeyboardAvoidingView>
     );
   }
 
