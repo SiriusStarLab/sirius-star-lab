@@ -81,6 +81,8 @@ export interface Message {
   imageB64?: string;
   imageMimeType?: string;
   uploadedImageBase64?: string;
+  /** Additional images beyond the first (data: URIs) — for multi-image messages */
+  images?: string[];
   /** Resilient-fetch delivery status for outgoing user messages */
   status?: "queued" | "retrying" | "sent";
 }

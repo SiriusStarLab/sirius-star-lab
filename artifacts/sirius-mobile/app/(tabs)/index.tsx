@@ -24,7 +24,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 
-import { ChatInput } from "@/components/ChatInput";
+import { ChatInput, ChatAttachment } from "@/components/ChatInput";
 import { MessageBubble } from "@/components/MessageBubble";
 import { TypingIndicator } from "@/components/TypingIndicator";
 import Colors from "@/constants/colors";
@@ -214,10 +214,23 @@ export default function ChatScreen() {
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
-  const handleSend = useCallback(async (text: string, imageBase64?: string, documentBase64?: string, documentName?: string) => {
+  const handleSend = useCallback(async (text: string, attachments: ChatAttachment[] = []) => {
     if (isStreaming) return;
 
-    const userMsg: Message = { id: generateId(), role: "user", content: text, uploadedImageBase64: imageBase64 };
+    // Split attachments by type
+    const imageAttachments = attachments.filter(a => a.type === "image");
+    const docAttachments   = attachments.filter(a => a.type === "document");
+    const firstImage = imageAttachments[0]?.preview; // data: URI for display
+
+    const userMsg: Message = {
+      id: generateId(),
+      role: "user",
+      content: text,
+      uploadedImageBase64: firstImage,
+      images: imageAttachments.length > 1
+        ? imageAttachments.slice(1).map(a => a.preview!)
+        : undefined,
+    };
     setMessages(prev => [...prev, userMsg]);
     setIsStreaming(true);
     setShowTyping(true);
@@ -227,7 +240,8 @@ export default function ChatScreen() {
     try {
       let activeId = conversationId;
       if (!activeId) {
-        const title = text.trim() ? text.slice(0, 60) : (documentName ?? "Attachment");
+        const firstDocName = docAttachments[0]?.name;
+        const title = text.trim() ? text.slice(0, 60) : (firstDocName ?? imageAttachments.length > 0 ? "Image" : "Attachment");
         const convo = await createConversation(title, userId ?? undefined);
         activeId = convo.id;
         setConversationId(activeId);
@@ -246,9 +260,17 @@ export default function ChatScreen() {
             content: text,
             userId: userId ?? undefined,
             mode: "guru",
-            imageBase64: imageBase64 ?? undefined,
-            documentBase64: documentBase64 ?? undefined,
-            documentName: documentName ?? undefined,
+            // Single image (backward compat) + full array for multi-image
+            imageBase64: firstImage ?? undefined,
+            images: imageAttachments.length > 0
+              ? imageAttachments.map(a => a.preview!)
+              : undefined,
+            // First document (backward compat) + full array for multi-doc
+            documentBase64: docAttachments[0]?.base64 ?? undefined,
+            documentName:   docAttachments[0]?.name   ?? undefined,
+            documents: docAttachments.length > 0
+              ? docAttachments.map(d => ({ base64: d.base64, name: d.name }))
+              : undefined,
           }),
         }
       );

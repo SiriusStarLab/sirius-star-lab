@@ -22,7 +22,7 @@ import { router } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import { ChatInput } from "@/components/ChatInput";
+import { ChatInput, ChatAttachment } from "@/components/ChatInput";
 import { MessageBubble } from "@/components/MessageBubble";
 import { TypingIndicator } from "@/components/TypingIndicator";
 import Colors from "@/constants/colors";
@@ -211,7 +211,7 @@ function DreamChat({ dream, onBack }: { dream: Dream; onBack: () => void }) {
     return () => unsub();
   }, []);
 
-  const sendMsg = useCallback(async (text: string, _imgB64?: string, _docB64?: string, _docName?: string) => {
+  const sendMsg = useCallback(async (text: string, _attachments: ChatAttachment[] = []) => {
     if (!text.trim() || isStreaming) return;
     stopSpeech();
 
