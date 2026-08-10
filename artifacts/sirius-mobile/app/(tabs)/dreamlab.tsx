@@ -23,6 +23,7 @@ import * as WebBrowser from "expo-web-browser";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { ChatInput } from "@/components/ChatInput";
+import { MessageBubble } from "@/components/MessageBubble";
 import { TypingIndicator } from "@/components/TypingIndicator";
 import Colors from "@/constants/colors";
 import { USER_ID_KEY, createConversation, generateId, getApiBase, getUserId } from "@/lib/api";
@@ -327,11 +328,7 @@ function DreamChat({ dream, onBack }: { dream: Dream; onBack: () => void }) {
         keyExtractor={item => item.id}
         renderItem={({ item }) => (
           <View>
-            <View style={item.role === "user" ? d.userBubble : d.aiBubble}>
-              {item.role === "user"
-                ? <Text style={d.userText}>{item.content}</Text>
-                : <Markdown style={dreamMarkdownStyles}>{item.content}</Markdown>}
-            </View>
+            <MessageBubble message={item} />
             {item.role === "user" && item.status === "queued" && (
               <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "flex-end", paddingRight: 14, marginTop: -4, marginBottom: 4 }}>
                 <Feather name="clock" size={10} color="#f59e0b" />
