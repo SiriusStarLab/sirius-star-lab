@@ -152,7 +152,7 @@ function UpgradeGate({ onClose }: { onClose: () => void }) {
           </button>
         </div>
       </div>
-      {showPricing && <PricingModal onClose={() => setShowPricing(false)} />}
+      {showPricing && <PricingModal isOpen={showPricing} onClose={() => setShowPricing(false)} />}
     </>
   );
 }

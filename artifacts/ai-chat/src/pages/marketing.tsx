@@ -302,9 +302,9 @@ export function MarketingPage() {
       </nav>
 
       {/* ── HERO ── */}
-      <section className="relative flex flex-col items-center justify-center text-center px-6 pt-40 pb-32 overflow-hidden">
+      <section className="relative flex flex-col items-center justify-center text-center px-6 pt-40 pb-32">
         {/* Background glow */}
-        <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
           <div style={{ position: "absolute", top: "10%", left: "50%", transform: "translateX(-50%)", width: 800, height: 500, background: `radial-gradient(ellipse, ${TEAL}0d 0%, transparent 70%)`, filter: "blur(40px)" }} />
         </div>
 
