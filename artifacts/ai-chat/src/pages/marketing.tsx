@@ -302,7 +302,7 @@ export function MarketingPage() {
       </nav>
 
       {/* ── HERO ── */}
-      <section className="relative flex flex-col items-center justify-center text-center px-6 pt-40 pb-32">
+      <section className="relative flex flex-col items-center justify-center text-center px-6 pt-28 sm:pt-40 pb-20 sm:pb-32">
         {/* Background glow */}
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
           <div style={{ position: "absolute", top: "10%", left: "50%", transform: "translateX(-50%)", width: 800, height: 500, background: `radial-gradient(ellipse, ${TEAL}0d 0%, transparent 70%)`, filter: "blur(40px)" }} />
@@ -329,7 +329,7 @@ export function MarketingPage() {
 
         {/* Headline */}
         <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.15 }}
-          className="text-5xl sm:text-6xl lg:text-7xl font-black tracking-tight leading-none mb-6 max-w-4xl"
+          className="text-4xl sm:text-6xl lg:text-7xl font-black tracking-tight leading-none mb-6 max-w-4xl"
           style={{ background: "linear-gradient(160deg, #fff 40%, rgba(255,255,255,0.45) 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
           I think,<br />so I am.
         </motion.h1>
@@ -497,7 +497,33 @@ export function MarketingPage() {
           </Reveal>
           <Reveal>
             <div className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${BORDER}` }}>
-              <table className="w-full text-sm">
+              {/* Mobile: stacked cards */}
+              <div className="sm:hidden divide-y" style={{ borderColor: BORDER }}>
+                {[
+                  { role: "Social media manager",      cost: "£2,500–£4,000", pkg: "Social AI (£799)" },
+                  { role: "SDR / Sales person",         cost: "£2,800–£4,500", pkg: "Sales Intel (£1,299)" },
+                  { role: "Content writer",              cost: "£1,500–£3,000", pkg: "Included in Full Ops" },
+                  { role: "Market research firm",        cost: "£3,000–£8,000", pkg: "Included in Full Ops" },
+                  { role: "Social media tools (stack)",  cost: "£300–£800",     pkg: "Replaced entirely" },
+                ].map((row, i) => (
+                  <div key={row.role} className="px-4 py-3" style={{ background: i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.015)" }}>
+                    <p className="text-sm font-medium mb-1" style={{ color: "rgba(255,255,255,0.7)" }}>{row.role}</p>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>{row.cost}/mo</span>
+                      <span className="text-xs font-semibold" style={{ color: TEAL }}>{row.pkg}</span>
+                    </div>
+                  </div>
+                ))}
+                <div className="px-4 py-4" style={{ background: `${TEAL}0a`, borderTop: `2px solid ${TEAL}40` }}>
+                  <p className="text-sm font-bold text-white mb-1">Total without Sirius</p>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-bold" style={{ color: "hsl(0,70%,60%)" }}>£10,100–£20,300/mo</span>
+                    <span className="text-sm font-bold" style={{ color: TEAL }}>Sirius: from £799/mo</span>
+                  </div>
+                </div>
+              </div>
+              {/* Desktop: full table */}
+              <table className="hidden sm:table w-full text-sm">
                 <thead>
                   <tr style={{ background: "rgba(255,255,255,0.04)", borderBottom: `1px solid ${BORDER}` }}>
                     <th className="text-left px-5 py-4 font-semibold text-white">What you'd need to hire</th>
@@ -507,11 +533,11 @@ export function MarketingPage() {
                 </thead>
                 <tbody>
                   {[
-                    { role: "Social media manager",   cost: "£2,500–£4,000",  pkg: "Social AI (£799)" },
-                    { role: "SDR / Sales person",      cost: "£2,800–£4,500",  pkg: "Sales Intel (£1,299)" },
-                    { role: "Content writer",           cost: "£1,500–£3,000",  pkg: "Included in Full Ops" },
-                    { role: "Market research firm",     cost: "£3,000–£8,000",  pkg: "Included in Full Ops" },
-                    { role: "Social media tools (stack)", cost: "£300–£800",   pkg: "Replaced entirely" },
+                    { role: "Social media manager",      cost: "£2,500–£4,000", pkg: "Social AI (£799)" },
+                    { role: "SDR / Sales person",         cost: "£2,800–£4,500", pkg: "Sales Intel (£1,299)" },
+                    { role: "Content writer",              cost: "£1,500–£3,000", pkg: "Included in Full Ops" },
+                    { role: "Market research firm",        cost: "£3,000–£8,000", pkg: "Included in Full Ops" },
+                    { role: "Social media tools (stack)",  cost: "£300–£800",     pkg: "Replaced entirely" },
                   ].map((row, i) => (
                     <tr key={row.role} style={{ borderBottom: `1px solid ${BORDER}`, background: i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.015)" }}>
                       <td className="px-5 py-3.5" style={{ color: "rgba(255,255,255,0.7)" }}>{row.role}</td>
