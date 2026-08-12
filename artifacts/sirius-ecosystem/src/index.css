@@ -222,9 +222,26 @@ h1, h2, h3, h4, h5, h6, .font-mono {
   justify-content: center;
   align-items: center;
   z-index: 10;
-  transition: transform 0.3s ease;
 }
-.orbit-container:hover .orbit-animated {
+
+/* The single ring group that spins as one unit */
+.orbit-ring-group {
+  position: absolute;
+  width: 0; height: 0;
+  transform-origin: center center;
+  z-index: 30;
+}
+
+/* Each arm radiates out from center at a fixed angle */
+.satellite-arm {
+  position: absolute;
+  width: 0; height: 0;
+  transform-origin: 0 0;
+}
+
+/* Pause whole ring on hover */
+.orbit-container:hover .orbit-ring-group,
+.orbit-container:hover .satellite-node {
   animation-play-state: paused !important;
 }
 

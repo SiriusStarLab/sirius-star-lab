@@ -21,26 +21,18 @@ const BASE = import.meta.env.BASE_URL;
 const queryClient = new QueryClient();
 
 // -- DATA & CONFIG --
-const RINGS = {
-  1: { radius: 240, duration: 60 },
-  2: { radius: 380, duration: 90 },
-  3: { radius: 520, duration: 120 }
-};
+// Single ring — all orbs evenly spaced like clock numbers
+const RING = { radius: 400, duration: 72 };
 
 const products = [
-  // Ring 1 — innermost (2 products, 180° apart)
-  { id: 'exchange', name: 'Sirius Exchange', shortName: 'Exchange', category: 'Trading Platform', color: '#f0b429', desc: 'Real-time asset trading powered by Star Lab market intelligence.', longDesc: 'Advanced matching engine executing trades at lightspeed. Integrated directly with the Intelligence Layer for predictive market movements.', ring: 1, angle: 0, icon: null, image: `${BASE}sirius-exchange.png` },
-  { id: 'compass', name: 'Sirius Compass', shortName: 'Compass', category: 'Strategy Navigator', color: '#10b981', desc: 'AI-powered business direction and decision intelligence.', longDesc: 'Navigate market complexities with predictive modeling. Compass simulates millions of business outcomes to recommend the optimal path.', ring: 1, angle: 180, icon: null, image: `${BASE}sirius-compass.png` },
-
-  // Ring 2 — middle (3 products, 120° apart)
-  { id: 'vault', name: 'The Vault', shortName: 'Vault', category: 'Secure Data Store', color: '#a855f7', desc: 'Encrypted sovereign storage — your data never leaves your control.', longDesc: 'Military-grade encryption securing your digital assets and intellectual property. Distributed architecture ensures zero single points of failure.', ring: 2, angle: 60, icon: null, image: `${BASE}sirius-vault.png` },
-  { id: 'anubis', name: 'Anubis Cyber Security', shortName: 'Anubis', category: 'Cyber Guardian', color: '#ef4444', desc: 'AI security guardian monitoring every layer of the ecosystem.', longDesc: 'Proactive threat hunting and automated neutralization. Anubis learns from attack vectors globally to immunize your infrastructure.', ring: 2, angle: 180, icon: null, image: `${BASE}anubis.png` },
-  { id: 'echo', name: 'Echo Messenger', shortName: 'Echo', category: 'Comms Automation', color: '#f97316', desc: 'Autonomous messaging across every channel, every timezone.', longDesc: 'Omnichannel routing and automated response generation. Maintain a 24/7 presence with intelligent escalation protocols.', ring: 2, angle: 300, icon: null, image: `${BASE}echo.png` },
-
-  // Ring 3 — outer (3 products, 120° apart)
-  { id: 'cad', name: 'New Dimensions CAD', shortName: 'ND CAD', category: 'CAD SaaS', color: '#3b82f6', desc: 'AI-assisted 3D design and engineering tools.', longDesc: 'Revolutionary parametric modeling with AI-driven generative design. Create impossible structures optimized for real-world physics.', ring: 3, angle: 90, icon: null, image: `${BASE}new-dimensions.png` },
-  { id: 'chat', name: 'Sirius AI Chat', shortName: 'AI Chat', category: 'Conversational AI', color: '#00c8e8', desc: 'The human interface to Star Lab\'s full intelligence.', longDesc: 'Context-aware conversational agent that commands the entire ecosystem. Ask natural questions, get actionable operational results.', ring: 3, angle: 210, icon: null, image: `${BASE}sirius-chat.png` },
-  { id: 'intel', name: 'Intelligence Layer', shortName: 'Intel Layer', category: 'Core Reasoning Engine', color: '#c084fc', desc: 'The neural substrate connecting every product.', longDesc: 'The shared brain of the Sirius Ecosystem. It processes data from all modules to create compounding advantages for your business.', ring: 3, angle: 330, icon: null, image: `${BASE}intelligence-layer.png` }
+  { id: 'exchange', name: 'Sirius Exchange',       shortName: 'Exchange',    category: 'Trading Platform',     color: '#f0b429', desc: 'Real-time asset trading powered by Star Lab market intelligence.',          longDesc: 'Advanced matching engine executing trades at lightspeed. Integrated directly with the Intelligence Layer for predictive market movements.',                                          angle:   0, icon: null, image: `${BASE}sirius-exchange.png` },
+  { id: 'vault',    name: 'The Vault',              shortName: 'Vault',       category: 'Secure Data Store',    color: '#a855f7', desc: 'Encrypted sovereign storage — your data never leaves your control.',         longDesc: 'Military-grade encryption securing your digital assets and intellectual property. Distributed architecture ensures zero single points of failure.',                              angle:  45, icon: null, image: `${BASE}sirius-vault.png` },
+  { id: 'cad',      name: 'New Dimensions CAD',     shortName: 'ND CAD',      category: 'CAD SaaS',             color: '#3b82f6', desc: 'AI-assisted 3D design and engineering tools.',                              longDesc: 'Revolutionary parametric modeling with AI-driven generative design. Create impossible structures optimized for real-world physics.',                                             angle:  90, icon: null, image: `${BASE}new-dimensions.png` },
+  { id: 'anubis',   name: 'Anubis Cyber Security',  shortName: 'Anubis',      category: 'Cyber Guardian',       color: '#ef4444', desc: 'AI security guardian monitoring every layer of the ecosystem.',             longDesc: 'Proactive threat hunting and automated neutralization. Anubis learns from attack vectors globally to immunize your infrastructure.',                                           angle: 135, icon: null, image: `${BASE}anubis.png` },
+  { id: 'compass',  name: 'Sirius Compass',          shortName: 'Compass',     category: 'Strategy Navigator',   color: '#10b981', desc: 'AI-powered business direction and decision intelligence.',                  longDesc: 'Navigate market complexities with predictive modeling. Compass simulates millions of business outcomes to recommend the optimal path.',                                         angle: 180, icon: null, image: `${BASE}sirius-compass.png` },
+  { id: 'echo',     name: 'Echo Messenger',          shortName: 'Echo',        category: 'Comms Automation',     color: '#f97316', desc: 'Autonomous messaging across every channel, every timezone.',               longDesc: 'Omnichannel routing and automated response generation. Maintain a 24/7 presence with intelligent escalation protocols.',                                                       angle: 225, icon: null, image: `${BASE}echo.png` },
+  { id: 'chat',     name: 'Sirius AI Chat',          shortName: 'AI Chat',     category: 'Conversational AI',    color: '#00c8e8', desc: 'The human interface to Star Lab\'s full intelligence.',                    longDesc: 'Context-aware conversational agent that commands the entire ecosystem. Ask natural questions, get actionable operational results.',                                             angle: 270, icon: null, image: `${BASE}sirius-chat.png` },
+  { id: 'intel',    name: 'Intelligence Layer',      shortName: 'Intel Layer', category: 'Core Reasoning Engine',color: '#c084fc', desc: 'The neural substrate connecting every product.',                          longDesc: 'The shared brain of the Sirius Ecosystem. It processes data from all modules to create compounding advantages for your business.',                                              angle: 315, icon: null, image: `${BASE}intelligence-layer.png` },
 ];
 
 const hexToRgba = (hex: string, alpha: number) => {
@@ -86,83 +78,38 @@ const Starfield = () => {
 };
 
 const OrbitStyles = () => {
-  const css = useMemo(() => {
-    let styles = '';
-    
-    // Draw ring circles dynamically
-    Object.entries(RINGS).forEach(([ringNum, config]) => {
-      styles += `
-        .ring-circle-${ringNum} {
-          width: ${config.radius * 2}px;
-          height: ${config.radius * 2}px;
-        }
-      `;
-    });
-
-    products.forEach((p) => {
-      const radius = RINGS[p.ring as keyof typeof RINGS].radius;
-      const duration = RINGS[p.ring as keyof typeof RINGS].duration;
-      
-      styles += `
-        @keyframes orbit_${p.id} {
-          from { transform: rotate(${p.angle}deg) translateX(${radius}px); }
-          to   { transform: rotate(${p.angle + 360}deg) translateX(${radius}px); }
-        }
-        .orbiter_${p.id} {
-          animation: orbit_${p.id} ${duration}s linear infinite;
-        }
-
-        @keyframes rotate_line_${p.id} {
-          from { transform: rotate(${p.angle}deg); }
-          to   { transform: rotate(${p.angle + 360}deg); }
-        }
-        .line_${p.id} {
-          animation: rotate_line_${p.id} ${duration}s linear infinite;
-          transform-origin: 0 0;
-        }
-      `;
-    });
-    
-    return styles;
-  }, []);
+  const css = useMemo(() => `
+    .ring-circle-main {
+      width: ${RING.radius * 2}px;
+      height: ${RING.radius * 2}px;
+    }
+    @keyframes ring-group-spin {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
+    }
+    .orbit-ring-group {
+      animation: ring-group-spin ${RING.duration}s linear infinite;
+    }
+    @keyframes counter-spin {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(-360deg); }
+    }
+    .satellite-node {
+      animation: counter-spin ${RING.duration}s linear infinite;
+    }
+  `, []);
 
   return <style dangerouslySetInnerHTML={{ __html: css }} />;
 };
 
-const OrbitLines = () => {
-  return (
-    <div className="svg-lines">
-      <svg width="0" height="0" style={{ overflow: 'visible' }}>
-        {products.map(p => {
-          const radius = RINGS[p.ring as keyof typeof RINGS].radius;
-          return (
-            <g key={`line-${p.id}`} className={`line_${p.id} orbit-animated`}>
-              <line 
-                x1="0" y1="0" 
-                x2={radius} y2="0" 
-                className="connector-line" 
-              />
-            </g>
-          );
-        })}
-      </svg>
-    </div>
-  );
-};
-
 const OrbitSystem = () => {
   return (
-    <div className="orbit-container group" id="ecosystem">
+    <div className="orbit-container" id="ecosystem">
       <OrbitStyles />
-      
-      {/* Rings */}
-      {Object.entries(RINGS).map(([ringNum]) => (
-        <div key={`ring-${ringNum}`} className={`orbit-ring ring-circle-${ringNum}`} />
-      ))}
-      
-      {/* Lines */}
-      <OrbitLines />
-      
+
+      {/* Single visible ring */}
+      <div className="orbit-ring ring-circle-main" />
+
       {/* Center Core — blazing star */}
       <div className="orbit-center-node">
         <div className="star-rays" />
@@ -172,42 +119,40 @@ const OrbitSystem = () => {
         <div className="star-ring star-ring-3" />
         <div className="star-label">SIRIUS<br/>STAR<br/>LAB</div>
       </div>
-      
-      {/* Satellites */}
-      {products.map(p => {
-        const Icon = p.icon;
-        const colorAlpha = hexToRgba(p.color, 0.4);
-        
-        return (
-          <div key={p.id} className={`satellite-wrapper orbiter_${p.id} orbit-animated`}>
-            <div 
-              className={`satellite-node ${p.image ? 'satellite-node--image' : ''}`}
-              style={{ 
-                '--color': p.color,
-                '--color-alpha': colorAlpha
-              } as React.CSSProperties}
+
+      {/* Single rotating group — all orbs fixed to it like clock numbers */}
+      <div className="orbit-ring-group">
+        {products.map(p => {
+          const Icon = p.icon;
+          const colorAlpha = hexToRgba(p.color, 0.4);
+          return (
+            <div
+              key={p.id}
+              className="satellite-arm"
+              style={{ transform: `rotate(${p.angle}deg) translateX(${RING.radius}px)` }}
             >
-              {p.image ? (
-                <img
-                  src={p.image}
-                  alt={p.name}
-                  className="satellite-product-image"
-                />
-              ) : Icon ? (
-                <Icon className="satellite-icon" size={42} />
-              ) : null}
-              
-              {!p.image && <div className="satellite-label">{p.shortName}</div>}
-              
-              <div className="satellite-tooltip">
-                <div className="tooltip-title">{p.name}</div>
-                <div className="tooltip-category">{p.category}</div>
-                <div className="tooltip-desc">{p.desc}</div>
+              <div
+                className={`satellite-node ${p.image ? 'satellite-node--image' : ''}`}
+                style={{ '--color': p.color, '--color-alpha': colorAlpha } as React.CSSProperties}
+              >
+                {p.image
+                  ? <img src={p.image} alt={p.name} className="satellite-product-image" />
+                  : Icon
+                    ? <Icon className="satellite-icon" size={42} />
+                    : null}
+
+                {!p.image && <div className="satellite-label">{p.shortName}</div>}
+
+                <div className="satellite-tooltip">
+                  <div className="tooltip-title">{p.name}</div>
+                  <div className="tooltip-category">{p.category}</div>
+                  <div className="tooltip-desc">{p.desc}</div>
+                </div>
               </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 };
