@@ -434,3 +434,10 @@ uri = "file://artifacts/sirius-ecosystem/index.html"
 type = "text"
 title = "Sirius Ecosystem — Infographic + Sales Brochure"
 description = "Futuristic orbital infographic of all Sirius products orbiting Star Lab, plus a full sales brochure with product interactions and the conscious business model."
+
+[[outputs]]
+id = "mPc-zoNIIPE8AAAkoprfx"
+uri = "file://attached_assets/sirius-ecosystem.pdf"
+type = "pdf"
+title = "Sirius Ecosystem — Full Product Overview"
+description = "Cover page, Star Lab deep-dive, all 8 products with images, and closing page. 18MB, print-ready A4."
