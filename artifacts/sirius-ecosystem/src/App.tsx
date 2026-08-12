@@ -105,16 +105,16 @@ const OrbitStyles = () => {
       
       styles += `
         @keyframes orbit_${p.id} {
-          from { transform: rotate(${p.angle}deg) translateX(${radius}px) rotate(-${p.angle}deg); }
-          to { transform: rotate(${p.angle + 360}deg) translateX(${radius}px) rotate(-${p.angle + 360}deg); }
+          from { transform: rotate(${p.angle}deg) translateX(${radius}px); }
+          to   { transform: rotate(${p.angle + 360}deg) translateX(${radius}px); }
         }
         .orbiter_${p.id} {
           animation: orbit_${p.id} ${duration}s linear infinite;
         }
-        
+
         @keyframes rotate_line_${p.id} {
           from { transform: rotate(${p.angle}deg); }
-          to { transform: rotate(${p.angle + 360}deg); }
+          to   { transform: rotate(${p.angle + 360}deg); }
         }
         .line_${p.id} {
           animation: rotate_line_${p.id} ${duration}s linear infinite;
