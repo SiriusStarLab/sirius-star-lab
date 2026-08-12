@@ -1,7 +1,7 @@
 - [Mobile / web separation rule — MANDATORY](mobile-web-separation.md) — NEVER touch ai-chat/Kamatera when working on mobile app, and vice versa. Established by Garry 5 Aug 2026.
 - [Server security protocol — MANDATORY](server-security-protocol.md) — 4-layer gate: ask before ssh/scp/rm/pm2, deploy-bundle.sh only, pre-flight tsc+file-sync, Git gate pending.
 - [Frontend deploy rule — MANDATORY](frontend-deploy-rule.md) — NEVER rebuild frontend from Replit workspace. Always build from `/opt/sirius-source/artifacts/ai-chat/` ON THE SERVER. Workspace is months stale; rebuilding from it wipes Jenny voice, logo, bidirectional voice, and all Sirius self-improvements.
-- [Kamatera deploy path](kamatera-deploy-path.md) — PM2 runs from `/opt/sirius/artifacts/api-server/dist/index.cjs`; `/opt/sirius/dist/index.cjs` is a symlink to it. Always SCP to the canonical path.
+- [Kamatera deploy path](kamatera-deploy-path.md) — IP: 185.247.118.196, SSH port 2222 (NOT port 22, NOT old IP 85.159.212.111). PM2 source at /opt/sirius-source/, frontend at /opt/sirius/frontend/.
 - [Sirius independence roadmap](independence-roadmap.md) — status of moving off Replit; AI proxy cut, GitHub set up, Kamatera self-builds, object storage migrated to AWS S3. Clerk still on Replit.
 - [Object storage S3 migration](object-storage-migration.md) — @aws-sdk and openai must be EXTERNAL (not in allowlist); they are in alwaysExternal in build.ts and installed on the server.
 - [Sirius frontend serve path — CRITICAL](sirius-frontend-serve-path.md) — nginx serves from /opt/sirius/frontend/ NOT /opt/sirius/artifacts/ai-chat/dist/public/. Always copy there.
