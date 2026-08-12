@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { PlusCircle, MessageSquare, Trash2, X, Settings, Zap, Loader2, Sparkles, FlaskConical, BookOpen, GraduationCap, Globe2, Heart, Smartphone, User } from "lucide-react";
+import { PlusCircle, MessageSquare, Trash2, X, Settings, Zap, Loader2, Sparkles, FlaskConical, BookOpen, GraduationCap, Globe2, Heart, Smartphone, User, Rocket } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -367,7 +367,37 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession, chatM
           </span>
         </button>
 
-        {/* Star Lab entry — Garry gets PIN-gated full lab, subscribers get Creator Lab */}
+        {/* Public Star Lab — project builder for subscribers */}
+        <button
+          onClick={() => { setLocation("/projects"); onClose(); }}
+          className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 relative overflow-hidden group"
+          style={{
+            background: location === "/projects" ? "hsla(193,100%,35%,0.1)" : "hsla(193,100%,35%,0.05)",
+            border: location === "/projects" ? "1px solid hsla(193,100%,35%,0.35)" : "1px solid hsla(193,100%,35%,0.15)",
+            color: location === "/projects" ? "hsl(193,100%,24%)" : "hsl(193,60%,32%)",
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.background = "hsla(193,100%,35%,0.1)";
+            e.currentTarget.style.borderColor = "hsla(193,100%,35%,0.35)";
+            e.currentTarget.style.color = "hsl(193,100%,24%)";
+          }}
+          onMouseLeave={e => {
+            if (location !== "/projects") {
+              e.currentTarget.style.background = "hsla(193,100%,35%,0.05)";
+              e.currentTarget.style.borderColor = "hsla(193,100%,35%,0.15)";
+              e.currentTarget.style.color = "hsl(193,60%,32%)";
+            }
+          }}
+        >
+          <Rocket size={15} style={{ flexShrink: 0 }} />
+          <span className="flex-1 text-left">Star Lab</span>
+          <span className="text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded"
+            style={{ background: "hsla(193,100%,35%,0.1)", color: "hsl(193,100%,26%)", border: "1px solid hsla(193,100%,35%,0.2)", letterSpacing: "0.15em" }}>
+            NEW
+          </span>
+        </button>
+
+        {/* My Star Lab entry — Garry's private lab */}
         <button
           onClick={() => { setLocation("/star-lab"); onClose(); }}
           className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 relative overflow-hidden group"
@@ -390,7 +420,7 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession, chatM
           }}
         >
           <FlaskConical size={15} style={{ flexShrink: 0 }} />
-          <span className="flex-1 text-left">Star Lab</span>
+          <span className="flex-1 text-left">My Star Lab</span>
           {labPendingCount > 0 ? (
             <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold flex-shrink-0"
               style={{ background: "hsl(25,90%,55%)", color: "white" }}>
