@@ -163,11 +163,14 @@ const OrbitSystem = () => {
       {/* Lines */}
       <OrbitLines />
       
-      {/* Center Core */}
+      {/* Center Core — blazing star */}
       <div className="orbit-center-node">
-        <div style={{ fontFamily: "'Space Mono', monospace", fontWeight: 700, color: 'var(--primary-cyan)', fontSize: '1.2rem', textAlign: 'center', lineHeight: 1.2 }}>
-          SIRIUS<br/>STAR<br/>LAB
-        </div>
+        <div className="star-rays" />
+        <div className="star-core" />
+        <div className="star-ring star-ring-1" />
+        <div className="star-ring star-ring-2" />
+        <div className="star-ring star-ring-3" />
+        <div className="star-label">SIRIUS<br/>STAR<br/>LAB</div>
       </div>
       
       {/* Satellites */}

@@ -233,33 +233,104 @@ h1, h2, h3, h4, h5, h6, .font-mono {
 @media (max-width: 900px) { .orbit-container { transform: scale(0.55); } }
 @media (max-width: 600px) { .orbit-container { transform: scale(0.45); } }
 
+/* ── BLAZING STAR CENTRE ────────────────────── */
 .orbit-center-node {
   position: absolute;
-  width: 150px;
-  height: 150px;
-  background: radial-gradient(circle, rgba(0,200,232,0.15) 0%, rgba(0,0,0,0) 70%);
+  width: 200px;
+  height: 200px;
   border-radius: 50%;
   display: flex;
   justify-content: center;
   align-items: center;
-  flex-direction: column;
-  box-shadow: 0 0 50px rgba(0, 200, 232, 0.3);
-  border: 1px solid rgba(0, 200, 232, 0.2);
   z-index: 20;
-  animation: pulse-core 4s ease-in-out infinite;
-}
-.orbit-center-node::after {
-  content: '';
-  position: absolute;
-  inset: -25px;
-  border-radius: 50%;
-  border: 1px dashed rgba(0, 200, 232, 0.25);
-  animation: spin 30s linear infinite;
+  pointer-events: none;
 }
 
-@keyframes pulse-core {
-  0%, 100% { box-shadow: 0 0 50px rgba(0, 200, 232, 0.3); }
-  50% { box-shadow: 0 0 80px rgba(0, 200, 232, 0.6), inset 0 0 20px rgba(0,200,232,0.3); }
+/* Rotating corona rays */
+.star-rays {
+  position: absolute;
+  inset: -80px;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,   rgba(255,230,120,0.18) 8deg,  transparent 18deg,
+    transparent 40deg,  rgba(255,220,80,0.12)  48deg,  transparent 58deg,
+    transparent 80deg,  rgba(255,230,120,0.18) 88deg,  transparent 98deg,
+    transparent 120deg, rgba(255,210,60,0.10)  128deg, transparent 138deg,
+    transparent 160deg, rgba(255,230,120,0.18) 168deg, transparent 178deg,
+    transparent 200deg, rgba(255,220,80,0.12)  208deg, transparent 218deg,
+    transparent 240deg, rgba(255,230,120,0.18) 248deg, transparent 258deg,
+    transparent 280deg, rgba(255,210,60,0.10)  288deg, transparent 298deg,
+    transparent 320deg, rgba(255,230,120,0.18) 328deg, transparent 338deg,
+    transparent 360deg
+  );
+  animation: rays-spin 16s linear infinite;
+  pointer-events: none;
+}
+@keyframes rays-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* Blazing hot core */
+.star-core {
+  position: absolute;
+  inset: 20px;
+  border-radius: 50%;
+  background: radial-gradient(circle,
+    #ffffff   0%,
+    #fff8c0  12%,
+    #ffe060  28%,
+    #ffb300  48%,
+    rgba(255,140,0,0.55) 68%,
+    transparent 100%
+  );
+  box-shadow:
+    0 0  18px 6px  #fff,
+    0 0  55px 18px rgba(255,230,100,0.95),
+    0 0 110px 36px rgba(255,180, 20,0.75),
+    0 0 200px 70px rgba(255,120,  0,0.50),
+    0 0 340px 120px rgba(255, 60, 0,0.28),
+    0 0 520px 180px rgba(200, 30, 0,0.14);
+  animation: star-pulse 3.5s ease-in-out infinite;
+}
+@keyframes star-pulse {
+  0%,100% { transform: scale(1);    opacity: 1; }
+  50%      { transform: scale(1.07); opacity: 0.88; }
+}
+
+/* Outward-pulsing rings */
+.star-ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255,200,80,0.5);
+  inset: 10px;
+  animation: ring-expand 3.5s ease-out infinite;
+  pointer-events: none;
+}
+.star-ring-2 { animation-delay: 1.16s; }
+.star-ring-3 { animation-delay: 2.33s; }
+@keyframes ring-expand {
+  0%   { transform: scale(1);   opacity: 0.7; }
+  100% { transform: scale(4.5); opacity: 0; }
+}
+
+/* Text label on top of star */
+.star-label {
+  position: relative;
+  z-index: 2;
+  font-family: 'Space Mono', monospace;
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: #fff;
+  text-align: center;
+  line-height: 1.35;
+  letter-spacing: 1px;
+  text-shadow:
+    0 0 8px #fff,
+    0 0 20px rgba(255,220,100,0.9),
+    0 0 40px rgba(255,160,0,0.7);
+  pointer-events: none;
 }
 
 .orbit-ring {
