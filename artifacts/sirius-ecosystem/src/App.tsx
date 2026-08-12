@@ -180,7 +180,7 @@ const OrbitSystem = () => {
                 '--color-alpha': colorAlpha
               } as React.CSSProperties}
             >
-              <Icon className="satellite-icon" size={24} />
+              <Icon className="satellite-icon" size={42} />
               
               <div className="satellite-label">{p.shortName}</div>
               
