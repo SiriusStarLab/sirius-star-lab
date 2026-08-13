@@ -134,6 +134,8 @@ export default function ChatScreen() {
   const convoHandledRef = useRef<string | undefined>(undefined);
   const kateVoiceRef = useRef<string | undefined>(undefined);
   const speechCancelledRef = useRef<boolean>(false);
+  const flatListRef = useRef<FlatList>(null);
+  const hasScrolledToAssistantRef = useRef<boolean>(false);
 
   const refreshKateVoice = useCallback(() => {
     Speech.getAvailableVoicesAsync()
@@ -232,10 +234,13 @@ export default function ChatScreen() {
         : undefined,
     };
     setMessages(prev => [...prev, userMsg]);
+    hasScrolledToAssistantRef.current = false;
     setIsStreaming(true);
     setShowTyping(true);
     setActionSteps([]);
     setStepsExpanded(false);
+    // Scroll to bottom so user can see their message + typing indicator
+    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 60);
 
     try {
       let activeId = conversationId;
@@ -411,6 +416,25 @@ export default function ChatScreen() {
     }
   }, [conversationId, isStreaming, userId, voiceMode]);
 
+  // Scroll to top of assistant message the moment it first appears while streaming.
+  // After that, stay put — text grows downward so the user can read from the top.
+  useEffect(() => {
+    if (!isStreaming || messages.length === 0) return;
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg?.role !== "assistant") return;
+    if (hasScrolledToAssistantRef.current) return;
+    hasScrolledToAssistantRef.current = true;
+    const idx = messages.length - 1;
+    const timer = setTimeout(() => {
+      try {
+        flatListRef.current?.scrollToIndex({ index: idx, viewPosition: 0, animated: true });
+      } catch {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }
+    }, 60);
+    return () => clearTimeout(timer);
+  }, [isStreaming, messages]);
+
   useEffect(() => {
     if (params.prompt && params.prompt !== promptHandledRef.current && !isStreaming) {
       promptHandledRef.current = params.prompt;
@@ -456,7 +480,6 @@ export default function ChatScreen() {
     })();
   }, [params.conversationId]);
 
-  const reversed = [...messages].reverse();
   const aiName = profile.aiName || "Sirius";
 
   const handleNewChat = useCallback(() => {
@@ -532,6 +555,8 @@ export default function ChatScreen() {
       }
       setMessages(msgs);
       setConversationId(id);
+      // Scroll to the most recent message
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: false }), 100);
     } catch {
       Alert.alert("Couldn't load conversation", "Please check your connection and try again.");
     }
@@ -632,11 +657,11 @@ export default function ChatScreen() {
           </ScrollView>
         ) : (
           <FlatList
-            data={reversed}
+            ref={flatListRef}
+            data={messages}
             keyExtractor={item => item.id}
             renderItem={({ item }) => <MessageBubble message={item} />}
-            inverted
-            ListHeaderComponent={
+            ListFooterComponent={
               <>
                 {showTyping && <TypingIndicator />}
                 {isStreaming && actionSteps.length > 0 && (
@@ -680,6 +705,10 @@ export default function ChatScreen() {
                 )}
               </>
             }
+            onScrollToIndexFailed={({ index }) => {
+              // Fallback: scroll to end if index-based scroll fails (variable heights)
+              flatListRef.current?.scrollToEnd({ animated: true });
+            }}
             keyboardDismissMode="interactive"
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={{ paddingTop: 8, paddingBottom: 12 }}
