@@ -38,3 +38,4 @@
 - [Sirius server build missing files](sirius-server-build-missing-files.md) — lib files Sirius forgets to create that break `pnpm build`; exact stubs and build commands inside.
 - [sirius-core config and restart](sirius-core-config.md) — NOT in main ecosystem; own .env with wrong DB creds (fixed to siriusdb/sirius); NODE_PATH needed for helmet; restart recipe inside.
 - [Sirius self-healing architecture](sirius-self-healing-architecture.md) — 4-step system: watchdog sidecar daemon, verified deploy script, immutable bundle lock, boot-time audit injection. deploy-bundle.sh is the ONLY deploy method.
+- [Current year is 2026](current-year.md) — Always search for and cite 2026 guidelines/docs. Garry explicitly asked this be remembered.
