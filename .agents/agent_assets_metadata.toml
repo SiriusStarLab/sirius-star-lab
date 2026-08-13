@@ -469,3 +469,31 @@ uri = "file://attached_assets/07CCC9E5-8D2A-437B-8E24-D7D2D6002AF9_1786634843128
 type = "image"
 title = "Screenshot 4 — Settings"
 description = "Upload this fourth"
+
+[[outputs]]
+id = "bcBiXziEONtb3SVUP_Irh"
+uri = "file://attached_assets/screenshot-1-chat.png"
+type = "image"
+title = "Screenshot 1 — Chat"
+description = "Upload first to App Store Connect"
+
+[[outputs]]
+id = "ruH5hTAYD6uRUI91cVjdL"
+uri = "file://attached_assets/screenshot-2-dreamlab.png"
+type = "image"
+title = "Screenshot 2 — Dream Lab"
+description = "Upload second"
+
+[[outputs]]
+id = "xnlzN4eTphxY9XcnSZlXD"
+uri = "file://attached_assets/screenshot-3-starlab.png"
+type = "image"
+title = "Screenshot 3 — Star Lab"
+description = "Upload third"
+
+[[outputs]]
+id = "mae7qP9oOUo0G1uE5SxSW"
+uri = "file://attached_assets/screenshot-4-settings.png"
+type = "image"
+title = "Screenshot 4 — Settings"
+description = "Upload fourth"
