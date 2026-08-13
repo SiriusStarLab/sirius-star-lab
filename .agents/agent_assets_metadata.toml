@@ -497,3 +497,31 @@ uri = "file://attached_assets/screenshot-4-settings.png"
 type = "image"
 title = "Screenshot 4 — Settings"
 description = "Upload fourth"
+
+[[outputs]]
+id = "tdl8gDGOQU7a2awl74LFp"
+uri = "file://attached_assets/sc-1-chat.png"
+type = "image"
+title = "Screenshot 1 — Chat"
+description = "1242×2688px — upload first"
+
+[[outputs]]
+id = "2Vp-8phq6zocn_hcXhBgX"
+uri = "file://attached_assets/sc-2-dreamlab.png"
+type = "image"
+title = "Screenshot 2 — Dream Lab"
+description = "1242×2688px — upload second"
+
+[[outputs]]
+id = "TvAWmkvnjT3deLVzQxGOG"
+uri = "file://attached_assets/sc-3-starlab.png"
+type = "image"
+title = "Screenshot 3 — Star Lab"
+description = "1242×2688px — upload third"
+
+[[outputs]]
+id = "06jzbliQNnBtRFou0fUjm"
+uri = "file://attached_assets/sc-4-settings.png"
+type = "image"
+title = "Screenshot 4 — Settings"
+description = "1242×2688px — upload fourth"
