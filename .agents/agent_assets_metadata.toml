@@ -446,29 +446,29 @@ description = "Cover, Star Lab deep-dive, all 8 products with images, closing pa
 id = "3Uc_CahLQZ3Ib0WWpu5Cb"
 uri = "file://attached_assets/IMG_6503_1786633960477.PNG"
 type = "image"
-title = "Screenshot 1 — Chat"
-description = "Upload this first"
+title = "Screenshot 1 — Chat (1290×2796)"
+description = "Original — correct size for ASC"
 
 [[outputs]]
 id = "RnSulnnlYzI7NXVbsAX7S"
 uri = "file://attached_assets/EF7B0731-146B-4702-904A-C1A55039CA7D_1786634662834.png"
 type = "image"
-title = "Screenshot 2 — Dream Lab"
-description = "Upload this second"
+title = "Screenshot 2 — Dream Lab (1290×2796)"
+description = "Original — correct size for ASC"
 
 [[outputs]]
 id = "I_PLkj6e0v0xuEougsDps"
 uri = "file://attached_assets/234D7CC6-AD03-4CD2-B38B-2E66425A7646_1786634740990.png"
 type = "image"
-title = "Screenshot 3 — Star Lab"
-description = "Upload this third"
+title = "Screenshot 3 — Star Lab (1290×2796)"
+description = "Original — correct size for ASC"
 
 [[outputs]]
 id = "LMXA7dwEtMYPiVC5sg4P3"
 uri = "file://attached_assets/07CCC9E5-8D2A-437B-8E24-D7D2D6002AF9_1786634843128.png"
 type = "image"
-title = "Screenshot 4 — Settings"
-description = "Upload this fourth"
+title = "Screenshot 4 — Settings (1290×2796)"
+description = "Original — correct size for ASC"
 
 [[outputs]]
 id = "bcBiXziEONtb3SVUP_Irh"
