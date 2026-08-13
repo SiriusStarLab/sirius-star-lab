@@ -525,3 +525,31 @@ uri = "file://attached_assets/sc-4-settings.png"
 type = "image"
 title = "Screenshot 4 — Settings"
 description = "1242×2688px — upload fourth"
+
+[[outputs]]
+id = "rBF8vEyFquKwmi7ZYilkC"
+uri = "file://attached_assets/final-1-chat.jpg"
+type = "image"
+title = "Screenshot 1 — Chat"
+description = "1290×2796px, no alpha — ready for ASC"
+
+[[outputs]]
+id = "5qEi-heYQ_kkDO6upKpMn"
+uri = "file://attached_assets/final-2-dreamlab.jpg"
+type = "image"
+title = "Screenshot 2 — Dream Lab"
+description = "1290×2796px, no alpha — ready for ASC"
+
+[[outputs]]
+id = "yXM1fW-_G8D5C-nf97UNc"
+uri = "file://attached_assets/final-3-starlab.jpg"
+type = "image"
+title = "Screenshot 3 — Star Lab"
+description = "1290×2796px, no alpha — ready for ASC"
+
+[[outputs]]
+id = "txCTqU719EWZ_gU12HFQE"
+uri = "file://attached_assets/final-4-settings.jpg"
+type = "image"
+title = "Screenshot 4 — Settings"
+description = "1290×2796px, no alpha — ready for ASC"
