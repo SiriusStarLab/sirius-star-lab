@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -215,12 +216,19 @@ export function ChatInput({
   const startRecording = async () => {
     if (disabled) return;
     try {
-      const { granted } = await Audio.requestPermissionsAsync();
+      const { granted, canAskAgain } = await Audio.requestPermissionsAsync();
       if (!granted) {
         Alert.alert(
           "Microphone Access Needed",
-          "Please enable microphone access for Sirius in your device Settings.",
-          [{ text: "OK" }]
+          canAskAgain
+            ? "Sirius needs microphone access to hear your voice messages."
+            : "Microphone access is blocked. Please open Settings and enable it for Sirius.",
+          canAskAgain
+            ? [{ text: "OK" }]
+            : [
+                { text: "Cancel", style: "cancel" },
+                { text: "Open Settings", onPress: () => Linking.openSettings() },
+              ]
         );
         return;
       }
@@ -230,9 +238,17 @@ export function ChatInput({
       );
       recordingRef.current = recording;
       setVoiceState("recording");
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to start recording", err);
       setVoiceState("idle");
+      Alert.alert(
+        "Microphone unavailable",
+        "Could not access the microphone. Please check Settings → Sirius → Microphone is enabled.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Open Settings", onPress: () => Linking.openSettings() },
+        ]
+      );
     }
   };
 

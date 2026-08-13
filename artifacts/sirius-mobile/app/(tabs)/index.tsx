@@ -140,18 +140,31 @@ export default function ChatScreen() {
   const refreshKateVoice = useCallback(() => {
     Speech.getAvailableVoicesAsync()
       .then(voices => {
+        const enIE = voices.filter(v => v.language.startsWith("en-IE"));
         const enGB = voices.filter(v => v.language.startsWith("en-GB"));
         const enUS = voices.filter(v => v.language.startsWith("en-US"));
-        // Prefer premium/neural en-GB voices, then any en-GB, then en-US neural
+        const allEn = [...enIE, ...enGB, ...enUS];
+
+        // Priority: Irish female (Moira) → any Irish → Jenny (Microsoft) →
+        // premium en-GB female (Serena/Martha) → any enhanced en-GB → en-GB fallback → en-US Samantha
         const preferred = [
+          // Irish English — Moira is the standard iOS Irish female voice
+          enIE.find(v => v.name.toLowerCase().includes("moira")),
+          enIE.find(v => (v as any).quality === "Enhanced" || (v as any).quality === "Premium"),
+          enIE[0],
+          // Jenny — Microsoft voice (available on some devices)
+          allEn.find(v => v.name.toLowerCase().includes("jenny")),
+          // Premium en-GB female voices
           enGB.find(v => v.name.toLowerCase().includes("serena")),
           enGB.find(v => v.name.toLowerCase().includes("martha")),
-          enGB.find(v => v.name.toLowerCase().includes("daniel")),
-          enGB.find(v => v.quality === "Enhanced" || (v as any).quality === "Premium"),
+          // Any enhanced/premium en-GB
+          enGB.find(v => (v as any).quality === "Enhanced" || (v as any).quality === "Premium"),
           enGB[0],
+          // US fallback
           enUS.find(v => v.name.toLowerCase().includes("samantha")),
           enUS[0],
         ].find(Boolean);
+
         if (preferred) kateVoiceRef.current = preferred.identifier;
       })
       .catch(() => {});
