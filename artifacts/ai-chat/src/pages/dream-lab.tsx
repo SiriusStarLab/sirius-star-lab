@@ -1097,6 +1097,42 @@ export function DreamLabPage() {
     );
   }
 
+  const isSignedIn = !!localStorage.getItem("sirius_account_email");
+
+  if (!isSignedIn) {
+    return (
+      <div style={{
+        height: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+        background: "linear-gradient(160deg, #04081a 0%, #070d20 55%, #050e1b 100%)",
+        color: "#fff", fontFamily: "'Inter', system-ui, sans-serif", padding: "32px 24px", textAlign: "center",
+      }}>
+        <div style={{ fontSize: 52, marginBottom: 20 }}>🌱</div>
+        <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 10, lineHeight: 1.2 }}>Dream Lab</h2>
+        <p style={{ fontSize: 15, color: "rgba(255,255,255,0.5)", maxWidth: 380, lineHeight: 1.65, marginBottom: 32 }}>
+          Build and track your dreams with Sirius — full memory, stage progression, and a dedicated space for every goal. Sign in or create an account to get started.
+        </p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, width: "100%", maxWidth: 320 }}>
+          <button
+            onClick={() => setLocation("/")}
+            style={{
+              padding: "14px 32px", borderRadius: 12, border: "none",
+              background: "hsl(193,100%,45%)", color: "#04081a",
+              fontSize: 15, fontWeight: 700, cursor: "pointer",
+            }}>
+            Sign in / Create account
+          </button>
+          <p style={{ fontSize: 12, color: "rgba(255,255,255,0.25)", lineHeight: 1.5, margin: 0 }}>
+            Open the account menu from the sidebar after signing in
+          </p>
+        </div>
+        <button onClick={() => setLocation("/")} style={{
+          marginTop: 20, background: "none", border: "none", color: "rgba(255,255,255,0.3)",
+          fontSize: 13, cursor: "pointer",
+        }}>← Back to Sirius</button>
+      </div>
+    );
+  }
+
   if (upgradeRequired) {
     return (
       <div style={{

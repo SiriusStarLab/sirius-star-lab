@@ -259,7 +259,7 @@ function Bubble({ msg }: { msg: LabMessage }) {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export function ProjectsPage() {
-  const { isLoading: subLoading, isPremium, status } = useSubscription();
+  const { isLoading: subLoading, isPro, status } = useSubscription();
   const userId = getUserId();
 
   const [view, setView] = useState<"home" | "chat">("home");
@@ -433,17 +433,19 @@ export function ProjectsPage() {
     );
   }
 
-  // ── Upgrade gate ───────────────────────────────────────────────────────────
-  if (!isPremium) {
+  const isSignedIn = !!localStorage.getItem("sirius_account_email");
+
+  // ── Sign-in gate ───────────────────────────────────────────────────────────
+  if (!isSignedIn) {
     return (
       <div className="min-h-screen bg-[#050a12] flex flex-col">
-        <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)}  />
+        <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
         <div className="flex items-center justify-between px-4 py-4 border-b border-white/5">
           <button onClick={() => setIsSidebarOpen(true)} className="p-2 rounded-lg hover:bg-white/5 transition-colors">
             <Menu size={20} className="text-white/60" />
           </button>
           <div className="flex items-center gap-2">
-            <FlaskConical size={18} className="text-[#00b4d8]" />
+            <Rocket size={18} className="text-[#00b4d8]" />
             <span className="text-white/80 font-semibold text-sm">Star Lab</span>
           </div>
           <div className="w-9" />
@@ -451,21 +453,62 @@ export function ProjectsPage() {
         <div className="flex-1 flex items-center justify-center px-6">
           <div className="max-w-sm text-center">
             <div className="w-16 h-16 rounded-2xl bg-[#00b4d8]/10 border border-[#00b4d8]/20 flex items-center justify-center mx-auto mb-6">
-              <FlaskConical size={28} className="text-[#00b4d8]" />
+              <Rocket size={28} className="text-[#00b4d8]" />
             </div>
             <h2 className="text-2xl font-bold text-white mb-3">Star Lab</h2>
-            <p className="text-white/50 text-sm mb-6 leading-relaxed">
-              Design products, build apps, and write code with Sirius. Available on Plus and Pro plans.
+            <p className="text-white/50 text-sm mb-8 leading-relaxed">
+              Design products, build apps, and write production-ready code with Sirius. A Sirius Pro feature.
+            </p>
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              className="w-full py-3 rounded-xl bg-[#00b4d8] hover:bg-[#00c4e8] text-white font-semibold text-sm transition-colors mb-3"
+            >
+              Sign in / Create account
+            </button>
+            <p className="text-white/20 text-xs leading-relaxed">
+              Open the account menu from the sidebar to sign in or create your account
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Pro upgrade gate ───────────────────────────────────────────────────────
+  if (!isPro) {
+    return (
+      <div className="min-h-screen bg-[#050a12] flex flex-col">
+        <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+        <div className="flex items-center justify-between px-4 py-4 border-b border-white/5">
+          <button onClick={() => setIsSidebarOpen(true)} className="p-2 rounded-lg hover:bg-white/5 transition-colors">
+            <Menu size={20} className="text-white/60" />
+          </button>
+          <div className="flex items-center gap-2">
+            <Rocket size={18} className="text-[#00b4d8]" />
+            <span className="text-white/80 font-semibold text-sm">Star Lab</span>
+          </div>
+          <div className="w-9" />
+        </div>
+        <div className="flex-1 flex items-center justify-center px-6">
+          <div className="max-w-sm text-center">
+            <div className="w-16 h-16 rounded-2xl bg-[#00b4d8]/10 border border-[#00b4d8]/20 flex items-center justify-center mx-auto mb-6">
+              <Rocket size={28} className="text-[#00b4d8]" />
+            </div>
+            <h2 className="text-2xl font-bold text-white mb-3">Star Lab is a Pro feature</h2>
+            <p className="text-white/50 text-sm mb-3 leading-relaxed">
+              Design products, build apps, and write production-ready code with Sirius — your full R&D partner.
             </p>
             <div className="text-xs text-white/30 mb-8">
               Current plan: <span className="text-white/50 capitalize">{status.tier}</span>
             </div>
             <button
               onClick={() => setIsSidebarOpen(true)}
-              className="w-full py-3 rounded-xl bg-[#00b4d8] hover:bg-[#00c4e8] text-white font-semibold text-sm transition-colors"
+              className="w-full py-3 rounded-xl font-semibold text-sm transition-colors mb-3"
+              style={{ background: "#f59e0b", color: "#080c1a" }}
             >
-              Upgrade to Plus
+              Get Pro — £19.99/month
             </button>
+            <p className="text-white/20 text-xs">Upgrade from the sidebar</p>
           </div>
         </div>
       </div>
