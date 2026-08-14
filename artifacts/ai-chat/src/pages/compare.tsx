@@ -247,7 +247,7 @@ export function ComparePage() {
                 style={{ background: "linear-gradient(135deg, hsl(193,100%,35%), hsl(226,70%,45%))", color: "white" }}>
                 Start for Free →
               </a>
-              <a href="/star-lab"
+              <a href="/origin"
                 className="px-7 py-3 rounded-xl font-bold text-sm transition-all hover:bg-slate-900/10"
                 style={{ background: "rgba(15,23,42,0.07)", color: "rgba(15,23,42,0.72)", border: "1px solid rgba(15,23,42,0.12)" }}>
                 Open Star Lab
