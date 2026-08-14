@@ -21,6 +21,8 @@ This reads `$KAMATERA_SSH_KEY`, reconstructs PEM newlines if needed (via python3
 - Restore script: `scripts/restore-ssh.sh`
 - Key added to server: Aug 13 2026 (via Windows terminal, Garry confirmed)
 
+**⚠️ KAMATERA_SSH_KEY SECRET IS BROKEN (Aug 2026):** The secret currently contains only 68 bytes — the Ed25519 public key body, NOT the private key. The restore script will fail validation. Use the heredoc fallback below directly — do NOT rely on the restore script succeeding.
+
 **Secret format warning:** Replit secrets may collapse newlines. The restore script uses python3 to reconstruct the PEM format. If `ssh-keygen -y -f ~/.ssh/id_rsa` fails after restore, write the key directly via heredoc from context.
 
 **Fallback (if restore fails):** Write key directly:
