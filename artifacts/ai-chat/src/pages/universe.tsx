@@ -249,7 +249,7 @@ function DomainCard({ domain, onClick }: { domain: Domain; onClick: () => void }
       onClick={onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      className="relative text-left w-full h-full rounded-2xl p-6 overflow-hidden transition-all duration-300 group"
+      className="relative text-left w-full rounded-2xl p-6 overflow-hidden transition-all duration-300 group"
       style={{
         background: hovered
           ? `linear-gradient(135deg, white 0%, ${domain.glow.replace("0.25)", "0.07)")} 100%)`
@@ -293,11 +293,24 @@ function UniverseChat({ domain, onBack }: { domain: Domain; onBack: () => void }
   const [suggestions, setSuggestions] = useState<string[]>(() => pickSuggestions(domain.id, new Set()));
   const usedSuggestions = useRef<Set<string>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const msgCountRef = useRef<number>(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const container = containerRef.current;
+    if (!container) return;
+    const prev = msgCountRef.current;
+    const curr = messages.length;
+    msgCountRef.current = curr;
+    if (curr > prev) {
+      const target = container.scrollHeight - container.clientHeight * 1.15;
+      container.scrollTo({ top: Math.max(0, target), behavior: "smooth" });
+    } else {
+      const dist = container.scrollHeight - container.scrollTop - container.clientHeight;
+      if (dist < 150) container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+    }
   }, [messages]);
 
   useEffect(() => {
@@ -465,7 +478,7 @@ Keep responses warm, personal, and compelling. Mix depth with accessibility. Nev
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-6 py-6 space-y-5" style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(15,23,42,0.1) transparent" }}>
+      <div ref={containerRef} className="flex-1 overflow-y-auto px-6 py-6 space-y-5" style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(15,23,42,0.1) transparent" }}>
         {messages.map((msg, i) => (
           <motion.div
             key={i}
@@ -539,7 +552,6 @@ Keep responses warm, personal, and compelling. Mix depth with accessibility. Nev
             </div>
           </motion.div>
         )}
-        <div ref={messagesEndRef} />
       </div>
 
       {/* Input */}
@@ -651,7 +663,6 @@ export function UniversePage() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.1 + i * 0.06 }}
-                    className="h-full"
                   >
                     <DomainCard domain={domain} onClick={() => setActiveDomain(domain)} />
                   </motion.div>

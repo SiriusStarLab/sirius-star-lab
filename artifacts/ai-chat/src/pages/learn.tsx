@@ -178,10 +178,21 @@ function StudyPlanPanel() {
   const base = getApiBase();
   const userId = getUserId();
   const bottomRef = useRef<HTMLDivElement>(null);
+  const studyContainerRef = useRef<HTMLDivElement>(null);
+  const studyMsgCountRef = useRef(0);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [plan]);
+    const container = studyContainerRef.current;
+    if (!container) return;
+    const prev = studyMsgCountRef.current;
+    const curr = plan.length;
+    studyMsgCountRef.current = curr;
+    if (curr === 0 || curr < prev) return;
+    const dist = container.scrollHeight - container.scrollTop - container.clientHeight;
+    if (dist < 200 || streaming) {
+      container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+    }
+  }, [plan, streaming]);
 
   const loadSaved = useCallback(async () => {
     try {
@@ -259,7 +270,7 @@ function StudyPlanPanel() {
             <Trash2 className="w-4 h-4" />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto overflow-x-hidden px-6 py-6">
+        <div ref={studyContainerRef} className="flex-1 overflow-y-auto overflow-x-hidden px-6 py-6">
           <div className="max-w-2xl mx-auto prose prose-sm prose-gray max-w-none break-words">
             <ReactMarkdown>{viewingPlan.plan}</ReactMarkdown>
           </div>
@@ -791,7 +802,17 @@ function DocumentPanel() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const base = getApiBase();
 
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [output]);
+  const docContainerRef = useRef<HTMLDivElement>(null);
+  const docLenRef = useRef(0);
+
+  useEffect(() => {
+    const container = docContainerRef.current;
+    if (!container) return;
+    if (output.length === 0 || output.length < docLenRef.current) { docLenRef.current = output.length; return; }
+    docLenRef.current = output.length;
+    const dist = container.scrollHeight - container.scrollTop - container.clientHeight;
+    if (dist < 200 || streaming) container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+  }, [output, streaming]);
 
   const readFile = (file: File) => {
     setFilename(file.name);
@@ -943,7 +964,7 @@ function DocumentPanel() {
                 </button>
               </div>
             )}
-            <div className="flex-1 overflow-y-auto overflow-x-hidden px-6 py-6">
+            <div ref={docContainerRef} className="flex-1 overflow-y-auto overflow-x-hidden px-6 py-6">
               <div className="max-w-2xl mx-auto">
                 <div className="prose prose-sm prose-gray max-w-none break-words">
                   <ReactMarkdown>{output}</ReactMarkdown>
