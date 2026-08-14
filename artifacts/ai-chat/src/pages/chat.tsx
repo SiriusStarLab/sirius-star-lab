@@ -101,11 +101,10 @@ export function ChatPage() {
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
-    const isStreaming = messages.some(m => m.isStreaming);
     const isNew = messages.length !== msgCountRef.current;
     msgCountRef.current = messages.length;
-    // New message added: position to show start of response (user msg visible, answer begins in view)
-    if (isNew && !isTyping) {
+    // New message added (but skip the initial recap-bridge card appearing alone)
+    if (isNew && !isTyping && messages.length > 1) {
       setTimeout(() => {
         const c = scrollContainerRef.current;
         if (!c) return;
@@ -145,6 +144,7 @@ export function ChatPage() {
   };
 
   const isEmpty = messages.length === 0;
+  const isRecapOnly = messages.length === 1 && messages[0].id === "recap-bridge";
   const isInitialLoading = !!conversationId && isDbLoading && isEmpty;
 
   return (
@@ -222,7 +222,7 @@ export function ChatPage() {
                 </p>
               </div>
             </div>
-          ) : isEmpty ? (
+          ) : (isEmpty || isRecapOnly) ? (
             /* ── Welcome screen: Gemini-inspired clean layout ── */
             <div className="relative min-h-full flex flex-col items-center pb-16 px-5 md:px-8 max-w-3xl mx-auto w-full justify-center">
 
@@ -333,6 +333,18 @@ export function ChatPage() {
                 </motion.div>
               )}
 
+              {/* Recap bridge card — shown inside welcome screen when returning after 12h+ */}
+              {isRecapOnly && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.35, duration: 0.4 }}
+                  className="relative z-10 w-full mt-2"
+                >
+                  <ChatMessage message={messages[0]} />
+                </motion.div>
+              )}
+
             </div>
           ) : (
             <div className="flex flex-col pb-4">
@@ -371,8 +383,8 @@ export function ChatPage() {
           )}
         </div>
 
-        {/* Input bar — only shown when conversation has messages */}
-        {!isEmpty && (
+        {/* Input bar — shown when conversation has real messages (not just the recap card) */}
+        {!isEmpty && !isRecapOnly && (
           <div
             className="absolute bottom-14 left-0 right-0 z-30 pt-10 pb-3 px-4 md:px-8"
             style={{ background: "linear-gradient(to top, hsl(var(--background)) 60%, transparent)" }}
