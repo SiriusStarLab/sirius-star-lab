@@ -276,12 +276,27 @@ export function ProjectsPage() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const msgCountRef = useRef(0);
 
-  // Auto-scroll
+  // Gemini-style scroll: on new message show start of response; while streaming follow bottom only if near it
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const container = containerRef.current;
+    if (!container) return;
+    const isNew = messages.length !== msgCountRef.current;
+    msgCountRef.current = messages.length;
+    if (isNew) {
+      setTimeout(() => {
+        const c = containerRef.current;
+        if (!c) return;
+        c.scrollTo({ top: Math.max(0, c.scrollHeight - c.clientHeight * 1.15), behavior: "smooth" });
+      }, 40);
+      return;
+    }
+    const dist = container.scrollHeight - container.scrollTop - container.clientHeight;
+    if (dist < 120) container.scrollTop = container.scrollHeight;
   }, [messages]);
 
   // Save session when messages change
@@ -715,7 +730,7 @@ export function ProjectsPage() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-4">
+      <div ref={containerRef} className="flex-1 overflow-y-auto px-4 py-4">
         <div className="max-w-2xl mx-auto">
           {messages.map(msg => <Bubble key={msg.id} msg={msg} />)}
           <div ref={bottomRef} />

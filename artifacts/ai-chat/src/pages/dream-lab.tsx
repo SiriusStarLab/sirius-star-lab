@@ -384,6 +384,8 @@ function DreamConversation({
   const [statusSuggestion, setStatusSuggestion] = useState<string | null>(null);
   const [chips, setChips] = useState<string[]>([]);
   const endRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const msgCountRef = useRef(0);
   const voiceRef = useRef<any>(null);
   const api = useApi();
   const base = getApiBase();
@@ -450,7 +452,20 @@ function DreamConversation({
   }, [dream.id]);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth" });
+    const container = containerRef.current;
+    if (!container) return;
+    const isNew = messages.length !== msgCountRef.current;
+    msgCountRef.current = messages.length;
+    if (isNew) {
+      setTimeout(() => {
+        const c = containerRef.current;
+        if (!c) return;
+        c.scrollTo({ top: Math.max(0, c.scrollHeight - c.clientHeight * 1.15), behavior: "smooth" });
+      }, 40);
+      return;
+    }
+    const dist = container.scrollHeight - container.scrollTop - container.clientHeight;
+    if (dist < 120) container.scrollTop = container.scrollHeight;
   }, [messages, streaming]);
 
   const detectStatusSuggestion = (text: string) => {
@@ -692,7 +707,7 @@ function DreamConversation({
       </AnimatePresence>
 
       {/* Messages */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "24px 20px", display: "flex", flexDirection: "column", gap: "16px" }}>
+      <div ref={containerRef} style={{ flex: 1, overflowY: "auto", padding: "24px 20px", display: "flex", flexDirection: "column", gap: "16px" }}>
         {messages.map((msg, i) => (
           <motion.div
             key={i}

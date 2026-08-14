@@ -97,15 +97,26 @@ export function ChatPage() {
     return;
   }, [conversationId]);
 
+  const msgCountRef = useRef(0);
   useEffect(() => {
     const container = scrollContainerRef.current;
-    const end = messagesEndRef.current;
-    if (!container || !end) return;
+    if (!container) return;
     const isStreaming = messages.some(m => m.isStreaming);
-    const distFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
-    // During streaming use instant scroll to avoid jank; smooth only when done
-    if (distFromBottom < 220 || isStreaming) {
-      end.scrollIntoView({ behavior: isStreaming ? "auto" : "smooth" });
+    const isNew = messages.length !== msgCountRef.current;
+    msgCountRef.current = messages.length;
+    // New message added: position to show start of response (user msg visible, answer begins in view)
+    if (isNew && !isTyping) {
+      setTimeout(() => {
+        const c = scrollContainerRef.current;
+        if (!c) return;
+        c.scrollTo({ top: Math.max(0, c.scrollHeight - c.clientHeight * 1.15), behavior: "smooth" });
+      }, 40);
+      return;
+    }
+    // Streaming: follow bottom only if user is already near it
+    const dist = container.scrollHeight - container.scrollTop - container.clientHeight;
+    if (dist < 180) {
+      container.scrollTop = container.scrollHeight;
     }
   }, [messages, isTyping]);
 
