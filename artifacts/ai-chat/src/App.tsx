@@ -1,4 +1,5 @@
-import { Switch, Route, Router as WouterRouter } from "wouter";
+import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
+import { useEffect } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -40,7 +41,8 @@ function Router() {
       <Route path="/privacy" component={PrivacyPage} />
       <Route path="/checkout/success" component={CheckoutSuccessPage} />
       <Route path="/checkout/cancel" component={CheckoutCancelPage} />
-      <Route path="/star-lab" component={() => <LabAuthGate><StarLabPage /></LabAuthGate>} />
+      <Route path="/origin" component={() => <LabAuthGate><StarLabPage /></LabAuthGate>} />
+      <Route path="/star-lab" component={() => { const [, nav] = useLocation(); useEffect(() => nav("/origin"), []); return null; }} />
       <Route path="/creator-lab" component={CreatorLabPage} />
       <Route path="/dream-lab" component={DreamLabPage} />
       <Route path="/wellbeing" component={WellbeingPage} />

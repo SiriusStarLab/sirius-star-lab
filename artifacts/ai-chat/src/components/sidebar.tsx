@@ -399,12 +399,12 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession, chatM
 
         {/* My Star Lab entry — Garry's private lab */}
         <button
-          onClick={() => { setLocation("/star-lab"); onClose(); }}
+          onClick={() => { setLocation("/origin"); onClose(); }}
           className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 relative overflow-hidden group"
           style={{
-            background: location === "/star-lab" ? "hsla(193,100%,35%,0.1)" : "hsla(193,100%,35%,0.05)",
-            border: location === "/star-lab" ? "1px solid hsla(193,100%,35%,0.35)" : "1px solid hsla(193,100%,35%,0.15)",
-            color: location === "/star-lab" ? "hsl(193,100%,24%)" : "hsl(193,60%,32%)",
+            background: location === "/origin" ? "hsla(193,100%,35%,0.1)" : "hsla(193,100%,35%,0.05)",
+            border: location === "/origin" ? "1px solid hsla(193,100%,35%,0.35)" : "1px solid hsla(193,100%,35%,0.15)",
+            color: location === "/origin" ? "hsl(193,100%,24%)" : "hsl(193,60%,32%)",
           }}
           onMouseEnter={e => {
             e.currentTarget.style.background = "hsla(193,100%,35%,0.1)";
@@ -412,7 +412,7 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession, chatM
             e.currentTarget.style.color = "hsl(193,100%,24%)";
           }}
           onMouseLeave={e => {
-            if (location !== "/star-lab") {
+            if (location !== "/origin") {
               e.currentTarget.style.background = "hsla(193,100%,35%,0.05)";
               e.currentTarget.style.borderColor = "hsla(193,100%,35%,0.15)";
               e.currentTarget.style.color = "hsl(193,60%,32%)";
