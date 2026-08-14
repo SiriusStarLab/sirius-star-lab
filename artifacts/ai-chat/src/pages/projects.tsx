@@ -10,6 +10,7 @@ import {
 import { useSubscription } from "@/hooks/use-subscription";
 import { getUserId } from "@/lib/user-id";
 import { getApiBase } from "@/lib/api-base";
+import { useLocation } from "wouter";
 import { Sidebar } from "@/components/sidebar";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -260,6 +261,7 @@ function Bubble({ msg }: { msg: LabMessage }) {
 
 export function ProjectsPage() {
   const { isLoading: subLoading, isPro, status } = useSubscription();
+  const [, setLocation] = useLocation();
   const userId = getUserId();
 
   const [view, setView] = useState<"home" | "chat">("home");
@@ -523,11 +525,16 @@ export function ProjectsPage() {
 
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-4 border-b border-white/5">
-          <button onClick={() => setIsSidebarOpen(true)} className="p-2 rounded-lg hover:bg-white/5 transition-colors">
-            <Menu size={20} className="text-white/60" />
-          </button>
+          <div className="flex items-center gap-1">
+            <button onClick={() => setLocation("/")} className="p-2 rounded-lg hover:bg-white/5 transition-colors" title="Back to Sirius">
+              <ChevronLeft size={20} className="text-white/60" />
+            </button>
+            <button onClick={() => setIsSidebarOpen(true)} className="p-2 rounded-lg hover:bg-white/5 transition-colors">
+              <Menu size={20} className="text-white/60" />
+            </button>
+          </div>
           <div className="flex items-center gap-2">
-            <FlaskConical size={18} className="text-[#00b4d8]" />
+            <Rocket size={18} className="text-[#00b4d8]" />
             <span className="text-white/80 font-semibold text-sm">Star Lab</span>
           </div>
           <button
