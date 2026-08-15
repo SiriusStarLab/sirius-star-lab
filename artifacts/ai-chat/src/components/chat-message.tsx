@@ -1,6 +1,9 @@
 import React, { useState, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import "katex/dist/katex.min.css";
 import { Zap, User, Globe, ExternalLink, Download, Sparkles, ChevronDown, ChevronRight, Brain, Play, Loader2, CheckCircle, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { type ChatMessage as ChatMessageType } from "@/hooks/use-chat";
@@ -86,6 +89,11 @@ function preprocessContent(content: string): string {
     /(?<!\()(https?:\/\/[^\s)\]"']+\.(png|jpg|jpeg|gif|webp|bmp|svg)([?#][^\s)\]"']*)?)/gi,
     (url) => `\n\n![Generated image](${url})\n\n`
   );
+  // Normalize LaTeX delimiters for remark-math:
+  // \[ ... \] → $$ ... $$ (display math)
+  result = result.replace(/\\\[([^]*?)\\\]/g, (_m, inner) => `\n$$${inner}$$\n`);
+  // \( ... \) → $ ... $ (inline math)
+  result = result.replace(/\\\(([^]*?)\\\)/g, (_m, inner) => `$${inner}$`);
   return result;
 }
 
@@ -363,7 +371,8 @@ export function ChatMessage({ message }: ChatMessageProps) {
                 {/* Message text */}
                 {message.content ? (
                   <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
+                    remarkPlugins={[remarkGfm, remarkMath]}
+                    rehypePlugins={[rehypeKatex]}
                     components={{
                       img: ({ src, alt }) => {
                         if (!src) return null;
