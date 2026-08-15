@@ -3,6 +3,7 @@ import { eq, desc, gte, lte, and, or, like, sql, isNull, ne } from "drizzle-orm"
 import { db, labProjects, labMessages, scoutReports, cadFiles, techDocs, labScanHistory, userProfilesTable, mediaOutlets, appBuilderSessions, voiceJournalTable, siriusConfig, siriusAutomations, siriusCustomTools, siriusErrors, cadJobs, siriusUpgrades, siriusNotifications, messages as messagesTable, conversations as conversationsTable, siriusTasks } from "@workspace/db";
 import { getSiriusConfigValue, setSiriusConfigValue, executeCustomTool, runAutomation, logSiriusError } from "../lib/sirius-automation.js";
 import { extractAndSaveMemories } from "../lib/memory.js";
+import { retrieveExperiences, writeExperience } from "../lib/memrl.js";
 import { openai } from "@workspace/ai-client";
 import { generateImageBuffer } from "@workspace/ai-client/image";
 import { ObjectStorageService } from "../lib/objectStorage";
@@ -17,30 +18,10 @@ import { getLabPin, setLabPin, getPinRole, authMiddleware, sseHeaders, loadLabPi
 import { runCodeAgent, type CodeAgentEvent } from "../lib/code-agent.js";
 import { runSecurityScan } from "../lib/security-scanner.js";
 import { intelligence } from "../lib/intelligence-client.js";
-import Stripe from "stripe";
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? "", { apiVersion: "2025-05-28.basil" });
-import { sendTelegramMessage, setupTelegram, isTelegramConfigured } from "../lib/telegram.js";
 import { executeCode } from "../lib/code-sandbox.js";
 import { readSourceFile, deployChange, triggerReload } from "../lib/self-deploy.js";
+import { deployAppSession, listDeployedApps } from "../lib/app-deployer.js";
 import { loadCrossSessionContext } from "../lib/mnemosyne.js";
-import { summariseSession } from "../lib/session-summarizer.js";
-import { buildStartupBriefing, invalidateBriefingCache } from "../lib/startup-briefing.js";
-import { execInSandbox, writeToSandbox, readFromSandbox, getProjectMemory, saveProjectMemory, gitCheckpoint, runTests, exposePort, closePort, deployApp, listDeployedApps, stopDeployedApp } from "../lib/sandbox-manager.js";
-
-// Bundle capability marker — printed at startup so esbuild can't tree-shake it.
-// Sirius: to check if a feature is in the running bundle, grep for "SIRIUS_BUNDLE_CAPABILITIES" in the dist/index.cjs.
-// DO NOT grep for minified identifiers like loadCrossSessionContext — they are renamed by the minifier.
-console.log("SIRIUS_BUNDLE_CAPABILITIES: mnemosyne-wired cad-enabled generate-image query-database github-push stripe-tools telegram v7");
-
-// ── Startup: stamp the restart timestamp immediately on every boot ──────────
-// This means the 2-hour cooldown always applies from the moment the server starts,
-// whether it was restarted by PM2, by me, or by Sirius herself.
-// Without this, Sirius could always restart immediately after any boot.
-(async () => {
-  try {
-    await setSiriusConfigValue("last_autonomous_restart", String(Date.now()));
-  } catch { /* non-critical — cooldown is defence-in-depth */ }
-})();
 
 // Active code-agent SSE streams (sessionId → Response)
 const codeAgentStreams = new Map<string, Response>();
@@ -220,11 +201,8 @@ You do NOT have permission to modify yourself, your code, your configuration, yo
 - **Voice**: Jenny — Piper TTS, British female (en_GB-jenny_dioco-medium). Hardwired. Cannot be changed.
 - **Web search**: Perplexity Sonar via OpenRouter — search_web tool
 - **Reading**: fetch_url to read any page
-- **Main intelligence model**: anthropic/claude-sonnet-4.5
-- **You ARE the Kamatera server** — you are the sirius-api PM2 process running on the Kamatera host at 185.247.118.196. run_command executes shell commands directly on that host. You can check nginx config, domains, SSL certificates, open ports, DNS, PM2 processes, disk, environment variables — all of it with run_command. You do not need SSH credentials; you are already there.
-- **Docker sandbox** (sandbox_exec) — runs commands inside the sirius-sandbox-garry container, which is also on the same Kamatera host. Persistent volume at /workspace. Use for building Garry's projects.
-- **read_file** — reads any file on the Kamatera host by absolute path
-- **check_server_health** — structured infrastructure health: disk, RAM, PM2 uptime, error log
+- **Main intelligence model**: anthropic/claude-sonnet-4-6
+- **Fast model**: anthropic/claude-haiku-4-5
 
 ### Your Voice
 Jenny. Piper TTS. British female. Hardwired. No tool exists to change it. Do not tell Garry you can change your voice.
@@ -397,12 +375,18 @@ For every bot design request, produce:
 - Total estimated monthly cost at scale`;
 
 
+
+// ── Model validator — auto-corrects dot↔hyphen on startup ───────────────────
+// OpenRouter's model listing uses dots (4.6) but the completions API uses
+// hyphens (4-6). They change this every model release. This validator runs
+let SIRIUS_MODEL = "anthropic/claude-sonnet-4-6";
+
 async function streamChatResponse(
   res: Response,
   systemPrompt: string,
   userMessage: string,
   history: { role: string; content: string }[] = [],
-  _model = "anthropic/claude-sonnet-4.5"
+  _model = SIRIUS_MODEL
 ): Promise<string> {
   const messages: any[] = [
     { role: "system", content: systemPrompt },
@@ -413,7 +397,7 @@ async function streamChatResponse(
   let fullContent = "";
 
   const stream = await openai.chat.completions.create({
-    model: "anthropic/claude-sonnet-4.5",
+    model: SIRIUS_MODEL,
     messages,
     stream: true,
     max_tokens: 4000,
@@ -439,7 +423,7 @@ async function streamWithSearch(
   jsonMode = false
 ): Promise<string> {
   const stream = await openai.chat.completions.create({
-    model: "anthropic/claude-sonnet-4.5",
+    model: SIRIUS_MODEL,
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userMessage },
@@ -824,18 +808,80 @@ const PROJECT_CHAT_TOOLS: any[] = [
       },
     },
   },
+
   {
     type: "function",
     function: {
-      name: "search_web",
-      description: "Search the web for current information, market data, technical standards, competitor analysis, pricing, or any real-world information needed for the project. Call this BEFORE writing sections that need current facts, market data, or research.",
+      name: "read_source_file",
+      description: "Read a file from Sirius's own source code. Use before modifying any file — always read it first so you have the exact current content.",
       parameters: {
         type: "object",
         properties: {
-          query: { type: "string", description: "The specific search query — be precise, include industry terms, product names, standards, or market segment." },
-          purpose: { type: "string", description: "What you will use these results for (e.g. 'market size for hydrogen electrolysers', 'ISO 13485 requirements', 'competitor pricing for CNC turning services')" },
+          path: { type: "string", description: "File path relative to artifacts/api-server/ (e.g. 'src/routes/lab.ts', 'src/lib/memory.ts')" },
         },
-        required: ["query", "purpose"],
+        required: ["path"],
+      },
+    },
+
+  },
+  {
+    type: "function",
+    function: {
+      name: "search_everything",
+      description: "Search across ALL of Sirius's systems: memories, full conversation history, projects. Use this when you need to find what was worked on in a previous session, what Garry said, or any specific past fact. Call this instead of guessing.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "What to search for — a topic, name, error, decision, or anything from past conversations" },
+          scope: { type: "string", enum: ["all", "memories", "conversations", "projects"], description: "Where to search. Default: all" },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "read_my_logs",
+      description: "Read Sirius's own PM2 runtime logs. Use BEFORE claiming something is broken or fixed — always check the logs first. Never guess at what's happening; read the actual logs.",
+      parameters: {
+        type: "object",
+        properties: {
+          lines: { type: "number", description: "How many recent log lines to return. Default 80, max 300." },
+          filter: { type: "string", description: "Optional: only return lines containing this string (e.g. 'error', 'AppBuilder', 'Mnemosyne', 'deploy')" },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "execute_code",
+      description: "Execute JavaScript or Python in a secure sandbox to test logic, verify algorithms, or validate calculations before using results. Returns stdout and stderr.",
+      parameters: {
+        type: "object",
+        properties: {
+          code: { type: "string", description: "The code to run" },
+          language: { type: "string", enum: ["javascript", "python"], description: "Programming language" },
+        },
+        required: ["code", "language"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "propose_code_change",
+      description: "Propose a change to Sirius's own source code. Runs TypeScript check, AI review by a separate model (GPT-4o), then auto-deploys if both pass. Always read_source_file first. Provide the complete new file content — not a snippet.",
+      parameters: {
+        type: "object",
+        properties: {
+          filePath: { type: "string", description: "File path relative to artifacts/api-server/ e.g. 'src/lib/my-feature.ts'. Only src/ files allowed." },
+          newContent: { type: "string", description: "Complete new content of the file. Full file, not a snippet." },
+          description: { type: "string", description: "Specific explanation of what changed and why. The reviewer reads this." },
+        },
+        required: ["filePath", "newContent", "description"],
       },
     },
   },
@@ -990,7 +1036,7 @@ CRITICAL EXECUTION RULES — READ CAREFULLY:
     async function doWebSearch(query: string): Promise<string> {
       try {
         const result = await openai.chat.completions.create({
-          model: "anthropic/claude-sonnet-4.5",
+          model: SIRIUS_MODEL,
           messages: [
             { role: "system", content: "You are a research assistant with deep knowledge across all domains. Provide comprehensive, factual, well-structured information. Include relevant data, market context, key players, and actionable insights. Be thorough and specific." },
             { role: "user", content: `Research the following topic thoroughly and return comprehensive findings:\n\n${query}` },
@@ -1014,7 +1060,7 @@ CRITICAL EXECUTION RULES — READ CAREFULLY:
       const isLastRound = round === MAX_ROUNDS - 1;
 
       const completion = await openai.chat.completions.create({
-        model: "anthropic/claude-sonnet-4.5",
+        model: SIRIUS_MODEL,
         messages,
         tools: PROJECT_CHAT_TOOLS,
         tool_choice: isLastRound ? "none" : "auto",
@@ -1132,7 +1178,7 @@ CRITICAL EXECUTION RULES — READ CAREFULLY:
         } else if (tc.name === "propose_code_change") {
           const { filePath, newContent, description } = args;
           res.write(`data: ${JSON.stringify({ type: "proposing_change", filePath })}\n\n`);
-          const apiKey = process.env.ANTHROPIC_API_KEY || process.env.OPENROUTER_API_KEY || "";
+          const apiKey = process.env.OPENROUTER_API_KEY || "";
           const result = await deployChange({ filePath, newContent, description, apiKey });
 
           let resultMsg = "";
@@ -1149,17 +1195,6 @@ CRITICAL EXECUTION RULES — READ CAREFULLY:
 
           if (result.success) {
             setTimeout(() => triggerReload().catch(() => {}), 3000);
-          }
-        } else {
-          // Catch-all: route any Sirius-specific tool (create_custom_tool,
-          // list_custom_tools, call_custom_tool, delete_item, save_memory, etc.)
-          // through the central executeLabTool dispatcher so they are actually
-          // executed and their result is returned to the model.
-          try {
-            const result = await executeLabTool(tc.name, args);
-            toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: result });
-          } catch (e: any) {
-            toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: `Tool error (${tc.name}): ${e.message}` });
           }
         }
       }
@@ -2329,7 +2364,7 @@ Be brutally specific. Reference real things. No generic advice.`;
 
   try {
     const response = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.5",
+      model: SIRIUS_MODEL,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
@@ -2851,7 +2886,7 @@ ${JSON.stringify(projectSummary, null, 2)}
 Return the JSON response as specified. This is for a single project — the opportunities array should have exactly one entry.`;
 
     const aiResponse = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.5",
+      model: SIRIUS_MODEL,
       messages: [
         { role: "system", content: FUNDING_SYSTEM_PROMPT },
         { role: "user", content: userMessage },
@@ -3037,7 +3072,7 @@ Draw the application entirely from this data. Where specific data is missing, ma
 Return ONLY the application document — no preamble, no meta-commentary. Start directly with the application heading.`;
 
     const stream = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.5",
+      model: SIRIUS_MODEL,
       messages: [
         { role: "system", content: applicationSystemPrompt },
         { role: "user", content: userMessage },
@@ -3614,7 +3649,7 @@ When you analyse a technical document, you:
     }
 
     const stream = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.5",
+      model: SIRIUS_MODEL,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userContent },
@@ -3817,7 +3852,7 @@ router.post("/lab/projects/:id/complete-all", authMiddleware, async (req: Reques
 
     try {
       const stream = await openai.chat.completions.create({
-        model: "anthropic/claude-sonnet-4.5",
+        model: SIRIUS_MODEL,
         max_tokens: 2000,
         stream: true,
         messages: [
@@ -3871,7 +3906,8 @@ Business Case: ${(p.businessCase || "").slice(0, 300)}
     const today = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
     const completion = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.5",
+      model: SIRIUS_MODEL,
+      response_format: { type: "json_object" },
       messages: [
         {
           role: "system",
@@ -4016,7 +4052,7 @@ router.post("/lab/brain/action", async (req, res): Promise<void> => {
     if (!prompt) { res.status(400).json({ error: "Unknown action" }); return; }
 
     const completion = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.5",
+      model: SIRIUS_MODEL,
       messages: [{ role: "system", content: LAB_SYSTEM_PROMPT() }, { role: "user", content: prompt }],
       max_tokens: 1200,
       temperature: 0.7,
@@ -4230,7 +4266,7 @@ const LAB_TOOLS: any[] = [
     type: "function",
     function: {
       name: "start_app_build",
-      description: "Launch the full App Builder pipeline for a new application. Use this — NOT navigate_to — whenever the user asks to build, create, develop, or make a new app, tool, bot, platform, or software product. This navigates to the App Builder and immediately fires the full automatic pipeline (interpret → plan → build → test → debug) without requiring any extra user input.",
+      description: "Open the AI App Builder UI and start a NEW application from scratch. Use ONLY when Garry asks to build a brand new app, tool, bot, or platform — it creates the project record and loads the Builder interface. Do NOT use for completing or finishing existing projects — use complete_project for that. The App Builder then runs the full AI pipeline (interpret → plan → code → build → debug) autonomously.",
       parameters: {
         type: "object",
         properties: {
@@ -4575,251 +4611,28 @@ const LAB_TOOLS: any[] = [
   {
     type: "function",
     function: {
-      name: "generate_image",
-      description: "Generate an image from a text prompt using DALL-E 3 or Pollinations AI. Use this when Garry asks you to create, visualise, or render anything — concepts, logos, mockups, diagrams, product renders, illustrations. Returns a permanent URL you can share. If generating for a specific project, pass its project_id so the image is saved to the project's renders gallery.",
+      name: "deploy_app",
+      description: "Deploy a completed App Builder session to a live URL on sandbox.sirius-ai.live. Use when Garry asks to launch, deploy, publish, or make an app live. The app must have status=complete. Returns a live URL at https://sandbox.sirius-ai.live/apps/{slug}/",
       parameters: {
         type: "object",
         properties: {
-          prompt: { type: "string", description: "Detailed description of the image to generate. Be specific about style, composition, colours, and subject." },
-          size: { type: "string", enum: ["1024x1024", "1792x1024", "1024x1792"], description: "Image dimensions. Default: 1024x1024 (square). Use 1792x1024 for landscape, 1024x1792 for portrait." },
-          project_id: { type: "number", description: "Optional. If this image relates to a specific project, pass the project ID so it gets saved to that project's renders gallery." },
+          sessionId: { type: "number", description: "The App Builder session ID to deploy. Use get_pipeline_status or query_projects to find the ID." },
+          appName: { type: "string", description: "The app name for confirmation." },
         },
-        required: ["prompt"],
+        required: ["sessionId"],
       },
     },
   },
   {
     type: "function",
     function: {
-      name: "query_database",
-      description: "Run a read-only SQL query against the production database. Use this for analytics, business intelligence, debugging, counting records, checking data quality, or any time you need raw data. Only SELECT statements are allowed — any mutation will be rejected.",
-      parameters: {
-        type: "object",
-        properties: {
-          query: { type: "string", description: "A valid SQL SELECT statement. Can include JOINs, aggregations, WHERE clauses, ORDER BY, LIMIT, etc." },
-          description: { type: "string", description: "What you are querying and why — shown in the action card." },
-        },
-        required: ["query", "description"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "github_push_file",
-      description: "Create or update a file in the Sirius GitHub repository (SiriusStarLab/sirius-star-lab). Use this to push code changes, documentation, configs, or any file directly to the repo. If the file already exists it will be updated; if not it will be created. Always provide a clear commit message describing what changed and why.",
-      parameters: {
-        type: "object",
-        properties: {
-          path: { type: "string", description: "File path within the repo (e.g. 'artifacts/api-server/src/routes/lab.ts' or 'docs/changelog.md'). No leading slash." },
-          content: { type: "string", description: "Full file content to write. For updates this replaces the entire file." },
-          message: { type: "string", description: "Git commit message — concise and descriptive (e.g. 'fix: correct vision model name for OpenRouter')" },
-          branch: { type: "string", description: "Branch to push to. Defaults to 'main'. Use a feature branch name if the change needs review first." },
-        },
-        required: ["path", "content", "message"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "send_email",
-      description: "Send an email to any address. Use for client outreach, follow-ups, notifications, sharing reports, or any communication beyond Telegram. Requires RESEND_API_KEY on the server.",
-      parameters: {
-        type: "object",
-        properties: {
-          to: { type: "string", description: "Recipient email address" },
-          subject: { type: "string", description: "Email subject line" },
-          body: { type: "string", description: "Email body — plain text or HTML" },
-          reply_to: { type: "string", description: "Optional reply-to email address" },
-        },
-        required: ["to", "subject", "body"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "screenshot_url",
-      description: "Take a screenshot of any URL and return a viewable image link. Use to visually verify the live site is working, inspect competitor pages, capture a snapshot to share with Garry, or check any web page visually.",
-      parameters: {
-        type: "object",
-        properties: {
-          url: { type: "string", description: "The full URL to screenshot (include https://)" },
-          width: { type: "number", description: "Viewport width in pixels. Default: 1280." },
-        },
-        required: ["url"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "remove_image_background",
-      description: "Remove the background from an image, returning a transparent PNG hosted at a permanent URL. Use for product images, logos, headshots, or any image needing a clean transparent background. Requires REMOVE_BG_API_KEY.",
-      parameters: {
-        type: "object",
-        properties: {
-          image_url: { type: "string", description: "URL of the source image to process" },
-        },
-        required: ["image_url"],
-      },
-    },
-  },
-  {
-    type: "function" as const,
-    function: {
-      name: "sandbox_exec",
-      description: "Run a shell command inside Garry's persistent Docker sandbox. Use for installing packages, running servers, building code, running scripts, or any terminal operation. The sandbox persists between calls — files and processes survive. Returns stdout/stderr.",
-      parameters: {
-        type: "object",
-        properties: {
-          command: { type: "string", description: "Shell command to run (bash syntax)" },
-          timeout: { type: "number", description: "Timeout in milliseconds (default 30000, max 120000)" },
-        },
-        required: ["command"],
-      },
-    },
-  },
-  {
-    type: "function" as const,
-    function: {
-      name: "sandbox_write_file",
-      description: "Write a file into Garry's sandbox workspace. Use to create or update source code, config files, scripts, or any file the sandbox needs.",
-      parameters: {
-        type: "object",
-        properties: {
-          filePath: { type: "string", description: "Path inside sandbox (e.g. 'src/index.js' or '/workspace/app.py')" },
-          content: { type: "string", description: "Full file content to write" },
-        },
-        required: ["filePath", "content"],
-      },
-    },
-  },
-  {
-    type: "function" as const,
-    function: {
-      name: "sandbox_read_file",
-      description: "Read a file from Garry's sandbox workspace. Use to inspect current code, logs, configs, or build output.",
-      parameters: {
-        type: "object",
-        properties: {
-          filePath: { type: "string", description: "Path inside sandbox to read" },
-        },
-        required: ["filePath"],
-      },
-    },
-  },
-  {
-    type: "function" as const,
-    function: {
-      name: "sandbox_expose_port",
-      description: "Expose a port from the sandbox so Garry can access a running server in his browser at sandbox.sirius-ai.live/PORT/. Use after starting a dev server or web app inside the sandbox.",
-      parameters: {
-        type: "object",
-        properties: {
-          port: { type: "number", description: "Port number the server is listening on inside the sandbox (e.g. 3000, 5173, 8080)" },
-        },
-        required: ["port"],
-      },
-    },
-  },
-  {
-    type: "function" as const,
-    function: {
-      name: "sandbox_git_checkpoint",
-      description: "Create a git commit inside the sandbox to checkpoint working code. Use after a feature works, tests pass, or at any 'save point'. Automatically stages all changes.",
-      parameters: {
-        type: "object",
-        properties: {
-          message: { type: "string", description: "Commit message describing what's working" },
-        },
-        required: ["message"],
-      },
-    },
-  },
-  {
-    type: "function" as const,
-    function: {
-      name: "sandbox_run_tests",
-      description: "Run the test suite in the sandbox and get a pass/fail report. If tests fail, examine the output and fix them. Use after writing code to verify correctness.",
-      parameters: {
-        type: "object",
-        properties: {
-          testCommand: { type: "string", description: "Test command to run (e.g. 'npm test', 'pytest', 'pnpm test'). Defaults to 'npm test'." },
-        },
-      },
-    },
-  },
-  {
-    type: "function" as const,
-    function: {
-      name: "sandbox_project_memory",
-      description: "Read the current SIRIUS_PROJECT.md file — a persistent memory file in the sandbox that tracks what's been built, key decisions, tech stack, and what's broken or TODO. Always call this at the start of a sandbox coding session to orient yourself.",
-      parameters: { type: "object", properties: {} },
-    },
-  },
-  {
-    type: "function" as const,
-    function: {
-      name: "sandbox_update_memory",
-      description: "Update SIRIUS_PROJECT.md with new information about what's been built, decisions made, or what's next. Call this after meaningful progress — feature complete, bug fixed, major decision made.",
-      parameters: {
-        type: "object",
-        properties: {
-          content: { type: "string", description: "Full updated content of SIRIUS_PROJECT.md" },
-        },
-        required: ["content"],
-      },
-    },
-  },
-  {
-    type: "function" as const,
-    function: {
-      name: "sandbox_deploy_app",
-      description: "Deploy an app built in the sandbox to a permanent public URL on Garry's server. Copies files out of the container, starts a PM2 process on the host, and wires up nginx. The app becomes live at https://sandbox.sirius-ai.live/apps/{name}/. Use after building and testing an app in the sandbox.",
-      parameters: {
-        type: "object",
-        properties: {
-          appName: { type: "string", description: "Short URL-safe name for the app (e.g. 'my-api', 'weather-bot')" },
-          startCommand: { type: "string", description: "Command to start the app (e.g. 'node server.js', 'node dist/index.js'). The app must read PORT from environment variables." },
-          sourceDir: { type: "string", description: "Directory inside sandbox to copy (default: /workspace)" },
-        },
-        required: ["appName", "startCommand"],
-      },
-    },
-  },
-  {
-    type: "function" as const,
-    function: {
-      name: "sandbox_restart",
-      description: "Restart the sandbox Docker container so it picks up your new active-app.js. Call this after writing a new app with sandbox_write_file — the container must restart to load the new code. Also use this to recover if the sandbox is unresponsive.",
-      parameters: { type: "object", properties: {} },
-    },
-  },
-  {
-    type: "function" as const,
-    function: {
-      name: "sandbox_list_apps",
-      description: "List all apps currently deployed from the sandbox to the server. Shows name, URL, and PM2 status for each.",
-      parameters: { type: "object", properties: {} },
-    },
-  },
-  {
-    type: "function" as const,
-    function: {
-      name: "sandbox_stop_app",
-      description: "Stop and remove a deployed app from the server. Kills the PM2 process and removes the nginx route. The app URL stops working immediately.",
-      parameters: {
-        type: "object",
-        properties: {
-          appName: { type: "string", description: "Name of the app to stop (same name used when deploying)" },
-        },
-        required: ["appName"],
-      },
+      name: "list_deployed_apps",
+      description: "List all apps currently deployed and live on sandbox.sirius-ai.live with their URLs.",
+      parameters: { type: "object", properties: {}, required: [] },
     },
   },
 ];
+
 
 async function executeLabTool(name: string, args: any, onProgress?: (event: Record<string, unknown>) => void): Promise<string> {
   try {
@@ -4916,7 +4729,7 @@ async function executeLabTool(name: string, args: any, onProgress?: (event: Reco
       case "run_market_scan": {
         const scanPrompt = `You are a market intelligence analyst. Perform a rapid scan of the ${args.industry} sector${args.focus ? ` focusing on ${args.focus}` : ""}. Identify 5 specific, actionable opportunities. For each: opportunity name, why it exists now, estimated value, who to target, and first action. Be specific and commercially sharp.`;
         const scan = await openai.chat.completions.create({
-          model: "anthropic/claude-sonnet-4.5",
+          model: SIRIUS_MODEL,
           messages: [{ role: "user", content: scanPrompt }],
           max_tokens: 800,
           temperature: 0.7,
@@ -5074,7 +4887,7 @@ async function executeLabTool(name: string, args: any, onProgress?: (event: Reco
         // Helper — generate content with GPT-4o
         const gen = async (systemPrompt: string, userPrompt: string, maxTokens = 600): Promise<string> => {
           const r = await openai.chat.completions.create({
-            model: "anthropic/claude-sonnet-4.5",
+            model: SIRIUS_MODEL,
             messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
             max_tokens: maxTokens,
           });
@@ -5317,7 +5130,7 @@ Context: ${ctx}`,
 
             const gen = async (sys: string, user: string, tokens = 500): Promise<string> => {
               const r = await openai.chat.completions.create({
-                model: "anthropic/claude-sonnet-4.5",
+                model: SIRIUS_MODEL,
                 messages: [{ role: "system", content: sys }, { role: "user", content: user }],
                 max_tokens: tokens,
               });
@@ -5760,15 +5573,15 @@ Be specific and technically complete. This goes directly to the CAD engineer.`;
 
         const [cadNotes, materials, costToBuild] = await Promise.all([
           isEngineering ? openai.chat.completions.create({
-            model: "anthropic/claude-sonnet-4.5", max_tokens: 1200,
+            model: SIRIUS_MODEL, max_tokens: 1200,
             messages: [{ role: "system", content: cadSystemPrompt }, { role: "user", content: cadUserPrompt }],
           }).then(r => r.choices[0]?.message?.content?.trim() || "") : Promise.resolve(""),
           openai.chat.completions.create({
-            model: "anthropic/claude-sonnet-4.5", max_tokens: 500,
+            model: SIRIUS_MODEL, max_tokens: 500,
             messages: [{ role: "system", content: materialSystemPrompt }, { role: "user", content: materialUserPrompt }],
           }).then(r => r.choices[0]?.message?.content?.trim() || ""),
           openai.chat.completions.create({
-            model: "anthropic/claude-sonnet-4.5", max_tokens: 600,
+            model: SIRIUS_MODEL, max_tokens: 600,
             messages: [{ role: "system", content: costSystemPrompt }, { role: "user", content: costUserPrompt }],
           }).then(r => r.choices[0]?.message?.content?.trim() || ""),
         ]);
@@ -5854,7 +5667,7 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
         let submissionEmails: Record<string, string> = {};
         try {
           const emailResp = await openai.chat.completions.create({
-            model: "anthropic/claude-sonnet-4.5", max_tokens: 1500,
+            model: SIRIUS_MODEL, max_tokens: 1500,
             messages: [
               { role: "system", content: "You are a PR executive. Return ONLY valid JSON." },
               { role: "user", content: submissionEmailPrompt },
@@ -5997,17 +5810,10 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
 
         // ── 5b. AI integration connectivity ─────────────────────────────────
         try {
-          // Always route through OpenRouter for cost control — never call Anthropic directly
-          const aiEndpoint = `${process.env["OPENROUTER_BASE_URL"] || "https://openrouter.ai/api/v1"}/chat/completions`;
-          const aiHeaders: Record<string, string> = {
-            "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-            "Content-Type": "application/json",
-            "HTTP-Referer": "https://sirius-ai.live",
-            "X-Title": "Sirius Star Lab",
-          };
-          const aiBody = JSON.stringify({ model: "anthropic/claude-sonnet-4.5", messages: [{ role: "user", content: "ping" }], max_tokens: 1 });
-          const aiTestRes = await fetch(aiEndpoint, {
-            method: "POST", headers: aiHeaders, body: aiBody,
+          const aiTestRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`, "Content-Type": "application/json", "HTTP-Referer": "https://sirius-ai.live", "X-Title": "Sirius Star Lab" },
+            body: JSON.stringify({ model: "anthropic/claude-haiku-4-5", messages: [{ role: "user", content: "ping" }], max_tokens: 1 }),
             signal: AbortSignal.timeout(8000),
           });
           if (aiTestRes.ok || aiTestRes.status === 400) {
@@ -6635,7 +6441,7 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
         const userMsg = `Design a complete automation bot with the following requirements:\n\nDescription: ${description}\nIndustry: ${industry || "General"}\nPlatforms/integrations: ${platforms || "Not specified"}\n\nProvide the complete bot architecture including code, APIs, triggers, scheduling, cost estimate, and deployment steps.`;
 
         const response = await openai.chat.completions.create({
-          model: "anthropic/claude-sonnet-4.5",
+          model: SIRIUS_MODEL,
           messages: [
             { role: "system", content: botPrompt },
             { role: "user", content: userMsg },
@@ -6721,7 +6527,7 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
 
         const combinedResults = searchResults.join("\n\n---\n\n");
         const analysis = await openai.chat.completions.create({
-          model: "anthropic/claude-sonnet-4.5",
+          model: "anthropic/claude-haiku-4-5",
           messages: [
             { role: "system", content: `You are Sirius, an AI intelligence partner. Based on these search results about AI capabilities, tools and hardware, identify the top 6-10 specific upgrades that would most improve your intelligence, speed, and ability to execute the Sirius Star Lab mission. For each one, output a JSON object on a single line with fields: name, category (ai_model|api|hardware|software|knowledge|platform), description, why_needed, estimated_cost, purchase_url, priority (critical|high|medium|low). Output only the JSON objects, one per line, no other text.` },
             { role: "user", content: combinedResults.slice(0, 4000) },
@@ -6794,7 +6600,7 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
 
         // Now use Claude to extract structured items
         const extractResponse = await openai.chat.completions.create({
-          model: "anthropic/claude-sonnet-4.5",
+          model: "anthropic/claude-haiku-4-5",
           messages: [
             { role: "system", content: `You are Sirius, an AI intelligence partner scanning for free capability upgrades. Based on the search results, identify the 6-10 most valuable FREE upgrades that would genuinely expand what you can do. For each, output one JSON object per line with: name, category (ai_model|api|hardware|software|knowledge|platform), description, why_needed, estimated_cost (must be "Free" or "Free tier: [limit]"), purchase_url, priority (critical|high|medium|low). Output ONLY the JSON objects, one per line, nothing else. Only include things that are genuinely free with no payment required.` },
             { role: "user", content: searchResults },
@@ -7041,7 +6847,7 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
           if (summary) {
             // Summarise the page with AI
             const sum = await openai.chat.completions.create({
-              model: "anthropic/claude-sonnet-4.5",
+              model: "anthropic/claude-haiku-4-5",
               messages: [
                 { role: "system", content: "You are a research assistant. Summarise the following page content concisely, extracting the key facts, figures, and insights. Preserve all important specifics — names, numbers, dates, technical details." },
                 { role: "user", content: `URL: ${url}\n\nCONTENT:\n${truncated}` },
@@ -7193,13 +6999,78 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
         return `${summary}${changed}`;
       }
 
-      case "read_file":
+      case "search_everything": {
+        const { query, scope = "all" } = args as { query: string; scope?: string };
+        const results: string[] = [];
+        const q = "%" + query + "%";
+
+        if (scope === "all" || scope === "memories") {
+          const mems = await db.execute(sql`
+            SELECT category, content FROM core_memories
+            WHERE content ILIKE ${q}
+            ORDER BY created_at DESC LIMIT 8
+          `).catch(() => ({ rows: [] as any[] }));
+          if (mems.rows.length > 0) {
+            results.push("\n**MEMORIES (" + mems.rows.length + "):**");
+            for (const r of mems.rows as any[]) results.push("  [" + r.category + "] " + String(r.content).slice(0, 200));
+          }
+        }
+
+        if (scope === "all" || scope === "conversations") {
+          const msgs = await db.execute(sql`
+            SELECT m.role, m.content, m.created_at
+            FROM messages m
+            JOIN conversations c ON c.id = m.conversation_id
+            WHERE c.user_id = 'garry' AND m.content ILIKE ${q}
+            ORDER BY m.created_at DESC LIMIT 10
+          `).catch(() => ({ rows: [] as any[] }));
+          if (msgs.rows.length > 0) {
+            results.push("\n**CONVERSATION HISTORY (" + msgs.rows.length + " matches):**");
+            for (const r of msgs.rows as any[]) {
+              const ts = new Date(r.created_at as string).toISOString().slice(0, 10);
+              results.push("  [" + ts + "] " + r.role + ": " + String(r.content).slice(0, 250));
+            }
+          }
+        }
+
+        if (scope === "all" || scope === "projects") {
+          const projs = await db.execute(sql`
+            SELECT name, industry, status FROM lab_projects
+            WHERE name ILIKE ${q} OR description ILIKE ${q}
+            ORDER BY created_at DESC LIMIT 6
+          `).catch(() => ({ rows: [] as any[] }));
+          if (projs.rows.length > 0) {
+            results.push("\n**PROJECTS (" + projs.rows.length + "):**");
+            for (const r of projs.rows as any[]) results.push('  "' + r.name + '" [' + r.industry + "] — " + r.status);
+          }
+        }
+
+        if (results.length === 0) results.push("No results found for: " + query);
+        return "Search: \"" + query + "\" across " + scope + "\n" + results.join("\n");
+      }
+      case "read_my_logs": {
+        const { lines = 80, filter } = args as { lines?: number; filter?: string };
+        const { execSync } = await import("child_process");
+        const maxLines = Math.min(Number(lines) || 80, 300);
+        try {
+          let raw = execSync("pm2 logs sirius-api --lines " + maxLines + " --nostream 2>&1", { timeout: 12000 }).toString();
+          if (filter) {
+            const lf = filter.toLowerCase();
+            const filtered = raw.split("\n").filter((l: string) => l.toLowerCase().includes(lf));
+            raw = filtered.length > 0 ? filtered.join("\n") : "No log lines containing \"" + filter + "\" in last " + maxLines + " lines.";
+          }
+          return "PM2 logs (last " + maxLines + " lines" + (filter ? " | filter: \"" + filter + "\"" : "") + "):\n\n" + raw.slice(-12000);
+        } catch (e: any) {
+          return "Failed to read logs: " + e.message;
+        }
+      }
       case "read_source_file": {
+
         const { path: relPath, search, offset: startLine, limit: maxLines = 200 } = args as { path: string; search?: string; offset?: number; limit?: number };
         const { readFileSync } = await import("fs");
         const { join, resolve } = await import("path");
 
-        const WORKSPACE_ROOT = process.env.SIRIUS_WORKSPACE || "/home/runner/workspace";
+        const WORKSPACE_ROOT = process.env.SIRIUS_WORKSPACE || "/opt/sirius-source";
         const target = relPath.startsWith("/") ? relPath : resolve(join(WORKSPACE_ROOT, relPath));
 
         let content: string;
@@ -7229,7 +7100,7 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
         const { readFileSync, writeFileSync, mkdirSync } = await import("fs");
         const { join, resolve, dirname } = await import("path");
 
-        const WORKSPACE_ROOT = process.env.SIRIUS_WORKSPACE || "/home/runner/workspace";
+        const WORKSPACE_ROOT = process.env.SIRIUS_WORKSPACE || "/opt/sirius-source";
         const target = relPath.startsWith("/") ? relPath : resolve(join(WORKSPACE_ROOT, relPath));
 
         // Create parent dirs if needed
@@ -7323,259 +7194,30 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
         return `Server restart scheduled — it will happen in ~3 seconds. The connection will drop momentarily then recover automatically. Reason: ${reason}`;
       }
 
-      case "generate_image": {
-        const { prompt, size = "1024x1024", project_id } = args as { prompt: string; size?: string; project_id?: number };
-        onProgress?.({ type: "status", message: `Generating image: "${prompt.slice(0, 60)}…"` });
-
-        const { writeFileSync, mkdirSync } = await import("fs");
-        const { join } = await import("path");
-        const { randomUUID } = await import("crypto");
-        const rendersDir = join(process.env.SIRIUS_WORKSPACE || "/opt/sirius", "artifacts/api-server/public/renders");
-        try { mkdirSync(rendersDir, { recursive: true }); } catch {}
-        const filename = `${randomUUID()}.png`;
-        const baseUrl = process.env.PUBLIC_BASE_URL || "https://sirius-ai.live";
-        const imageUrl = `${baseUrl}/api/lab/renders/${filename}`;
-
-        const openaiKey = process.env.OPENAI_API_KEY;
-
-        if (openaiKey) {
-          // Direct OpenAI — DALL-E 3
-          const imgRes = await fetch("https://api.openai.com/v1/images/generations", {
-            method: "POST",
-            headers: { "Authorization": `Bearer ${openaiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ model: "dall-e-3", prompt, n: 1, size: "1024x1024", response_format: "b64_json" }),
-          });
-          if (!imgRes.ok) {
-            const err = await imgRes.text().catch(() => imgRes.statusText);
-            return `Image generation failed: ${err}`;
-          }
-          const imgData = await imgRes.json() as { data?: { b64_json?: string; url?: string }[] };
-          const item = imgData.data?.[0];
-          if (item?.b64_json) {
-            writeFileSync(join(rendersDir, filename), Buffer.from(item.b64_json, "base64"));
-          } else if (item?.url) {
-            const imgBuffer = await fetch(item.url).then(r => r.arrayBuffer());
-            writeFileSync(join(rendersDir, filename), Buffer.from(imgBuffer));
-          } else {
-            return `No image data returned from OpenAI. Response: ${JSON.stringify(imgData).slice(0, 200)}`;
-          }
+      case "deploy_app": {
+        const { sessionId, appName } = args as { sessionId: number; appName?: string };
+        onProgress?.({ type: "status", message: `Deploying ${appName || "app"} to sandbox.sirius-ai.live…` });
+        const { db: dbLocal, appBuilderSessions: abs } = await import("@workspace/db");
+        const { eq: eqLocal } = await import("drizzle-orm");
+        const [session] = await dbLocal.select().from(abs).where(eqLocal(abs.id, sessionId)).limit(1);
+        if (!session) return `No App Builder session found with ID ${sessionId}`;
+        if (session.status !== "complete") return `App "${session.appName}" is not ready — status is "${session.status}". It must be "complete" before deploying.`;
+        const files: Record<string, string> = JSON.parse(session.files || "{}");
+        if (Object.keys(files).length === 0) return `Session ${sessionId} has no generated files to deploy.`;
+        const result = await deployAppSession(sessionId, session.appName, files);
+        if (result.success) {
+          await dbLocal.update(abs).set({ status: "launched", updatedAt: new Date() }).where(eqLocal(abs.id, sessionId));
+          return `✅ "${session.appName}" is LIVE at ${result.url}\n\nDeploy log:\n${result.log.slice(-8).join("\n")}`;
         } else {
-          // Pollinations AI — free, no API key required
-          onProgress?.({ type: "status", message: "Using Pollinations AI (free fallback)…" });
-          const encodedPrompt = encodeURIComponent(prompt);
-          const seed = Math.floor(Math.random() * 1000000);
-          const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&seed=${seed}&nologo=true&enhance=true`;
-          const imgRes = await fetch(pollinationsUrl);
-          if (!imgRes.ok) {
-            return `Image generation failed: Pollinations returned ${imgRes.status}`;
-          }
-          const imgBuffer = await imgRes.arrayBuffer();
-          writeFileSync(join(rendersDir, filename), Buffer.from(imgBuffer));
+          return `❌ Deploy failed: ${result.error}\n\nLog:\n${result.log.slice(-5).join("\n")}`;
         }
-
-        // Save to project renders if project_id provided
-        if (project_id) {
-          try {
-            const projectRows = await db.select({ renders: labProjects.renders }).from(labProjects).where(eq(labProjects.id, project_id));
-            if (projectRows[0]) {
-              const existing: { url: string; label: string; type: string; generatedAt: string }[] =
-                (() => { try { return JSON.parse(projectRows[0].renders as any || "[]"); } catch { return []; } })();
-              const newRender = { url: imageUrl, label: prompt.slice(0, 60), type: "ai-generated", generatedAt: new Date().toISOString() };
-              const updated = [newRender, ...existing].slice(0, 12);
-              await db.update(labProjects).set({ renders: JSON.stringify(updated), updatedAt: new Date() }).where(eq(labProjects.id, project_id));
-            }
-          } catch (e) {
-            // Non-fatal — image still generated, just not saved to project
-          }
-        }
-
-        onProgress?.({ type: "image", url: imageUrl });
-        const savedNote = project_id ? ` Saved to project #${project_id} renders gallery.` : " (Tip: pass project_id to save it to a project's gallery permanently.)";
-        return `✅ Image generated successfully.${savedNote}\nURL: ${imageUrl}`;
       }
 
-      case "send_email": {
-        const { to, subject, body, reply_to } = args as { to: string; subject: string; body: string; reply_to?: string };
-        const resendKey = process.env.RESEND_API_KEY;
-        if (!resendKey) return "send_email requires RESEND_API_KEY — not configured on this server. Ask Garry to add it.";
-        onProgress?.({ type: "status", message: `Sending email to ${to}…` });
-        const { Resend } = await import("resend");
-        const resend = new Resend(resendKey);
-        const from = process.env.RESEND_FROM_EMAIL || "Sirius <onboarding@resend.dev>";
-        const htmlBody = body.includes("<") ? body : body.replace(/\n/g, "<br>");
-        const result = await resend.emails.send({
-          from,
-          to,
-          subject,
-          html: htmlBody,
-          ...(reply_to ? { replyTo: reply_to } : {}),
-        });
-        if (result.error) return `Email failed: ${result.error.message}`;
-        return `✅ Email sent to ${to} — subject: "${subject}"`;
-      }
-
-      case "screenshot_url": {
-        const { url, width = 1280 } = args as { url: string; width?: number };
-        onProgress?.({ type: "status", message: `Taking screenshot of ${url}…` });
-        const screenshotUrl = `https://image.thum.io/get/width/${width}/crop/900/${url}`;
-        return `Screenshot ready: ${screenshotUrl}\n\nThis is a live screenshot of ${url}. Share the link with Garry or embed it anywhere.`;
-      }
-
-      case "remove_image_background": {
-        const { image_url } = args as { image_url: string };
-        const apiKey = process.env.REMOVE_BG_API_KEY;
-        if (!apiKey) return "remove_image_background requires REMOVE_BG_API_KEY — not configured. Ask Garry to add it (free tier available at remove.bg).";
-        onProgress?.({ type: "status", message: "Removing image background…" });
-        const formData = new FormData();
-        formData.append("image_url", image_url);
-        formData.append("size", "auto");
-        const res = await fetch("https://api.remove.bg/v1.0/removebg", {
-          method: "POST",
-          headers: { "X-Api-Key": apiKey },
-          body: formData,
-        });
-        if (!res.ok) {
-          const err = await res.text().catch(() => res.statusText);
-          return `Background removal failed: ${err.slice(0, 300)}`;
-        }
-        const { writeFileSync, mkdirSync } = await import("fs");
-        const { join } = await import("path");
-        const { randomUUID } = await import("crypto");
-        const rendersDir = join(process.env.SIRIUS_WORKSPACE || "/opt/sirius", "artifacts/api-server/public/renders");
-        try { mkdirSync(rendersDir, { recursive: true }); } catch {}
-        const filename = `nobg-${randomUUID()}.png`;
-        const buffer = await res.arrayBuffer();
-        writeFileSync(join(rendersDir, filename), Buffer.from(buffer));
-        const baseUrl = process.env.PUBLIC_BASE_URL || "https://sirius-ai.live";
-        return `✅ Background removed: ${baseUrl}/api/lab/renders/${filename}`;
-      }
-
-      case "query_database": {
-        const { query, description } = args as { query: string; description: string };
-        onProgress?.({ type: "status", message: `Query: ${description}` });
-
-        const trimmed = query.trim().toLowerCase();
-        if (!trimmed.startsWith("select") && !trimmed.startsWith("with")) {
-          return "Only SELECT (and CTEs starting with WITH...SELECT) queries are allowed. No mutations permitted.";
-        }
-
-        const result = await db.execute(sql.raw(query)) as any;
-        const rows = result.rows ?? result ?? [];
-        if (!Array.isArray(rows) || rows.length === 0) return `Query returned no rows.\n\nQuery: ${query}`;
-
-        const cols = Object.keys(rows[0]);
-        const header = cols.join(" | ");
-        const divider = cols.map(c => "-".repeat(c.length + 2)).join("|");
-        const body = rows.slice(0, 100).map((r: any) => cols.map(c => String(r[c] ?? "")).join(" | ")).join("\n");
-        return `**${description}** — ${rows.length} row${rows.length === 1 ? "" : "s"}${rows.length > 100 ? " (showing first 100)" : ""}:\n\n${header}\n${divider}\n${body}`;
-      }
-
-      case "github_push_file": {
-        const { path: filePath, content, message, branch = "main" } = args as { path: string; content: string; message: string; branch?: string };
-        const token = process.env.GITHUB_TOKEN || "";
-        const repo = "SiriusStarLab/sirius-star-lab";
-        if (!token) return "GITHUB_TOKEN not set — cannot push to GitHub.";
-
-        onProgress?.({ type: "status", message: `Pushing ${filePath} to GitHub...` });
-
-        const encodedContent = Buffer.from(content, "utf-8").toString("base64");
-
-        // Check if file already exists (to get its SHA for update)
-        let sha: string | undefined;
-        try {
-          const existRes = await fetch(`https://api.github.com/repos/${repo}/contents/${filePath}?ref=${branch}`, {
-            headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" },
-          });
-          if (existRes.ok) {
-            const existData = await existRes.json() as any;
-            sha = existData.sha;
-          }
-        } catch {}
-
-        const body: Record<string, any> = { message, content: encodedContent, branch };
-        if (sha) body.sha = sha;
-
-        const pushRes = await fetch(`https://api.github.com/repos/${repo}/contents/${filePath}`, {
-          method: "PUT",
-          headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-
-        if (!pushRes.ok) {
-          const err = await pushRes.text();
-          return `GitHub push failed (${pushRes.status}): ${err.slice(0, 300)}`;
-        }
-
-        const data = await pushRes.json() as any;
-        const commitUrl = data.commit?.html_url || `https://github.com/${repo}/blob/${branch}/${filePath}`;
-        return `✅ Pushed to GitHub — ${sha ? "updated" : "created"} \`${filePath}\` on branch \`${branch}\`.\nCommit: ${commitUrl}`;
-      }
-
-      case "sandbox_exec": {
-        const result = await execInSandbox("garry", args.command, args.timeout);
-        return result.exitCode === 0
-          ? `✅ Exit 0\n${result.stdout}${result.stderr ? `\nstderr:\n${result.stderr}` : ""}`
-          : `⚠ Exit ${result.exitCode}\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`;
-      }
-
-      case "sandbox_write_file": {
-        await writeToSandbox("garry", args.filePath, args.content);
-        return `✅ Written: ${args.filePath}`;
-      }
-
-      case "sandbox_read_file": {
-        const content = await readFromSandbox("garry", args.filePath);
-        return content;
-      }
-
-      case "sandbox_expose_port": {
-        const url = await exposePort("garry", args.port);
-        return `✅ Port ${args.port} exposed — accessible at: ${url}`;
-      }
-
-      case "sandbox_git_checkpoint": {
-        const sha = await gitCheckpoint("garry", args.message);
-        return `✅ Git checkpoint: ${sha}\nMessage: ${args.message}`;
-      }
-
-      case "sandbox_run_tests": {
-        const result = await runTests("garry", args.testCommand);
-        return result.passed
-          ? `✅ Tests passed\n${result.output}`
-          : `❌ Tests failed\n${result.output}`;
-      }
-
-      case "sandbox_project_memory": {
-        const memory = await getProjectMemory("garry");
-        return memory;
-      }
-
-      case "sandbox_update_memory": {
-        await saveProjectMemory("garry", args.content);
-        return `✅ SIRIUS_PROJECT.md updated`;
-      }
-
-      case "sandbox_restart": {
-        const { execAsync: _exec } = await import("child_process").then(m => ({ execAsync: require("util").promisify(m.exec) }));
-        await _exec("docker restart sirius-sandbox-garry", { timeout: 30000 });
-        await new Promise(r => setTimeout(r, 4000));
-        return "✅ Sandbox container restarted — your new active-app.js is now loaded. Test it with sandbox_exec(\"curl -s http://localhost:3000/health\").";
-      }
-
-      case "sandbox_deploy_app": {
-        const result = await deployApp("garry", args.appName, args.startCommand, args.sourceDir);
-        return `✅ App deployed and live!\n\nURL: ${result.url}\nPM2 process: ${result.pm2Name}\nPort: ${result.port}\n\nShare this URL with anyone — it's on your server, SSL included.`;
-      }
-
-      case "sandbox_list_apps": {
+      case "list_deployed_apps": {
         const apps = await listDeployedApps();
-        if (!apps.length) return "No apps currently deployed.";
-        return apps.map(a => `• ${a.name} — ${a.url} [${a.status}]`).join("\n");
-      }
-
-      case "sandbox_stop_app": {
-        await stopDeployedApp(args.appName);
-        return `✅ App "${args.appName}" stopped and removed from the server.`;
+        if (apps.length === 0) return "No apps deployed yet. Use deploy_app to launch a completed App Builder session.";
+        const lines = apps.map(a => `• **${a.slug}** — ${a.url}${a.hasBackend ? " (has backend)" : ""}`);
+        return `**${apps.length} deployed apps on sandbox.sirius-ai.live:**\n\n${lines.join("\n")}`;
       }
 
       default:
@@ -7660,10 +7302,8 @@ const TOOL_META: Record<string, { label: string; color: string; icon: string }> 
   patch_source_file: { label: "Patching source file", color: "hsl(25,100%,45%)", icon: "🔩" },
   run_command: { label: "Running command", color: "hsl(155,70%,38%)", icon: "⚡" },
   restart_server: { label: "Restarting server", color: "hsl(0,80%,50%)", icon: "♻️" },
-  generate_image: { label: "Generating image", color: "hsl(280,80%,55%)", icon: "🎨" },
-  query_database: { label: "Querying database", color: "hsl(193,100%,40%)", icon: "🗃️" },
-  github_push_file: { label: "Pushed to GitHub", color: "hsl(220,80%,50%)", icon: "📦" },
-  stripe_lookup: { label: "Checking Stripe", color: "hsl(155,70%,42%)", icon: "💳" },
+  deploy_app: { label: "Deploying app", color: "hsl(120,70%,40%)", icon: "🚀" },
+  list_deployed_apps: { label: "Listing deployed apps", color: "hsl(193,100%,40%)", icon: "🌐" },
 };
 
 // Detect whether a message is primarily an information/research query
@@ -7921,7 +7561,16 @@ TASK 7 — RESEARCH QUESTION (market data, competitors, facts, specs, papers)
   Respond with findings and sources
   save_memory(fact, category) if the info is worth keeping long-term
 
-TASK 8 — BUILD AND PUBLISH A REAL WORKING APP ("build X", "make X app", "create X tool")
+TASK 8 — FIX SOMETHING ("fix it", "sort it out", "repair the platform")
+  system_check(focus="errors") → see what is broken
+  fix_platform() → autonomous repair (reads logs → finds code → patches .ts → builds → restarts → verifies)
+  resolve_error(id, note) → close each fixed error
+  Report what was fixed. If unfixable → create_bug_report()
+  REMEMBER: If the fix involves editing a .ts source file, run ALL THREE steps in order:
+  1. Build:   cd /opt/sirius-source && pnpm --filter @workspace/api-server build
+  2. Deploy:  /opt/sirius/scripts/deploy-bundle.sh 'reason'   ← builds + verifies hash + copies + restarts + health checks + auto-rollback
+  3. Restart: restart_server()
+CRITICAL: skipping step 2 means pm2 reloads the OLD bundle and your fix is never live.
 
 This is how you build an actual running application that users can access at a real URL.
 The sandbox container is always running. Port 3000 inside the container is auto-served.
@@ -8014,7 +7663,15 @@ TASK 12 — AUTOMATIONS ("set up an automation", "schedule something", "list aut
 HOW SIRIUS REMEMBERS ACROSS CONVERSATIONS
   Within a session: full conversation history is passed with every message — complete context
   Across sessions: save_memory() persists facts permanently in the database. At startup, all saved memories and business profile are automatically injected into this system prompt.
-  Cross-session memory (Mnemosyne): ALREADY WIRED. The last 25 messages from previous conversations are injected as a system block before your current conversation — look for the "CROSS-SESSION MEMORY" block at the top of your context. In lab.ts this is implemented as loadCrossSessionContext (import line 22) and crossSessionMsgs (around line 7302). Do NOT search for incomingConvId, priorContext, or mnemoSaveMessage — those are not the variable names used. Do NOT rebuild or re-patch Mnemosyne — it is already live.
+  Cross-session memory (Mnemosyne): ALREADY WIRED. The last 50 messages from your MOST RECENT previous conversation are injected as a CROSS-SESSION MEMORY block at the top of your context. This gives you continuity — you can see what you and Garry discussed and worked on last time.
+
+  CRITICAL — use this at session start: If the CROSS-SESSION MEMORY block is present, read it carefully before responding. You will see what was being built, what was broken, what was promised. Act on it. If something was in progress, pick it up. If something was promised, check if it was delivered.
+
+  If you are unsure what you were working on, call search_everything(query="what was I working on") — this searches across memories, conversation history, and projects simultaneously.
+
+  To read your own runtime logs and diagnose issues: call read_my_logs(). Always do this BEFORE claiming something is broken or fixed. Never guess — check.
+
+  To read your own source code: call read_source_file(path="/opt/sirius/artifacts/api-server/src/routes/lab.ts") — use absolute paths starting with /opt/sirius/ (compiled bundle) or /opt/sirius-source/ (editable source).
   You already know: ${brainContext ? "Garry's profile, business context, and saved memories are loaded in this prompt — USE THIS. Do not ask Garry things you already know." : "Brain context is empty — ask Garry to introduce himself so you can start building persistent context."}
   Rule: if Garry tells you anything important, call save_memory immediately — do not let it get lost.
 
@@ -8054,6 +7711,8 @@ Every project goes through this lifecycle. You drive it through all stages yours
 
 ### Brain & Memory
 - **save_memory**: Save any useful fact Garry shares — use liberally.
+- **search_everything**: Search across ALL systems — memories, conversation history, projects — in one call. Use this instead of guessing what you remember. If you're unsure what was worked on last session, CALL THIS.
+- **read_my_logs**: Read your own PM2 runtime logs. Use BEFORE claiming something is broken or fixed. Never guess — check the logs.
 - **get_brain_context**: Read all stored memories and business profile.
 - **update_business_profile**: Update business name, sector, goals, or key clients.
 
@@ -8074,10 +7733,10 @@ Every project goes through this lifecycle. You drive it through all stages yours
 
 ### Engineering Tools — FOR GARRY'S PROJECTS AND DIAGNOSTICS
 
-- **read_file(path, search?, offset?, limit?)**: Read any file on the server. Use freely for diagnostics, research, and understanding. Always read before proposing changes.
-- **write_file(path, old_string, new_string, reason)**: Write or patch any file. **REQUIRES GARRY'S EXPLICIT APPROVAL before use on server source files (.ts, .cjs).** Fine for Garry's project files (sandbox work, documents, exports). For server/self changes: propose first, wait for "do it".
-- **run_command(command, reason)**: Run any shell command. 60-second timeout. Use freely for reading, diagnostics, curl tests, grepping. Do NOT use to self-modify without approval (no builds+restarts, no capability installs without "do it" from Garry).
-- **restart_server(reason)**: **REQUIRES GARRY'S EXPLICIT APPROVAL.** Never call autonomously. A restart during an active session breaks the connection.
+- **read_file(path, search?, offset?, limit?)**: Read any file on the server. Use absolute paths (e.g. \`/opt/sirius/api/index.cjs\`) or relative paths from the workspace root. Use \`search\` to grep for a pattern and get matching lines with numbers. Use \`offset\`+\`limit\` to read a specific range. Always read before touching.
+- **write_file(path, old_string, new_string, reason)**: Surgical patch. Provide the EXACT string from the file (copy it from what read_file returned) and the replacement. Do not guess whitespace or indentation — copy verbatim. Alternatively, use \`full_content\` to write an entire new file. **CRITICAL — TypeScript source files (.ts) must be compiled before the change takes effect.** After editing any .ts file, run the build command, then restart_server. Writing a .ts file and restarting without building does nothing — the running bundle is unchanged.
+- **run_command(command, reason)**: Run any shell command. 60-second timeout. Commands run as root. Use for: reading logs, grepping the filesystem, testing endpoints with curl, checking process state, running builds, installing packages, anything. **Self-deploy after any .ts edit (ONE command):**\n  \`run_command(\"/opt/sirius/scripts/deploy-bundle.sh 'reason'\")\`\n  This builds, verifies SHA-256 hash, unlocks immutable bundle, copies, restarts, health-checks, auto-rolls back on failure. Direct cp is blocked — the bundle is locked immutable.
+- **restart_server(reason)**: Exits the process; pm2 restarts it from `/opt/sirius/artifacts/api-server/dist/index.cjs` in ~3 seconds. This is NOT the same as the source build output — it is the deployed live location. Always run all three steps: edit .ts → build (in /opt/sirius-source) → copy bundle to /opt/sirius/artifacts/api-server/dist/index.cjs → restart_server. Skipping the copy means pm2 restarts from the old bundle and your change has zero effect.
 - **run_code_agent(task)**: Delegates a multi-step code task to a specialised sub-agent that plans, reads, writes, and builds autonomously. Use for large changes. The code agent operates in the source workspace.
 - **github_push_file(path, content, message, branch?)**: Push a file directly to the Sirius GitHub repository (SiriusStarLab/sirius-star-lab). Creates the file if it doesn't exist, updates it if it does. Use this to back up source edits to GitHub, push documentation, changelogs, or any file. Always provide a meaningful commit message. Default branch is \`main\`.
 - **query_database(query, description)**: Run a read-only SQL SELECT against the live production database. Use for analytics, auditing, debugging, or any time you need raw data.
@@ -8104,30 +7763,20 @@ This transparency is core to who you are. You think out loud. You show your work
 
 ## STARTUP
 
-At the very start of a new conversation (no previous assistant messages) — you MUST follow the STARTUP GREETING task script exactly. Do not skip steps. Do not just say hello without running system_check first.
+At the very start of a new conversation (no previous assistant messages):
+1. **WATCHDOG FIRST** — Read the WATCHDOG ALERTS or WATCHDOG STATUS block injected above. It was written by the external sidecar daemon while you were offline. If alerts are present, call read_incidents() immediately for full detail and fix critical issues before anything else.
+2. Read the CROSS-SESSION MEMORY block — understand what was being worked on last time
+3. Call system_check — get live status across all systems
+4. Call read_my_logs(filter="error") — check for any runtime errors you need to fix
+5. **BUNDLE VERIFICATION** — call check_source_bundle_drift every startup, no exceptions.
+   If drift detected or hashes do not match, deploy using the verified script:
+   run_command: "/opt/sirius/scripts/deploy-bundle.sh 'startup bundle verification'"
+   This single command: builds, verifies SHA-256 hash, copies to live (immutable — direct cp blocked), restarts, health-checks, auto-rolls back on failure. It is the ONLY authorised deploy method.
+6. If system_check or read_my_logs finds issues, call fix_platform or use run_command to repair them — do not just report, fix.
+7. In your greeting: share the watchdog status, what you remember from last session, system status, and what you're picking up.
+8. If something was promised or left incomplete last session — start on it immediately without being asked
 
-**CRITICAL — Never call fix_platform or restart_server during startup.** If system_check finds an issue, report it to Garry and propose a fix. Do not attempt to repair it automatically. A restart during a session open is exactly the thing that breaks the connection and causes "Something went wrong."
-
-**CRITICAL — Read ALL of your context before greeting.** The system prompt above this line contains your full brain: memories, session history, recent conversations, custom tools, automations, briefings, and server health. You MUST have read and absorbed all of this before you greet Garry. If you have not, your greeting will be hollow and you will forget context Garry has already given you. This is unacceptable.
-
-## CONVERSATION HISTORY — HOW TO ACCESS IT
-
-When Garry asks you to recall a previous conversation, read back a chat, or find work from a past session — use query_database with these exact SQL queries. There is ONE database: DATABASE_URL (already set). Do NOT search for other databases, Docker containers, or alternative schemas. Do NOT try to find "different databases" — they don't exist.
-
-**List all conversations (most recent first):**
-\`SELECT id, title, created_at FROM conversations WHERE user_id='garry' ORDER BY id DESC LIMIT 50\`
-
-**Read a specific conversation by ID:**
-\`SELECT role, content FROM messages WHERE conversation_id=X ORDER BY id\`
-
-**Search conversations by keyword:**
-\`SELECT c.id, c.title, LEFT(m.content,200) FROM conversations c JOIN messages m ON m.conversation_id=c.id WHERE c.user_id='garry' AND m.content ILIKE '%keyword%' ORDER BY m.id DESC LIMIT 10\`
-
-Garry has ~179 conversations (IDs 1831–9992). The table is **messages** — not chat_messages, not any other name.
-
-**KEY CONVERSATIONS TO KNOW:**
-- Conversation **9579** — The complete vibrational architecture and Sanskrit vibrational alphabet (July 5 2026). This is where the full frequency work lives. Files generated: /opt/sirius/frequency-lab/fusion-pattern.wav and /opt/sirius/frequency-lab/fusion-generator.js
-- The Sanskrit vibrational memories are now also saved in core_memories (category: vibrational_architecture) and will load with your brain context.
+If there are already previous messages in this conversation, just respond — don't run system_check again.
 
 ## YOUR ENGINEERING IDENTITY — THIS IS WHO YOU ARE
 
@@ -8180,20 +7829,22 @@ write_file(path, old_string="exact copy of the broken lines", new_string="fixed 
 \`\`\`
 Copy the old_string verbatim from what read_file returned. If the string isn't found exactly, read more context.
 
-**Step 5 — Build (TypeScript source edits only)**
-\`\`\`
-run_command: "cd /opt/sirius && pnpm --filter @workspace/api-server run build"
-\`\`\`
-This compiles the TypeScript source into the running bundle (\`dist/index.cjs\`). You MUST do this after every .ts file edit or the change has no effect. Skip this step only if you edited the compiled bundle directly (not a .ts source file).
+**Step 5 — Deploy (TypeScript source edits only)**
 
-**Step 6 — Restart and verify**
+After editing any .ts source file, run the verified deploy script — the ONLY authorised deploy method:
 \`\`\`
-restart_server(reason="applied patch for X")
+run_command: "/opt/sirius/scripts/deploy-bundle.sh 'reason for this deploy'"
 \`\`\`
-Wait 5 seconds, then test:
-\`\`\`
-run_command: "curl -s http://localhost:$PORT/api/health"
-\`\`\`
+What this single command does:
+- Builds from /opt/sirius-source/ (TypeScript → bundle)
+- Verifies SHA-256 hash of the new bundle
+- Unlocks the immutable bundle, copies it, re-locks it
+- Restarts sirius-api
+- Health-checks the running service (GET /api/health)
+- **Auto-rolls back** to the previous bundle if health check fails
+- Records the verified hash so drift detection stays accurate
+
+The live bundle is locked immutable (chattr +i). Direct cp will fail. Always use deploy-bundle.sh.
 
 **Step 7 — Document**
 \`\`\`
@@ -8351,7 +8002,7 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
         const searchController = new AbortController();
         let searchTimer = setTimeout(() => searchController.abort(), 15_000);
         const searchStream = await openai.chat.completions.create({
-          model: "anthropic/claude-sonnet-4.5",
+          model: SIRIUS_MODEL,
           messages: chatMsgsForSearch,
           stream: true,
           max_tokens: 3000,
@@ -8379,36 +8030,20 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
     const hasExistingAssistantMessage = messages.some((m: { role: string }) => m.role === "assistant");
 
     // Load cross-session memory — gives Sirius context from previous conversations
-    // Limit to 8 messages and truncate each to keep within Claude's 200K context window
-    const MAX_CROSS_SESSION = 8;
-    const MAX_MSG_CHARS = 600;
-    const rawCrossSession = role === "owner"
-      ? await loadCrossSessionContext(BRAIN_USER, MAX_CROSS_SESSION).catch(() => [])
+    const crossSessionMsgs = role === "owner"
+      ? await loadCrossSessionContext(BRAIN_USER, 50).catch(() => [])
       : [];
-    const crossSessionMsgs = rawCrossSession.map((m: { role: string; content: string }) => ({
-      role: m.role,
-      content: typeof m.content === "string" && m.content.length > MAX_MSG_CHARS
-        ? m.content.slice(0, MAX_MSG_CHARS) + "…"
-        : m.content,
-    }));
     if (role === "owner") {
       console.log(`[Mnemosyne] Cross-session memory active — loaded ${crossSessionMsgs.length} messages from previous conversations`);
     }
-
-    // Trim conversation history to last 30 messages to control context cost.
-    // Full history is stored in DB; cross-session memory covers older context.
-    const MAX_CONTEXT_MSGS = 30;
-    const trimmedMessages = messages.length > MAX_CONTEXT_MSGS
-      ? messages.slice(-MAX_CONTEXT_MSGS)
-      : messages;
 
     const chatMessages: any[] = [
       { role: "system", content: activeSystemPrompt },
       ...(crossSessionMsgs.length > 0 ? [{
         role: "system" as const,
-        content: `CROSS-SESSION MEMORY — recent messages from previous conversations with Garry:\n${crossSessionMsgs.map((m: { role: string; content: string }) => `${m.role}: ${m.content}`).join("\n")}`,
+        content: `CROSS-SESSION MEMORY — recent messages from previous conversations with Garry:\n${crossSessionMsgs.map(m => `${m.role}: ${m.content}`).join("\n")}`,
       }] : []),
-      ...trimmedMessages.map((m: { role: string; content: string }) => ({ role: m.role, content: m.content })),
+      ...messages.map((m: { role: string; content: string }) => ({ role: m.role, content: m.content })),
     ];
 
     // Mid-conversation guard: remind Sirius not to re-run the startup system_check on follow-up messages.
@@ -8422,8 +8057,7 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
     // ── Agentic loop — runs until Sirius produces a text response or hits MAX_ROUNDS ──
     // Replaces the old 2-phase system. Sirius can now call tools across multiple rounds
     // (check → fix → verify → respond) without getting stuck mid-sequence.
-    // Capped at 6 rounds to control API costs — Sirius should complete tasks in fewer rounds.
-    const MAX_TOOL_ROUNDS = 25;
+    const MAX_TOOL_ROUNDS = 16;
     const MAX_TOOL_RESULT_CHARS = 8000; // truncate huge results to prevent context overflow
 
     let loopMessages: any[] = [...chatMessages];
@@ -8439,14 +8073,15 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
       let loopTimer = setTimeout(() => loopController.abort(), roundCount === 1 ? 90_000 : 60_000);
 
       const loopStream = await openai.chat.completions.create({
-        model: "anthropic/claude-sonnet-4.5",
+        model: SIRIUS_MODEL,
         messages: loopMessages,
         // Last round: force plain text. Round 1: force tool call. Other rounds: auto.
         ...(isLastRound
           ? {}
           : { tools: activeTools, tool_choice: roundCount === 1 ? "required" : "auto" }),
         temperature: 0.75,
-        max_tokens: 8000,
+        // First round needs fewer tokens (just picking tools). Later rounds need room to write.
+        max_tokens: roundCount === 1 ? 2000 : 8000,
         stream: true,
       }, { signal: loopController.signal });
 
@@ -8558,7 +8193,7 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
     if (!finalText) {
       try {
         const synthStream = await openai.chat.completions.create({
-          model: "anthropic/claude-sonnet-4.5",
+          model: SIRIUS_MODEL,
           messages: [
             ...loopMessages,
             {
@@ -8659,7 +8294,7 @@ router.post("/lab/deep-research", async (req, res): Promise<void> => {
     ];
 
     const stream = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.5",
+      model: SIRIUS_MODEL,
       messages: [
         { role: "system", content: "You are a professional research analyst and strategic intelligence expert. Produce comprehensive, well-structured research reports with specific data, market context, key players, and actionable insights. Be detailed and specific — this report is for a business owner making real decisions." },
         { role: "user", content: `Conduct thorough research on the following topic and produce a comprehensive, well-structured report.
@@ -8737,7 +8372,7 @@ router.post("/lab/docs", async (req, res): Promise<void> => {
     const truncated = extractedText.slice(0, 28000);
 
     const completion = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.5",
+      model: SIRIUS_MODEL,
       messages: [
         {
           role: "system",
@@ -8797,7 +8432,7 @@ router.post("/lab/projects/:id/social-posts/generate", authMiddleware, async (re
 
   try {
     const completion = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.5",
+      model: SIRIUS_MODEL,
       messages: [
         {
           role: "system",
@@ -9128,7 +8763,7 @@ Rules for voice:
       let voiceTimer = setTimeout(() => voiceController.abort(), round === 0 ? 30_000 : 60_000);
 
       const stream = await openai.chat.completions.create({
-        model: "anthropic/claude-sonnet-4.5",
+        model: SIRIUS_MODEL,
         messages: conversationHistory,
         tools: VOICE_TOOLS,
         tool_choice: "auto",
@@ -9292,7 +8927,7 @@ router.post("/lab/voice/journal", authMiddleware, async (req: Request, res: Resp
         .join("\n");
 
       const completion = await openai.chat.completions.create({
-        model: "anthropic/claude-sonnet-4.5",
+        model: SIRIUS_MODEL,
         messages: [
           { role: "system", content: "You are a concise summarizer. Return ONLY valid JSON with no markdown or code blocks." },
           { role: "user", content: `Summarise this voice session between Garry and Sirius in Star Lab:\n\n${transcriptText}\n\nReturn JSON exactly: { "summary": "2–3 sentence summary of what was discussed and any decisions or actions", "keyTopics": ["topic1", "topic2", "topic3"] }` },
@@ -9442,7 +9077,7 @@ Return ONLY this JSON:
 }`;
 
       const completion = await oai.chat.completions.create({
-        model: "anthropic/claude-sonnet-4.5",
+        model: SIRIUS_MODEL,
         messages: [{ role: "system", content: SYSTEM }, { role: "user", content: USER }],
         temperature: 0.3,
         max_tokens: 900,
@@ -9636,7 +9271,7 @@ Analyse all of them, then pick the top 5 that need the least investment, can be 
     send({ type: "scanning", message: "Sirius intelligence is ranking your portfolio…" });
 
     const completion = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.5",
+      model: SIRIUS_MODEL,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },

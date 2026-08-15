@@ -5,15 +5,15 @@ import { runRegressionSuite, getRecentRuns, type RegressionRun, type TestResult 
 
 const router: IRouter = Router();
 
-// Token protecting the regression dashboard and run trigger.
-// Falls back to a well-known default if DEPLOY_TOKEN is not set,
-// so the dashboard is always reachable with the right URL.
-const DEPLOY_TOKEN = process.env.DEPLOY_TOKEN || "sirius-regtest-2026";
+// /health and /healthz — both return ok (mobile app + monitoring use /health)
+router.get("/health", (_req, res) => {
+  res.json({ status: "ok" });
+});
 
-// ── Existing health endpoints ─────────────────────────────────────────────────
-
-router.get("/health", (_req, res) => { res.json({ status: "ok" }); });
-router.get("/healthz", (_req, res) => { res.json(HealthCheckResponse.parse({ status: "ok" })); });
+router.get("/healthz", (_req, res) => {
+  const data = HealthCheckResponse.parse({ status: "ok" });
+  res.json(data);
+});
 
 router.get("/health/full", async (_req, res) => {
   const last = getLastReport();

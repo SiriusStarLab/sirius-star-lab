@@ -3,6 +3,7 @@ import { eq, desc, or } from "drizzle-orm";
 import { db, appBuilderSessions, labProjects } from "@workspace/db";
 import { openai } from "@workspace/ai-client";
 import { authMiddleware } from "../lib/lab-auth.js";
+import { deployAppSession, listDeployedApps } from "../lib/app-deployer.js";
 
 const router: IRouter = Router();
 
@@ -193,7 +194,7 @@ router.post("/lab/app-builder/architect", authMiddleware, async (req: Request, r
     send({ type: "thinking_start" });
 
     const thinkingStream = await openai.chat.completions.create({
-      model: "anthropic/claude-opus-4",
+      model: "anthropic/claude-sonnet-4-6",
       messages: [
         {
           role: "system",
@@ -316,7 +317,8 @@ Your role: System Architect
 Output ALL of these files — each must be complete and production-ready:
 
 1. package.json — include EVERY dependency the full app will need across all layers (frontend + backend + database + testing + monitoring). Think ahead to what each agent will need. Scripts must include: dev, build, start, test, lint, typecheck, db:push, db:migrate, db:seed
-2. tsconfig.json — strict mode: { "strict": true, "noUncheckedIndexedAccess": true, "exactOptionalPropertyTypes": true }
+2. index.html — ROOT LEVEL Vite entry. ALWAYS include this: <!DOCTYPE html><html><head><meta charset="UTF-8"/><title>App</title></head><body><div id="root"></div><script type="module" src="/src/main.tsx"></script></body></html>
+3. tsconfig.json — strict mode: { "strict": true, "noUncheckedIndexedAccess": true, "exactOptionalPropertyTypes": true }
 3. .env.example — EVERY environment variable with a description comment and safe example value
 4. README.md — quick-start guide, feature list, all env vars documented, local dev instructions
 5. ARCHITECTURE.md — system overview, data flow diagram (ASCII), folder structure tree, key architectural decisions and why
@@ -329,6 +331,8 @@ Before writing package.json, mentally walk through every feature and list every 
 Your role: Frontend Agent
 Output COMPLETE implementations for ALL of these — partial files will break the build:
 
+- index.html — ROOT LEVEL, required by Vite. Must have <div id="root"></div> and <script type="module" src="/src/main.tsx"></script>. Without this file the build will fail.
+- vite.config.ts — Vite config with react plugin, /api proxy to backend port, host: true
 - src/main.tsx — entry point with all providers (QueryClient, Router, auth context, theme)
 - src/App.tsx — full routing with react-router-dom v6+, auth guards, layout wrapper, 404 route
 - src/lib/api.ts — typed API client with every endpoint the app needs, base URL from env, auth header injection, consistent error handling
@@ -431,7 +435,7 @@ router.post("/lab/app-builder/interpret", authMiddleware, async (req: Request, r
 
   try {
     const result = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.5",
+      model: "anthropic/claude-sonnet-4-6",
       response_format: { type: "json_object" },
       messages: [
         {
@@ -476,7 +480,7 @@ router.post("/lab/app-builder/scaffold", authMiddleware, async (req: Request, re
     await delay(500);
 
     const result = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.5",
+      model: "anthropic/claude-sonnet-4-6",
       messages: [{
         role: "user",
         content: `Generate a complete project scaffold specification for:
@@ -616,7 +620,7 @@ router.post("/lab/app-builder/plan", authMiddleware, async (req: Request, res: R
 
   try {
     const result = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.5",
+      model: "anthropic/claude-sonnet-4-6",
       response_format: { type: "json_object" },
       messages: [
         {
@@ -659,7 +663,7 @@ router.post("/lab/app-builder/test", authMiddleware, async (req: Request, res: R
     send({ type: "test_start", message: "Initialising virtual test environment..." });
 
     const stream = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.5",
+      model: "anthropic/claude-sonnet-4-6",
       messages: [{
         role: "user",
         content: `You are a senior QA engineer and code reviewer. Review this ${techStack} application "${appName}" for bugs, errors, and issues.
@@ -742,7 +746,7 @@ router.post("/lab/app-builder/debug", authMiddleware, async (req: Request, res: 
       send({ type: "debug_fixing", filename, bugCount: fileBugs.length });
 
       const stream = await openai.chat.completions.create({
-        model: "anthropic/claude-sonnet-4.5",
+        model: "anthropic/claude-sonnet-4-6",
         messages: [{
           role: "user",
           content: `You are a senior engineer fixing bugs in "${appName}".
@@ -837,7 +841,7 @@ When generating code changes, always output the COMPLETE modified file wrapped i
 For explanations or suggestions, respond in clear Markdown.`;
 
     const stream = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.5",
+      model: "anthropic/claude-sonnet-4-6",
       messages: [
         { role: "system", content: systemPrompt },
         ...history.slice(-6).map(h => ({ role: h.role as "user" | "assistant", content: h.content })),
@@ -948,7 +952,7 @@ Output ONLY the file:
     }
 
     const stream = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.5",
+      model: "anthropic/claude-sonnet-4-6",
       messages,
       stream: true,
       max_tokens: 3000,
@@ -1010,7 +1014,7 @@ async function searchDocsForAgent(agentId: string, techStack: string, appName: s
 
   try {
     const result = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.5",
+      model: "anthropic/claude-sonnet-4-6",
       messages: [
         { role: "system", content: "You are a senior software architect. Return concise, accurate, current best practices." },
         { role: "user", content: `Provide 3-5 bullet points of the most important current best practices and patterns for: ${agentId} development in a ${techStack} application. Be specific and practical. Topic: ${query}` },
@@ -1089,7 +1093,7 @@ router.post("/lab/build-app", authMiddleware, async (req: Request, res: Response
       let raw = "";
       try {
         const stream = await openai.chat.completions.create({
-          model: "anthropic/claude-sonnet-4.5",
+          model: "anthropic/claude-sonnet-4-6",
           messages: [{ role: "user", content: prompt }],
           stream: true,
           max_tokens: 8000,
@@ -1186,7 +1190,7 @@ ${fileSummary}
 Analyse this codebase. Output improvement suggestions as JSON lines.`;
 
     const stream = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.5",
+      model: "anthropic/claude-sonnet-4-6",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
@@ -1232,6 +1236,42 @@ Analyse this codebase. Output improvement suggestions as JSON lines.`;
     clearInterval(learnHeartbeat);
     res.end();
   }
+});
+
+
+// ─── Deploy App ─────────────────────────────────────────────────────────────
+router.post('/lab/app-builder/sessions/:id/deploy', authMiddleware, async (req: Request, res: Response) => {
+  const sessionId = parseInt(req.params.id as string);
+  try {
+    const [session] = await db.select().from(appBuilderSessions).where(eq(appBuilderSessions.id, sessionId)).limit(1);
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+    if (!['complete','launched'].includes(session.status)) return res.status(400).json({ error: 'App must be fully built before deploying' });
+
+    const files: Record<string, string> = JSON.parse(session.files || '{}');
+    if (Object.keys(files).length === 0) return res.status(400).json({ error: 'No files to deploy' });
+
+    res.json({ ok: true, message: 'Deploy started — this takes 1-3 minutes', sessionId });
+
+    // Run deploy in background
+    deployAppSession(sessionId, session.appName, files).then(async result => {
+      // Save deploy URL back to session
+      if (result.success && result.url) {
+        const deployLog = (session.buildLog || '') + '\n\n=== DEPLOY ===\n' + result.log.join('\n');
+        await db.update(appBuilderSessions)
+          .set({ status: 'launched', buildLog: deployLog, updatedAt: new Date() })
+          .where(eq(appBuilderSessions.id, sessionId));
+      }
+      console.log('[AppBuilder/Deploy]', result.success ? 'SUCCESS' : 'FAILED', result.url || result.error);
+    }).catch(e => console.error('[AppBuilder/Deploy] Error:', e.message));
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+
+// ─── List Deployed Apps ──────────────────────────────────────────────────────
+router.get('/lab/app-builder/deployed', authMiddleware, async (_req: Request, res: Response) => {
+  const apps = await listDeployedApps();
+  res.json({ apps });
 });
 
 export default router;

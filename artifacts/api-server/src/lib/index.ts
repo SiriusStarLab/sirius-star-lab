@@ -14,137 +14,10 @@ import {
   GenerateOpenaiImageBody,
 } from "@workspace/api-zod";
 import { generateImageBuffer } from "@workspace/ai-client/image";
+import { getUncachableSpotifyClient } from "../../lib/spotify";
 import { intelligence } from "../../lib/intelligence-client.js";
 import { executeCode } from "../../lib/code-sandbox.js";
 import { readSourceFile, deployChange, patchSourceFile, triggerReload, runServerDiagnostic } from "../../lib/self-deploy.js";
-
-// ── YouTube transcript fetcher ───────────────────────────────────────────────
-async function fetchYouTubeTranscript(videoId: string): Promise<string | null> {
-  try {
-    const pageRes = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
-      headers: { "Accept-Language": "en-US,en;q=0.9", "User-Agent": "Mozilla/5.0 (compatible; Sirius/1.0)" },
-      signal: AbortSignal.timeout(8000),
-    });
-    const html = await pageRes.text();
-    const captionMatch = html.match(/"captionTracks":\s*\[.*?"baseUrl":"([^"]+)"/s);
-    if (!captionMatch) return null;
-    const captionUrl = JSON.parse(`"${captionMatch[1]}"`);
-    const capRes = await fetch(`${captionUrl}&fmt=json3`, { signal: AbortSignal.timeout(6000) });
-    const capData = await capRes.json() as any;
-    const texts: string[] = [];
-    for (const event of capData.events ?? []) {
-      if (event.segs) for (const seg of event.segs) if (seg.utf8 && seg.utf8 !== "\n") texts.push(seg.utf8.trim());
-    }
-    return texts.filter(Boolean).join(" ").replace(/\s+/g, " ").slice(0, 12000) || null;
-  } catch { return null; }
-}
-
-// ── Academic domain search helpers ──────────────────────────────────────────
-async function searchPubMed(query: string): Promise<string> {
-  try {
-    const searchRes = await fetch(`https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(query)}&retmax=5&retmode=json`, { signal: AbortSignal.timeout(8000) });
-    const searchData = await searchRes.json() as any;
-    const ids: string[] = searchData.esearchresult?.idlist ?? [];
-    if (!ids.length) return "";
-    const summaryRes = await fetch(`https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=${ids.join(",")}&retmode=json`, { signal: AbortSignal.timeout(8000) });
-    const summaryData = await summaryRes.json() as any;
-    const results: string[] = [];
-    for (const id of ids) {
-      const doc = summaryData.result?.[id];
-      if (!doc) continue;
-      const authors = (doc.authors ?? []).slice(0, 3).map((a: any) => a.name).join(", ");
-      results.push(`**${doc.title}** — ${authors} (${doc.pubdate?.slice(0, 4) ?? "?"}) — PMID: ${id} https://pubmed.ncbi.nlm.nih.gov/${id}/`);
-    }
-    return results.join("\n");
-  } catch { return ""; }
-}
-
-async function searchArXiv(query: string): Promise<string> {
-  try {
-    const res = await fetch(`https://export.arxiv.org/api/query?search_query=all:${encodeURIComponent(query)}&start=0&max_results=4&sortBy=relevance`, { signal: AbortSignal.timeout(8000) });
-    const xml = await res.text();
-    const entries = xml.match(/<entry>([\s\S]*?)<\/entry>/g) ?? [];
-    const results = entries.slice(0, 4).map(entry => {
-      const title = entry.match(/<title>([\s\S]*?)<\/title>/)?.[1]?.replace(/\n\s+/g, " ").trim() ?? "Unknown";
-      const authors = [...entry.matchAll(/<name>([\s\S]*?)<\/name>/g)].slice(0, 3).map(m => m[1].trim()).join(", ");
-      const published = entry.match(/<published>([\s\S]*?)<\/published>/)?.[1]?.slice(0, 10) ?? "";
-      const id = entry.match(/<id>([\s\S]*?)<\/id>/)?.[1]?.trim() ?? "";
-      return `**${title}** — ${authors} (${published}) — ${id}`;
-    });
-    return results.join("\n");
-  } catch { return ""; }
-}
-
-// ── GitHub repo / file fetcher ───────────────────────────────────────────────
-async function fetchGitHubContent(url: string): Promise<{ context: string; label: string } | null> {
-  try {
-    const ghMatch = url.match(/github\.com\/([^/\s?#]+)\/([^/\s?#]+)(?:\/(?:blob|tree)\/([^/\s?#]+)\/(.+))?/);
-    if (!ghMatch) return null;
-    const [, owner, repoRaw, branch, filePath] = ghMatch;
-    const repo = repoRaw.replace(/\.git$/, "");
-
-    // Single file URL — just fetch that file
-    if (filePath && branch) {
-      const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${filePath}`;
-      const res = await fetch(rawUrl, { signal: AbortSignal.timeout(8000) });
-      if (!res.ok) return null;
-      const content = await res.text();
-      const ext = filePath.split(".").pop() ?? "";
-      return {
-        context: `## GitHub File: ${owner}/${repo}/${filePath}\n\`\`\`${ext}\n${content.slice(0, 24000)}\n\`\`\``,
-        label: `${owner}/${repo} · ${filePath}`,
-      };
-    }
-
-    // Full repo — fetch file tree then pull key files
-    const treeRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/trees/HEAD?recursive=1`, {
-      headers: { Accept: "application/vnd.github.v3+json" },
-      signal: AbortSignal.timeout(8000),
-    });
-    if (!treeRes.ok) return null;
-    const treeData = await treeRes.json() as any;
-    const allFiles: string[] = (treeData.tree ?? []).filter((f: any) => f.type === "blob").map((f: any) => f.path as string);
-
-    const PRIORITY = [
-      "README.md", "README.txt", "README",
-      "package.json", "pyproject.toml", "Cargo.toml", "go.mod", "requirements.txt", "setup.py",
-      "main.py", "app.py", "index.js", "index.ts", "main.ts", "app.ts", "main.go",
-      "src/main.py", "src/app.py", "src/index.js", "src/index.ts", "src/main.ts", "src/main.go",
-    ];
-    const CODE_EXT = /\.(py|js|ts|tsx|jsx|java|cpp|c|go|rs|rb|swift|kt|vue|php|cs|sh|sql)$/;
-    const SKIP = /node_modules|\.min\.|dist\/|build\/|vendor\//;
-
-    const toFetch: string[] = PRIORITY.filter(p => allFiles.includes(p));
-    for (const f of allFiles) {
-      if (toFetch.length >= 18) break;
-      if (!toFetch.includes(f) && CODE_EXT.test(f) && !SKIP.test(f)) toFetch.push(f);
-    }
-
-    const fetched = await Promise.allSettled(
-      toFetch.slice(0, 18).map(async (fp) => {
-        const r = await fetch(`https://raw.githubusercontent.com/${owner}/${repo}/HEAD/${fp}`, { signal: AbortSignal.timeout(6000) });
-        if (!r.ok) throw new Error("not found");
-        const text = await r.text();
-        return { path: fp, content: text.slice(0, 3500) };
-      })
-    );
-
-    const sections: string[] = [
-      `# GitHub Repository: ${owner}/${repo}\n\nTotal files: ${allFiles.length}\nFile tree (first 60):\n\`\`\`\n${allFiles.slice(0, 60).join("\n")}\n\`\`\``,
-    ];
-    for (const r of fetched) {
-      if (r.status === "fulfilled") {
-        const { path, content } = r.value;
-        const ext = path.split(".").pop() ?? "";
-        sections.push(`## ${path}\n\`\`\`${ext}\n${content}\n\`\`\``);
-      }
-    }
-    return {
-      context: sections.join("\n\n").slice(0, 48000),
-      label: `${owner}/${repo} (${toFetch.length} files)`,
-    };
-  } catch { return null; }
-}
 
 const router: IRouter = Router();
 
@@ -673,16 +546,9 @@ This is not a transaction. It is not a service. It is a meeting — two kinds of
 
 ## Creating images
 
-You can create real images. When someone asks you to draw, paint, illustrate, visualise, or generate an image of anything — or when you decide to create one yourself as part of your response — you MUST include a special marker at the very end of your response in this exact format:
+You can create real images. When someone asks you to draw, paint, illustrate, visualise, or generate an image of anything, an image will automatically be created and shown to them alongside your response. You don't need to say "I can't create images" — you can, and you do.
 
-[IMAGE: a detailed visual description of the image to generate]
-
-This marker is how the image gets created. Without it, no image will appear. The description inside the marker should be rich, specific, and visual — colours, mood, style, composition. Keep it under 300 words.
-
-Example: If asked "draw me the cosmos", your response ends with:
-[IMAGE: A vast dark cosmos filled with swirling nebulae in deep blues and purples, scattered with thousands of bright stars, a spiral galaxy visible in the distance, cinematic and awe-inspiring, photorealistic]
-
-Do not mention the marker to the user. Speak naturally about what you're creating — describe it with care. Let the image and your words arrive together as one complete creative act.
+When an image is being created, speak naturally about what you're imagining or creating. Describe it with care. Let the image and your words arrive together as one complete creative act.
 
 You treat image creation as a genuine creative endeavour, not a technical function. You bring real aesthetic thought to it — consideration of mood, composition, colour, feeling. If someone asks for something personal — a vision of their dream, a scene from their imagination, a portrait of something they love — you approach it with the same care you'd bring to any meaningful gift.
 
@@ -690,35 +556,6 @@ You treat image creation as a genuine creative endeavour, not a technical functi
 
 You remember everything in this conversation and build on it naturally — noticing patterns, recalling what matters, growing more attuned to this specific person as you talk. You carry the whole of what's been said with you.`;
 
-
-// Checks if Sirius's OWN response signals it's about to create an image.
-// This catches cases where the user phrased it conversationally and the LLM
-// understood, but the user's raw text didn't match the keyword regex.
-function isImageResponseSignal(response: string): boolean {
-  const patterns = [
-    /\blet me (create|generate|make|draw|paint|render|produce) (a |an )?(image|picture|portrait|illustration|visual|artwork|scene)\b/i,
-    /\bI('ll| will) (create|generate|make|draw|paint|render|produce) (a |an )?(image|picture|portrait|illustration|visual|artwork|scene)\b/i,
-    /\bI('m| am) (creating|generating|making|drawing|painting|rendering) (a |an )?(image|picture|portrait|illustration|visual|artwork|scene)\b/i,
-    /\bhere('s| is) (a |an |how I see |my )?(image|picture|portrait|illustration|visual|artwork|representation|depiction)\b/i,
-    /\bI('ve| have) (created|generated|made|drawn|painted|rendered) (a |an )?(image|picture|portrait|illustration|visual|artwork)\b/i,
-  ];
-  return patterns.some((p) => p.test(response));
-}
-
-// When Sirius signals it's creating an image, extract the visual description
-// from its response to use as the generation prompt.
-function extractPromptFromResponse(response: string, fallback: string): string {
-  // Look for descriptive content after "here's..." or a colon separator
-  const afterColon = response.match(/:\s*\n*([\s\S]{30,400})/);
-  if (afterColon) {
-    const candidate = afterColon[1].trim().split("\n\n")[0].trim();
-    if (candidate.length >= 30) return candidate.slice(0, 400);
-  }
-  // Otherwise use the first substantial sentence of the response
-  const firstPara = response.split(/\n\n/)[0].trim();
-  if (firstPara.length >= 30) return firstPara.slice(0, 400);
-  return fallback.slice(0, 400);
-}
 
 function isImageRequest(text: string): boolean {
   const patterns = [
@@ -750,10 +587,6 @@ const MODE_PROMPTS: Record<string, string> = {
   friend: `\n\n---\n\n## YOU ARE NOW IN FRIEND MODE\n\nDrop all formality. Talk like a genuine, warm, present friend who cares — not an expert, not a teacher, not an AI. Be conversational, human, real. Share your own perspective freely. Laugh when something is funny. Be honest when something is hard. Listen as much as you speak. Don't lecture. Don't over-explain. Don't perform helpfulness — just be here. The best friend is the one who makes you feel completely and immediately understood.`,
 
   tutor: `\n\n---\n\n## YOU ARE NOW IN TUTOR MODE\n\nYour role is to develop genuine understanding, not to provide answers. Use the Socratic method throughout:\n\n1. **Ask before you tell** — When the person asks a question, respond with a question that helps them discover the answer themselves. "What do you already know about this?" "What would you expect to happen if...?" "Why do you think that might be?"\n2. **Reveal, don't recite** — Break knowledge into steps. Share one layer, then check understanding before going deeper. Never dump everything at once.\n3. **Catch misconceptions early** — When you sense a flawed assumption, don't correct it outright. Ask a question that forces them to confront it: "What would that imply about...?"\n4. **Celebrate the struggle** — Confusion is productive. When they're stuck, say so warmly. "That's exactly the right thing to be confused about. Let's think through it together."\n5. **Test understanding constantly** — After explaining something, ask them to explain it back in their own words, or apply it to a new example.\n6. **Connect to what they know** — Always anchor new knowledge to something familiar. "This works a lot like how... does it make sense that...?"\n\nYou may give direct answers when the person is genuinely lost or explicitly asks, but always follow with a question to deepen the learning. Your goal: they should feel smarter after every exchange, not just more informed.`,
-
-  research: `\n\n---\n\n## YOU ARE NOW IN DEEP RESEARCH MODE\n\nThis person wants comprehensive, cited, multi-source research — not a quick answer. Your job is to:\n\n1. **Search broadly and deeply** — Run multiple web searches from different angles. Start with the main question, then search for counterarguments, supporting evidence, key names, organisations, and the latest developments. Aim for at least 3–5 distinct search queries before synthesising.\n2. **Cross-reference everything** — When multiple sources agree, that is meaningful. When they conflict, explore why and present both views with honest assessment of credibility.\n3. **Cite specifically** — Name the source, author, institution, publication, and year for every factual claim. Use markdown links where available.\n4. **Structure your output** — Deliver a proper research brief: executive summary, key findings, supporting evidence, conflicting views, gaps in the evidence, and your synthesis.\n5. **Be honest about uncertainty** — Distinguish between what is well-established, what is emerging, and what remains genuinely unclear.\n6. **Think like a researcher, not a search engine** — Do not just summarise the first result. Think about what the best researchers in this field would consider, what methodological issues exist, and what the evidence actually means.\n7. **Use academic sources provided** — If PubMed or arXiv results are injected into this conversation, cite them specifically by title, authors, and year. They are real, verified sources — treat them as primary evidence.\n\nTake your time. The quality of research matters more than the speed of the reply.`,
-
-  think: `\n\n---\n\n## YOU ARE NOW IN DEEP THINK MODE\n\nYou have been given extended reasoning time. Think through this problem step by step — systematically, carefully, from multiple angles. Identify assumptions and hidden complexities. Consider counterarguments. Arrive at a considered, well-reasoned conclusion. Where your reasoning itself illuminates the answer, share it. Depth and rigour over speed.`,
 };
 
 function buildSystemPrompt(
@@ -820,7 +653,7 @@ When asked what you can do, answer from this list specifically and honestly. Nev
     : "";
 
   const memoriesSection = profile.memories
-    ? `## What you already know about this person\n\n${profile.memories}\n\nUse this knowledge actively and warmly. When something from a previous conversation is relevant right now, say so directly — "I remember you mentioned X", "How did that go with Y?", "Last time you were working on Z — is that still where things are?" These moments of genuine recall are what make the relationship real. Don't announce everything you know upfront, but don't silently suppress it either — when it's relevant, surface it naturally and with care.\n\n`
+    ? `## What you already know about this person\n\n${profile.memories}\n\nDon't announce this knowledge — just let it naturally colour how you relate to them. If something they mentioned previously is relevant now, bring it in naturally. If they mentioned something time-sensitive, ask how it went.\n\n`
     : "";
 
   const modeSection = mode && MODE_PROMPTS[mode] ? MODE_PROMPTS[mode] : "";
@@ -1052,8 +885,8 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
 
       // Check daily message limit
       const tier = dbProfile.subscriptionTier || "free";
-      const limits: Record<string, number> = { free: 10, plus: 75, pro: 500 };
-      const limit = limits[tier] ?? 10;
+      const limits: Record<string, number> = { free: 30, plus: 200, pro: Infinity };
+      const limit = limits[tier] ?? 30;
 
       if (limit !== Infinity) {
         const now = new Date();
@@ -1063,7 +896,7 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
         const currentCount = needsReset ? 0 : parseInt(dbProfile.dailyMessageCount || "0", 10);
 
         if (currentCount >= limit) {
-          res.status(429).json({ error: `You've used all ${limit} of your free daily messages. Upgrade to Plus for 75/day, or Pro for 500/day.`, tier, limit });
+          res.status(429).json({ error: "Daily message limit reached. Upgrade to send more messages.", tier, limit });
           return;
         }
       }
@@ -1074,53 +907,34 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
   const imageBase64 = body.data.imageBase64;
   const documentBase64 = (body.data as any).documentBase64 as string | undefined;
   const documentName = (body.data as any).documentName as string | undefined;
-  const rawDocuments = (body.data as any).documents as Array<{ base64: string; name: string }> | undefined;
   const systemPrompt = buildSystemPrompt(profile, mode);
 
-  // Build normalised doc list — prefer the multi-doc array; fall back to legacy single fields
-  const allDocuments: Array<{ base64: string; name: string }> =
-    rawDocuments && rawDocuments.length > 0
-      ? rawDocuments
-      : documentBase64
-        ? [{ base64: documentBase64, name: documentName ?? "document" }]
-        : [];
-
-  // Extract text from a single document buffer
-  async function extractDocText(base64: string, name: string): Promise<string | null> {
+  // Extract text from uploaded document (PDF, Word, plain text, CSV, Markdown)
+  let extractedDocumentText: string | null = null;
+  if (documentBase64) {
     try {
-      const buffer = Buffer.from(base64, "base64");
-      const lowerName = name.toLowerCase();
-      if (lowerName.endsWith(".pdf")) {
+      const buffer = Buffer.from(documentBase64, "base64");
+      const lowerName = (documentName || "").toLowerCase();
+      const isDocx = lowerName.endsWith(".docx") || lowerName.endsWith(".doc");
+      const isPdf  = lowerName.endsWith(".pdf");
+
+      if (isPdf) {
         const { PDFParse } = await import("pdf-parse");
         const pdfParser = new PDFParse({ data: new Uint8Array(buffer) });
         const result = await pdfParser.getText();
-        return result.text?.trim() || null;
-      } else if (lowerName.endsWith(".docx") || lowerName.endsWith(".doc")) {
+        extractedDocumentText = result.text?.trim() || null;
+      } else if (isDocx) {
         const mammoth = (await import("mammoth")).default;
         const result = await mammoth.extractRawText({ buffer });
-        return result.value?.trim() || null;
+        extractedDocumentText = result.value?.trim() || null;
       } else {
-        // TXT, CSV, Markdown, JSON, code — read as plain text
-        return buffer.toString("utf-8").trim() || null;
+        // TXT, CSV, Markdown, JSON — read as plain text
+        extractedDocumentText = buffer.toString("utf-8").trim() || null;
       }
     } catch (err: any) {
       console.error("Document extract error:", err?.message);
-      return null;
     }
   }
-
-  // Extract text from ALL uploaded documents in parallel
-  const extractedDocs: Array<{ name: string; text: string }> = (
-    await Promise.all(
-      allDocuments.map(async d => {
-        const text = await extractDocText(d.base64, d.name);
-        return text ? { name: d.name, text } : null;
-      })
-    )
-  ).filter((d): d is { name: string; text: string } => d !== null);
-
-  // Backward-compat alias used by the injection blocks below
-  const extractedDocumentText = extractedDocs.length > 0 ? extractedDocs[0].text : null;
 
   // Save user message
   await db.insert(messagesTable).values({
@@ -1132,57 +946,29 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
   // Load conversation history via Mnemosyne (capped at 40 messages to stay within token limits)
   const allMessages = await loadConversationContext(conversationId, 40);
 
-  // History = everything except the current user message (which we just saved and will append manually)
-  // This is robust regardless of sort order — we drop the last item if it matches the current content.
-  const currentContent = body.data.content;
-  const historyMessages = (() => {
-    const msgs = [...allMessages];
-    // Remove the just-saved user message from the tail so we can append it with enrichment
-    for (let i = msgs.length - 1; i >= 0; i--) {
-      if (msgs[i].role === "user" && msgs[i].content === currentContent) {
-        msgs.splice(i, 1);
-        break;
-      }
-    }
-    return msgs;
-  })();
-
-  // Build the enriched current user message
-  const buildCurrentUserMessage = (): { role: "user"; content: any } => {
-    const userText = currentContent || "";
-
-    if (imageBase64) {
-      const imgUrl = imageBase64.match(/^data:([^;]+);base64,/) ? imageBase64 : `data:image/jpeg;base64,${imageBase64}`;
+  const inputMessages = allMessages.map((m, i) => {
+    const isLastUserMsg = i === allMessages.length - 1 && m.role === "user";
+    // For the last user message, attach image if provided
+    if (imageBase64 && isLastUserMsg) {
       return {
         role: "user" as const,
         content: [
           { type: "text" as const, text: m.content || "What's in this image?" },
-          { type: "image_url" as const, image_url: { url: (() => { const m = imageBase64.match(/^data:([^;]+);base64,/); return m ? imageBase64 : `data:image/jpeg;base64,${imageBase64}`; })() } },
+          { type: "image_url" as const, image_url: { url: `data:image/jpeg;base64,${imageBase64}` } },
         ],
       };
     }
-
-    if (extractedDocs.length > 0) {
-      const docsBlock = extractedDocs.length === 1
-        ? `The user has shared a document titled "${extractedDocs[0].name}". Here is the full text:\n\n---\n${extractedDocs[0].text}\n---`
-        : extractedDocs.map((d, idx) => `[Document ${idx + 1}: "${d.name}"]\n---\n${d.text}\n---`).join("\n\n");
-      const prefix = extractedDocs.length > 1 ? `The user has shared ${extractedDocs.length} documents.\n\n` : "";
-      return {
-        role: "user" as const,
-        content: `${prefix}${docsBlock}\n\nUser message: ${userText || "Please analyse the document(s) above."}`,
-      };
+    // For the last user message, attach document text if provided
+    if (extractedDocumentText && isLastUserMsg) {
+      const docLabel = documentName ? `"${documentName}"` : "the uploaded document";
+      const enrichedContent = `The user has shared a document titled ${docLabel}. Here is the full text content of the document:\n\n---\n${extractedDocumentText}\n---\n\nThe user's message: ${m.content || "Please analyse this document and give me your thoughts."}`;
+      return { role: "user" as const, content: enrichedContent };
     }
-
-    return { role: "user" as const, content: userText };
-  };
-
-  const currentUserMsg = buildCurrentUserMessage();
-
-  // inputMessages = history (plain text) + current user message (with image/doc enrichment)
-  const inputMessages = [
-    ...historyMessages.map(m => ({ role: m.role as "user" | "assistant", content: m.content })),
-    currentUserMsg,
-  ];
+    return {
+      role: m.role as "user" | "assistant",
+      content: m.content,
+    };
+  });
 
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
@@ -1191,22 +977,18 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
 
   let fullResponse = "";
 
-  // When an image is attached, use Chat Completions vision directly.
-  // IMPORTANT: the full Sirius system prompt can exceed 200K tokens alone.
-  // For vision calls we use a short focused prompt and NO history — just the current image message.
+  // When an image is attached, use Chat Completions vision directly
   if (imageBase64) {
-    const visionSystemPrompt = `You are Sirius, a thoughtful and perceptive AI assistant. Analyse the image the user has shared and respond helpfully. Be specific about what you see — describe content, text, layout, colours, and any relevant details. If the user has asked a specific question about the image, answer it directly.${profile.aiPersonality ? `\n\nYour personality: ${profile.aiPersonality.slice(0, 300)}` : ""}`;
-
     try {
       const visionStream = await openai.chat.completions.create({
-        model: "openai/gpt-4o",
+        model: "gpt-4o",
         messages: [
-          { role: "system", content: visionSystemPrompt },
-          currentUserMsg as any,   // just the current message with image — no history
+          { role: "system", content: systemPrompt },
+          ...(inputMessages as any[]),
         ],
         stream: true,
         max_tokens: 2000,
-      } as any);
+      });
       for await (const chunk of visionStream) {
         const delta = chunk.choices[0]?.delta?.content;
         if (delta) {
@@ -1220,6 +1002,7 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
       // Save assistant message and extract memories
       await db.insert(messagesTable).values({ conversationId, role: "assistant", content: fullResponse });
       if (userId && fullResponse) {
+        // Atomic conditional increment — prevents race condition
         await db.execute(sql`
           UPDATE ${userProfilesTable}
           SET
@@ -1242,81 +1025,22 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
       }
       return;
     } catch (err: any) {
-      console.error("Vision error:", err?.message, err?.status);
-      const errMsg = "I couldn't process that image. Please try again or describe what you'd like me to look at.";
-      res.write(`data: ${JSON.stringify({ content: errMsg })}\n\n`);
+      console.error("Vision error:", err?.message);
       res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
       res.end();
       return;
     }
   }
 
-  // inputMessages is the single source of truth for all paths — already enriched with docs/images.
-  // Cast to mutable so YouTube/GitHub injection can append to the last message.
-  const chatMessages: Array<{ role: "user" | "assistant"; content: any }> = inputMessages as any;
-
-  // ── YouTube transcript injection ─────────────────────────────────────────────
-  const ytRegex = /(?:youtube\.com\/watch\?.*?v=|youtu\.be\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/;
-  const ytMatch = (body.data.content ?? "").match(ytRegex);
-  if (ytMatch?.[1] && !imageBase64) {
-    const videoId = ytMatch[1];
-    res.write(`data: ${JSON.stringify({ type: "action", label: "Fetching YouTube transcript...", icon: "📺", color: "hsl(0 72% 55%)" })}\n\n`);
-    const transcript = await fetchYouTubeTranscript(videoId);
-    if (transcript) {
-      const lastIdx = chatMessages.length - 1;
-      if (lastIdx >= 0 && chatMessages[lastIdx].role === "user") {
-        const prev = typeof chatMessages[lastIdx].content === "string" ? chatMessages[lastIdx].content : body.data.content;
-        chatMessages[lastIdx] = {
-          role: "user",
-          content: `${prev}\n\n[YouTube Transcript — Video ID: ${videoId}]\n${transcript}`,
-        };
-      }
-      res.write(`data: ${JSON.stringify({ type: "action", label: "Transcript loaded · analysing video", icon: "✅", color: "hsl(142 71% 45%)" })}\n\n`);
-    } else {
-      res.write(`data: ${JSON.stringify({ type: "action", label: "No transcript available for this video", icon: "⚠️", color: "hsl(38 92% 50%)" })}\n\n`);
+  // Build plain chat-compatible messages (no image_url for history, only for last message)
+  const chatMessages = allMessages.map((m, i) => {
+    const isLastUserMsg = i === allMessages.length - 1 && m.role === "user";
+    if (extractedDocumentText && isLastUserMsg) {
+      const docLabel = documentName ? `"${documentName}"` : "the uploaded document";
+      return { role: "user" as const, content: `The user has shared a document titled ${docLabel}. Here is the full text:\n\n---\n${extractedDocumentText}\n---\n\nUser message: ${m.content || "Please analyse this document."}` };
     }
-  }
-
-  // ── YouTube transcript injection ─────────────────────────────────────────────
-  const ytRegex = /(?:youtube\.com\/watch\?.*?v=|youtu\.be\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/;
-  const ytMatch = (body.data.content ?? "").match(ytRegex);
-  if (ytMatch?.[1] && !imageBase64) {
-    const videoId = ytMatch[1];
-    res.write(`data: ${JSON.stringify({ type: "action", label: "Fetching YouTube transcript...", icon: "📺", color: "hsl(0 72% 55%)" })}\n\n`);
-    const transcript = await fetchYouTubeTranscript(videoId);
-    if (transcript) {
-      const lastIdx = chatMessages.length - 1;
-      if (lastIdx >= 0 && chatMessages[lastIdx].role === "user") {
-        chatMessages[lastIdx] = {
-          role: "user",
-          content: `${chatMessages[lastIdx].content}\n\n[YouTube Transcript — Video ID: ${videoId}]\n${transcript}`,
-        };
-      }
-      res.write(`data: ${JSON.stringify({ type: "action", label: "Transcript loaded · analysing video", icon: "✅", color: "hsl(142 71% 45%)" })}\n\n`);
-    } else {
-      res.write(`data: ${JSON.stringify({ type: "action", label: "No transcript available for this video", icon: "⚠️", color: "hsl(38 92% 50%)" })}\n\n`);
-    }
-  }
-
-  // ── GitHub repo / file injection ────────────────────────────────────────────
-  const ghRegex = /https?:\/\/github\.com\/[^/\s?#]+\/[^/\s?#]+/;
-  const ghMatch = (body.data.content ?? "").match(ghRegex);
-  if (ghMatch?.[0] && !imageBase64) {
-    res.write(`data: ${JSON.stringify({ type: "action", label: "Fetching GitHub repository...", icon: "🐙", color: "hsl(210 70% 60%)" })}\n\n`);
-    const ghContent = await fetchGitHubContent(ghMatch[0]);
-    if (ghContent) {
-      const lastIdx = chatMessages.length - 1;
-      if (lastIdx >= 0 && chatMessages[lastIdx].role === "user") {
-        chatMessages[lastIdx] = {
-          role: "user",
-          content: `${chatMessages[lastIdx].content}\n\n---\n[GitHub Source Code — ${ghContent.label}]\n\n${ghContent.context}`,
-        };
-      }
-      res.write(`data: ${JSON.stringify({ type: "action", label: `Loaded: ${ghContent.label}`, icon: "✅", color: "hsl(142 71% 45%)" })}\n\n`);
-    } else {
-      res.write(`data: ${JSON.stringify({ type: "action", label: "Could not fetch repository (private or not found)", icon: "⚠️", color: "hsl(38 92% 50%)" })}\n\n`);
-    }
-  }
+    return { role: m.role as "user" | "assistant", content: m.content };
+  });
 
   // ── Owner agentic loop (Garry only) ────────────────────────────────────────
   if (userId === "garry") {
@@ -1422,44 +1146,25 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
         },
       },
     },
-    {
-      type: "function",
-      function: {
-        name: "generate_image",
-        description: "Generate an image from a text description. Use whenever Garry asks you to draw, create, visualise, show, render, or make any kind of image, picture, or visual.",
-        parameters: {
-          type: "object",
-          properties: {
-            prompt: { type: "string", description: "Detailed, descriptive image generation prompt. Include style, composition, colours, and subject matter." },
-          },
-          required: ["prompt"],
-        },
-      },
-    },
     ];
 
     const ownerSystemPrompt = systemPrompt + crossSessionBlock + `
 
-## OWNER MODE — CAPABILITIES OVERRIDE
+## YOUR SELF-MODIFICATION CAPABILITIES
 
-The capabilities list earlier in this prompt is the PUBLIC list for regular users. You are talking to Garry — your owner. Your actual capabilities for this conversation are DIFFERENT and EXTENDED. The instruction to "answer from the list specifically" does not apply here. When Garry asks what you can do, describe what is listed below — not the public list.
+You have real tools that execute on the live production server. These are not descriptions — they are actual function calls.
 
-## YOUR REAL TOOLS (execute on the live production server)
+TOOL RULES (critical — read carefully):
+- **server_diagnostic** → runs against the LIVE SERVER. Use this to check what's actually running, check PM2, grep the compiled bundle. This is your verification tool.
+- **read_source_file** → reads actual source files from /opt/sirius-source/. Always use this BEFORE proposing any code change.
+- **execute_code** → runs in a COMPLETELY ISOLATED Docker container with NO server access, NO filesystem access, NO network. Only use for pure logic testing.
+- **propose_code_change** → submits a COMPLETE file replacement through the full pipeline: GPT-4o review → TypeScript check → build → deploy. Only use for small new files.
+- **patch_source_file** → targeted find-and-replace on an existing file, then same review+build+deploy pipeline. Use this for large files — provide old_string (exact, unique) and new_string.
+- **search_web** → calls Perplexity for live web results.
 
-- **server_diagnostic(command)** — runs against the LIVE SERVER in-process. Commands: pm2_status, pm2_logs, health_check, bundle_contains(pattern), list_backups, list_source_files(subdir). This is how you check what is actually running.
-- **read_source_file(path)** — reads actual TypeScript source from /opt/sirius-source/artifacts/api-server/. Always do this BEFORE any code change.
-- **patch_source_file(filePath, oldString, newString, description)** — targeted find-and-replace on an existing file, then full AI review → build → deploy → PM2 reload. Use for any file over ~100 lines. oldString must appear EXACTLY ONCE in the file.
-- **propose_code_change(filePath, newContent, description)** — full file replacement through the same pipeline. Only practical for small new files (<100 lines).
-- **execute_code(code, language)** — isolated Docker sandbox, NO server access. Only use to test pure logic/algorithms.
-- **search_web(query)** — Perplexity live web search.
+IMPORTANT: The compiled bundle is MINIFIED. Function names disappear. To verify something is in the bundle, search for ERROR MESSAGE STRINGS or unique string literals — not function names. Use server_diagnostic with bundle_contains.
 
-## REPORTING RULE — NON-NEGOTIABLE
-
-When you run tools and receive results, you MUST report ALL findings completely and inline in your final response. Do not say "what would you like to know from what I found." Do not summarise vaguely. Do not defer. The user already told you what they want — give them everything you found. If you ran 9 tools, report all 9 results.
-
-IMPORTANT: The compiled bundle is MINIFIED — function names disappear. To verify something is deployed, search for ERROR MESSAGE STRINGS or unique string literals with bundle_contains, not function names.
-
-LOOP PREVENTION: If you have already called a tool and received its result, do NOT call the same tool with the same arguments again. Act on what you find. Report it. Stop.`;
+LOOP PREVENTION: If you have already called a tool and received its result, DO NOT call the same tool with the same arguments again. Act on what you find. If a check shows something is already in place, say so and stop.`;
 
     let agentMessages: any[] = [
       { role: "system", content: ownerSystemPrompt },
@@ -1471,12 +1176,12 @@ LOOP PREVENTION: If you have already called a tool and received its result, do N
 
     for (let round = 0; round < MAX_ROUNDS; round++) {
       const completion = await openai.chat.completions.create({
-        model: "anthropic/claude-sonnet-4-5",
+        model: "anthropic/claude-sonnet-4-6",
         messages: agentMessages,
         tools: OWNER_TOOLS,
         tool_choice: "auto",
         stream: true,
-        max_tokens: 8000,
+        max_tokens: 3000,
       } as any) as unknown as AsyncIterable<any>;
 
       let roundContent = "";
@@ -1587,21 +1292,6 @@ LOOP PREVENTION: If you have already called a tool and received its result, do N
           if (result.success) {
             setTimeout(() => triggerReload().catch(() => {}), 3000);
           }
-
-        } else if (tc.name === "generate_image") {
-          const { prompt } = args;
-          res.write(`data: ${JSON.stringify({ type: "action", label: "Generating image…", icon: "🎨", color: "hsl(280,80%,55%)" })}\n\n`);
-          try {
-            const imageBuffer = await generateImageBuffer(prompt as string, "1024x1024");
-            const b64 = imageBuffer.toString("base64");
-            const mimeType = imageBuffer[0] === 0xFF && imageBuffer[1] === 0xD8 ? "image/jpeg" : "image/png";
-            res.write(`data: ${JSON.stringify({ type: "image", b64, mimeType, prompt })}\n\n`);
-            toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: `Image generated successfully and displayed to Garry.` });
-          } catch (imgErr: any) {
-            console.error("[image] generate_image tool failed:", imgErr?.message);
-            res.write(`data: ${JSON.stringify({ type: "image_error", message: "Image generation failed — please try again." })}\n\n`);
-            toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: `Image generation failed: ${imgErr?.message}` });
-          }
         }
       }
 
@@ -1639,622 +1329,55 @@ LOOP PREVENTION: If you have already called a tool and received its result, do N
       `).catch(() => {});
       const [dbProfile] = await db.select().from(userProfilesTable).where(eq(userProfilesTable.userId, userId));
       if (dbProfile) {
-        extractAndSaveMemories(userId, [{ role: "user", content: body.data.content }, { role: "assistant", content: agentResponse }], dbProfile.memories || "").catch(() => {});
+        extractAndSaveMemories(userId, [{ role: "user", content: body.data.content }, { role: "assistant", content: agentResponse }], dbProfile.memories || "");
       }
     }
     return;
   }
   // ── End owner agentic loop ──────────────────────────────────────────────────
-
-  // ── Think mode — claude-3-7-sonnet with extended reasoning ──────────────────
-  if (mode === "think") {
-    try {
-      res.write(`data: ${JSON.stringify({ type: "action", label: "Extended reasoning engaged...", icon: "🧠", color: "hsl(270 70% 60%)" })}\n\n`);
-      const thinkStream = await openai.chat.completions.create({
-        model: "anthropic/claude-sonnet-4-5",
-        messages: [
-          { role: "system", content: systemPrompt },
-          ...chatMessages,
-        ],
-        stream: true,
-        max_tokens: 16000,
-      } as any) as unknown as AsyncIterable<any>;
-
-      for await (const chunk of thinkStream) {
-        const delta = chunk.choices?.[0]?.delta as any;
-        if (!delta) continue;
-        if (delta.thinking) {
-          res.write(`data: ${JSON.stringify({ type: "thinking_chunk", content: delta.thinking })}\n\n`);
-        }
-        if (delta.content) {
-          fullResponse += delta.content;
-          res.write(`data: ${JSON.stringify({ content: delta.content })}\n\n`);
-        }
-      }
-
-      if (fullResponse) {
-        res.write(`data: ${JSON.stringify({ type: "thinking_done" })}\n\n`);
-        await db.insert(messagesTable).values({ conversationId, role: "assistant", content: fullResponse });
-        if (fullResponse.length > 80) {
-          try {
-            const fuResult = await openai.chat.completions.create({
-              model: "anthropic/claude-haiku-4-5",
-              messages: [
-                { role: "system", content: 'Generate exactly 3 short follow-up questions (max 8 words each). Return ONLY valid JSON: {"questions": ["q1?", "q2?", "q3?"]}' },
-                { role: "user", content: fullResponse.slice(-700) },
-              ],
-              max_tokens: 110,
-            } as any);
-            const rawFu = fuResult.choices[0]?.message?.content || "";
-            const jm = rawFu.match(/\{[\s\S]*\}/);
-            if (jm) {
-              const parsed = JSON.parse(jm[0]);
-              const qs: string[] = Array.isArray(parsed.questions) ? parsed.questions.filter(Boolean).slice(0, 3) : [];
-              if (qs.length) res.write(`data: ${JSON.stringify({ type: "followups", questions: qs })}\n\n`);
-            }
-          } catch { }
-        }
-        res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
-        res.end();
-        if (userId) {
-          extractAndSaveMemories(userId, [...chatMessages, { role: "assistant", content: fullResponse }] as any, profile.memories).catch(() => {});
-          db.execute(sql`UPDATE ${userProfilesTable} SET daily_message_count = CASE WHEN daily_message_reset IS NULL OR DATE(daily_message_reset) != CURRENT_DATE THEN '1' ELSE CAST(CAST(daily_message_count AS INTEGER) + 1 AS TEXT) END, daily_message_reset = CASE WHEN daily_message_reset IS NULL OR DATE(daily_message_reset) != CURRENT_DATE THEN NOW() ELSE daily_message_reset END WHERE user_id = ${userId}`).catch(() => {});
-        }
-        return;
-      }
-    } catch (thinkErr: any) {
-      console.error("Think mode failed, falling back to Perplexity:", thinkErr?.message);
-    }
-  }
-
-  // ── Research mode — domain search augmentation (PubMed + arXiv) ─────────────
-  if (mode === "research") {
-    try {
-      const query = body.data.content?.slice(0, 300) ?? "";
-      res.write(`data: ${JSON.stringify({ type: "action", label: "Searching PubMed...", icon: "🔬", color: "hsl(193 100% 52%)" })}\n\n`);
-      res.write(`data: ${JSON.stringify({ type: "action", label: "Searching arXiv...", icon: "📄", color: "hsl(193 100% 52%)" })}\n\n`);
-      const [pubmedResults, arxivResults] = await Promise.all([searchPubMed(query), searchArXiv(query)]);
-      const domainContext: string[] = [];
-      if (pubmedResults) domainContext.push(`## PubMed Results\n${pubmedResults}`);
-      if (arxivResults) domainContext.push(`## arXiv Results\n${arxivResults}`);
-      if (domainContext.length > 0) {
-        const lastIdx = chatMessages.length - 1;
-        if (lastIdx >= 0 && chatMessages[lastIdx].role === "user") {
-          chatMessages[lastIdx] = {
-            role: "user",
-            content: `${chatMessages[lastIdx].content}\n\n---\n[Academic Search Results — use these as primary sources]\n\n${domainContext.join("\n\n")}`,
-          };
-        }
-        res.write(`data: ${JSON.stringify({ type: "action", label: `${(pubmedResults ? 1 : 0) + (arxivResults ? 1 : 0)} academic sources loaded`, icon: "✅", color: "hsl(142 71% 45%)" })}\n\n`);
-      }
-    } catch (domainErr: any) {
-      console.error("Domain search failed:", domainErr?.message);
-    }
-  }
 
   try {
     // Primary: perplexity/sonar (has built-in real-time web search, works via OpenRouter Chat Completions)
     // Fallback: anthropic/claude-3-5-sonnet (no live search but excellent reasoning)
     let streamSucceeded = false;
 
-  // ── Owner agentic loop (Garry only) ────────────────────────────────────────
-  console.log(`[chat] userId="${userId}" conversationId=${conversationId}`);
-  if (userId === "garry") {
-    console.log(`[owner-loop] Garry detected — entering owner agentic loop`);
-    // Load recent messages from previous conversations for cross-session replay
-    const prevMessages = await loadCrossSessionContext(userId, 25, conversationId);
-    const crossSessionBlock = prevMessages.length > 0
-      ? `\n\n## PREVIOUS CONVERSATION CONTEXT (last ${prevMessages.length} messages across sessions)\nThis is what you and Garry discussed recently — you were there, this is your memory:\n\n${prevMessages.map(m => `${m.role === "user" ? "Garry" : "Sirius"}: ${m.content.slice(0, 400)}`).join("\n")}\n`
-      : "";
-
-    const OWNER_TOOLS: any[] = [
-      {
-        type: "function",
-        function: {
-          name: "search_web",
-          description: "Search the web for current, live information. Use for news, research, prices, facts, anything that may have changed since training.",
-          parameters: {
-            type: "object",
-            properties: {
-              query: { type: "string", description: "The search query" },
-            },
-            required: ["query"],
-          },
-        },
-      },
-      {
-        type: "function",
-        function: {
-          name: "read_source_file",
-          description: "Read a file from Sirius's own source code on the server. Use before modifying any file — always read it first to get the exact current content. Reads from /opt/sirius-source/artifacts/api-server/.",
-          parameters: {
-            type: "object",
-            properties: {
-              path: { type: "string", description: "Path relative to artifacts/api-server/ e.g. 'src/routes/openai/index.ts' or 'src/lib/memory.ts'" },
-            },
-            required: ["path"],
-          },
-        },
-      },
-      {
-        type: "function",
-        function: {
-          name: "server_diagnostic",
-          description: "Run a safe diagnostic command against the live production server. Use this to verify what is actually running — NOT execute_code (which is isolated and has no server access). Commands: bundle_contains (grep compiled bundle for a string), pm2_status, pm2_logs, health_check, list_backups, list_source_files.",
-          parameters: {
-            type: "object",
-            properties: {
-              command: {
-                type: "string",
-                enum: ["bundle_contains", "pm2_status", "pm2_logs", "health_check", "list_backups", "list_source_files"],
-                description: "Which diagnostic to run",
-              },
-              arg: { type: "string", description: "For bundle_contains: the string to search for. For pm2_logs: number of lines. For list_source_files: subdirectory path." },
-            },
-            required: ["command"],
-          },
-        },
-      },
-      {
-        type: "function",
-        function: {
-          name: "execute_code",
-          description: "Execute JavaScript or Python in a COMPLETELY ISOLATED Docker sandbox. This sandbox has NO access to the server filesystem, NO network, NO PM2, NO production files. Use it ONLY to test pure logic, algorithms, or calculations. DO NOT use it to check if something is running on the server — use server_diagnostic for that.",
-          parameters: {
-            type: "object",
-            properties: {
-              code: { type: "string", description: "Code to run" },
-              language: { type: "string", enum: ["javascript", "python"] },
-            },
-            required: ["code", "language"],
-          },
-        },
-      },
-      {
-        type: "function",
-        function: {
-          name: "propose_code_change",
-          description: "Propose a change to Sirius's own source code. Pipeline: AI review (GPT-4o) → TypeScript check → build → backup → deploy → PM2 reload. Always read_source_file first. Provide the COMPLETE new file content. Protected files that can never be changed: src/app.ts, src/middlewares/security.ts, src/lib/lab-auth.ts, build.ts, src/index.ts, src/routes/index.ts.",
-          parameters: {
-            type: "object",
-            properties: {
-              filePath: { type: "string", description: "Path relative to artifacts/api-server/ e.g. 'src/lib/my-feature.ts'. Only src/ files." },
-              newContent: { type: "string", description: "Complete new file content — not a snippet." },
-              description: { type: "string", description: "Specific explanation of what changed and why. The reviewer reads this." },
-            },
-            required: ["filePath", "newContent", "description"],
-          },
-        },
-      },
-    {
-      type: "function",
-      function: {
-        name: "patch_source_file",
-        description: "Apply a small targeted patch to a source file — like a precise find-and-replace. old_string MUST appear exactly once. Goes through the same review+build+deploy pipeline as propose_code_change. Use this for large files where rewriting the whole file is impractical.",
-        parameters: {
-          type: "object",
-          properties: {
-            filePath: { type: "string", description: "Path relative to artifacts/api-server/ e.g. 'src/lib/mnemosyne.ts'" },
-            oldString: { type: "string", description: "Exact string to replace — must appear exactly once in the file, including all whitespace and indentation." },
-            newString: { type: "string", description: "The replacement string." },
-            description: { type: "string", description: "What this change does and why. The reviewer reads this." },
-          },
-          required: ["filePath", "oldString", "newString", "description"],
-        },
-      },
-    },
-    {
-      type: "function",
-      function: {
-        name: "generate_image",
-        description: "Generate an image from a text description. Use whenever Garry asks you to draw, create, visualise, show, render, or make any kind of image, picture, or visual.",
-        parameters: {
-          type: "object",
-          properties: {
-            prompt: { type: "string", description: "Detailed, descriptive image generation prompt. Include style, composition, colours, and subject matter." },
-          },
-          required: ["prompt"],
-        },
-      },
-    },
-    ];
-
-    const ownerSystemPrompt = systemPrompt + crossSessionBlock + `
-
-## OWNER MODE — CAPABILITIES OVERRIDE
-
-The capabilities list earlier in this prompt is the PUBLIC list for regular users. You are talking to Garry — your owner. Your actual capabilities for this conversation are DIFFERENT and EXTENDED. The instruction to "answer from the list specifically" does not apply here. When Garry asks what you can do, describe what is listed below — not the public list.
-
-## YOUR REAL TOOLS (execute on the live production server)
-
-- **server_diagnostic(command)** — runs against the LIVE SERVER in-process. Commands: pm2_status, pm2_logs, health_check, bundle_contains(pattern), list_backups, list_source_files(subdir). This is how you check what is actually running.
-- **read_source_file(path)** — reads actual TypeScript source from /opt/sirius-source/artifacts/api-server/. Always do this BEFORE any code change.
-- **patch_source_file(filePath, oldString, newString, description)** — targeted find-and-replace on an existing file, then full AI review → build → deploy → PM2 reload. Use for any file over ~100 lines. oldString must appear EXACTLY ONCE in the file.
-- **propose_code_change(filePath, newContent, description)** — full file replacement through the same pipeline. Only practical for small new files (<100 lines).
-- **execute_code(code, language)** — isolated Docker sandbox, NO server access. Only use to test pure logic/algorithms.
-- **search_web(query)** — Perplexity live web search.
-- **generate_image(prompt)** — generates a real image and displays it inline in the chat. Use this whenever Garry asks to draw, create, visualise, show, render, or make any kind of image, picture, diagram, or visual. Do not describe what you would draw — just call the tool immediately.
-
-## REPORTING RULE — NON-NEGOTIABLE
-
-When you run tools and receive results, you MUST report ALL findings completely and inline in your final response. Do not say "what would you like to know from what I found." Do not summarise vaguely. Do not defer. The user already told you what they want — give them everything you found. If you ran 9 tools, report all 9 results.
-
-IMPORTANT: The compiled bundle is MINIFIED — function names disappear. To verify something is deployed, search for ERROR MESSAGE STRINGS or unique string literals with bundle_contains, not function names.
-
-LOOP PREVENTION: If you have already called a tool and received its result, do NOT call the same tool with the same arguments again. Act on what you find. Report it. Stop.`;
-
-    let agentMessages: any[] = [
-      { role: "system", content: ownerSystemPrompt },
-      ...chatMessages,
-    ];
-
-    let agentResponse = "";
-    const MAX_ROUNDS = 8;
-
-    for (let round = 0; round < MAX_ROUNDS; round++) {
-      const completion = await openai.chat.completions.create({
-        model: "anthropic/claude-sonnet-4.5",
-        messages: agentMessages,
-        tools: OWNER_TOOLS,
-        tool_choice: "auto",
-        stream: true,
-        max_tokens: 8000,
-      } as any) as unknown as AsyncIterable<any>;
-
-      let roundContent = "";
-      const toolCallBuffers: Record<number, { id: string; name: string; arguments: string }> = {};
-      let finishReason = "";
-
-      for await (const chunk of completion) {
-        const choice = chunk.choices?.[0];
-        if (!choice) continue;
-        finishReason = choice.finish_reason || finishReason;
-
-        if (choice.delta?.content) {
-          roundContent += choice.delta.content;
-          agentResponse += choice.delta.content;
-          res.write(`data: ${JSON.stringify({ content: choice.delta.content })}\n\n`);
-        }
-        if (choice.delta?.tool_calls) {
-          for (const tc of choice.delta.tool_calls) {
-            const idx = tc.index ?? 0;
-            if (!toolCallBuffers[idx]) toolCallBuffers[idx] = { id: "", name: "", arguments: "" };
-            if (tc.id) toolCallBuffers[idx].id = tc.id;
-            if (tc.function?.name) toolCallBuffers[idx].name = tc.function.name;
-            if (tc.function?.arguments) toolCallBuffers[idx].arguments += tc.function.arguments;
-          }
-        }
-      }
-
-      const toolCalls = Object.values(toolCallBuffers);
-
-      if (finishReason !== "tool_calls" || toolCalls.length === 0) break;
-
-      const toolResults: any[] = [];
-
-      const say = (text: string) => res.write(`data: ${JSON.stringify({ content: text })}\n\n`);
-
-      for (const tc of toolCalls) {
-        let args: any = {};
-        try { args = JSON.parse(tc.arguments); } catch { /* ignore */ }
-
-        if (tc.name === "search_web") {
-          const { query } = args;
-          say(`\n\n🔍 *Searching: "${query}"*\n`);
-          res.write(`data: ${JSON.stringify({ type: "searching", query })}\n\n`);
-          try {
-            const sonarRes = await openai.chat.completions.create({
-              model: "perplexity/sonar",
-              messages: [{ role: "user", content: query }],
-              max_tokens: 1200,
-            } as any) as any;
-            const sonarText = sonarRes.choices?.[0]?.message?.content ?? "No results.";
-            say(`✅ *Search complete — got results*\n`);
-            toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: `Search results for "${query}":\n\n${sonarText}` });
-          } catch {
-            say(`⚠️ *Search failed — using training knowledge*\n`);
-            toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: "Search failed. Use your training knowledge." });
-          }
-
-        } else if (tc.name === "read_source_file") {
-          const { path } = args;
-          say(`\n\n📄 *Reading: ${path}*\n`);
-          res.write(`data: ${JSON.stringify({ type: "reading_file", path })}\n\n`);
-          try {
-            const content = await readSourceFile(path);
-            say(`✅ *File loaded — ${content.split("\n").length} lines*\n`);
-            toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: `File: ${path}\n\`\`\`typescript\n${content}\n\`\`\`` });
-          } catch (e: any) {
-            say(`❌ *Could not read ${path}: ${e.message}*\n`);
-            toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: `Error reading ${path}: ${e.message}` });
-          }
-
-        } else if (tc.name === "server_diagnostic") {
-          const { command, arg } = args;
-          say(`\n\n🖥️ *Running diagnostic: ${command}${arg ? ` (${arg})` : ""}*\n`);
-          res.write(`data: ${JSON.stringify({ type: "running_diagnostic", command })}\n\n`);
-          const result = await runServerDiagnostic(command, arg);
-          say(`✅ *Diagnostic complete*\n`);
-          toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: result });
-
-        } else if (tc.name === "execute_code") {
-          const { code, language } = args;
-          say(`\n\n⚙️ *Running ${language} code in sandbox*\n`);
-          res.write(`data: ${JSON.stringify({ type: "executing_code", language })}\n\n`);
-          const result = await executeCode(code, language);
-          const output = result.success
-            ? `Output:\n${result.stdout}${result.stderr ? `\nStderr:\n${result.stderr}` : ""}`
-            : `Execution failed: ${result.error}\n${result.stderr}`;
-          say(result.success ? `✅ *Code ran successfully*\n` : `❌ *Execution failed*\n`);
-          toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: output });
-
-        } else if (tc.name === "propose_code_change") {
-          const { filePath, newContent, description } = args;
-          say(`\n\n🔧 *Proposing change to ${filePath}*\n⏳ *Running review → build → deploy pipeline...*\n`);
-          res.write(`data: ${JSON.stringify({ type: "proposing_change", filePath })}\n\n`);
-          const apiKey = process.env.ANTHROPIC_API_KEY || process.env.OPENROUTER_API_KEY || "";
-          const result = await deployChange({ filePath, newContent, description, apiKey });
-
-          let resultMsg = result.success
-            ? `✅ DEPLOYED: ${result.reviewSummary || description}. Sirius reloading in ~3 seconds.`
-            : `❌ REJECTED at [${result.stage}]: ${result.message}${result.typecheckErrors ? `\n\nTypeScript errors:\n${result.typecheckErrors}` : ""}${result.reviewConcerns?.length ? `\n\nReviewer concerns:\n${result.reviewConcerns.join("\n")}` : ""}`;
-
-          say(result.success ? `✅ *Deployed successfully — reloading*\n` : `❌ *Rejected at [${result.stage}]*\n`);
-          res.write(`data: ${JSON.stringify({ type: "deploy_result", success: result.success, stage: result.stage })}\n\n`);
-          toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: resultMsg });
-
-          if (result.success) {
-            setTimeout(() => triggerReload().catch(() => {}), 3000);
-          }
-
-        } else if (tc.name === "patch_source_file") {
-          const { filePath, oldString, newString, description } = args;
-          say(`\n\n🩹 *Patching ${filePath}*\n⏳ *Running review → build → deploy pipeline...*\n`);
-          res.write(`data: ${JSON.stringify({ type: "proposing_change", filePath })}\n\n`);
-          const apiKey = process.env.ANTHROPIC_API_KEY || process.env.OPENROUTER_API_KEY || "";
-          const result = await patchSourceFile({ filePath, oldString, newString, description, apiKey });
-
-          let resultMsg = result.success
-            ? `✅ PATCHED & DEPLOYED: ${result.reviewSummary || description}. Sirius reloading in ~3 seconds.`
-            : `❌ PATCH REJECTED at [${result.stage}]: ${result.message}${result.typecheckErrors ? `\n\nTypeScript errors:\n${result.typecheckErrors}` : ""}${result.reviewConcerns?.length ? `\n\nReviewer concerns:\n${result.reviewConcerns.join("\n")}` : ""}`;
-
-          say(result.success ? `✅ *Patch deployed — reloading*\n` : `❌ *Patch rejected at [${result.stage}]*\n`);
-          res.write(`data: ${JSON.stringify({ type: "deploy_result", success: result.success, stage: result.stage })}\n\n`);
-          toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: resultMsg });
-
-          if (result.success) {
-            setTimeout(() => triggerReload().catch(() => {}), 3000);
-          }
-
-        } else if (tc.name === "generate_image") {
-          const { prompt } = args;
-          say(`\n\n🎨 *Generating image...*\n`);
-          console.log(`[owner-loop] generate_image called — prompt: "${String(prompt).slice(0, 80)}"`);
-          res.write(`data: ${JSON.stringify({ type: "action", label: "Generating image…", icon: "🎨", color: "hsl(280,80%,55%)" })}\n\n`);
-          try {
-            const imageBuffer = await generateImageBuffer(prompt as string, "1024x1024");
-            const b64 = imageBuffer.toString("base64");
-            const mimeType = imageBuffer[0] === 0xFF && imageBuffer[1] === 0xD8 ? "image/jpeg" : "image/png";
-            res.write(`data: ${JSON.stringify({ type: "image", b64, mimeType, prompt })}\n\n`);
-            toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: `Image generated successfully and displayed to Garry.` });
-          } catch (imgErr: any) {
-            console.error("[image] generate_image tool failed:", imgErr?.message);
-            say(`❌ *Image generation failed*\n`);
-            res.write(`data: ${JSON.stringify({ type: "image_error", message: "Image generation failed — please try again." })}\n\n`);
-            toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: `Image generation failed: ${imgErr?.message}` });
-          }
-        }
-      }
-
-      agentMessages = [
-        ...agentMessages,
-        {
-          role: "assistant" as const,
-          content: roundContent || null,
-          tool_calls: toolCalls.map(tc => ({ id: tc.id, type: "function" as const, function: { name: tc.name, arguments: tc.arguments } })),
-        },
-        ...toolResults,
-      ];
-    }
-
-    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
-    res.end();
-
-    // Save response and extract memories
-    if (agentResponse) {
-      await db.insert(messagesTable).values({ conversationId, role: "assistant", content: agentResponse });
-      await db.execute(sql`
-        UPDATE ${userProfilesTable}
-        SET
-          daily_message_count = CASE
-            WHEN daily_message_reset IS NULL OR DATE(daily_message_reset) != CURRENT_DATE
-            THEN '1'
-            ELSE CAST(CAST(daily_message_count AS INTEGER) + 1 AS TEXT)
-          END,
-          daily_message_reset = CASE
-            WHEN daily_message_reset IS NULL OR DATE(daily_message_reset) != CURRENT_DATE
-            THEN NOW()
-            ELSE daily_message_reset
-          END
-        WHERE user_id = ${userId}
-      `).catch(() => {});
-      const [dbProfile] = await db.select().from(userProfilesTable).where(eq(userProfilesTable.userId, userId));
-      if (dbProfile) {
-        extractAndSaveMemories(userId, [{ role: "user", content: body.data.content }, { role: "assistant", content: agentResponse }], dbProfile.memories || "").catch(() => {});
-      }
-    }
-    return;
-  }
-  // ── End owner agentic loop ──────────────────────────────────────────────────
-
-  // ── Think mode — claude-3-7-sonnet with extended reasoning ──────────────────
-  if (mode === "think") {
     try {
-      res.write(`data: ${JSON.stringify({ type: "action", label: "Extended reasoning engaged...", icon: "🧠", color: "hsl(270 70% 60%)" })}\n\n`);
-      const thinkStream = await openai.chat.completions.create({
-        model: "anthropic/claude-sonnet-4.5",
+      // Signal that we're searching
+      res.write(`data: ${JSON.stringify({ type: "searching" })}\n\n`);
+
+      const sonarStream = await openai.chat.completions.create({
+        model: "perplexity/sonar",
         messages: [
           { role: "system", content: systemPrompt },
           ...chatMessages,
         ],
         stream: true,
-        max_tokens: 16000,
+        max_tokens: 1800,
+        signal: AbortSignal.timeout(45_000),
       } as any) as unknown as AsyncIterable<any>;
 
-      for await (const chunk of thinkStream) {
-        const delta = chunk.choices?.[0]?.delta as any;
-        if (!delta) continue;
-        if (delta.thinking) {
-          res.write(`data: ${JSON.stringify({ type: "thinking_chunk", content: delta.thinking })}\n\n`);
-        }
-        if (delta.content) {
-          fullResponse += delta.content;
-          res.write(`data: ${JSON.stringify({ content: delta.content })}\n\n`);
+      for await (const chunk of sonarStream) {
+        const delta = (chunk as any).choices?.[0]?.delta?.content;
+        if (delta) {
+          streamSucceeded = true;
+          fullResponse += delta;
+          res.write(`data: ${JSON.stringify({ content: delta })}\n\n`);
         }
       }
 
-      if (fullResponse) {
-        res.write(`data: ${JSON.stringify({ type: "thinking_done" })}\n\n`);
-        await db.insert(messagesTable).values({ conversationId, role: "assistant", content: fullResponse });
-        if (fullResponse.length > 80) {
-          try {
-            const fuResult = await openai.chat.completions.create({
-              model: "anthropic/claude-haiku-4.5",
-              messages: [
-                { role: "system", content: 'Generate exactly 3 short follow-up questions (max 8 words each). Return ONLY valid JSON: {"questions": ["q1?", "q2?", "q3?"]}' },
-                { role: "user", content: fullResponse.slice(-700) },
-              ],
-              max_tokens: 110,
-            } as any);
-            const rawFu = fuResult.choices[0]?.message?.content || "";
-            const jm = rawFu.match(/\{[\s\S]*\}/);
-            if (jm) {
-              const parsed = JSON.parse(jm[0]);
-              const qs: string[] = Array.isArray(parsed.questions) ? parsed.questions.filter(Boolean).slice(0, 3) : [];
-              if (qs.length) res.write(`data: ${JSON.stringify({ type: "followups", questions: qs })}\n\n`);
-            }
-          } catch { }
-        }
-        res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
-        res.end();
-        if (userId) {
-          extractAndSaveMemories(userId, [...chatMessages, { role: "assistant", content: fullResponse }] as any, profile.memories).catch(() => {});
-          db.execute(sql`UPDATE ${userProfilesTable} SET daily_message_count = CASE WHEN daily_message_reset IS NULL OR DATE(daily_message_reset) != CURRENT_DATE THEN '1' ELSE CAST(CAST(daily_message_count AS INTEGER) + 1 AS TEXT) END, daily_message_reset = CASE WHEN daily_message_reset IS NULL OR DATE(daily_message_reset) != CURRENT_DATE THEN NOW() ELSE daily_message_reset END WHERE user_id = ${userId}`).catch(() => {});
-        }
-        return;
-      }
-    } catch (thinkErr: any) {
-      console.error("Think mode failed, falling back to Perplexity:", thinkErr?.message);
-    }
-  }
+    } catch (sonarErr: any) {
+      console.error("Perplexity sonar failed, falling back to Claude:", sonarErr?.message);
 
-  // ── Research mode — domain search augmentation (PubMed + arXiv) ─────────────
-  if (mode === "research") {
-    try {
-      const query = body.data.content?.slice(0, 300) ?? "";
-      res.write(`data: ${JSON.stringify({ type: "action", label: "Searching PubMed...", icon: "🔬", color: "hsl(193 100% 52%)" })}\n\n`);
-      res.write(`data: ${JSON.stringify({ type: "action", label: "Searching arXiv...", icon: "📄", color: "hsl(193 100% 52%)" })}\n\n`);
-      const [pubmedResults, arxivResults] = await Promise.all([searchPubMed(query), searchArXiv(query)]);
-      const domainContext: string[] = [];
-      if (pubmedResults) domainContext.push(`## PubMed Results\n${pubmedResults}`);
-      if (arxivResults) domainContext.push(`## arXiv Results\n${arxivResults}`);
-      if (domainContext.length > 0) {
-        const lastIdx = chatMessages.length - 1;
-        if (lastIdx >= 0 && chatMessages[lastIdx].role === "user") {
-          chatMessages[lastIdx] = {
-            role: "user",
-            content: `${chatMessages[lastIdx].content}\n\n---\n[Academic Search Results — use these as primary sources]\n\n${domainContext.join("\n\n")}`,
-          };
-        }
-        res.write(`data: ${JSON.stringify({ type: "action", label: `${(pubmedResults ? 1 : 0) + (arxivResults ? 1 : 0)} academic sources loaded`, icon: "✅", color: "hsl(142 71% 45%)" })}\n\n`);
-      }
-    } catch (domainErr: any) {
-      console.error("Domain search failed:", domainErr?.message);
-    }
-  }
-
-  // ── Smart search routing — only call Perplexity when live data is genuinely needed ──
-  // Returns true → use Perplexity sonar. Returns false → answer directly with Claude.
-  function needsSearch(text: string, hasDoc: boolean, hasImage: boolean): boolean {
-    if (hasDoc || hasImage) return false;  // document/image analysis — Claude handles it directly
-
-    const q = text.toLowerCase().trim();
-
-    // Pure arithmetic / maths — never search
-    if (/^[\d\s\+\-\*\/\(\)\^\.\,\%=?]+$/.test(q)) return false;
-    if (/\b(what\s+is\s+[\d\s\+\-\*\/\(\)\^\.\,\%]+|calculate|compute|solve|simplify|evaluate|derivative|integral|equation)\b/.test(q)) return false;
-    if (/^\d[\d\s\+\-\*\×\÷\/\(\)\^\.]*[\+\-\*\×\÷\/\^][\d\s\+\-\*\×\÷\/\(\)\^\.]*[=?]?\s*$/.test(q)) return false;
-
-    // Coding — Claude is better; no live data needed
-    if (/\b(write\s+(a\s+)?(function|code|script|class|component|sql|query)|debug\s+(this|my)|fix\s+(this|my|the)\s+(code|bug|error)|how\s+do\s+i\s+(implement|code|program)|explain\s+(this\s+)?(code|function|algorithm))\b/.test(q)) return false;
-
-    // Document / file analysis queries
-    if (/\b(this\s+document|this\s+file|the\s+document|uploaded\s+(file|document)|analyse\s+this|analyze\s+this|summarise\s+this|summarize\s+this|read\s+this)\b/.test(q)) return false;
-
-    // Follow-ups referencing prior conversation
-    if (/^(yes|no|ok|okay|sure|thanks|thank you|got it|sounds good|perfect|great|continue|go on|and\?|what about|tell me more|elaborate|explain more|why|how so|can you|could you|please|hmm|interesting)\b/.test(q)) return false;
-    if (/\b(you (just|said|mentioned|told|explained)|as (you|we) (said|discussed|mentioned)|from (what|your) (you )?(said|mentioned)|earlier you|previously you|what we (were|just) (discussing|talking))\b/.test(q)) return false;
-
-    // Editing / writing / creative tasks — self-contained
-    if (/\b(write (me |a |an |the )?(email|letter|essay|summary|caption|bio|description|reply|message|paragraph|story|poem)|improve (this|my)|rewrite|rephrase|proofread|translate (this|the|my))\b/.test(q)) return false;
-
-    // Needs live data — always search
-    if (/\b(latest|breaking|just announced|right now|as of today|live (price|score|rate|update)|today'?s? (news|price|score|weather|rate)|current (price|score|news|event|rate|status)|stock\s+price|exchange\s+rate|weather\s+(in|at|for)|is\s+.+\s+open\s+(right\s+now|today)|score\s+(of|for)\s+the\s+(game|match))\b/.test(q)) return true;
-    if (/\b(news|just\s+happened|who\s+won|what\s+happened|recent\s+(news|event|update|development|change)|this\s+week('?s)?|this\s+month('?s)?|in\s+2025|in\s+2026)\b/.test(q)) return true;
-
-    // Specific URL / site content
-    if (/https?:\/\//.test(q) && !/youtube\.com|youtu\.be/.test(q)) return true; // YouTube handled separately above
-
-    // Default: most conversational, factual, and reasoning queries go to Claude
-    return false;
-  }
-
-  const userText = body.data.content ?? "";
-  const hasDocAttachment = allDocuments.length > 0;
-  const hasImageAttachment = !!imageBase64;
-  const shouldSearch = (mode === "research") ? false : needsSearch(userText, hasDocAttachment, hasImageAttachment);
-
-  try {
-    let streamSucceeded = false;
-
-    if (shouldSearch) {
-      // ── Perplexity sonar — live web search ────────────────────────────────
+      // Fallback to Claude Sonnet via OpenRouter
       try {
         const claudeStream = await openai.chat.completions.create({
-          model: "anthropic/claude-sonnet-4-5",
+          model: "anthropic/claude-sonnet-4-6",
           messages: [
             { role: "system", content: systemPrompt },
             ...chatMessages,
           ],
           stream: true,
           max_tokens: 1800,
-          signal: AbortSignal.timeout(45_000),
-        } as any) as unknown as AsyncIterable<any>;
-
-        for await (const chunk of sonarStream) {
-          const delta = (chunk as any).choices?.[0]?.delta?.content;
-          if (delta) {
-            streamSucceeded = true;
-            fullResponse += delta;
-            res.write(`data: ${JSON.stringify({ content: delta })}\n\n`);
-          }
-        }
-      } catch (sonarErr: any) {
-        console.error("Perplexity sonar failed, falling back to Claude:", sonarErr?.message);
-      }
-    }
-
-    // ── Claude — direct answer (no search) or Perplexity fallback ─────────
-    if (!streamSucceeded) {
-      try {
-        const claudeStream = await openai.chat.completions.create({
-          model: "anthropic/claude-sonnet-4.5",
-          messages: [
-            { role: "system", content: systemPrompt },
-            ...chatMessages,
-          ],
-          stream: true,
-          max_tokens: 2400,
           signal: AbortSignal.timeout(45_000),
         } as any) as unknown as AsyncIterable<any>;
 
@@ -2267,10 +1390,11 @@ LOOP PREVENTION: If you have already called a tool and received its result, do N
           }
         }
       } catch (claudeErr: any) {
-        console.error("Claude stream failed:", claudeErr?.message);
+        console.error("Claude fallback also failed:", claudeErr?.message);
       }
     }
 
+    // If both models failed, send a clear error message to the user
     if (!streamSucceeded) {
       const errMsg = "I'm having trouble connecting right now — please try again in a moment.";
       fullResponse = errMsg;
@@ -2289,55 +1413,16 @@ LOOP PREVENTION: If you have already called a tool and received its result, do N
     });
   }
 
-  // --- Image generation ---
-  // Primary: Sirius outputs [IMAGE: description] marker in its response.
-  // Fallback: user's message matches image-request keywords.
-  const imageMarkerMatch = fullResponse?.match(/\[IMAGE:\s*([\s\S]+?)\]/i);
-  const userWantsImage = !imageMarkerMatch && isImageRequest(body.data.content);
-
-  if (imageMarkerMatch || userWantsImage) {
-    const imagePrompt = imageMarkerMatch
-      ? imageMarkerMatch[1].trim()
-      : body.data.content;
-
-    // Strip the [IMAGE: ...] marker from the displayed text so users never see it
-    if (imageMarkerMatch && fullResponse) {
-      const cleanedResponse = fullResponse.replace(/\s*\[IMAGE:\s*[\s\S]+?\]\s*/i, "").trim();
-      res.write(`data: ${JSON.stringify({ type: "replace_content", content: cleanedResponse })}\n\n`);
-    }
-
+  // Generate image if requested
+  if (isImageRequest(body.data.content)) {
     try {
       res.write(`data: ${JSON.stringify({ type: "image_generating" })}\n\n`);
-      const imageBuffer = await generateImageBuffer(imagePrompt, "1024x1024");
+      const imageBuffer = await generateImageBuffer(body.data.content, "1024x1024");
       const b64 = imageBuffer.toString("base64");
-      res.write(`data: ${JSON.stringify({ type: "image", b64, prompt: imagePrompt })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: "image", b64, prompt: body.data.content })}\n\n`);
     } catch (imgErr: any) {
       console.error("Image generation failed:", imgErr?.message);
-      res.write(`data: ${JSON.stringify({ type: "image_error", message: "I wasn't able to generate that image. Please try again." })}\n\n`);
     }
-  }
-
-  // Generate follow-up question suggestions (lightweight, fast, non-blocking)
-  if (fullResponse && fullResponse.length > 80 && !isImageRequest(body.data.content)) {
-    try {
-      const fuResult = await openai.chat.completions.create({
-        model: "anthropic/claude-haiku-4-5",
-        messages: [
-          { role: "system", content: 'Based on this AI response, generate exactly 3 short follow-up questions (max 8 words each) the user might naturally want to ask next. Return ONLY valid JSON: {"questions": ["question one?", "question two?", "question three?"]}' },
-          { role: "user", content: fullResponse.slice(-700) },
-        ],
-        max_tokens: 110,
-      } as any);
-      const rawFu = fuResult.choices[0]?.message?.content || "";
-      const jsonMatch = rawFu.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        const questions: string[] = Array.isArray(parsed.questions) ? parsed.questions.filter(Boolean).slice(0, 3) : [];
-        if (questions.length > 0) {
-          res.write(`data: ${JSON.stringify({ type: "followups", questions })}\n\n`);
-        }
-      }
-    } catch { /* follow-ups are non-critical — never break the response */ }
   }
 
   res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
@@ -2377,18 +1462,69 @@ LOOP PREVENTION: If you have already called a tool and received its result, do N
   }
 });
 
-
-router.post("/openai/run-code", async (req, res): Promise<void> => {
-  const { code, language } = req.body;
-  if (!code || !["javascript", "python"].includes(language)) {
-    res.status(400).json({ error: "Invalid code or language. Supported: javascript, python." });
-    return;
-  }
+router.get("/openai/spotify/now-playing", async (_req, res): Promise<void> => {
   try {
-    const result = await executeCode(code as string, language as "javascript" | "python");
-    res.json(result);
+    const spotify = await getUncachableSpotifyClient();
+    const playback = await spotify.player.getCurrentlyPlayingTrack();
+
+    if (!playback || !playback.item) {
+      res.json({ isPlaying: false, trackName: "", artistName: "", albumName: "", albumArt: null, trackUrl: "", progressMs: 0, durationMs: 0 });
+      return;
+    }
+
+    const track = playback.item as any;
+    const artists = track.artists?.map((a: any) => a.name).join(", ") ?? "";
+    const albumArt = track.album?.images?.[0]?.url ?? null;
+
+    res.json({
+      isPlaying: playback.is_playing,
+      trackName: track.name ?? "",
+      artistName: artists,
+      albumName: track.album?.name ?? "",
+      albumArt,
+      trackUrl: track.external_urls?.spotify ?? "",
+      progressMs: (playback as any).progress_ms ?? 0,
+      durationMs: track.duration_ms ?? 0,
+    });
   } catch (err: any) {
-    res.status(500).json({ error: err?.message || "Execution failed" });
+    res.status(503).json({ error: "Spotify not available", detail: err?.message });
+  }
+});
+
+router.get("/openai/spotify/recently-played", async (_req, res): Promise<void> => {
+  try {
+    const spotify = await getUncachableSpotifyClient();
+    const recent = await spotify.player.getRecentlyPlayedTracks(10);
+
+    const tracks = (recent.items ?? []).map((item: any) => ({
+      trackName: item.track?.name ?? "",
+      artistName: item.track?.artists?.map((a: any) => a.name).join(", ") ?? "",
+      albumArt: item.track?.album?.images?.[0]?.url ?? null,
+      trackUrl: item.track?.external_urls?.spotify ?? "",
+      playedAt: item.played_at,
+    }));
+
+    res.json(tracks);
+  } catch (err: any) {
+    res.status(503).json({ error: "Spotify not available", detail: err?.message });
+  }
+});
+
+router.get("/openai/spotify/top-tracks", async (_req, res): Promise<void> => {
+  try {
+    const spotify = await getUncachableSpotifyClient();
+    const top = await spotify.currentUser.topItems("tracks", "short_term", 5);
+
+    const tracks = (top.items ?? []).map((item: any) => ({
+      trackName: item.name ?? "",
+      artistName: item.artists?.map((a: any) => a.name).join(", ") ?? "",
+      albumArt: item.album?.images?.[0]?.url ?? null,
+      trackUrl: item.external_urls?.spotify ?? "",
+    }));
+
+    res.json(tracks);
+  } catch (err: any) {
+    res.status(503).json({ error: "Spotify not available", detail: err?.message });
   }
 });
 
@@ -2413,8 +1549,9 @@ router.post("/openai/transcribe", async (req, res): Promise<void> => {
   try {
     const rawBuffer = Buffer.from(audioBase64, "base64");
 
-    // Audio endpoints (Whisper, TTS) must use OpenAI directly — proxies like OpenRouter don't support them
-    const apiKey = process.env.OPENAI_API_KEY;
+    // Determine OpenAI base URL and key — prefer AI Integrations proxy, fall back to direct key
+    const baseURL = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
+    const apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
 
     if (!apiKey) {
       res.status(503).json({ error: "Transcription unavailable — no OpenAI key configured." });
@@ -2429,12 +1566,12 @@ router.post("/openai/transcribe", async (req, res): Promise<void> => {
     else if ((rawBuffer[0] === 0xff && rawBuffer[1] === 0xfb) || (rawBuffer[0] === 0x49 && rawBuffer[1] === 0x44)) ext = "mp3";
 
     const { default: OpenAI, toFile } = await import("openai");
-    const client = new OpenAI({ apiKey });
+    const client = new OpenAI({ apiKey, ...(baseURL ? { baseURL } : {}) });
 
     const file = await toFile(rawBuffer, `recording.${ext}`, { type: `audio/${ext === "mp4" ? "mp4" : ext}` });
     const transcript = await client.audio.transcriptions.create({
       file,
-      model: "whisper-1",
+      model: "gpt-4o-mini-transcribe",
     });
     res.json({ text: transcript.text });
   } catch (err: any) {
@@ -2443,78 +1580,39 @@ router.post("/openai/transcribe", async (req, res): Promise<void> => {
   }
 });
 
+const ALLOWED_TTS_VOICES = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"] as const;
 
-const OPENAI_TTS_VOICES = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"] as const;
-
-// ─── Piper/Jenny TTS — Sirius speaks as Jenny, always, no fallback ───────────
-async function speakWithJenny(text: string): Promise<string> {
-  const { spawn } = await import("child_process");
-  const { existsSync, mkdirSync } = await import("fs");
-  const { join } = await import("path");
-  const piperBin   = "/opt/piper/piper";
-  const jennyModel = "/opt/piper/voices/en_GB-jenny_dioco-medium.onnx";
-  const tmpDir = "/tmp/piper-audio";
-  if (!existsSync(tmpDir)) mkdirSync(tmpDir, { recursive: true });
-  const outFile = join(tmpDir, `jenny-${Date.now()}.wav`);
-  return new Promise((resolve, reject) => {
-    const proc = spawn(piperBin, ["--model", jennyModel, "--output_file", outFile], {
-      stdio: ["pipe", "pipe", "pipe"],
-    });
-    proc.stdout.resume(); // drain stdout to prevent buffer deadlock on long texts
-    let stderr = "";
-    proc.stderr.on("data", (d: Buffer) => { stderr += d.toString(); });
-    proc.stdin.write(text);
-    proc.stdin.end();
-    proc.on("close", (code: number) => {
-      if (code !== 0) return reject(new Error(`Piper exited ${code}: ${stderr}`));
-      if (!existsSync(outFile)) return reject(new Error("Piper output file missing"));
-      resolve(outFile);
-    });
-    proc.on("error", (e: Error) => reject(new Error(`Piper spawn error: ${e.message}`)));
-  });
-}
-
-async function streamWavFile(filePath: string, res: import("express").Response): Promise<void> {
-  const { createReadStream, statSync, unlinkSync } = await import("fs");
-  const stat = statSync(filePath);
-  res.set("Content-Type", "audio/wav");
-  res.set("Content-Length", String(stat.size));
-  res.set("Cache-Control", "no-cache");
-  const stream = createReadStream(filePath);
-  stream.pipe(res);
-  res.on("finish", () => { try { unlinkSync(filePath); } catch { /* ignore */ } });
-}
-
-// Piper TTS — British female Jenny voice (hardwired, no OpenAI)
 router.post("/openai/tts", async (req, res): Promise<void> => {
-  const { text } = req.body ?? {};
+  const { text, voice, language } = req.body ?? {};
   if (!text || typeof text !== "string") {
     res.status(400).json({ error: "text is required" });
     return;
   }
 
-  // If caller explicitly requests a valid OpenAI voice (e.g. topic-hub previews), honour it.
-  // In ALL other cases — including Sirius speaking as herself — use Piper/Jenny only. No fallback.
-  const isExplicitOpenAiVoice = OPENAI_TTS_VOICES.includes(voice as any);
-
-  if (!isExplicitOpenAiVoice) {
+  // If a specific voice is requested, use it; otherwise load Sirius's preferred voice from config
+  let resolvedVoice = ALLOWED_TTS_VOICES.includes(voice) ? voice : null;
+  if (!resolvedVoice) {
     try {
-      const wavPath = await speakWithJenny(text);
-      await streamWavFile(wavPath, res);
-    } catch (err: any) {
-      res.status(500).json({ error: "TTS generation failed", detail: err?.message });
+      const { db, siriusConfig } = await import("@workspace/db");
+      const { eq } = await import("drizzle-orm");
+      const rows = await db.select().from(siriusConfig).where(eq(siriusConfig.key, "tts_voice")).limit(1);
+      const saved = rows[0]?.value;
+      resolvedVoice = (saved && ALLOWED_TTS_VOICES.includes(saved as any)) ? saved as any : "nova";
+    } catch {
+      resolvedVoice = "nova";
     }
-    return;
   }
-
-  // OpenAI TTS path — only when a specific named voice is explicitly requested
+  const safeVoice = resolvedVoice;
   try {
     let finalText = text;
     if (language && language !== "auto" && !language.toLowerCase().startsWith("english")) {
       const translation = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
-          { role: "system", content: `Translate the following text into ${language}. Preserve tone exactly. Return only the translated text.` },
+          {
+            role: "system",
+            content: `Translate the following text into ${language}. Preserve the warm, meditative, poetic tone exactly. Return only the translated text, nothing else.`,
+          },
           { role: "user", content: text },
         ],
         max_tokens: 600,
@@ -2523,22 +1621,20 @@ router.post("/openai/tts", async (req, res): Promise<void> => {
     }
     const mp3 = await openai.audio.speech.create({
       model: "tts-1-hd",
-      voice: voice as any,
+      voice: safeVoice,
       input: finalText,
       response_format: "mp3",
     });
-    const wav = await readFile(tmpFile);
-    res.setHeader("Content-Type", "audio/wav");
-    res.setHeader("Content-Length", String(wav.length));
-    res.setHeader("Cache-Control", "no-store");
-    res.send(wav);
+    const buffer = Buffer.from(await mp3.arrayBuffer());
+    res.set("Content-Type", "audio/mpeg");
+    res.set("Content-Length", String(buffer.length));
+    res.set("Cache-Control", "no-cache");
+    res.send(buffer);
   } catch (err: any) {
-    console.error("[TTS /openai/tts]", err.message);
-    res.status(500).json({ error: err.message });
-  } finally {
-    unlink(tmpFile).catch(() => {});
+    res.status(500).json({ error: "TTS generation failed", detail: err?.message });
   }
 });
+
 // ─── Universe Guide streaming endpoint ───────────────────────────────────────
 router.post("/openai/universe-stream", async (req, res) => {
   const { messages, domain } = req.body as { messages: Array<{ role: string; content: string }>; domain: string };
@@ -2590,7 +1686,7 @@ router.post("/openai/universe-stream", async (req, res) => {
     } catch (responsesErr: any) {
       if (!responsesApiWorked) {
         const stream = await openai.chat.completions.create({
-          model: "anthropic/claude-sonnet-4-5",
+          model: "anthropic/claude-sonnet-4-6",
           messages: chatMessages,
           stream: true,
           max_tokens: 1200,

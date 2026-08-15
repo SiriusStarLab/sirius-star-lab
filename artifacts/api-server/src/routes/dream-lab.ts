@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { eq, desc, and, asc } from "drizzle-orm";
-import { db, dreamLabProfiles, dreamLabIdeas, dreamLabManifestations, dreamLabJournal, userProfilesTable } from "@workspace/db";
+import { db, dreamLabProfiles, dreamLabIdeas, dreamLabManifestations, dreamLabJournal, userProfilesTable, labMessages as dreamLabMessages } from "@workspace/db";
 import { openai } from "@workspace/ai-client";
 
 const router: IRouter = Router();
@@ -36,8 +36,8 @@ async function requirePaid(req: Request, res: Response, next: () => void) {
 }
 
 // ── Apply gates to all dream-lab routes ──────────────────────────────────────
-router.use(requireUser);
-router.use(requirePaid);
+router.use((req: Request, res: Response, next: () => void) => { if (!req.path.startsWith("/dream-lab")) return next(); return requireUser(req, res, next); });
+router.use((req: Request, res: Response, next: () => void) => { if (!req.path.startsWith("/dream-lab")) return next(); return requirePaid(req, res, next); });
 
 // ── Content guard: reject dark/harmful material ───────────────────────────────
 const BLOCKED_TERMS = [

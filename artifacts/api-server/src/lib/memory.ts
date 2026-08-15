@@ -62,7 +62,7 @@ export async function extractAndSaveMemories(
     try {
       response = await openaiDirect.chat.completions.create(
         {
-          model: "gpt-4o-mini",
+          model: "openai/gpt-4o-mini",
           messages: [
             {
               role: "system",

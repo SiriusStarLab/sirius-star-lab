@@ -1,184 +1,210 @@
-import React from "react";
-import { Crown, Check, Zap } from "lucide-react";
-import { PricingModal } from "./pricing-modal";
+import React, { useState } from "react";
+import { Check, Zap, Star, ArrowLeft, Loader2, CreditCard } from "lucide-react";
+import { getApiBase } from "@/lib/api-base";
+import { getUserId } from "@/lib/user-id";
 
-interface PricingPageProps {
-  currentTier?: string;
-  onUpgrade?: () => void;
-}
+const PLANS = [
+  {
+    id: "plus" as const,
+    name: "Plus",
+    price: "£9.99",
+    period: "/month",
+    tagline: "For daily users who want more",
+    color: "hsl(193,100%,45%)",
+    icon: Zap,
+    features: [
+      "200 messages per day",
+      "Dream Lab — build & track your dreams",
+      "Learn — study plans, quizzes, deep learning",
+      "Sirius remembers you between sessions",
+      "Image analysis & understanding",
+      "Real-time web search",
+    ],
+  },
+  {
+    id: "pro" as const,
+    name: "Pro",
+    price: "£19.99",
+    period: "/month",
+    tagline: "For power users — no limits",
+    color: "hsl(45,100%,52%)",
+    icon: Star,
+    features: [
+      "Unlimited messages",
+      "Everything in Plus",
+      "Voice conversations",
+      "Priority response speed",
+      "Telegram — Sirius messages you proactively",
+    ],
+    featured: true,
+  },
+];
 
-/**
- * Full-page pricing component showing Free vs Premium tiers.
- * Used on the /upgrade route or embedded standalone.
- */
-export function PricingPage({ currentTier = "free", onUpgrade }: PricingPageProps) {
-  const [modalOpen, setModalOpen] = React.useState(false);
-  const isPremium = currentTier !== "free";
+export function PricingPage() {
+  const [loading, setLoading] = useState<"plus" | "pro" | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const userId = getUserId();
+
+  const handleCheckout = async (tier: "plus" | "pro") => {
+    setLoading(tier);
+    setError(null);
+    try {
+      const base = getApiBase();
+      const res = await fetch(`${base}stripe/checkout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, tier }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Something went wrong");
+      if (data.url) window.location.href = data.url;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setLoading(null);
+    }
+  };
 
   return (
     <div style={{
-      minHeight: "100vh",
-      background: "#080c1a",
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
-      padding: "40px 20px",
-      fontFamily: "system-ui, -apple-system, sans-serif",
+      minHeight: "100dvh",
+      background: "linear-gradient(160deg, #04081a 0%, #070d20 55%, #050e1b 100%)",
+      color: "#fff",
+      fontFamily: "Outfit, sans-serif",
     }}>
-      {/* Header */}
-      <div style={{ textAlign: "center", marginBottom: 48 }}>
-        <h1 style={{ fontSize: 36, fontWeight: 900, color: "#fff", marginBottom: 12, letterSpacing: "-0.02em" }}>
-          Simple, honest pricing
-        </h1>
-        <p style={{ fontSize: 16, color: "rgba(255,255,255,0.5)", maxWidth: 440, lineHeight: 1.6 }}>
-          One Premium plan. Everything included. Cancel any time.
-        </p>
-      </div>
-
-      {/* Plans grid */}
       <div style={{
-        display: "flex",
-        gap: 20,
-        flexWrap: "wrap",
-        justifyContent: "center",
-        width: "100%",
-        maxWidth: 800,
-      }}>
+        position: "fixed", inset: 0, pointerEvents: "none",
+        backgroundImage: `radial-gradient(circle, rgba(0,212,255,0.07) 1px, transparent 1px),
+                          radial-gradient(circle, rgba(255,255,255,0.03) 1px, transparent 1px)`,
+        backgroundSize: "56px 56px, 28px 28px",
+        backgroundPosition: "0 0, 14px 14px",
+      }} />
+      <div style={{
+        position: "fixed", top: -100, left: "50%", transform: "translateX(-50%)",
+        width: 500, height: 500, pointerEvents: "none",
+        background: "radial-gradient(circle, hsla(193,100%,45%,0.1) 0%, transparent 65%)",
+      }} />
 
-        {/* Free */}
-        <div style={{
-          flex: "1 1 300px",
-          maxWidth: 360,
-          borderRadius: 20,
-          background: "rgba(255,255,255,0.03)",
-          border: "1px solid rgba(255,255,255,0.1)",
-          padding: "28px 28px 24px",
-        }}>
-          <div style={{ marginBottom: 20 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: "rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <Zap size={18} style={{ color: "rgba(255,255,255,0.4)" }} />
+      <div style={{ position: "relative", zIndex: 1, maxWidth: 540, margin: "0 auto", padding: "40px 20px 60px" }}>
+
+        <>
+            <div style={{ textAlign: "center", marginBottom: 44 }}>
+              <div style={{
+                display: "inline-flex", alignItems: "center", gap: 8,
+                background: "rgba(0,212,255,0.08)", border: "1px solid rgba(0,212,255,0.2)",
+                borderRadius: 999, padding: "5px 14px", marginBottom: 20,
+              }}>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "hsl(155,70%,55%)", display: "inline-block" }} />
+                <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.12em", color: "hsl(193,100%,60%)", textTransform: "uppercase" }}>Upgrade Sirius</span>
               </div>
-              <span style={{ fontSize: 16, fontWeight: 700, color: "rgba(255,255,255,0.6)" }}>Free</span>
+              <h1 style={{ fontSize: "clamp(28px,7vw,38px)", fontWeight: 800, lineHeight: 1.1, marginBottom: 12 }}>
+                More messages.<br />More intelligence.
+              </h1>
+              <p style={{ fontSize: 15, color: "rgba(255,255,255,0.4)", lineHeight: 1.6 }}>
+                Start free with 10 messages a day — upgrade any time.<br />Cancel whenever you like.
+              </p>
             </div>
-            <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
-              <span style={{ fontSize: 36, fontWeight: 800, color: "rgba(255,255,255,0.5)" }}>£0</span>
-              <span style={{ fontSize: 13, color: "rgba(255,255,255,0.3)" }}>/month</span>
-            </div>
-          </div>
-          <ul style={{ listStyle: "none", padding: 0, margin: "0 0 24px" }}>
-            {["20 messages per day", "Basic Sirius chat", "No memory between sessions"].map(f => (
-              <li key={f} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                <div style={{ width: 18, height: 18, borderRadius: "50%", background: "rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <Check size={10} style={{ color: "rgba(255,255,255,0.3)" }} strokeWidth={3} />
-                </div>
-                <span style={{ fontSize: 14, color: "rgba(255,255,255,0.4)" }}>{f}</span>
-              </li>
-            ))}
-          </ul>
-          <div style={{
-            width: "100%", padding: "13px", borderRadius: 12, border: "1px solid rgba(255,255,255,0.1)",
-            background: "transparent", color: "rgba(255,255,255,0.3)",
-            fontSize: 14, fontWeight: 600, textAlign: "center",
-          }}>
-            {isPremium ? "Downgrade" : "Current plan"}
-          </div>
-        </div>
 
-        {/* Premium */}
-        <div style={{
-          flex: "1 1 300px",
-          maxWidth: 360,
-          borderRadius: 20,
-          background: "linear-gradient(145deg, rgba(0,212,255,0.1), rgba(0,212,255,0.03))",
-          border: "1.5px solid rgba(0,212,255,0.4)",
-          padding: "28px 28px 24px",
-          boxShadow: "0 0 40px rgba(0,212,255,0.08)",
-          position: "relative",
-        }}>
-          {/* Best value badge */}
-          <div style={{
-            position: "absolute", top: -12, right: 20,
-            background: "#00d4ff", color: "#080c1a",
-            fontSize: 11, fontWeight: 800, letterSpacing: "0.05em",
-            padding: "4px 12px", borderRadius: 20,
-            textTransform: "uppercase",
-          }}>
-            Everything included
-          </div>
-
-          <div style={{ marginBottom: 20 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: "rgba(0,212,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <Crown size={18} style={{ color: "#00d4ff" }} />
-              </div>
-              <span style={{ fontSize: 16, fontWeight: 700, color: "#00d4ff" }}>Premium</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
-              <span style={{ fontSize: 36, fontWeight: 800, color: "#fff" }}>£19.99</span>
-              <span style={{ fontSize: 13, color: "rgba(255,255,255,0.4)" }}>/month</span>
-            </div>
-          </div>
-
-          <ul style={{ listStyle: "none", padding: 0, margin: "0 0 24px" }}>
-            {[
-              "Unlimited messages",
-              "Dream Lab — build & track your dreams",
-              "Star Lab — AI-powered tools & apps",
-              "Learn — study plans, quizzes, deep learning",
-              "Sirius remembers you between sessions",
-              "Image analysis & understanding",
-              "Real-time web search",
-              "Voice conversations",
-              "Telegram — Sirius messages you proactively",
-            ].map(f => (
-              <li key={f} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                <div style={{ width: 18, height: 18, borderRadius: "50%", background: "rgba(0,212,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <Check size={10} style={{ color: "#00d4ff" }} strokeWidth={3} />
-                </div>
-                <span style={{ fontSize: 14, color: "rgba(255,255,255,0.85)" }}>{f}</span>
-              </li>
-            ))}
-          </ul>
-
-          {isPremium ? (
             <div style={{
-              width: "100%", padding: "14px", borderRadius: 12,
-              background: "rgba(0,212,255,0.1)", border: "1px solid rgba(0,212,255,0.3)",
-              color: "#00d4ff", fontSize: 15, fontWeight: 700, textAlign: "center",
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+              background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
+              borderRadius: 16, padding: "14px 18px", marginBottom: 18,
+              display: "flex", alignItems: "center", justifyContent: "space-between",
             }}>
-              <Check size={16} /> Active plan
+              <div>
+                <p style={{ fontWeight: 600, fontSize: 14, marginBottom: 2 }}>Free</p>
+                <p style={{ fontSize: 12, color: "rgba(255,255,255,0.35)" }}>30 messages per day · chat, wellbeing & universe · always free</p>
+              </div>
+              <span style={{
+                fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 999,
+                background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.4)",
+              }}>Current</span>
             </div>
-          ) : (
-            <button
-              onClick={() => {
-                setModalOpen(true);
-                onUpgrade?.();
-              }}
-              style={{
-                width: "100%", padding: "14px", borderRadius: 12, border: "none",
-                background: "#00d4ff", color: "#080c1a",
-                fontSize: 15, fontWeight: 700, cursor: "pointer",
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-              }}
-            >
-              <Crown size={16} /> Get Premium — £19.99/month
-            </button>
-          )}
-        </div>
+
+            {PLANS.map(plan => {
+              const Icon = plan.icon;
+              return (
+                <div key={plan.id} style={{
+                  background: plan.featured ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.03)",
+                  border: `1px solid ${plan.featured ? plan.color + "40" : "rgba(255,255,255,0.09)"}`,
+                  borderRadius: 20,
+                  padding: "24px 22px",
+                  marginBottom: 14,
+                  position: "relative",
+                  boxShadow: plan.featured ? `0 0 40px ${plan.color}12` : "none",
+                }}>
+                  {plan.featured && (
+                    <div style={{
+                      position: "absolute", top: -11, left: "50%", transform: "translateX(-50%)",
+                      background: plan.color, color: "#04081a",
+                      fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase",
+                      padding: "3px 12px", borderRadius: 999,
+                    }}>Most Popular</div>
+                  )}
+
+                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 18 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <div style={{
+                        width: 40, height: 40, borderRadius: 12, flexShrink: 0,
+                        background: `${plan.color}18`, border: `1px solid ${plan.color}30`,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                      }}>
+                        <Icon size={18} style={{ color: plan.color }} />
+                      </div>
+                      <div>
+                        <p style={{ fontWeight: 700, fontSize: 17 }}>{plan.name}</p>
+                        <p style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", marginTop: 1 }}>{plan.tagline}</p>
+                      </div>
+                    </div>
+                    <div style={{ textAlign: "right", flexShrink: 0, marginLeft: 12 }}>
+                      <span style={{ fontSize: 26, fontWeight: 800, color: plan.color }}>{plan.price}</span>
+                      <span style={{ fontSize: 12, color: "rgba(255,255,255,0.3)" }}>{plan.period}</span>
+                    </div>
+                  </div>
+
+                  <ul style={{ listStyle: "none", padding: 0, margin: "0 0 20px" }}>
+                    {plan.features.map(f => (
+                      <li key={f} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 9 }}>
+                        <Check size={13} style={{ color: plan.color, flexShrink: 0 }} />
+                        <span style={{ fontSize: 13, color: "rgba(255,255,255,0.7)" }}>{f}</span>
+                      </li>
+                    ))}
+                  </ul>
+
+                  <button
+                    onClick={() => handleCheckout(plan.id)}
+                    disabled={loading !== null}
+                    style={{
+                      width: "100%", padding: "13px", borderRadius: 12, border: "none",
+                      background: loading === plan.id ? `${plan.color}80` : plan.color,
+                      color: "#04081a", fontSize: 14, fontWeight: 700, cursor: loading !== null ? "not-allowed" : "pointer",
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                      transition: "opacity 0.15s",
+                    }}
+                    onMouseEnter={e => { if (!loading) (e.currentTarget as HTMLElement).style.opacity = "0.88"; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = "1"; }}
+                  >
+                    {loading === plan.id
+                      ? <><Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} /> Setting up…</>
+                      : `Get ${plan.name} — ${plan.price}/mo`
+                    }
+                  </button>
+                </div>
+              );
+            })}
+
+            {error && (
+              <p style={{ textAlign: "center", color: "hsl(0,80%,65%)", fontSize: 13, marginTop: 10 }}>{error}</p>
+            )}
+
+            <p style={{ textAlign: "center", fontSize: 12, color: "rgba(255,255,255,0.2)", marginTop: 24, lineHeight: 1.6 }}>
+              Powered by Stripe · Secure checkout · Cancel anytime
+            </p>
+          </>
       </div>
 
-      <p style={{ marginTop: 32, fontSize: 12, color: "rgba(255,255,255,0.2)" }}>
-        Powered by Stripe · Secure · Cancel any time
-      </p>
-
-      <PricingModal
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
-        currentTier={currentTier}
-      />
+      <style>{`
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+      `}</style>
     </div>
   );
 }

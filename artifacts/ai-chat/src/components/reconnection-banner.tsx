@@ -1,43 +1,18 @@
-import { useEffect, useState, useRef } from "react";
+import { useConnectionStatus } from "@/hooks/use-connection-status";
 
+/**
+ * Reconnection Banner — Tier 1 UX
+ * Shows a subtle top-of-screen indicator when the server is recovering.
+ * "Reconnecting to Sirius..." → amber pulse
+ * "Reconnected ✓"             → green, auto-dismisses in 3s
+ * Hidden when connected normally.
+ */
 export function ReconnectionBanner() {
-  const [offline, setOffline] = useState(false);
-  const [visible, setVisible] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const status = useConnectionStatus();
 
-  const check = async () => {
-    try {
-      const res = await fetch("/api/health", { method: "GET", cache: "no-store" });
-      if (res.ok) {
-        setOffline(false);
-        // Delay hiding so user sees the "back online" state briefly
-        timerRef.current = setTimeout(() => setVisible(false), 2000);
-      } else {
-        setOffline(true);
-        setVisible(true);
-      }
-    } catch {
-      setOffline(true);
-      setVisible(true);
-    }
-  };
+  if (status === "connected") return null;
 
-  useEffect(() => {
-    // Start polling after 5s to avoid false positives on first load
-    const start = setTimeout(() => {
-      check();
-      pollRef.current = setInterval(check, 15000);
-    }, 5000);
-
-    return () => {
-      clearTimeout(start);
-      if (pollRef.current) clearInterval(pollRef.current);
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
-  }, []);
-
-  if (!visible) return null;
+  const isReconnecting = status === "reconnecting";
 
   return (
     <div
@@ -47,37 +22,48 @@ export function ReconnectionBanner() {
         left: 0,
         right: 0,
         zIndex: 9999,
-        background: offline ? "rgba(239,68,68,0.95)" : "rgba(16,185,129,0.95)",
-        color: "#fff",
-        textAlign: "center",
-        padding: "10px 16px",
-        fontSize: "13px",
-        fontWeight: 600,
-        backdropFilter: "blur(8px)",
-        transition: "background 0.4s ease",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         gap: "8px",
+        padding: "6px 16px",
+        fontSize: "13px",
+        fontWeight: 500,
+        letterSpacing: "0.01em",
+        background: isReconnecting
+          ? "rgba(251, 191, 36, 0.95)"  // amber
+          : "rgba(34, 197, 94, 0.95)",   // green
+        color: isReconnecting ? "#78350f" : "#14532d",
+        transition: "background 0.4s ease",
+        boxShadow: "0 1px 6px rgba(0,0,0,0.15)",
       }}
     >
-      {offline ? (
+      {isReconnecting ? (
         <>
           <span
             style={{
-              width: 8,
-              height: 8,
-              borderRadius: "50%",
-              background: "#fff",
               display: "inline-block",
-              animation: "pulse 1.2s ease-in-out infinite",
+              width: "8px",
+              height: "8px",
+              borderRadius: "50%",
+              background: "#d97706",
+              animation: "sirius-pulse 1.2s ease-in-out infinite",
             }}
           />
-          Sirius is reconnecting… Please wait
+          Reconnecting to Sirius...
         </>
       ) : (
-        <>✓ Back online</>
+        <>
+          <span style={{ fontSize: "15px" }}>✓</span>
+          Reconnected
+        </>
       )}
+      <style>{`
+        @keyframes sirius-pulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50%       { opacity: 0.4; transform: scale(0.75); }
+        }
+      `}</style>
     </div>
   );
 }

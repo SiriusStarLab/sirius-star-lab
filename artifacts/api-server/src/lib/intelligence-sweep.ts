@@ -92,7 +92,7 @@ export async function runIntelligenceSweep(
 
   try {
     const stream = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.5",
+      model: "anthropic/claude-sonnet-4-6",
       stream: true,
       max_completion_tokens: 8192,
       messages: [

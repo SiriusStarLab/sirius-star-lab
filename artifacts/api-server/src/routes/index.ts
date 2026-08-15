@@ -33,6 +33,7 @@ router.use(labRouter);
 router.use(labAppBuilderRouter);
 router.use(intelligenceFeedRouter);
 router.use(outreachRouter);
+router.use(subscriberLabRouter);
 router.use(learnRouter);
 router.use(revenueRouter);
 router.use(agencyRouter);
@@ -41,6 +42,5 @@ router.use(dreamLabRouter);
 router.use(paymentRouter);
 router.use(intelligenceProxyRouter);
 router.use("/lab", selfModifyRouter);
-router.use(subscriberLabRouter);
 
 export default router;

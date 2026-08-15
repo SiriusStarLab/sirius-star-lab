@@ -87,11 +87,6 @@ export function PricingPage() {
 
       <div style={{ position: "relative", zIndex: 1, maxWidth: 540, margin: "0 auto", padding: "40px 20px 60px" }}>
 
-        <a href="/" style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "rgba(255,255,255,0.35)", textDecoration: "none", fontSize: 13, marginBottom: 40 }}
-          onMouseEnter={e => (e.currentTarget.style.color = "rgba(255,255,255,0.7)")}
-          onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.35)")}>
-          <ArrowLeft size={14} /> Back to Sirius
-        </a>
 
         <>
             <div style={{ textAlign: "center", marginBottom: 44 }}>

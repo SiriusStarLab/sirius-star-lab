@@ -9,7 +9,6 @@ import { CheckoutSuccessPage } from "@/pages/checkout-success";
 import { CheckoutCancelPage } from "@/pages/checkout-cancel";
 import { StarLabPage } from "@/pages/star-lab";
 import { MarketingPage } from "@/pages/marketing";
-import { PricingPage } from "@/pages/pricing";
 import { DreamLabPage } from "@/pages/dream-lab";
 import { WellbeingPage } from "@/pages/wellbeing";
 import { UniversePage } from "@/pages/universe";
@@ -20,6 +19,7 @@ import { CreatorLabPage } from "@/pages/creator-lab";
 import NotFound from "@/pages/not-found";
 import { PWAInstallPrompt } from "@/components/pwa-install-prompt";
 import { ReconnectionBanner } from "@/components/reconnection-banner";
+import { LabAuthGate } from "@/components/lab-auth-gate";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -38,20 +38,18 @@ function Router() {
       <Route path="/privacy" component={PrivacyPage} />
       <Route path="/checkout/success" component={CheckoutSuccessPage} />
       <Route path="/checkout/cancel" component={CheckoutCancelPage} />
-      <Route path="/star-lab" component={StarLabPage} />
+      <Route path="/star-lab" component={() => <LabAuthGate><StarLabPage /></LabAuthGate>} />
       <Route path="/creator-lab" component={CreatorLabPage} />
       <Route path="/dream-lab" component={DreamLabPage} />
       <Route path="/wellbeing" component={WellbeingPage} />
       <Route path="/universe" component={UniversePage} />
-      <Route path="/admin" component={StarLabPage} />
+      <Route path="/admin" component={() => <LabAuthGate><StarLabPage /></LabAuthGate>} />
       <Route path="/learn" component={LearnPage} />
       <Route path="/why-sirius" component={MarketingPage} />
       <Route path="/agency" component={MarketingPage} />
-      <Route path="/pricing" component={PricingPage} />
+      <Route path="/pricing" component={MarketingPage} />
       <Route path="/compare" component={ComparePage} />
       <Route path="/discover" component={DiscoverPage} />
-      <Route path="/memories" component={MemoriesPage} />
-      <Route path="/projects" component={ProjectsPage} />
       {/*
         ChatPage is the catch-all — it handles "/" and "/c/:id" internally
         via useRoute(). By using a single Route element for both paths, the

@@ -128,7 +128,7 @@ export async function runOrchestration(
   let plan: ParsedPlan;
   try {
     const parseRes = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.5",
+      model: "anthropic/claude-sonnet-4-6",
       messages: [
         {
           role: "system",
@@ -197,7 +197,7 @@ Return ONLY this JSON (no markdown):
 
   try {
     const researchRes = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.5",
+      model: "anthropic/claude-sonnet-4-6",
       messages: [
         { role: "system", content: "You are Sirius, an elite R&D strategist. Write detailed, specific, evidence-based research. No generic advice. No placeholders." },
         {
@@ -301,7 +301,7 @@ Be specific. Name real companies, real figures, real regulations.`,
   emit({ type: "stage_start", stage: "market", label: STAGE_LABELS.market, detail: "Building full sales & marketing plan: unit economics, target sectors, pricing, revenue projections…" });
   try {
     const marketRes = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.5",
+      model: "anthropic/claude-sonnet-4-6",
       messages: [
         {
           role: "system",

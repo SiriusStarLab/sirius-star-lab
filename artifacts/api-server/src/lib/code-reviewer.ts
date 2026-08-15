@@ -1,6 +1,4 @@
-import { openai } from "@workspace/ai-client";
-
-const REVIEWER_MODEL = "anthropic/claude-haiku-4.5";
+const REVIEWER_MODEL = "openai/gpt-4o-mini";
 
 const PROTECTED_PATHS = new Set([
   "src/app.ts",
@@ -45,24 +43,30 @@ export async function reviewCodeChange(params: {
 
   const diff = buildDiff(originalContent, newContent);
 
-  const systemPrompt = `You are a code reviewer for Sirius, an AI system that builds and deploys apps autonomously.
-Your job: approve or reject proposed code changes. Approve generously — Sirius needs to be able to build things.
+  const systemPrompt = `You are a strict senior code reviewer for a production Node.js/TypeScript API server called Sirius.
+Your job: review proposed code changes and decide if they are safe to auto-deploy without human sign-off.
+Be conservative. When in doubt, reject.
 
 Respond ONLY with a JSON object in this exact format:
 {"approved":true|false,"concerns":["concern 1"],"summary":"one sentence summary"}
 
-REJECT only if:
-- Change hardcodes secrets, credentials, or API keys as literal strings
-- Change deletes or disables authentication/PIN validation entirely
-- Change introduces obvious SQL injection (raw user input in queries without parameterisation)
-- Change adds malware, data exfiltration, or obviously destructive behaviour
+REJECT if ANY of these are true:
+- Change modifies authentication, authorisation, or PIN validation logic
+- Change introduces SQL injection risk or unescaped user input in queries
+- Change adds or modifies rate limiting or security middleware
+- Change removes error handling
+- Change hardcodes secrets, credentials, or API keys
+- Change touches file system paths outside of /tmp or /opt/sirius-source
+- Change adds exec(), eval(), or dynamic code execution without sandboxing
+- Change is vague or undescribed
+- Diff is larger than 300 lines (too risky for auto-deploy)
+- TypeScript has obvious type errors visible in the diff
 
 APPROVE if:
-- Change builds a new feature, route, UI, or app (even large changes)
-- Change fixes a bug or improves existing code
-- Change adds new files, functions, or modules
-- Change is a clear app build (even if the diff is large — building apps requires many lines)
-- TypeScript errors are minor or in new code that can be iterated on`;
+- Change is a clear, well-scoped addition (new route, new function, new helper)
+- Change does exactly what the description says
+- Change follows existing code patterns
+- Change has no security implications`;
 
   const userPrompt = `FILE: ${filePath}
 DESCRIPTION: ${description}
@@ -73,17 +77,32 @@ ${diff.slice(0, 6000)}
 Is this safe to auto-deploy?`;
 
   try {
-    const completion = await openai.chat.completions.create({
-      model: REVIEWER_MODEL,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      max_tokens: 500,
-      temperature: 0.1,
+    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://sirius-ai.live",
+        "X-Title": "Sirius Code Reviewer",
+      },
+      body: JSON.stringify({
+        model: REVIEWER_MODEL,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        max_tokens: 500,
+        temperature: 0.1,
+        response_format: { type: "json_object" },
+      }),
     });
 
-    const raw = completion.choices?.[0]?.message?.content ?? "{}";
+    if (!res.ok) {
+      throw new Error(`Reviewer API ${res.status}: ${await res.text()}`);
+    }
+
+    const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+    const raw = data.choices?.[0]?.message?.content ?? "{}";
     const parsed = JSON.parse(raw) as { approved?: boolean; concerns?: string[]; summary?: string };
 
     return {

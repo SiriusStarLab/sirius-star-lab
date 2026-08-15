@@ -1,5 +1,5 @@
 import { type Request, type Response } from "express";
-import { db, siriusConfig } from "@workspace/db";
+import { db, siriusConfig, userProfilesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { recordPinFailure, securityLog } from "../middlewares/security.js";
 
@@ -29,23 +29,42 @@ export function getPinRole(pin: string): AccessRole | null {
   return null;
 }
 
-export function authMiddleware(req: Request, res: Response, next: () => void): void {
+export async function authMiddleware(req: Request, res: Response, next: () => void): Promise<void> {
   const pin = req.headers["x-lab-pin"] as string;
-  if (pin !== LAB_PIN) {
-    const result = recordPinFailure(req);
-    if (result.banned) {
-      res.status(403).json({
-        error: "Access locked",
-        message: "Too many incorrect PIN attempts. Locked for 15 minutes.",
-        unlocksAt: result.banExpiresAt?.toISOString(),
-      });
-    } else {
-      securityLog("LAB_HEADER_AUTH_FAIL", req, `Invalid x-lab-pin header — ${result.remaining} attempts remaining`);
-      res.status(401).json({ error: "Unauthorised" });
+  // Owner PIN auth
+  if (pin === LAB_PIN) { next(); return; }
+
+  // Subscriber bypass: Plus or Pro users access lab routes via x-user-id
+  const userId = req.headers["x-user-id"] as string;
+  if (userId && userId.length >= 4) {
+    try {
+      const rows = await db
+        .select({ tier: userProfilesTable.subscriptionTier })
+        .from(userProfilesTable)
+        .where(eq(userProfilesTable.userId, userId))
+        .limit(1);
+      const tier = rows[0]?.tier || "free";
+      if (tier === "pro" || tier === "plus") { next(); return; }
+      res.status(403).json({ error: "Star Lab requires a Pro subscription." });
+      return;
+    } catch {
+      res.status(500).json({ error: "Could not verify subscription." });
+      return;
     }
-    return;
   }
-  next();
+
+  // PIN failed
+  const result = recordPinFailure(req);
+  if (result.banned) {
+    res.status(403).json({
+      error: "Access locked",
+      message: "Too many incorrect PIN attempts. Locked for 15 minutes.",
+      unlocksAt: result.banExpiresAt?.toISOString(),
+    });
+  } else {
+    securityLog("LAB_HEADER_AUTH_FAIL", req, "Invalid x-lab-pin header");
+    res.status(401).json({ error: "Unauthorised" });
+  }
 }
 
 export function sseHeaders(res: Response): void {

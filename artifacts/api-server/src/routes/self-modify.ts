@@ -52,9 +52,9 @@ router.post("/self/propose", async (req: Request, res: Response) => {
     return;
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY || process.env.OPENROUTER_API_KEY || "";
+  const apiKey = process.env.OPENROUTER_API_KEY || "";
   if (!apiKey) {
-    res.status(500).json({ error: "No AI API key configured (ANTHROPIC_API_KEY or OPENROUTER_API_KEY required)" });
+    res.status(500).json({ error: "OPENROUTER_API_KEY not configured" });
     return;
   }
 

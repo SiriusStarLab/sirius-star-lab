@@ -20,13 +20,13 @@ export function AccountPanel({ isOpen, onClose }: AccountPanelProps) {
   const tierLabel = isTester
     ? "Team Tester"
     : isPremium
-    ? "Sirius Premium"
+    ? status.tier === "pro" ? "Sirius Pro" : "Sirius Plus"
     : "Free";
 
   const tierColor = isTester
     ? "hsl(38,90%,55%)"
     : isPremium
-    ? "hsl(193,100%,45%)"
+    ? status.tier === "pro" ? "hsl(280,80%,60%)" : "hsl(193,100%,45%)"
     : "hsl(193,60%,50%)";
 
   const handleSignOut = async () => {
@@ -136,7 +136,7 @@ export function AccountPanel({ isOpen, onClose }: AccountPanelProps) {
                 </div>
                 {!isPremium && !isTester && (
                   <p className="text-xs text-muted-foreground">
-                    Upgrade to Premium for unlimited messages and all features.
+                    Upgrade to Plus for more messages and advanced features.
                   </p>
                 )}
                 {isPremium && (

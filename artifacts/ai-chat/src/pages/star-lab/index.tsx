@@ -59,8 +59,7 @@ const NAV_LABELS: Record<NavMode, string> = {
   outreach:    "Outreach Hub",
   team:        "Team Access",
 };
-import { speakText, parseSpokenPin, unlockAudio } from "./voice-utils";
-import { LabFloatingChat } from "./LabFloatingChat";
+import { speakText, parseSpokenPin } from "./voice-utils";
 import { SiriusLabChatPanel } from "./SiriusLabChatPanel";
 import { IOSInstallGuide } from "@/components/pwa-install-prompt";
 
@@ -9223,18 +9222,6 @@ export function StarLabPage() {
         )}
       </div>
 
-      {/* Persistent floating twin chat — always visible on every page */}
-      <LabFloatingChat
-        pin={pin}
-        navMode={navMode}
-        activeProject={activeProject}
-        accessLevel={accessLevel}
-        onNavigate={m => setNavMode(m as NavMode)}
-        onOpenProject={id => {
-          loadProject(id);
-          setNavMode("projects");
-        }}
-      />
 
       {/* Mobile bottom nav bar */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 z-30 flex border-t"

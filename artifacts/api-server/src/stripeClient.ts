@@ -4,7 +4,8 @@ function getStripeSecretKey(): string {
   const key = (process.env.STRIPE_SECRET_KEY ?? "").trim();
   if (!key) {
     throw new Error(
-      "STRIPE_SECRET_KEY environment variable is not set."
+      "STRIPE_SECRET_KEY environment variable is not set. " +
+      "Add STRIPE_SECRET_KEY to your server environment variables."
     );
   }
   return key;

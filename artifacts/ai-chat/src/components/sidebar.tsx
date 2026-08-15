@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { PlusCircle, MessageSquare, Trash2, X, Settings, Zap, Loader2, Sparkles, FlaskConical, BookOpen, GraduationCap, Globe2, Heart, Smartphone, User, Rocket } from "lucide-react";
+import { PlusCircle, MessageSquare, Trash2, X, Settings, Zap, Loader2, Sparkles, FlaskConical, BookOpen, GraduationCap, Globe2, Heart, Smartphone, User } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -14,7 +14,7 @@ import { TutorialsModal } from "@/components/tutorials-modal";
 import { IOSInstallGuide } from "@/components/pwa-install-prompt";
 import { useProfile } from "@/hooks/use-profile";
 import { useSubscription } from "@/hooks/use-subscription";
-import { getUserId } from "@/lib/user-id";
+import { getUserId, isOwner } from "@/lib/user-id";
 import { getApiBase } from "@/lib/api-base";
 import {
   useListOpenaiConversations,
@@ -367,44 +367,14 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession, chatM
           </span>
         </button>
 
-        {/* Public Star Lab — project builder for subscribers */}
-        <button
-          onClick={() => { setLocation("/projects"); onClose(); }}
-          className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 relative overflow-hidden group"
-          style={{
-            background: location === "/projects" ? "hsla(193,100%,35%,0.1)" : "hsla(193,100%,35%,0.05)",
-            border: location === "/projects" ? "1px solid hsla(193,100%,35%,0.35)" : "1px solid hsla(193,100%,35%,0.15)",
-            color: location === "/projects" ? "hsl(193,100%,24%)" : "hsl(193,60%,32%)",
-          }}
-          onMouseEnter={e => {
-            e.currentTarget.style.background = "hsla(193,100%,35%,0.1)";
-            e.currentTarget.style.borderColor = "hsla(193,100%,35%,0.35)";
-            e.currentTarget.style.color = "hsl(193,100%,24%)";
-          }}
-          onMouseLeave={e => {
-            if (location !== "/projects") {
-              e.currentTarget.style.background = "hsla(193,100%,35%,0.05)";
-              e.currentTarget.style.borderColor = "hsla(193,100%,35%,0.15)";
-              e.currentTarget.style.color = "hsl(193,60%,32%)";
-            }
-          }}
-        >
-          <Rocket size={15} style={{ flexShrink: 0 }} />
-          <span className="flex-1 text-left">Star Lab</span>
-          <span className="text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded"
-            style={{ background: "hsla(193,100%,35%,0.1)", color: "hsl(193,100%,26%)", border: "1px solid hsla(193,100%,35%,0.2)", letterSpacing: "0.15em" }}>
-            NEW
-          </span>
-        </button>
-
-        {/* My Star Lab entry — Garry's private lab */}
+        {/* Star Lab entry — Garry gets PIN-gated full lab, subscribers get Creator Lab */}
         <button
           onClick={() => { setLocation("/star-lab"); onClose(); }}
           className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 relative overflow-hidden group"
           style={{
-            background: location === "/star-lab" ? "hsla(193,100%,35%,0.1)" : "hsla(193,100%,35%,0.05)",
-            border: location === "/star-lab" ? "1px solid hsla(193,100%,35%,0.35)" : "1px solid hsla(193,100%,35%,0.15)",
-            color: location === "/star-lab" ? "hsl(193,100%,24%)" : "hsl(193,60%,32%)",
+            background: location === "/star-lab" || location === "/creator-lab" ? "hsla(193,100%,35%,0.1)" : "hsla(193,100%,35%,0.05)",
+            border: location === "/star-lab" || location === "/creator-lab" ? "1px solid hsla(193,100%,35%,0.35)" : "1px solid hsla(193,100%,35%,0.15)",
+            color: location === "/star-lab" || location === "/creator-lab" ? "hsl(193,100%,24%)" : "hsl(193,60%,32%)",
           }}
           onMouseEnter={e => {
             e.currentTarget.style.background = "hsla(193,100%,35%,0.1)";
@@ -412,7 +382,7 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession, chatM
             e.currentTarget.style.color = "hsl(193,100%,24%)";
           }}
           onMouseLeave={e => {
-            if (location !== "/star-lab") {
+            if (location !== "/star-lab" && location !== "/creator-lab") {
               e.currentTarget.style.background = "hsla(193,100%,35%,0.05)";
               e.currentTarget.style.borderColor = "hsla(193,100%,35%,0.15)";
               e.currentTarget.style.color = "hsl(193,60%,32%)";
@@ -690,8 +660,8 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession, chatM
 
       <motion.div
         className={cn(
-          "fixed inset-y-0 left-0 z-50 transition-transform duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)]",
-          !isOpen && "-translate-x-full"
+          "fixed lg:static lg:inset-auto inset-y-0 left-0 z-50 lg:z-auto transition-transform duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)]",
+          !isOpen && "max-lg:-translate-x-full"
         )}
       >
         {SidebarContent}

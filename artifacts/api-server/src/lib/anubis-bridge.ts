@@ -7,7 +7,7 @@ const BRIDGE_INTERVAL_MS = 5 * 60 * 1000; // ping every 5 minutes
 
 async function pingAnubis(): Promise<void> {
   try {
-    const res = await fetch(`${ANUBIS_URL}/status`, {
+    const res = await fetch(`${ANUBIS_URL}/health`, {
       signal: AbortSignal.timeout(2000),
     });
     if (!res.ok) {

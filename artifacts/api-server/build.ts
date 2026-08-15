@@ -100,12 +100,7 @@ async function buildAll() {
     ...sharedConfig,
   });
 
-  console.log("building worker...");
-  await esbuild({
-    entryPoints: [path.resolve(__dirname, "src/worker.ts")],
-    outfile: path.resolve(distDir, "worker.cjs"),
-    ...sharedConfig,
-  });
+  // worker build skipped on Kamatera — index.cjs only
 }
 
 buildAll().catch((err) => {

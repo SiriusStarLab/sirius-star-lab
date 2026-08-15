@@ -26,7 +26,8 @@ async function requirePaid(req: Request, res: Response, next: () => void) {
     next();
   } catch { res.status(500).json({ error: "Could not verify subscription" }); }
 }
-router.use(requirePaid);
+router.use("/learn", requirePaid as any);
+router.use("/learn", ((req, res, next) => next()) as any); // path-scoped guard
 
 // ── STUDY PLAN ──────────────────────────────────────────────────────────────
 

@@ -522,6 +522,7 @@ router.post("/creator-lab/chat", async (req, res) => {
 
         loopMessages.push({
           role: "tool",
+          tool_call_id: tc.id || ("call_" + Math.random().toString(36).slice(2)),
           content: result.imageUrl
             ? `Image generated. URL: ${result.imageUrl}. Tell the user it is ready.`
             : result.liveUrl
