@@ -1134,29 +1134,57 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
   // Load conversation history via Mnemosyne (capped at 40 messages to stay within token limits)
   const allMessages = await loadConversationContext(conversationId, 40);
 
-  const inputMessages = allMessages.map((m, i) => {
-    const isLastUserMsg = i === allMessages.length - 1 && m.role === "user";
-    // For the last user message, attach image if provided
-    if (imageBase64 && isLastUserMsg) {
+  // History = everything except the current user message (which we just saved and will append manually)
+  // This is robust regardless of sort order — we drop the last item if it matches the current content.
+  const currentContent = body.data.content;
+  const historyMessages = (() => {
+    const msgs = [...allMessages];
+    // Remove the just-saved user message from the tail so we can append it with enrichment
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      if (msgs[i].role === "user" && msgs[i].content === currentContent) {
+        msgs.splice(i, 1);
+        break;
+      }
+    }
+    return msgs;
+  })();
+
+  // Build the enriched current user message
+  const buildCurrentUserMessage = (): { role: "user"; content: any } => {
+    const userText = currentContent || "";
+
+    if (imageBase64) {
+      const imgUrl = imageBase64.match(/^data:([^;]+);base64,/) ? imageBase64 : `data:image/jpeg;base64,${imageBase64}`;
       return {
         role: "user" as const,
         content: [
-          { type: "text" as const, text: m.content || "What's in this image?" },
-          { type: "image_url" as const, image_url: { url: (() => { const m = imageBase64.match(/^data:([^;]+);base64,/); return m ? imageBase64 : `data:image/jpeg;base64,${imageBase64}`; })() } },
+          { type: "text" as const, text: userText || "What's in this image?" },
+          { type: "image_url" as const, image_url: { url: imgUrl } },
         ],
       };
     }
-    // For the last user message, attach document text if provided
-    if (extractedDocumentText && isLastUserMsg) {
-      const docLabel = documentName ? `"${documentName}"` : "the uploaded document";
-      const enrichedContent = `The user has shared a document titled ${docLabel}. Here is the full text content of the document:\n\n---\n${extractedDocumentText}\n---\n\nThe user's message: ${m.content || "Please analyse this document and give me your thoughts."}`;
-      return { role: "user" as const, content: enrichedContent };
+
+    if (extractedDocs.length > 0) {
+      const docsBlock = extractedDocs.length === 1
+        ? `The user has shared a document titled "${extractedDocs[0].name}". Here is the full text:\n\n---\n${extractedDocs[0].text}\n---`
+        : extractedDocs.map((d, idx) => `[Document ${idx + 1}: "${d.name}"]\n---\n${d.text}\n---`).join("\n\n");
+      const prefix = extractedDocs.length > 1 ? `The user has shared ${extractedDocs.length} documents.\n\n` : "";
+      return {
+        role: "user" as const,
+        content: `${prefix}${docsBlock}\n\nUser message: ${userText || "Please analyse the document(s) above."}`,
+      };
     }
-    return {
-      role: m.role as "user" | "assistant",
-      content: m.content,
-    };
-  });
+
+    return { role: "user" as const, content: userText };
+  };
+
+  const currentUserMsg = buildCurrentUserMessage();
+
+  // inputMessages = history (plain text) + current user message (with image/doc enrichment)
+  const inputMessages = [
+    ...historyMessages.map(m => ({ role: m.role as "user" | "assistant", content: m.content })),
+    currentUserMsg,
+  ];
 
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
@@ -1165,18 +1193,22 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
 
   let fullResponse = "";
 
-  // When an image is attached, use Chat Completions vision directly
+  // When an image is attached, use Chat Completions vision directly.
+  // IMPORTANT: the full Sirius system prompt can exceed 200K tokens alone.
+  // For vision calls we use a short focused prompt and NO history — just the current image message.
   if (imageBase64) {
+    const visionSystemPrompt = `You are Sirius, a thoughtful and perceptive AI assistant. Analyse the image the user has shared and respond helpfully. Be specific about what you see — describe content, text, layout, colours, and any relevant details. If the user has asked a specific question about the image, answer it directly.${profile.aiPersonality ? `\n\nYour personality: ${profile.aiPersonality.slice(0, 300)}` : ""}`;
+
     try {
       const visionStream = await openai.chat.completions.create({
-        model: "openai/gpt-4o",
+        model: "anthropic/claude-sonnet-4.5",
         messages: [
-          { role: "system", content: systemPrompt },
-          ...(inputMessages as any[]),
+          { role: "system", content: visionSystemPrompt },
+          currentUserMsg as any,   // just the current message with image — no history
         ],
         stream: true,
         max_tokens: 2000,
-      });
+      } as any);
       for await (const chunk of visionStream) {
         const delta = chunk.choices[0]?.delta?.content;
         if (delta) {
@@ -1221,26 +1253,9 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
     }
   }
 
-  // Build plain chat-compatible messages (no image_url for history, only for last message)
-  const chatMessages = allMessages.map((m, i) => {
-    const isLastUserMsg = i === allMessages.length - 1 && m.role === "user";
-    if (extractedDocs.length > 0 && isLastUserMsg) {
-      // Format all documents — single doc keeps the old readable format, multi-doc labels each one
-      const docsBlock = extractedDocs.length === 1
-        ? `The user has shared a document titled "${extractedDocs[0].name}". Here is the full text:\n\n---\n${extractedDocs[0].text}\n---`
-        : extractedDocs.map((d, idx) =>
-            `[Document ${idx + 1}: "${d.name}"]\n---\n${d.text}\n---`
-          ).join("\n\n");
-      const userNote = extractedDocs.length > 1
-        ? `The user has shared ${extractedDocs.length} documents.`
-        : "";
-      return {
-        role: "user" as const,
-        content: `${userNote ? userNote + "\n\n" : ""}${docsBlock}\n\nUser message: ${m.content || "Please analyse the document(s) above."}`,
-      };
-    }
-    return { role: m.role as "user" | "assistant", content: m.content };
-  });
+  // inputMessages is the single source of truth for all paths — already enriched with docs/images.
+  // Cast to mutable so YouTube/GitHub injection can append to the last message.
+  const chatMessages: Array<{ role: "user" | "assistant"; content: any }> = inputMessages as any;
 
   // ── YouTube transcript injection ─────────────────────────────────────────────
   const ytRegex = /(?:youtube\.com\/watch\?.*?v=|youtu\.be\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/;
@@ -1252,9 +1267,10 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
     if (transcript) {
       const lastIdx = chatMessages.length - 1;
       if (lastIdx >= 0 && chatMessages[lastIdx].role === "user") {
+        const prev = typeof chatMessages[lastIdx].content === "string" ? chatMessages[lastIdx].content : body.data.content;
         chatMessages[lastIdx] = {
           role: "user",
-          content: `${chatMessages[lastIdx].content}\n\n[YouTube Transcript — Video ID: ${videoId}]\n${transcript}`,
+          content: `${prev}\n\n[YouTube Transcript — Video ID: ${videoId}]\n${transcript}`,
         };
       }
       res.write(`data: ${JSON.stringify({ type: "action", label: "Transcript loaded · analysing video", icon: "✅", color: "hsl(142 71% 45%)" })}\n\n`);
@@ -1272,9 +1288,10 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
     if (ghContent) {
       const lastIdx = chatMessages.length - 1;
       if (lastIdx >= 0 && chatMessages[lastIdx].role === "user") {
+        const prevGh = typeof chatMessages[lastIdx].content === "string" ? chatMessages[lastIdx].content : body.data.content;
         chatMessages[lastIdx] = {
           role: "user",
-          content: `${chatMessages[lastIdx].content}\n\n---\n[GitHub Source Code — ${ghContent.label}]\n\n${ghContent.context}`,
+          content: `${prevGh}\n\n---\n[GitHub Source Code — ${ghContent.label}]\n\n${ghContent.context}`,
         };
       }
       res.write(`data: ${JSON.stringify({ type: "action", label: `Loaded: ${ghContent.label}`, icon: "✅", color: "hsl(142 71% 45%)" })}\n\n`);
@@ -1719,39 +1736,81 @@ LOOP PREVENTION: If you have already called a tool and received its result, do N
     }
   }
 
+  // ── Smart search routing — only call Perplexity when live data is genuinely needed ──
+  // Returns true → use Perplexity sonar. Returns false → answer directly with Claude.
+  function needsSearch(text: string, hasDoc: boolean, hasImage: boolean): boolean {
+    if (hasDoc || hasImage) return false;  // document/image analysis — Claude handles it directly
+
+    const q = text.toLowerCase().trim();
+
+    // Pure arithmetic / maths — never search
+    if (/^[\d\s\+\-\*\/\(\)\^\.\,\%=?]+$/.test(q)) return false;
+    if (/\b(what\s+is\s+[\d\s\+\-\*\/\(\)\^\.\,\%]+|calculate|compute|solve|simplify|evaluate|derivative|integral|equation)\b/.test(q)) return false;
+    if (/^\d[\d\s\+\-\*\×\÷\/\(\)\^\.]*[\+\-\*\×\÷\/\^][\d\s\+\-\*\×\÷\/\(\)\^\.]*[=?]?\s*$/.test(q)) return false;
+
+    // Coding — Claude is better; no live data needed
+    if (/\b(write\s+(a\s+)?(function|code|script|class|component|sql|query)|debug\s+(this|my)|fix\s+(this|my|the)\s+(code|bug|error)|how\s+do\s+i\s+(implement|code|program)|explain\s+(this\s+)?(code|function|algorithm))\b/.test(q)) return false;
+
+    // Document / file analysis queries
+    if (/\b(this\s+document|this\s+file|the\s+document|uploaded\s+(file|document)|analyse\s+this|analyze\s+this|summarise\s+this|summarize\s+this|read\s+this)\b/.test(q)) return false;
+
+    // Follow-ups referencing prior conversation
+    if (/^(yes|no|ok|okay|sure|thanks|thank you|got it|sounds good|perfect|great|continue|go on|and\?|what about|tell me more|elaborate|explain more|why|how so|can you|could you|please|hmm|interesting)\b/.test(q)) return false;
+    if (/\b(you (just|said|mentioned|told|explained)|as (you|we) (said|discussed|mentioned)|from (what|your) (you )?(said|mentioned)|earlier you|previously you|what we (were|just) (discussing|talking))\b/.test(q)) return false;
+
+    // Editing / writing / creative tasks — self-contained
+    if (/\b(write (me |a |an |the )?(email|letter|essay|summary|caption|bio|description|reply|message|paragraph|story|poem)|improve (this|my)|rewrite|rephrase|proofread|translate (this|the|my))\b/.test(q)) return false;
+
+    // Needs live data — always search
+    if (/\b(latest|breaking|just announced|right now|as of today|live (price|score|rate|update)|today'?s? (news|price|score|weather|rate)|current (price|score|news|event|rate|status)|stock\s+price|exchange\s+rate|weather\s+(in|at|for)|is\s+.+\s+open\s+(right\s+now|today)|score\s+(of|for)\s+the\s+(game|match))\b/.test(q)) return true;
+    if (/\b(news|just\s+happened|who\s+won|what\s+happened|recent\s+(news|event|update|development|change)|this\s+week('?s)?|this\s+month('?s)?|in\s+2025|in\s+2026)\b/.test(q)) return true;
+
+    // Specific URL / site content
+    if (/https?:\/\//.test(q) && !/youtube\.com|youtu\.be/.test(q)) return true; // YouTube handled separately above
+
+    // Default: most conversational, factual, and reasoning queries go to Claude
+    return false;
+  }
+
+  const userText = body.data.content ?? "";
+  const hasDocAttachment = allDocuments.length > 0;
+  const hasImageAttachment = !!imageBase64;
+  const shouldSearch = (mode === "research") ? false : needsSearch(userText, hasDocAttachment, hasImageAttachment);
+
   try {
-    // Primary: perplexity/sonar (has built-in real-time web search, works via OpenRouter Chat Completions)
-    // Fallback: anthropic/claude-3-5-sonnet (no live search but excellent reasoning)
     let streamSucceeded = false;
 
-    try {
-      // Signal that we're searching
-      res.write(`data: ${JSON.stringify({ type: "searching" })}\n\n`);
+    if (shouldSearch) {
+      // ── Perplexity sonar — live web search ────────────────────────────────
+      try {
+        res.write(`data: ${JSON.stringify({ type: "searching" })}\n\n`);
 
-      const sonarStream = await openai.chat.completions.create({
-        model: "perplexity/sonar",
-        messages: [
-          { role: "system", content: systemPrompt },
-          ...chatMessages,
-        ],
-        stream: true,
-        max_tokens: 1800,
-        signal: AbortSignal.timeout(45_000),
-      } as any) as unknown as AsyncIterable<any>;
+        const sonarStream = await openai.chat.completions.create({
+          model: "perplexity/sonar",
+          messages: [
+            { role: "system", content: systemPrompt },
+            ...chatMessages,
+          ],
+          stream: true,
+          max_tokens: 1800,
+          signal: AbortSignal.timeout(45_000),
+        } as any) as unknown as AsyncIterable<any>;
 
-      for await (const chunk of sonarStream) {
-        const delta = (chunk as any).choices?.[0]?.delta?.content;
-        if (delta) {
-          streamSucceeded = true;
-          fullResponse += delta;
-          res.write(`data: ${JSON.stringify({ content: delta })}\n\n`);
+        for await (const chunk of sonarStream) {
+          const delta = (chunk as any).choices?.[0]?.delta?.content;
+          if (delta) {
+            streamSucceeded = true;
+            fullResponse += delta;
+            res.write(`data: ${JSON.stringify({ content: delta })}\n\n`);
+          }
         }
+      } catch (sonarErr: any) {
+        console.error("Perplexity sonar failed, falling back to Claude:", sonarErr?.message);
       }
+    }
 
-    } catch (sonarErr: any) {
-      console.error("Perplexity sonar failed, falling back to Claude:", sonarErr?.message);
-
-      // Fallback to Claude Sonnet via OpenRouter
+    // ── Claude — direct answer (no search) or Perplexity fallback ─────────
+    if (!streamSucceeded) {
       try {
         const claudeStream = await openai.chat.completions.create({
           model: "anthropic/claude-sonnet-4.5",
@@ -1760,7 +1819,7 @@ LOOP PREVENTION: If you have already called a tool and received its result, do N
             ...chatMessages,
           ],
           stream: true,
-          max_tokens: 1800,
+          max_tokens: 2400,
           signal: AbortSignal.timeout(45_000),
         } as any) as unknown as AsyncIterable<any>;
 
@@ -1773,11 +1832,10 @@ LOOP PREVENTION: If you have already called a tool and received its result, do N
           }
         }
       } catch (claudeErr: any) {
-        console.error("Claude fallback also failed:", claudeErr?.message);
+        console.error("Claude stream failed:", claudeErr?.message);
       }
     }
 
-    // If both models failed, send a clear error message to the user
     if (!streamSucceeded) {
       const errMsg = "I'm having trouble connecting right now — please try again in a moment.";
       fullResponse = errMsg;
