@@ -1076,34 +1076,53 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
   const imageBase64 = body.data.imageBase64;
   const documentBase64 = (body.data as any).documentBase64 as string | undefined;
   const documentName = (body.data as any).documentName as string | undefined;
+  const rawDocuments = (body.data as any).documents as Array<{ base64: string; name: string }> | undefined;
   const systemPrompt = buildSystemPrompt(profile, mode);
 
-  // Extract text from uploaded document (PDF, Word, plain text, CSV, Markdown)
-  let extractedDocumentText: string | null = null;
-  if (documentBase64) {
-    try {
-      const buffer = Buffer.from(documentBase64, "base64");
-      const lowerName = (documentName || "").toLowerCase();
-      const isDocx = lowerName.endsWith(".docx") || lowerName.endsWith(".doc");
-      const isPdf  = lowerName.endsWith(".pdf");
+  // Build normalised doc list — prefer the multi-doc array; fall back to legacy single fields
+  const allDocuments: Array<{ base64: string; name: string }> =
+    rawDocuments && rawDocuments.length > 0
+      ? rawDocuments
+      : documentBase64
+        ? [{ base64: documentBase64, name: documentName ?? "document" }]
+        : [];
 
-      if (isPdf) {
+  // Extract text from a single document buffer
+  async function extractDocText(base64: string, name: string): Promise<string | null> {
+    try {
+      const buffer = Buffer.from(base64, "base64");
+      const lowerName = name.toLowerCase();
+      if (lowerName.endsWith(".pdf")) {
         const { PDFParse } = await import("pdf-parse");
         const pdfParser = new PDFParse({ data: new Uint8Array(buffer) });
         const result = await pdfParser.getText();
-        extractedDocumentText = result.text?.trim() || null;
-      } else if (isDocx) {
+        return result.text?.trim() || null;
+      } else if (lowerName.endsWith(".docx") || lowerName.endsWith(".doc")) {
         const mammoth = (await import("mammoth")).default;
         const result = await mammoth.extractRawText({ buffer });
-        extractedDocumentText = result.value?.trim() || null;
+        return result.value?.trim() || null;
       } else {
-        // TXT, CSV, Markdown, JSON — read as plain text
-        extractedDocumentText = buffer.toString("utf-8").trim() || null;
+        // TXT, CSV, Markdown, JSON, code — read as plain text
+        return buffer.toString("utf-8").trim() || null;
       }
     } catch (err: any) {
       console.error("Document extract error:", err?.message);
+      return null;
     }
   }
+
+  // Extract text from ALL uploaded documents in parallel
+  const extractedDocs: Array<{ name: string; text: string }> = (
+    await Promise.all(
+      allDocuments.map(async d => {
+        const text = await extractDocText(d.base64, d.name);
+        return text ? { name: d.name, text } : null;
+      })
+    )
+  ).filter((d): d is { name: string; text: string } => d !== null);
+
+  // Backward-compat alias used by the injection blocks below
+  const extractedDocumentText = extractedDocs.length > 0 ? extractedDocs[0].text : null;
 
   // Save user message
   await db.insert(messagesTable).values({
@@ -1205,9 +1224,20 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
   // Build plain chat-compatible messages (no image_url for history, only for last message)
   const chatMessages = allMessages.map((m, i) => {
     const isLastUserMsg = i === allMessages.length - 1 && m.role === "user";
-    if (extractedDocumentText && isLastUserMsg) {
-      const docLabel = documentName ? `"${documentName}"` : "the uploaded document";
-      return { role: "user" as const, content: `The user has shared a document titled ${docLabel}. Here is the full text:\n\n---\n${extractedDocumentText}\n---\n\nUser message: ${m.content || "Please analyse this document."}` };
+    if (extractedDocs.length > 0 && isLastUserMsg) {
+      // Format all documents — single doc keeps the old readable format, multi-doc labels each one
+      const docsBlock = extractedDocs.length === 1
+        ? `The user has shared a document titled "${extractedDocs[0].name}". Here is the full text:\n\n---\n${extractedDocs[0].text}\n---`
+        : extractedDocs.map((d, idx) =>
+            `[Document ${idx + 1}: "${d.name}"]\n---\n${d.text}\n---`
+          ).join("\n\n");
+      const userNote = extractedDocs.length > 1
+        ? `The user has shared ${extractedDocs.length} documents.`
+        : "";
+      return {
+        role: "user" as const,
+        content: `${userNote ? userNote + "\n\n" : ""}${docsBlock}\n\nUser message: ${m.content || "Please analyse the document(s) above."}`,
+      };
     }
     return { role: m.role as "user" | "assistant", content: m.content };
   });

@@ -888,7 +888,7 @@ const PROJECT_CHAT_TOOLS: any[] = [
 
 router.post("/lab/projects/:id/chat", authMiddleware, async (req: Request, res: Response) => {
   const projectId = parseInt(req.params.id as string);
-  const { message, tab, mode, imageBase64, documentBase64, documentName } = req.body;
+  const { message, tab, mode, imageBase64, documentBase64, documentName, documents: rawDocs } = req.body;
 
   const [project] = await db.select().from(labProjects).where(eq(labProjects.id, projectId));
   if (!project) { res.status(404).json({ error: "Project not found" }); return; }
@@ -964,10 +964,20 @@ CRITICAL EXECUTION RULES — READ CAREFULLY:
         ...(message ? [{ type: "text", text: message }] : []),
         { type: "image_url", image_url: { url: `data:${mime};base64,${b64}`, detail: "high" } },
       ];
-    } else if (documentBase64) {
-      const b64 = documentBase64.replace(/^data:[^;]+;base64,/, "");
-      const docText = Buffer.from(b64, "base64").toString("utf-8").slice(0, 20000);
-      userMessageContent = `${message ? message + "\n\n" : ""}[Document: ${documentName || "attached"}]\n\n${docText}`;
+    } else if (rawDocs?.length > 0 || documentBase64) {
+      // Build normalised list — prefer multi-doc array, fall back to legacy single fields
+      const docsToProcess: Array<{ base64: string; name: string }> =
+        rawDocs?.length > 0
+          ? rawDocs
+          : [{ base64: documentBase64 ?? "", name: documentName ?? "attached" }];
+
+      const docTexts = docsToProcess.map((d: { base64: string; name: string }) => {
+        const b64 = (d.base64 ?? "").replace(/^data:[^;]+;base64,/, "");
+        const text = Buffer.from(b64, "base64").toString("utf-8").slice(0, 15000);
+        return `[Document: ${d.name}]\n\n${text}`;
+      }).join("\n\n---\n\n");
+
+      userMessageContent = `${message ? message + "\n\n" : ""}${docTexts}`;
     }
 
     const chatMessages: any[] = [
