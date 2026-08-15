@@ -8,11 +8,11 @@ interface PricingModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentTier?: string;
-  defaultTier?: "plus" | "pro";
+  defaultTier?: "premium";
 }
 
-export function PricingModal({ isOpen, onClose, currentTier = "free", defaultTier }: PricingModalProps) {
-  const [loading, setLoading] = useState<"plus" | "pro" | null>(null);
+export function PricingModal({ isOpen, onClose, currentTier = "free" }: PricingModalProps) {
+  const [loading, setLoading] = useState<"premium" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const userId = getUserId();
   const isPremium = currentTier !== "free";
@@ -35,15 +35,15 @@ export function PricingModal({ isOpen, onClose, currentTier = "free", defaultTie
     return () => window.removeEventListener("popstate", onPop);
   }, [isOpen]);
 
-  async function handleCheckout(tier: "plus" | "pro") {
-    setLoading(tier);
+  async function handleCheckout() {
+    setLoading("premium");
     setError(null);
     try {
       const base = getApiBase();
       const res = await fetch(`${base}stripe/checkout`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, tier }),
+        body: JSON.stringify({ userId, tier: "pro" }),
       });
       const data = await res.json();
       if (data.url) {
@@ -138,18 +138,18 @@ export function PricingModal({ isOpen, onClose, currentTier = "free", defaultTie
                       padding: "16px 20px", marginBottom: 20,
                       display: "flex", alignItems: "center", gap: 14,
                     }}>
-                      <div style={{ width: 40, height: 40, borderRadius: 10, background: currentTier === "pro" ? "rgba(245,158,11,0.1)" : "rgba(0,212,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        {currentTier === "pro" ? <Crown size={18} style={{ color: "#f59e0b" }} /> : <Zap size={18} style={{ color: "#00d4ff" }} fill="#00d4ff" />}
+                      <div style={{ width: 40, height: 40, borderRadius: 10, background: "rgba(0,212,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <Crown size={18} style={{ color: "#00d4ff" }} />
                       </div>
                       <div style={{ flex: 1 }}>
-                        <p style={{ fontSize: 14, fontWeight: 700, color: currentTier === "pro" ? "#f59e0b" : "#00d4ff" }}>
-                          Sirius {currentTier === "pro" ? "Pro" : "Plus"} — Active
+                        <p style={{ fontSize: 14, fontWeight: 700, color: "#00d4ff" }}>
+                          Sirius Premium — Active
                         </p>
                         <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>
-                          {currentTier === "pro" ? "Unlimited messages · Voice · Telegram" : "200 messages/day · Dream Lab · Learn"} · {currentTier === "pro" ? "£19.99" : "£9.99"}/month
+                          Unlimited messages · Voice · Star Lab · Telegram · £19.99/month
                         </p>
                       </div>
-                      <Check size={18} style={{ color: currentTier === "pro" ? "#f59e0b" : "#00d4ff" }} />
+                      <Check size={18} style={{ color: "#00d4ff" }} />
                     </div>
                     <p style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", textAlign: "center" }}>
                       To cancel, visit your Stripe billing portal or contact us.
@@ -157,7 +157,7 @@ export function PricingModal({ isOpen, onClose, currentTier = "free", defaultTie
                   </>
                 ) : (
                   <>
-                    {/* ── PLANS ── */}
+                    {/* ── PREMIUM PLAN ── */}
                     <div style={{ textAlign: "center", marginBottom: 24 }}>
                       <h2 style={{ fontSize: 22, fontWeight: 800, color: "#fff", marginBottom: 6 }}>
                         Get more from Sirius
@@ -167,12 +167,24 @@ export function PricingModal({ isOpen, onClose, currentTier = "free", defaultTie
                       </p>
                     </div>
 
-                    {/* Plus */}
+                    {/* Free tier reminder */}
+                    <div style={{
+                      borderRadius: 12,
+                      background: "rgba(255,255,255,0.03)",
+                      border: "1px solid rgba(255,255,255,0.08)",
+                      padding: "10px 16px", marginBottom: 16,
+                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                    }}>
+                      <span style={{ fontSize: 13, color: "rgba(255,255,255,0.4)" }}>Free plan</span>
+                      <span style={{ fontSize: 12, color: "rgba(255,255,255,0.3)" }}>20 messages / day</span>
+                    </div>
+
+                    {/* Premium */}
                     <div style={{
                       borderRadius: 18,
                       background: "linear-gradient(135deg, rgba(0,212,255,0.1), rgba(0,212,255,0.04))",
                       border: "1.5px solid rgba(0,212,255,0.35)",
-                      padding: "20px 20px 18px", marginBottom: 12,
+                      padding: "20px 20px 18px", marginBottom: 20,
                     }}>
                       <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 14 }}>
                         <div style={{
@@ -180,18 +192,28 @@ export function PricingModal({ isOpen, onClose, currentTier = "free", defaultTie
                           background: "rgba(0,212,255,0.15)",
                           display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
                         }}>
-                          <Zap size={20} style={{ color: "#00d4ff" }} fill="#00d4ff" />
+                          <Crown size={20} style={{ color: "#00d4ff" }} />
                         </div>
                         <div>
                           <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-                            <span style={{ fontSize: 28, fontWeight: 800, color: "#fff" }}>£9.99</span>
+                            <span style={{ fontSize: 28, fontWeight: 800, color: "#fff" }}>£19.99</span>
                             <span style={{ fontSize: 13, color: "rgba(255,255,255,0.4)" }}>/month</span>
                           </div>
-                          <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginTop: 1 }}>Sirius Plus · billed monthly</p>
+                          <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginTop: 1 }}>Sirius Premium · billed monthly</p>
                         </div>
                       </div>
                       <ul style={{ listStyle: "none", padding: 0, margin: "0 0 18px" }}>
-                        {["200 messages per day", "Dream Lab — build & track your dreams", "Learn — study plans, quizzes, deep learning", "Sirius remembers you between sessions", "Image analysis & understanding", "Real-time web search"].map(f => (
+                        {[
+                          "Unlimited messages",
+                          "Dream Lab — build & track your dreams",
+                          "Star Lab — AI-powered tools & apps",
+                          "Learn — study plans, quizzes, deep learning",
+                          "Sirius remembers you between sessions",
+                          "Image analysis & understanding",
+                          "Real-time web search",
+                          "Voice conversations",
+                          "Telegram — Sirius messages you proactively",
+                        ].map(f => (
                           <li key={f} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
                             <div style={{ width: 18, height: 18, borderRadius: "50%", background: "rgba(0,212,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                               <Check size={10} style={{ color: "#00d4ff" }} strokeWidth={3} />
@@ -201,72 +223,20 @@ export function PricingModal({ isOpen, onClose, currentTier = "free", defaultTie
                         ))}
                       </ul>
                       <button
-                        onClick={() => handleCheckout("plus")}
+                        onClick={handleCheckout}
                         disabled={loading !== null}
                         style={{
                           width: "100%", padding: "15px", borderRadius: 12, border: "none",
-                          background: loading === "plus" ? "rgba(0,212,255,0.3)" : "#00d4ff",
-                          color: loading === "plus" ? "#00d4ff" : "#080c1a",
+                          background: loading === "premium" ? "rgba(0,212,255,0.3)" : "#00d4ff",
+                          color: loading === "premium" ? "#00d4ff" : "#080c1a",
                           fontSize: 15, fontWeight: 700,
                           cursor: loading !== null ? "not-allowed" : "pointer",
                           display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                         }}
                       >
-                        {loading === "plus"
+                        {loading === "premium"
                           ? <><Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> Opening checkout…</>
-                          : <><CreditCard size={15} /> Get Plus — £9.99/month</>
-                        }
-                      </button>
-                    </div>
-
-                    {/* Pro */}
-                    <div style={{
-                      borderRadius: 18,
-                      background: "linear-gradient(135deg, rgba(245,158,11,0.08), rgba(245,158,11,0.03))",
-                      border: "1.5px solid rgba(245,158,11,0.3)",
-                      padding: "20px 20px 18px", marginBottom: 20,
-                    }}>
-                      <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 14 }}>
-                        <div style={{
-                          width: 44, height: 44, borderRadius: 12,
-                          background: "rgba(245,158,11,0.12)",
-                          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-                        }}>
-                          <Crown size={20} style={{ color: "#f59e0b" }} />
-                        </div>
-                        <div>
-                          <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-                            <span style={{ fontSize: 28, fontWeight: 800, color: "#fff" }}>£19.99</span>
-                            <span style={{ fontSize: 13, color: "rgba(255,255,255,0.4)" }}>/month</span>
-                          </div>
-                          <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginTop: 1 }}>Sirius Pro · billed monthly</p>
-                        </div>
-                      </div>
-                      <ul style={{ listStyle: "none", padding: 0, margin: "0 0 18px" }}>
-                        {["Unlimited messages", "Everything in Plus", "Voice conversations", "Priority response speed", "Telegram — Sirius messages you proactively"].map(f => (
-                          <li key={f} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-                            <div style={{ width: 18, height: 18, borderRadius: "50%", background: "rgba(245,158,11,0.12)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                              <Check size={10} style={{ color: "#f59e0b" }} strokeWidth={3} />
-                            </div>
-                            <span style={{ fontSize: 13, color: "rgba(255,255,255,0.8)" }}>{f}</span>
-                          </li>
-                        ))}
-                      </ul>
-                      <button
-                        onClick={() => handleCheckout("pro")}
-                        disabled={loading !== null}
-                        style={{
-                          width: "100%", padding: "15px", borderRadius: 12, border: "none",
-                          background: loading === "pro" ? "rgba(245,158,11,0.2)" : "#f59e0b",
-                          color: loading === "pro" ? "#f59e0b" : "#080c1a",
-                          fontSize: 15, fontWeight: 700,
-                          cursor: loading !== null ? "not-allowed" : "pointer",
-                          display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                        }}
-                      >
-                        {loading === "pro"
-                          ? <><Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> Opening checkout…</>
-                          : <><CreditCard size={15} /> Get Pro — £19.99/month</>
+                          : <><CreditCard size={15} /> Get Premium — £19.99/month</>
                         }
                       </button>
                     </div>

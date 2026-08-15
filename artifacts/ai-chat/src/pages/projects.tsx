@@ -260,7 +260,7 @@ function Bubble({ msg }: { msg: LabMessage }) {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export function ProjectsPage() {
-  const { isLoading: subLoading, isPro, status } = useSubscription();
+  const { isLoading: subLoading, isPremium, status } = useSubscription();
   const [, setLocation] = useLocation();
   const userId = getUserId();
 
@@ -492,7 +492,7 @@ export function ProjectsPage() {
   }
 
   // ── Pro upgrade gate ───────────────────────────────────────────────────────
-  if (!isPro) {
+  if (!isPremium) {
     return (
       <div className="min-h-screen bg-[#050a12] flex flex-col">
         <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
