@@ -66,12 +66,6 @@ uri = "file://artifacts/ai-chat/public/logo-starlab.png"
 type = "image"
 title = "sirius star lab dual face logo"
 
-[[generated]]
-id = "8NFDUXJuhsVr5MIhNwO-y"
-uri = "file://artifacts/sirius-mobile/store-metadata/ios/screenshots/iphone_6_9/05.png"
-type = "image"
-title = "sirius star lab chat screenshot clean"
-
 [[outputs]]
 id = "cNdbKNPxY3uJsRbWTNxPd"
 uri = "file://attached_assets/sirius-logo-v1.png"
