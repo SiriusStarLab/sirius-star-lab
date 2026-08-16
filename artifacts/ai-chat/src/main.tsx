@@ -40,7 +40,7 @@ class ErrorBoundary extends React.Component<
           <details style={{ marginTop: 24, fontSize: 10, opacity: 0.35, maxWidth: 480 }}>
             <summary>Error details</summary>
             <pre style={{ marginTop: 8, whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
-              {this.state.error.message}
+              {this.state.error.stack || this.state.error.message}
             </pre>
           </details>
         </div>
