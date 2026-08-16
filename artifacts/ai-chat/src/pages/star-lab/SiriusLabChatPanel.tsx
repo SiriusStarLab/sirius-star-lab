@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Mic, MicOff, Send, Clock, Check, Loader2, Globe, ExternalLink, ChevronDown, ChevronUp } from "lucide-react";
+import { Mic, MicOff, Send, Clock, Check, Loader2, Globe, ExternalLink, ChevronDown, ChevronUp, Paperclip, X } from "lucide-react";
 import { getApiBase } from "@/lib/api-base";
 import { speakText } from "./voice-utils";
 import type { Project, NavMode, AccessRole } from "./types";
@@ -101,6 +101,9 @@ export function SiriusLabChatPanel({ pin, accessLevel, navMode, activeProject, o
   const hasGreetedRef = useRef(false);
   const pendingNavRef = useRef<{ section: NavMode; projectId?: number } | null>(null);
   const pendingBuildRef = useRef<{ section: NavMode; prompt: string } | null>(null);
+  const [attachedFile, setAttachedFile] = useState<string | null>(null);
+  const [attachedName, setAttachedName] = useState<string | null>(null);
+  const [attachedMime, setAttachedMime] = useState<string | null>(null);
   const silentRetryRef = useRef(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
