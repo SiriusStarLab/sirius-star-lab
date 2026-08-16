@@ -106,6 +106,7 @@ export function SiriusLabChatPanel({ pin, accessLevel, navMode, activeProject, o
   const [attachedMime, setAttachedMime] = useState<string | null>(null);
   const silentRetryRef = useRef(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const stopJenny = () => {
     if (audioRef.current) { audioRef.current.pause(); audioRef.current.src = ""; audioRef.current = null; }
@@ -236,7 +237,7 @@ export function SiriusLabChatPanel({ pin, accessLevel, navMode, activeProject, o
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, streamingText, streamingActions]);
 
-  const sendWithMessages = async (apiMessages: { role: string; content: string }[]) => {
+  const sendWithMessages = async (apiMessages: { role: string; content: string }[], imageBase64?: string, documentBase64?: string, documentName?: string) => {
     setStreaming(true);
     setStreamingText("");
     setStreamingActions([]);
