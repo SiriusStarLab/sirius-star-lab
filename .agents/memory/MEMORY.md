@@ -40,3 +40,4 @@
 - [Sirius self-healing architecture](sirius-self-healing-architecture.md) — 4-step system: watchdog sidecar daemon, verified deploy script, immutable bundle lock, boot-time audit injection. deploy-bundle.sh is the ONLY deploy method.
 - [Current year is 2026](current-year.md) — Always search for and cite 2026 guidelines/docs. Garry explicitly asked this be remembered.
 - [EAS build approval — MANDATORY](eas-build-approval.md) — No EAS build may be submitted without Garry's explicit written approval in the conversation. No exceptions.
+- [Star Lab deploy pipeline](star-lab-deploy-pipeline.md) — full build→sandbox→review→promote pipeline deployed Aug 16 2026; all gaps fixed.
