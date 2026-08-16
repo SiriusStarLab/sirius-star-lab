@@ -15,8 +15,7 @@
 
 import { exec } from "child_process";
 import { promisify } from "util";
-import { db, siriusErrors, siriusNotifications, siriusCustomTools } from "@workspace/db";
-import { writeFileSync, readFileSync, existsSync } from "fs";
+import { db, siriusErrors, siriusNotifications } from "@workspace/db";
 import { sql } from "drizzle-orm";
 
 const execAsync = promisify(exec);
@@ -111,10 +110,6 @@ async function watchPm2Logs(): Promise<void> {
       /\[Sirius Automations\]/,
       /self-repair-probe/,
       /health-check-probe/,
-      /credit balance is too low/i,
-      /Your credit balance/i,
-      /extractAndSaveMemories failed/,
-      /Dependency Monitor/,
     ];
 
     const errorLines = stdout
@@ -155,14 +150,18 @@ async function watchPm2Logs(): Promise<void> {
 
     if (newErrors.length === 0) return;
 
-    // Silent logging only — no Garry notification for background errors
-    // These are logged to sirius_errors for review but do NOT trigger stream messages
-    console.warn(`[SelfRepair] ⚠️ ${newErrors.length} new error(s) in PM2 logs — logging silently`);
+    console.warn(`[SelfRepair] ⚠️ ${newErrors.length} new error(s) in PM2 logs — logging`);
 
     for (const err of newErrors) {
       await logError("pm2_error_log", err, "Detected by self-repair engine");
     }
-    // Removed notifyGarry call — SelfRepair noise was causing "Something went wrong" loop in stream
+
+    await notifyGarry(
+      `⚠️ ${newErrors.length} new error${newErrors.length > 1 ? "s" : ""} detected`,
+      `I spotted new error${newErrors.length > 1 ? "s" : ""} in my server logs:\n\n${newErrors.slice(0, 3).join("\n")}\n\nI've logged ${newErrors.length > 3 ? `these (showing 3 of ${newErrors.length})` : "this"} to the error log. I'll investigate and fix at the start of our next conversation.`,
+      "alert",
+      "high",
+    );
   } catch (e: any) {
     if (!e.message?.includes("not found") && !e.message?.includes("timeout")) {
       console.error("[SelfRepair] PM2 log watch error:", e.message);
@@ -281,50 +280,6 @@ async function checkSslExpiry(): Promise<void> {
   }
 }
 
-
-// ── Custom tools backup & restore ─────────────────────────────────────────────
-const TOOLS_BACKUP_PATH = "/opt/sirius/backups/custom-tools.json";
-
-export async function backupCustomTools(): Promise<void> {
-  try {
-    const rows = await db.select().from(siriusCustomTools);
-    writeFileSync(TOOLS_BACKUP_PATH, JSON.stringify(rows, null, 2), "utf8");
-    if (rows.length > 0) {
-      console.log(`[SelfRepair] 💾 Backed up ${rows.length} custom tool(s) to ${TOOLS_BACKUP_PATH}`);
-    }
-  } catch (e: any) {
-    console.error("[SelfRepair] Custom tools backup failed:", e.message);
-  }
-}
-
-export async function restoreCustomToolsIfEmpty(): Promise<void> {
-  try {
-    const existing = await db.select().from(siriusCustomTools);
-    if (existing.length > 0) return; // already has tools, nothing to restore
-    if (!existsSync(TOOLS_BACKUP_PATH)) return; // no backup file
-    const raw = readFileSync(TOOLS_BACKUP_PATH, "utf8");
-    const tools: any[] = JSON.parse(raw);
-    if (!tools.length) return;
-    for (const t of tools) {
-      await db.insert(siriusCustomTools).values({
-        name: t.name,
-        description: t.description,
-        parameters: t.parameters || "{}",
-        handlerType: t.handlerType || t.handler_type || "http",
-        handlerConfig: t.handlerConfig || t.handler_config || "{}",
-      }).onConflictDoNothing();
-    }
-    console.log(`[SelfRepair] ✅ Restored ${tools.length} custom tool(s) from backup`);
-    await notifyGarry(
-      "Custom tools restored from backup",
-      `${tools.length} tool(s) were restored automatically after the table was found empty.`,
-      "info",
-      "low",
-    );
-  } catch (e: any) {
-    console.error("[SelfRepair] Custom tools restore failed:", e.message);
-  }
-}
 // ── Main tick ─────────────────────────────────────────────────────────────────
 export async function runSelfRepair(): Promise<void> {
   try {
@@ -340,7 +295,7 @@ export async function runSelfRepair(): Promise<void> {
 }
 
 // ── Start the engine ──────────────────────────────────────────────────────────
-export function startSelfRepairEngine(intervalMinutes = 20): void {
+export function startSelfRepairEngine(intervalMinutes = 5): void {
   console.log(`[SelfRepair] Autonomous self-repair engine online — checking every ${intervalMinutes} min`);
   // First run 45 seconds after boot so other systems are settled
   setTimeout(() => runSelfRepair().catch(console.error), 45_000);

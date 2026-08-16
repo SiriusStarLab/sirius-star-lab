@@ -36,47 +36,17 @@ uri = "file://artifacts/sirius-mobile/assets/images/icon.png"
 type = "image"
 title = "sirius-star-lab-icon"
 
-[[generated]]
-id = "feJVm9SoqB4gsqWKuIFLS"
-uri = "file://attached_assets/sirius-ad-tiktok.png"
-type = "image"
-title = "sirius tiktok ad vertical"
-
-[[generated]]
-id = "eEBar9Sb8OKtptnRXDG6E"
-uri = "file://attached_assets/sirius-ad-linkedin.png"
-type = "image"
-title = "sirius linkedin ad horizontal"
-
-[[generated]]
-id = "VWs5I-XBxkgBxb9VNq6Vu"
-uri = "file://attached_assets/sirius-ad-square.png"
-type = "image"
-title = "sirius square instagram ad"
-
-[[generated]]
-id = "Ljthx9Ql0t8RAMILOJRmc"
-uri = "file://attached_assets/sirius-ad-story.png"
-type = "image"
-title = "sirius story ad vertical alt"
-
-[[generated]]
-id = "ggjT7i1kzU0zLKrdeMjVg"
-uri = "file://artifacts/ai-chat/public/logo-starlab.png"
-type = "image"
-title = "sirius star lab dual face logo"
-
 [[outputs]]
 id = "cNdbKNPxY3uJsRbWTNxPd"
 uri = "file://attached_assets/sirius-logo-v1.png"
 type = "image"
-title = "Sirius Logo V1"
+title = "Sirius Logo — V1: Twin Faces (front-facing, green + blue eyes)"
 
 [[outputs]]
 id = "ddNIDw6dWrvHDkcJVQFqO"
 uri = "file://attached_assets/sirius-logo-v2.png"
 type = "image"
-title = "Sirius Logo V2"
+title = "Sirius Logo — V2: Profile Silhouettes (facing each other)"
 
 [[outputs]]
 id = "ScKwcO4nBbAQvutiEn3Nx"
@@ -172,31 +142,31 @@ title = "5 — Star Lab"
 id = "6b7iJpUujBbT_ik2c5ieo"
 uri = "file://artifacts/sirius-mobile/store-metadata/ios/screenshots/iphone_6_9/01.png"
 type = "image"
-title = "01 — Hero (twins image)"
+title = "1 — SIRIUS star"
 
 [[outputs]]
 id = "GQeeXAw4gR-rKRk8ggLMM"
 uri = "file://artifacts/sirius-mobile/store-metadata/ios/screenshots/iphone_6_9/02.png"
 type = "image"
-title = "02 — Chat screen"
+title = "2 — I think, so I am"
 
 [[outputs]]
 id = "D1ZNDho0Kiw_7_Nj7hUUe"
 uri = "file://artifacts/sirius-mobile/store-metadata/ios/screenshots/iphone_6_9/03.png"
 type = "image"
-title = "03 — Explore screen"
+title = "3 — Speak your thoughts"
 
 [[outputs]]
 id = "GyqVPGZcFSjmBV5UIdLhA"
 uri = "file://artifacts/sirius-mobile/store-metadata/ios/screenshots/iphone_6_9/04.png"
 type = "image"
-title = "04 — History screen"
+title = "4 — Sirius remembers"
 
 [[outputs]]
 id = "HaviJdgRx5d0754UMfGdv"
 uri = "file://artifacts/sirius-mobile/store-metadata/ios/screenshots/iphone_6_9/05.png"
 type = "image"
-title = "Screenshot 05 — Pricing (fixed, no £ prices)"
+title = "5 — Start every day"
 
 [[outputs]]
 id = "JcR_wQHdJSptnnjZK15OG"
@@ -221,329 +191,3 @@ id = "Svz3K9ynge_TOBCmHnVAt"
 uri = "file://sirius-source.zip"
 type = "unspecified"
 title = "Sirius — Full Source Code (.zip)"
-
-[[outputs]]
-id = "A9aGb8XVZgKovhVKiDjfO"
-uri = "file://attached_assets/sirius-ad-tiktok.png"
-type = "image"
-title = "TikTok / Reels / Story (9:16 vertical)"
-
-[[outputs]]
-id = "3ffGNafkFf421QyMshWhN"
-uri = "file://attached_assets/sirius-ad-linkedin.png"
-type = "image"
-title = "LinkedIn / Twitter / Facebook (16:9 horizontal)"
-
-[[outputs]]
-id = "1mgbbVeIvmrfraQoetozD"
-uri = "file://attached_assets/sirius-ad-square.png"
-type = "image"
-title = "Instagram / Facebook Square (1:1)"
-
-[[outputs]]
-id = "U_pN6DUC_j5jg8YplVktN"
-uri = "file://attached_assets/sirius-ad-story.png"
-type = "image"
-title = "Neural Brain — Story / TikTok alt (9:16 vertical)"
-
-[[outputs]]
-id = "WqALTV4-n6VL52spFU60B"
-uri = "file://artifacts/ai-chat/public/logo-starlab.png"
-type = "image"
-title = "Sirius Star Lab Logo"
-
-[[outputs]]
-id = "N03zdDuqh_Ca1bvQCtIhk"
-uri = "file://sirius-screenshots.zip"
-type = "unspecified"
-title = "Sirius App Store Screenshots (all 4)"
-
-[[outputs]]
-id = "0tcDQYh3qoEWj-VUL8Av7"
-uri = "file://screenshots/sirius_screen1_chat.jpg"
-type = "image"
-title = "Screenshot 1 — Chat Screen"
-
-[[outputs]]
-id = "SfU8RuQMGZJZ0k23j97Du"
-uri = "file://screenshots/sirius_screen2_subscription.jpg"
-type = "image"
-title = "Screenshot 2 — Subscription (Plus & Pro)"
-
-[[outputs]]
-id = "YEdzxPzCX7FbaUw0UbbYM"
-uri = "file://screenshots/sirius_screen3_privacy.jpg"
-type = "image"
-title = "Screenshot 3 — AI Data Consent"
-
-[[outputs]]
-id = "Px9bI0QJXVjjZEbrd8u0Z"
-uri = "file://screenshots/sirius_screen4_explore.jpg"
-type = "image"
-title = "Screenshot 4 — Explore"
-
-[[outputs]]
-id = "Z_N_XwnJaAaxim3gI1glM"
-uri = "file://sirius-appstore-guide.pdf"
-type = "pdf"
-title = "Sirius Star Lab — Apple App Store Submission Guide"
-
-[[outputs]]
-id = "xTR_3TH37H2xAjF6TmQts"
-uri = "file://.local/exports/mini-openrouter.pdf"
-type = "pdf"
-title = "Mini OpenRouter — Build Specification"
-
-[[outputs]]
-id = "VBFBZst2BkuIfeokk_IWX"
-uri = "file://artifacts/sirius-mobile/store-metadata/sirius-screenshots.zip"
-type = "unspecified"
-title = "Sirius App Store Screenshots (5 PNGs — 1320×2868 iPhone 6.9\")"
-
-[[outputs]]
-id = "kzhFSchzFkzfqKfWWYFP2"
-uri = "file://artifacts/sirius-mobile/store-metadata/sirius-screenshots-final.zip"
-type = "unspecified"
-title = "Sirius Star Lab — All 5 Screenshots (1320×2868)"
-
-[[outputs]]
-id = "vOti_nS85M4v_e0LYEdGF"
-uri = "file://artifacts/sirius-mobile/assets/images/logo.png"
-type = "image"
-title = "logo.png"
-
-[[outputs]]
-id = "wpSvfQHDEXTs4ePSM0KQO"
-uri = "file://artifacts/sirius-mobile/assets/images/icon.png"
-type = "image"
-title = "icon.png"
-
-[[outputs]]
-id = "5MQVq06bFoeYLfaxT4Ajo"
-uri = "file://artifacts/sirius-mobile/assets/images/adaptive-icon.png"
-type = "image"
-title = "adaptive-icon.png"
-
-[[outputs]]
-id = "LAahh9NglIhBB6gJkO2f2"
-uri = "file://artifacts/sirius-mobile/assets/images/splash-icon.png"
-type = "image"
-title = "splash-icon.png"
-
-[[outputs]]
-id = "XLQp2DiScIoLSKlJhXAqY"
-uri = "file://attached_assets/download_1784974473143.png"
-type = "image"
-title = "Downloaded today (10:14am)"
-
-[[outputs]]
-id = "ml9NxoKlFF5HfcDFYIPLi"
-uri = "file://attached_assets/683c4856-de04-4058-ab7e-06a973201efa_1785005447637.jpeg"
-type = "image"
-title = "Image A (6:50pm today)"
-
-[[outputs]]
-id = "i7y0zPvAkdKQB_IDCD5Dl"
-uri = "file://attached_assets/99ea1823-8b7a-4a99-8ed9-ce3c7ef71355_1785005447637.jpeg"
-type = "image"
-title = "Image B (6:50pm today)"
-
-[[outputs]]
-id = "9ceU7-7x-z2Ui8QC756EN"
-uri = "file://attached_assets/ac0913b7-1a5b-4679-9879-1c49395e16cf_1785005447637.jpeg"
-type = "image"
-title = "Image C (6:50pm today)"
-
-[[outputs]]
-id = "UZBQdVT9zmUhZDvPpbMOJ"
-uri = "file://attached_assets/image_1783502855473.png"
-type = "image"
-title = "Small icon (Jul 8)"
-
-[[outputs]]
-id = "3frXc29lMNJBKxRrYOxc0"
-uri = "file://attached_assets/image_1777287304549.png"
-type = "image"
-title = "Image (Apr 27)"
-
-[[outputs]]
-id = "UjMbRhqsZWLDWXzeu2y5z"
-uri = "file://attached_assets/IMG_5332_1773815400965.png"
-type = "image"
-title = "Mar 18 image"
-
-[[outputs]]
-id = "ELY-C_7g1pGVu1zgmDMKK"
-uri = "file://attached_assets/IMG_5341_1773860838290.png"
-type = "image"
-title = "Mar 18 image B"
-
-[[outputs]]
-id = "8E0hMRrzeKNZNc_dzwWwz"
-uri = "file://attached_assets/IMG_5401_1774439092957.png"
-type = "image"
-title = "Mar 25 image"
-
-[[outputs]]
-id = "TPMlORdJua0w6ss0m8LPT"
-uri = "file://attached_assets/IMG_0264_1774097332649.png"
-type = "image"
-title = "Mar 21 image"
-
-[[outputs]]
-id = "2bnxkDcLNGn-aZIk_xlst"
-uri = "file://migration-pack/sirius-migration.zip"
-type = "unspecified"
-title = "Sirius Star Lab — Full Migration Pack (updated)"
-
-[[outputs]]
-id = "s6-2MeBsnk2IFj9Ay8w3a"
-uri = "file://migration-pack/ENV_TEMPLATE.md"
-type = "text"
-title = "Sirius — Environment Variables Reference"
-
-[[outputs]]
-id = "CuncP39jtke144wj8bat-"
-uri = "file://migration-pack/README.md"
-type = "text"
-title = "Sirius — Migration Pack README"
-
-[[outputs]]
-id = "WSKpQR9FjZC6QbRUryhnF"
-uri = "file://SIRIUS_COMPLETE_EXPORT.md"
-type = "text"
-title = "Sirius Star Lab — Complete Export"
-description = "Full source code, build history, architecture, and handover documentation for the entire Sirius project."
-
-[[outputs]]
-id = "KSoMvbNVkp9y0udhdc3yj"
-uri = "file://Sirius_Star_Lab_Export.docx"
-type = "word_document"
-title = "Sirius Star Lab — Export (Word Document)"
-description = "Full project documentation, build history, source code, and architecture in a readable Word document."
-
-[[outputs]]
-id = "dvmWT26vxd9Hamdny_8Hn"
-uri = "file://artifacts/sirius-ecosystem/index.html"
-type = "text"
-title = "Sirius Ecosystem — Infographic + Sales Brochure"
-description = "Futuristic orbital infographic of all Sirius products orbiting Star Lab, plus a full sales brochure with product interactions and the conscious business model."
-
-[[outputs]]
-id = "mPc-zoNIIPE8AAAkoprfx"
-uri = "file://attached_assets/sirius-ecosystem.pdf"
-type = "pdf"
-title = "Sirius Ecosystem — Full Product Overview"
-description = "Cover, Star Lab deep-dive, all 8 products with images, closing page. Optimised to 660KB."
-
-[[outputs]]
-id = "3Uc_CahLQZ3Ib0WWpu5Cb"
-uri = "file://attached_assets/IMG_6503_1786633960477.PNG"
-type = "image"
-title = "Screenshot 1 — Chat (1290×2796)"
-description = "Original — correct size for ASC"
-
-[[outputs]]
-id = "RnSulnnlYzI7NXVbsAX7S"
-uri = "file://attached_assets/EF7B0731-146B-4702-904A-C1A55039CA7D_1786634662834.png"
-type = "image"
-title = "Screenshot 2 — Dream Lab (1290×2796)"
-description = "Original — correct size for ASC"
-
-[[outputs]]
-id = "I_PLkj6e0v0xuEougsDps"
-uri = "file://attached_assets/234D7CC6-AD03-4CD2-B38B-2E66425A7646_1786634740990.png"
-type = "image"
-title = "Screenshot 3 — Star Lab (1290×2796)"
-description = "Original — correct size for ASC"
-
-[[outputs]]
-id = "LMXA7dwEtMYPiVC5sg4P3"
-uri = "file://attached_assets/07CCC9E5-8D2A-437B-8E24-D7D2D6002AF9_1786634843128.png"
-type = "image"
-title = "Screenshot 4 — Settings (1290×2796)"
-description = "Original — correct size for ASC"
-
-[[outputs]]
-id = "bcBiXziEONtb3SVUP_Irh"
-uri = "file://attached_assets/screenshot-1-chat.png"
-type = "image"
-title = "Screenshot 1 — Chat"
-description = "Upload first to App Store Connect"
-
-[[outputs]]
-id = "ruH5hTAYD6uRUI91cVjdL"
-uri = "file://attached_assets/screenshot-2-dreamlab.png"
-type = "image"
-title = "Screenshot 2 — Dream Lab"
-description = "Upload second"
-
-[[outputs]]
-id = "xnlzN4eTphxY9XcnSZlXD"
-uri = "file://attached_assets/screenshot-3-starlab.png"
-type = "image"
-title = "Screenshot 3 — Star Lab"
-description = "Upload third"
-
-[[outputs]]
-id = "mae7qP9oOUo0G1uE5SxSW"
-uri = "file://attached_assets/screenshot-4-settings.png"
-type = "image"
-title = "Screenshot 4 — Settings"
-description = "Upload fourth"
-
-[[outputs]]
-id = "tdl8gDGOQU7a2awl74LFp"
-uri = "file://attached_assets/sc-1-chat.png"
-type = "image"
-title = "Screenshot 1 — Chat"
-description = "1242×2688px — upload first"
-
-[[outputs]]
-id = "2Vp-8phq6zocn_hcXhBgX"
-uri = "file://attached_assets/sc-2-dreamlab.png"
-type = "image"
-title = "Screenshot 2 — Dream Lab"
-description = "1242×2688px — upload second"
-
-[[outputs]]
-id = "TvAWmkvnjT3deLVzQxGOG"
-uri = "file://attached_assets/sc-3-starlab.png"
-type = "image"
-title = "Screenshot 3 — Star Lab"
-description = "1242×2688px — upload third"
-
-[[outputs]]
-id = "06jzbliQNnBtRFou0fUjm"
-uri = "file://attached_assets/sc-4-settings.png"
-type = "image"
-title = "Screenshot 4 — Settings"
-description = "1242×2688px — upload fourth"
-
-[[outputs]]
-id = "rBF8vEyFquKwmi7ZYilkC"
-uri = "file://attached_assets/final-1-chat.jpg"
-type = "image"
-title = "Screenshot 1 — Chat"
-description = "1290×2796px, no alpha — ready for ASC"
-
-[[outputs]]
-id = "5qEi-heYQ_kkDO6upKpMn"
-uri = "file://attached_assets/final-2-dreamlab.jpg"
-type = "image"
-title = "Screenshot 2 — Dream Lab"
-description = "1290×2796px, no alpha — ready for ASC"
-
-[[outputs]]
-id = "yXM1fW-_G8D5C-nf97UNc"
-uri = "file://attached_assets/final-3-starlab.jpg"
-type = "image"
-title = "Screenshot 3 — Star Lab"
-description = "1290×2796px, no alpha — ready for ASC"
-
-[[outputs]]
-id = "txCTqU719EWZ_gU12HFQE"
-uri = "file://attached_assets/final-4-settings.jpg"
-type = "image"
-title = "Screenshot 4 — Settings"
-description = "1290×2796px, no alpha — ready for ASC"

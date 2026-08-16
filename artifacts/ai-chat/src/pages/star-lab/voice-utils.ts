@@ -1,174 +1,5 @@
-let _currentAudio: HTMLAudioElement | null = null;
-let _currentAudioUrl: string | null = null;
-let _audioUnlocked = false;
-let _audioCtx: AudioContext | null = null;
-let _currentSource: AudioBufferSourceNode | null = null;
-
-function getReusableAudioElement(): HTMLAudioElement {
-  if (!_currentAudio) {
-    _currentAudio = new Audio();
-    _currentAudio.preload = "auto";
-  }
-  return _currentAudio;
-}
-
-export function unlockAudio() {
-  if (_audioUnlocked) return;
-  _audioUnlocked = true;
-
-  try {
-    const Ctx = (window.AudioContext || (window as any).webkitAudioContext) as typeof AudioContext;
-    if (Ctx) {
-      _audioCtx = new Ctx();
-      console.log("[TTS] AudioContext created, state:", _audioCtx.state);
-      _audioCtx.resume().then(() => {
-        console.log("[TTS] AudioContext resumed, state:", _audioCtx?.state);
-      }).catch((e) => {
-        console.warn("[TTS] AudioContext resume failed:", e);
-      });
-    } else {
-      console.warn("[TTS] AudioContext not available in this browser");
-    }
-  } catch (e) {
-    console.warn("[TTS] AudioContext creation failed:", e);
-    _audioCtx = null;
-  }
-
-  // Also unlock the HTMLAudioElement as fallback
-  const a = getReusableAudioElement();
-  a.src = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==";
-  a.volume = 0;
-  a.play().catch(() => {});
-}
-
-export function stopSpeaking() {
-  if (_currentSource) {
-    try { _currentSource.stop(); } catch {}
-    _currentSource.onended = null;
-    _currentSource = null;
-  }
-  if (_currentAudio) {
-    _currentAudio.pause();
-    _currentAudio.onended = null;
-    _currentAudio.onerror = null;
-  }
-  if (_currentAudioUrl) {
-    URL.revokeObjectURL(_currentAudioUrl);
-    _currentAudioUrl = null;
-  }
-  if (typeof window !== "undefined" && window.speechSynthesis) {
-    window.speechSynthesis.cancel();
-  }
-}
-
-export async function speakText(
-  text: string,
-  onDone?: () => void,
-  _rate = 1.0,
-  pin?: string,
-) {
-  stopSpeaking();
-  if (!text?.trim()) { onDone?.(); return; }
-
-  const clean = text.replace(/[*#>`_~]/g, "").replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").trim();
-  console.log("[TTS] speakText called, pin:", pin ? "SET" : "MISSING", "audioCtx:", _audioCtx ? _audioCtx.state : "null");
-
-  if (pin) {
-    try {
-      const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
-      const url = `${base}/api/lab/tts`;
-      console.log("[TTS] Fetching from:", url, "text length:", clean.slice(0, 2000).length);
-
-      const resp = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-lab-pin": pin },
-        body: JSON.stringify({ text: clean.slice(0, 2000) }),
-        signal: AbortSignal.timeout(35_000),
-      });
-      console.log("[TTS] Response:", resp.status, resp.headers.get("content-type"));
-      if (!resp.ok) throw new Error(`TTS ${resp.status}: ${await resp.text().catch(() => "")}`);
-
-      const arrayBuf = await resp.arrayBuffer();
-      console.log("[TTS] ArrayBuffer size:", arrayBuf.byteLength, "bytes");
-
-      // Prefer AudioContext (bypasses Windows/Edge autoplay policy on HTMLAudioElement)
-      if (_audioCtx) {
-        try {
-          console.log("[TTS] Trying AudioContext, state:", _audioCtx.state);
-          if (_audioCtx.state === "suspended") {
-            console.log("[TTS] Resuming suspended AudioContext...");
-            await _audioCtx.resume();
-            console.log("[TTS] AudioContext resumed, state now:", _audioCtx.state);
-          }
-          const audioBuf = await _audioCtx.decodeAudioData(arrayBuf.slice(0));
-          console.log("[TTS] Decoded audio, duration:", audioBuf.duration.toFixed(2), "s");
-          const source = _audioCtx.createBufferSource();
-          source.buffer = audioBuf;
-          source.connect(_audioCtx.destination);
-          _currentSource = source;
-          source.onended = () => {
-            console.log("[TTS] AudioContext playback ended");
-            if (_currentSource === source) _currentSource = null;
-            onDone?.();
-          };
-          source.start(0);
-          console.log("[TTS] AudioContext playback started");
-          return;
-        } catch (ctxErr) {
-          console.warn("[TTS] AudioContext playback failed:", ctxErr);
-        }
-      } else {
-        console.warn("[TTS] No AudioContext — falling through to HTMLAudioElement");
-      }
-
-      // Fallback: HTMLAudioElement
-      console.log("[TTS] Trying HTMLAudioElement fallback");
-      const blob = new Blob([arrayBuf], { type: "audio/wav" });
-      const blobUrl = URL.createObjectURL(blob);
-      const audio = getReusableAudioElement();
-      audio.pause();
-      audio.volume = 1.0;
-      audio.src = blobUrl;
-      _currentAudioUrl = blobUrl;
-      audio.onended = () => {
-        URL.revokeObjectURL(blobUrl);
-        if (_currentAudioUrl === blobUrl) _currentAudioUrl = null;
-        console.log("[TTS] HTMLAudioElement ended");
-        onDone?.();
-      };
-      audio.onerror = (e) => {
-        console.warn("[TTS] HTMLAudioElement error:", e);
-        URL.revokeObjectURL(blobUrl);
-        if (_currentAudioUrl === blobUrl) _currentAudioUrl = null;
-        onDone?.();
-      };
-      audio.load();
-      try {
-        await audio.play();
-        console.log("[TTS] HTMLAudioElement playing");
-        return;
-      } catch (playErr) {
-        console.warn("[TTS] HTMLAudioElement.play() blocked:", playErr);
-        URL.revokeObjectURL(blobUrl);
-        _currentAudioUrl = null;
-      }
-    } catch (e) {
-      console.warn("[TTS] TTS fetch/decode failed:", e);
-    }
-  } else {
-    console.log("[TTS] No pin — using browser speech synthesis directly");
-  }
-
-  console.log("[TTS] Falling back to browser speech synthesis");
-  _speakBrowser(clean, onDone, _rate);
-}
-
-function _speakBrowser(text: string, onDone?: () => void, rate = 1.0) {
-  if (typeof window === "undefined" || !window.speechSynthesis) {
-    console.warn("[TTS] Browser speech synthesis not available");
-    onDone?.();
-    return;
-  }
+export function speakText(text: string, onDone?: () => void, rate = 0.87) {
+  if (typeof window === "undefined" || !window.speechSynthesis) { onDone?.(); return; }
   window.speechSynthesis.cancel();
 
   const rawSentences = text.match(/[^.!?\n]+(?:[.!?\n]+|$)/g) ?? [text];
@@ -189,18 +20,36 @@ function _speakBrowser(text: string, onDone?: () => void, rate = 1.0) {
     "Alex","Fred","Ralph","Bruce","Junior","Microsoft Ryan","Microsoft Guy",
   ];
 
+  // Priority order — UK neural voices first for a natural British female sound
   const FEMALE_ORDER = [
-    "Microsoft Jenny","Microsoft Sonia","Microsoft Libby","Microsoft Maisie","Microsoft Hazel",
-    "Google UK English Female","Serena","Moira",
-    "Microsoft Aria","Karen","Samantha",
+    // Microsoft UK neural (best quality on Windows/Edge/Chrome)
+    "Microsoft Sonia",          // UK neural — warm, natural British female
+    "Microsoft Libby",          // UK neural — clear, friendly British female
+    "Microsoft Maisie",         // UK neural — younger British female
+    "Microsoft Hazel",          // UK female
+    // Google UK voices (good on Chrome/Android)
+    "Google UK English Female", // natural British female
+    // Apple UK/close accents
+    "Serena",                   // Apple UK — natural
+    "Moira",                    // Apple Irish — close to British cadence
+    // Fallback neural female voices (non-UK but still natural-sounding)
+    "Microsoft Aria",           // Neural American female — much better than older voices
+    "Microsoft Jenny",          // Neural American female
+    "Karen",                    // Apple Australian — natural
+    "Samantha",                 // Apple American — warm
+    // Older Microsoft female voices
     "Microsoft Nora","Microsoft Clara","Microsoft Mia","Microsoft Leah",
-    "Microsoft Susan","Microsoft Zira","Victoria","Fiona","Tessa","Google US English",
+    "Microsoft Susan","Microsoft Zira",
+    // Other Apple/Google
+    "Victoria","Fiona","Tessa","Google US English",
   ];
 
   const pickVoice = () => {
     const v = window.speechSynthesis.getVoices();
-    const byName = FEMALE_ORDER.map(name => v.find(x => x.name === name)).find(Boolean);
+    // Try exact name match in priority order first
+    const byName = v.find(x => FEMALE_ORDER.includes(x.name));
     if (byName) return byName;
+    // Prefer any en-GB female voice over en-US
     return (
       v.find(x => x.lang.startsWith("en-GB") && !KNOWN_MALE.includes(x.name) && !x.name.toLowerCase().includes("male")) ||
       v.find(x => x.lang.startsWith("en-US") && !KNOWN_MALE.includes(x.name) && !x.name.toLowerCase().includes("male")) ||
@@ -208,8 +57,6 @@ function _speakBrowser(text: string, onDone?: () => void, rate = 1.0) {
       v.find(x => x.lang.startsWith("en"))
     );
   };
-
-  console.log("[TTS] Browser speech — voices available:", window.speechSynthesis.getVoices().length);
 
   setTimeout(() => {
     let finished = false;
@@ -229,14 +76,9 @@ function _speakBrowser(text: string, onDone?: () => void, rate = 1.0) {
       utter.pitch  = 1.1;
       utter.volume = 0.97;
       const preferred = pickVoice();
-      if (preferred) {
-        utter.voice = preferred;
-        console.log("[TTS] Browser speech using voice:", preferred.name);
-      } else {
-        console.warn("[TTS] No preferred voice found, using default");
-      }
+      if (preferred) utter.voice = preferred;
       utter.onend   = () => speakNext();
-      utter.onerror = (e) => { console.warn("[TTS] Speech utterance error:", e.error); speakNext(); };
+      utter.onerror = () => speakNext();
       window.speechSynthesis.speak(utter);
     };
     if (window.speechSynthesis.getVoices().length === 0) {

@@ -26,7 +26,7 @@ async function gen(sys: string, user: string, tokens = 500): Promise<string> {
 async function suggestSellPrice(costText: string, projName: string, industry: string): Promise<number | null> {
   try {
     const res = await openai.chat.completions.create({
-      model: "anthropic/claude-haiku-4.5",
+      model: "anthropic/claude-haiku-4-5",
       messages: [{
         role: "user",
         content: `Based on this cost analysis for "${projName}" (${industry}), suggest a realistic market sell price in GBP.

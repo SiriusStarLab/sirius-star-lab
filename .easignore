@@ -1,5 +1,4 @@
 node_modules/
-artifacts/sirius-mobile/node_modules/
 .git/
 .local/
 attached_assets/
@@ -7,10 +6,9 @@ artifacts/fitstack-crm/
 artifacts/ai-chat/
 artifacts/api-server/
 artifacts/mockup-sandbox/
-artifacts/sirius-promo/
-artifacts/new-dimensions/
 dist/
 .expo/
+ios/
 android/
 **/__tests__/
 **/*.test.ts

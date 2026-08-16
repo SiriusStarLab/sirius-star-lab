@@ -27,6 +27,7 @@ interface AppContextValue {
   loading: boolean;
   refreshProfile: () => Promise<void>;
   reloadUser: () => Promise<void>;
+  signOut: () => Promise<void>;
   updateLocalProfile: (updates: Partial<Pick<AppProfile, "aiName" | "userName">>) => Promise<void>;
 }
 
@@ -54,6 +55,7 @@ const AppContext = createContext<AppContextValue>({
   loading: true,
   refreshProfile: async () => {},
   reloadUser: async () => {},
+  signOut: async () => {},
   updateLocalProfile: async () => {},
 });
 
@@ -130,8 +132,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await initUser();
   }, [initUser]);
 
+  const signOut = useCallback(async () => {
+    await AsyncStorage.multiRemove([USER_ID_KEY, PROFILE_KEY, "sirius_apple_user_id", "sirius_lab_auth"]);
+    setUserId(null);
+    setProfile(defaultProfile);
+  }, []);
+
   return (
-    <AppContext.Provider value={{ userId, profile, loading, refreshProfile, reloadUser, updateLocalProfile }}>
+    <AppContext.Provider value={{ userId, profile, loading, refreshProfile, reloadUser, signOut, updateLocalProfile }}>
       {children}
     </AppContext.Provider>
   );

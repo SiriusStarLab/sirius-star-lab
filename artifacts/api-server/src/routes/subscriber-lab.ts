@@ -386,7 +386,7 @@ async function requireSubscription(userId: string): Promise<boolean> {
   if (!userId) return false;
   if (userId === "garry") return true;
   const [profile] = await db.select().from(userProfilesTable).where(eq(userProfilesTable.userId, userId)).limit(1);
-  return !!profile && ["plus", "pro"].includes(profile.tier ?? "");
+  return !!profile && ["plus", "pro"].includes(profile.subscriptionTier ?? "");
 }
 
 // ── POST /creator-lab/chat ────────────────────────────────────────────────────
@@ -413,7 +413,7 @@ router.post("/creator-lab/chat", async (req, res) => {
   const send = (data: object) => res.write(`data: ${JSON.stringify(data)}\n\n`);
   const heartbeat = setInterval(() => res.write(": keep-alive\n\n"), 15000);
 
-  const loopMessages: Array<{ role: string; content: unknown }> = [
+  const loopMessages: any[] = [
     { role: "system", content: SYSTEM_PROMPT },
     ...messages,
   ];

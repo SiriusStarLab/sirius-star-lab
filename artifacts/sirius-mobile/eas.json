@@ -17,8 +17,7 @@
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_DOMAIN": "sirius-ai.live",
-        "EXPO_PUBLIC_REVENUECAT_IOS_KEY": "appl_aytTnzJUMjsWszGKXYcnlNsMOCR"
+        "EXPO_PUBLIC_DOMAIN": "sirius-ai.live"
       },
       "android": {
         "buildType": "app-bundle"
@@ -28,7 +27,12 @@
   "submit": {
     "production": {
       "ios": {
-        "ascAppId": "6766261769"
+        "appleId": "garryboy@icloud.com",
+        "ascAppId": "6766261769",
+        "appleTeamId": "J2ZV6V2AF6",
+        "language": "en-GB",
+        "sku": "live.siriusai.app",
+        "metadataPath": "./store-metadata/ios"
       },
       "android": {
         "serviceAccountKeyPath": "./store-metadata/google-play-service-account.json",

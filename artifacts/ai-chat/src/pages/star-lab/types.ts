@@ -19,7 +19,6 @@ export type Project = {
   investmentRequired: number | null; investmentAssessedAt: string | null;
   stripeProductId: string; stripePriceId: string; stripePaymentLink: string;
   sellPrice: number | null; sellPriceType: string;
-  landingPage: string; embedCode: string;
   messages?: Message[];
 };
 
@@ -42,4 +41,4 @@ export type RankResult = {
   buildEffort: string;
 };
 
-export type NavMode = "dashboard" | "projects" | "botlab" | "scout" | "feed" | "grants" | "commerce" | "outreach" | "autolab" | "revenue" | "agency" | "mission" | "growth" | "brain" | "research" | "docs" | "labchat" | "appbuilder" | "ai-arch" | "orchestrate" | "sysaudit" | "upgrades" | "tasks" | "team";
+export type NavMode = "dashboard" | "projects" | "botlab" | "scout" | "feed" | "grants" | "commerce" | "outreach" | "autolab" | "revenue" | "agency" | "mission" | "growth" | "brain" | "research" | "docs" | "labchat" | "appbuilder" | "ai-arch" | "orchestrate" | "sysaudit" | "upgrades" | "livepreview" | "codeeditor";

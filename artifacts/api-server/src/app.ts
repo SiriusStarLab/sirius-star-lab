@@ -1,7 +1,5 @@
 import express, { type Express } from "express";
 import cors from "cors";
-import session from "express-session";
-import connectPgSimple from "connect-pg-simple";
 import path from "path";
 import fs from "fs";
 import { execSync } from "child_process";
@@ -30,9 +28,20 @@ const isDev = process.env.NODE_ENV !== "production";
 app.use(helmetMiddleware);
 
 // ── 2. CORS — locked to known origins in production ──────────────────────────
+// Always include the custom production domain in addition to Replit's domains
 const CUSTOM_DOMAINS = ["https://sirius-ai.live", "https://www.sirius-ai.live"];
 
-const allowedOrigins = isDev ? true : CUSTOM_DOMAINS;
+const allowedOrigins = isDev
+  ? true
+  : [
+      ...CUSTOM_DOMAINS,
+      ...(process.env.REPLIT_DOMAINS || "")
+        .split(",")
+        .flatMap(d => {
+          const domain = d.trim();
+          return domain ? [`https://${domain}`, `https://www.${domain}`] : [];
+        }),
+    ];
 
 app.use(cors({
   origin: allowedOrigins,
@@ -41,26 +50,7 @@ app.use(cors({
   allowedHeaders: ["Content-Type", "Authorization", "x-lab-pin"],
 }));
 
-// ── 3. Session middleware (persistent login across devices) ──────────────────
-const PgSession = connectPgSimple(session);
-app.use(session({
-  store: new PgSession({
-    conString: process.env.DATABASE_URL,
-    tableName: "user_sessions",
-    createTableIfMissing: true,
-  }),
-  secret: process.env.SESSION_SECRET || "sirius-session-secret-2026",
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-  },
-}));
-
-// ── 4. General rate limiting — all API routes ─────────────────────────────────
+// ── 3. General rate limiting — all API routes ─────────────────────────────────
 app.use(generalRateLimit);
 
 // ── 4. Suspicious request detector (logging only — never blocks legitimate use) ──
@@ -110,7 +100,6 @@ app.use("/api/lab/projects/:id/render", imageGenRateLimit);
 app.use("/api/lab/auto-scan/trigger", scanTriggerRateLimit);
 
 // Dream Lab AI — 30 AI requests per hour per IP (free feature, protected from abuse)
-app.use("/api/creator-lab/chat", chatRateLimit);
 app.use("/api/dream-lab/sirius-chat", dreamLabAiRateLimit);
 app.use("/api/dream-lab/ideas/:id/sirius", dreamLabAiRateLimit);
 app.use("/api/dream-lab/generate-affirmations", dreamLabAiRateLimit);
@@ -262,8 +251,6 @@ app.post("/api/deploy/fix-server", async (req, res) => {
     `ALTER TABLE lab_projects ADD COLUMN IF NOT EXISTS stripe_payment_link text DEFAULT ''`,
     `ALTER TABLE lab_projects ADD COLUMN IF NOT EXISTS sell_price text DEFAULT ''`,
     `ALTER TABLE lab_projects ADD COLUMN IF NOT EXISTS sell_price_type text DEFAULT ''`,
-    `ALTER TABLE lab_projects ADD COLUMN IF NOT EXISTS landing_page text DEFAULT ''`,
-    `ALTER TABLE lab_projects ADD COLUMN IF NOT EXISTS embed_code text DEFAULT ''`,
   ];
   for (const stmt of projectCols) {
     try { await db.execute(sql.raw(stmt)); results.push(`OK: ${stmt.slice(0, 60)}`); }
@@ -342,29 +329,6 @@ app.post("/api/deploy/trigger-cad", async (req, res) => {
 
 // ── 12. All other routes ──────────────────────────────────────────────────────
 app.use("/api", router);
-
-// ── Startup crash notification ────────────────────────────────────────────────
-// Send a Telegram message whenever sirius-api starts/restarts so Garry knows
-// the process was restarted (possibly after a crash).
-(async () => {
-  try {
-    const { sendTelegram } = await import("./lib/telegram.js");
-    const { execSync: ex } = await import("child_process");
-    let restartInfo = "";
-    try {
-      const pm2Out = ex("pm2 jlist 2>/dev/null", { timeout: 3000 }).toString();
-      const processes = JSON.parse(pm2Out) as Array<{ name: string; pm2_env?: { restart_time?: number; unstable_restarts?: number } }>;
-      const api = processes.find(p => p.name === "sirius-api");
-      if (api?.pm2_env?.restart_time !== undefined) {
-        restartInfo = ` (restart #${api.pm2_env.restart_time})`;
-      }
-    } catch { /* pm2 not available in dev */ }
-    const env = process.env.NODE_ENV || "production";
-    if (env !== "development") {
-      await sendTelegram(`🔄 *Sirius API started*${restartInfo}\nServer online at sirius-ai.live`);
-    }
-  } catch { /* never crash startup */ }
-})();
 
 // ── 12. Serve the built React frontend in production ─────────────────────────
 // In development the Vite dev server handles the frontend separately.

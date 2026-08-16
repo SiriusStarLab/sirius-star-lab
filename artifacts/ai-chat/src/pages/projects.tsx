@@ -10,7 +10,6 @@ import {
 import { useSubscription } from "@/hooks/use-subscription";
 import { getUserId } from "@/lib/user-id";
 import { getApiBase } from "@/lib/api-base";
-import { useLocation } from "wouter";
 import { Sidebar } from "@/components/sidebar";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -261,7 +260,6 @@ function Bubble({ msg }: { msg: LabMessage }) {
 
 export function ProjectsPage() {
   const { isLoading: subLoading, isPremium, status } = useSubscription();
-  const [, setLocation] = useLocation();
   const userId = getUserId();
 
   const [view, setView] = useState<"home" | "chat">("home");
@@ -276,27 +274,12 @@ export function ProjectsPage() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const msgCountRef = useRef(0);
 
-  // Gemini-style scroll: on new message show start of response; while streaming follow bottom only if near it
+  // Auto-scroll
   useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    const isNew = messages.length !== msgCountRef.current;
-    msgCountRef.current = messages.length;
-    if (isNew) {
-      setTimeout(() => {
-        const c = containerRef.current;
-        if (!c) return;
-        c.scrollTo({ top: Math.max(0, c.scrollHeight - c.clientHeight * 1.15), behavior: "smooth" });
-      }, 40);
-      return;
-    }
-    const dist = container.scrollHeight - container.scrollTop - container.clientHeight;
-    if (dist < 120) container.scrollTop = container.scrollHeight;
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   // Save session when messages change
@@ -450,58 +433,17 @@ export function ProjectsPage() {
     );
   }
 
-  const isSignedIn = !!localStorage.getItem("sirius_account_email");
-
-  // ── Sign-in gate ───────────────────────────────────────────────────────────
-  if (!isSignedIn) {
-    return (
-      <div className="min-h-screen bg-[#050a12] flex flex-col">
-        <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
-        <div className="flex items-center justify-between px-4 py-4 border-b border-white/5">
-          <button onClick={() => setIsSidebarOpen(true)} className="p-2 rounded-lg hover:bg-white/5 transition-colors">
-            <Menu size={20} className="text-white/60" />
-          </button>
-          <div className="flex items-center gap-2">
-            <Rocket size={18} className="text-[#00b4d8]" />
-            <span className="text-white/80 font-semibold text-sm">Star Lab</span>
-          </div>
-          <div className="w-9" />
-        </div>
-        <div className="flex-1 flex items-center justify-center px-6">
-          <div className="max-w-sm text-center">
-            <div className="w-16 h-16 rounded-2xl bg-[#00b4d8]/10 border border-[#00b4d8]/20 flex items-center justify-center mx-auto mb-6">
-              <Rocket size={28} className="text-[#00b4d8]" />
-            </div>
-            <h2 className="text-2xl font-bold text-white mb-3">Star Lab</h2>
-            <p className="text-white/50 text-sm mb-8 leading-relaxed">
-              Design products, build apps, and write production-ready code with Sirius. A Sirius Pro feature.
-            </p>
-            <button
-              onClick={() => setIsSidebarOpen(true)}
-              className="w-full py-3 rounded-xl bg-[#00b4d8] hover:bg-[#00c4e8] text-white font-semibold text-sm transition-colors mb-3"
-            >
-              Sign in / Create account
-            </button>
-            <p className="text-white/20 text-xs leading-relaxed">
-              Open the account menu from the sidebar to sign in or create your account
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Pro upgrade gate ───────────────────────────────────────────────────────
+  // ── Upgrade gate ───────────────────────────────────────────────────────────
   if (!isPremium) {
     return (
       <div className="min-h-screen bg-[#050a12] flex flex-col">
-        <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+        <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)}  />
         <div className="flex items-center justify-between px-4 py-4 border-b border-white/5">
           <button onClick={() => setIsSidebarOpen(true)} className="p-2 rounded-lg hover:bg-white/5 transition-colors">
             <Menu size={20} className="text-white/60" />
           </button>
           <div className="flex items-center gap-2">
-            <Rocket size={18} className="text-[#00b4d8]" />
+            <FlaskConical size={18} className="text-[#00b4d8]" />
             <span className="text-white/80 font-semibold text-sm">Star Lab</span>
           </div>
           <div className="w-9" />
@@ -509,23 +451,21 @@ export function ProjectsPage() {
         <div className="flex-1 flex items-center justify-center px-6">
           <div className="max-w-sm text-center">
             <div className="w-16 h-16 rounded-2xl bg-[#00b4d8]/10 border border-[#00b4d8]/20 flex items-center justify-center mx-auto mb-6">
-              <Rocket size={28} className="text-[#00b4d8]" />
+              <FlaskConical size={28} className="text-[#00b4d8]" />
             </div>
-            <h2 className="text-2xl font-bold text-white mb-3">Star Lab is a Pro feature</h2>
-            <p className="text-white/50 text-sm mb-3 leading-relaxed">
-              Design products, build apps, and write production-ready code with Sirius — your full R&D partner.
+            <h2 className="text-2xl font-bold text-white mb-3">Star Lab</h2>
+            <p className="text-white/50 text-sm mb-6 leading-relaxed">
+              Design products, build apps, and write code with Sirius. Available on Plus and Pro plans.
             </p>
             <div className="text-xs text-white/30 mb-8">
               Current plan: <span className="text-white/50 capitalize">{status.tier}</span>
             </div>
             <button
               onClick={() => setIsSidebarOpen(true)}
-              className="w-full py-3 rounded-xl font-semibold text-sm transition-colors mb-3"
-              style={{ background: "#f59e0b", color: "#080c1a" }}
+              className="w-full py-3 rounded-xl bg-[#00b4d8] hover:bg-[#00c4e8] text-white font-semibold text-sm transition-colors"
             >
-              Get Pro — £19.99/month
+              Upgrade to Plus
             </button>
-            <p className="text-white/20 text-xs">Upgrade from the sidebar</p>
           </div>
         </div>
       </div>
@@ -540,16 +480,11 @@ export function ProjectsPage() {
 
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-4 border-b border-white/5">
-          <div className="flex items-center gap-1">
-            <button onClick={() => setLocation("/")} className="p-2 rounded-lg hover:bg-white/5 transition-colors" title="Back to Sirius">
-              <ChevronLeft size={20} className="text-white/60" />
-            </button>
-            <button onClick={() => setIsSidebarOpen(true)} className="p-2 rounded-lg hover:bg-white/5 transition-colors">
-              <Menu size={20} className="text-white/60" />
-            </button>
-          </div>
+          <button onClick={() => setIsSidebarOpen(true)} className="p-2 rounded-lg hover:bg-white/5 transition-colors">
+            <Menu size={20} className="text-white/60" />
+          </button>
           <div className="flex items-center gap-2">
-            <Rocket size={18} className="text-[#00b4d8]" />
+            <FlaskConical size={18} className="text-[#00b4d8]" />
             <span className="text-white/80 font-semibold text-sm">Star Lab</span>
           </div>
           <button
@@ -730,7 +665,7 @@ export function ProjectsPage() {
       </div>
 
       {/* Messages */}
-      <div ref={containerRef} className="flex-1 overflow-y-auto px-4 py-4">
+      <div className="flex-1 overflow-y-auto px-4 py-4">
         <div className="max-w-2xl mx-auto">
           {messages.map(msg => <Bubble key={msg.id} msg={msg} />)}
           <div ref={bottomRef} />

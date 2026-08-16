@@ -1,34 +1,13 @@
 import { useState, useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Mic, MicOff, Send, Clock, Check, Loader2, Globe, Paperclip, X, History, ChevronRight } from "lucide-react";
+import { Mic, MicOff, Send, Clock, Check, Loader2, Globe, ExternalLink, ChevronDown, ChevronUp } from "lucide-react";
 import { getApiBase } from "@/lib/api-base";
-import { speakText, stopSpeaking } from "./voice-utils";
+import { speakText } from "./voice-utils";
 import type { Project, NavMode, AccessRole } from "./types";
 
-function preprocessImageUrls(content: string): string {
-  let result = content;
-  result = result.replace(
-    /(?:Image generated at URL|URL):\s*(https?:\/\/\S+)/gi,
-    (_, url) => `\n\n![Generated image](${url})\n\n`
-  );
-  result = result.replace(
-    /Saved to:\s*\/opt\/sirius\/artifacts\/api-server\/public\/renders\/([\w.\-]+)/gi,
-    (_, filename) => `\n\n![Generated image](https://sirius-ai.live/api/lab/renders/${filename})\n\n`
-  );
-  result = result.replace(
-    /(?<!\()(https?:\/\/image\.pollinations\.ai\/[^\s)\]"']+)/gi,
-    (url) => `\n\n![Generated image](${url})\n\n`
-  );
-  result = result.replace(
-    /(?<!\()(https?:\/\/[^\s)\]"']+\.(png|jpg|jpeg|gif|webp|bmp|svg)([?#][^\s)\]"']*)?)/gi,
-    (url) => `\n\n![Generated image](${url})\n\n`
-  );
-  return result;
-}
-
 type ActionCard = { tool: string; label: string; detail: string; color: string; icon: string; result?: string };
-type LabChatMsg = { role: "user" | "assistant"; content: string; actions?: ActionCard[]; attachedImageUrl?: string; images?: string[] };
+type LabChatMsg = { role: "user" | "assistant"; content: string; actions?: ActionCard[] };
 
 const NAV_LABELS: Record<string, string> = {
   dashboard: "Dashboard", projects: "Projects", botlab: "Bot Lab", scout: "Scout",
@@ -38,6 +17,51 @@ const NAV_LABELS: Record<string, string> = {
   appbuilder: "App Builder", "ai-arch": "AI Architecture", orchestrate: "Command Centre",
   sysaudit: "System Audit", upgrades: "Sirius Upgrades", labchat: "Chat with Sirius",
 };
+
+
+/** Extract sandbox app URLs from message content */
+function extractSandboxUrls(content: string): string[] {
+  const re = /https:\/\/sandbox\.sirius-ai\.live\/apps\/[a-z0-9-]+\//g;
+  return [...new Set(content.match(re) || [])];
+}
+
+/** Inline sandbox preview card shown below assistant messages */
+function SandboxPreviewCard({ url }: { url: string }) {
+  const [open, setOpen] = useState(true);
+  const slug = url.replace(/.*\/apps\//, "").replace(/\/$/, "");
+  return (
+    <div className="mt-2 rounded-xl overflow-hidden" style={{ border: "1px solid rgba(0,212,255,0.25)", background: "rgba(0,12,30,0.6)" }}>
+      <div className="flex items-center justify-between px-3 py-2 cursor-pointer select-none"
+        style={{ background: "rgba(0,212,255,0.08)", borderBottom: open ? "1px solid rgba(0,212,255,0.15)" : "none" }}
+        onClick={() => setOpen(o => !o)}>
+        <div className="flex items-center gap-2">
+          <span className="text-sm">🚀</span>
+          <span className="text-xs font-semibold" style={{ color: "rgba(0,212,255,0.9)" }}>{slug}</span>
+          <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: "rgba(0,212,255,0.15)", color: "rgba(0,212,255,0.7)" }}>sandbox</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <a href={url} target="_blank" rel="noopener noreferrer"
+            onClick={e => e.stopPropagation()}
+            className="text-[10px] flex items-center gap-1 px-2 py-1 rounded-lg"
+            style={{ background: "rgba(0,212,255,0.12)", color: "rgba(0,212,255,0.8)" }}>
+            <ExternalLink className="w-2.5 h-2.5" /> Open
+          </a>
+          {open ? <ChevronUp className="w-3.5 h-3.5 text-cyan-400/60" /> : <ChevronDown className="w-3.5 h-3.5 text-cyan-400/60" />}
+        </div>
+      </div>
+      {open && (
+        <div style={{ height: 420, position: "relative" }}>
+          <iframe
+            src={url}
+            title={slug}
+            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+            style={{ width: "100%", height: "100%", border: "none", background: "#fff" }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function SiriusLabChatPanel({ pin, accessLevel, navMode, activeProject, onNavigate, onOpenProject, onNavigateAndBuild }: {
   pin: string;
@@ -59,33 +83,17 @@ export function SiriusLabChatPanel({ pin, accessLevel, navMode, activeProject, o
   const [streaming, setStreaming] = useState(false);
   const [streamingText, setStreamingText] = useState("");
   const [streamingActions, setStreamingActions] = useState<ActionCard[]>([]);
-  const [streamingImages, setStreamingImages] = useState<string[]>([]);
   const [thinkingText, setThinkingText] = useState("");
   const [webSearching, setWebSearching] = useState(false);
   const [webSearchQuery, setWebSearchQuery] = useState("");
-  const [showHistory, setShowHistory] = useState(false);
-  const [historyList, setHistoryList] = useState<{ id: number; title: string; message_count: number; last_message_at: string }[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
   const [voicePhase, setVoicePhase] = useState<"idle" | "listening" | "speaking">("idle");
   const [voiceHint, setVoiceHint] = useState("");
   const [waveTick, setWaveTick] = useState(0);
-  const [chatInputMode, setChatInputMode] = useState<"voice" | "keyboard">("keyboard");
-  const chatInputModeRef = useRef<"voice" | "keyboard">("keyboard");
+  const [chatInputMode, setChatInputMode] = useState<"voice" | "keyboard">("voice");
+  const chatInputModeRef = useRef<"voice" | "keyboard">("voice");
   const [textInput, setTextInput] = useState("");
   const [queuedMessage, setQueuedMessage] = useState("");
-  const [attachedFile, setAttachedFile] = useState<string | null>(null);
-  const [attachedName, setAttachedName] = useState<string | null>(null);
-  const [attachedMime, setAttachedMime] = useState<string | null>(null);
-  const CONV_ID_KEY = `lab_conv_${accessLevel}`;
-  const getSavedConvId = (): number | null => {
-    try {
-      const saved = localStorage.getItem(`lab_conv_${accessLevel}`);
-      return saved ? parseInt(saved, 10) : null;
-    } catch { return null; }
-  };
-  const conversationIdRef = useRef<number | null>(getSavedConvId());
   const textInputRef = useRef<HTMLTextAreaElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
   const messagesRef = useRef<LabChatMsg[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -94,6 +102,31 @@ export function SiriusLabChatPanel({ pin, accessLevel, navMode, activeProject, o
   const pendingNavRef = useRef<{ section: NavMode; projectId?: number } | null>(null);
   const pendingBuildRef = useRef<{ section: NavMode; prompt: string } | null>(null);
   const silentRetryRef = useRef(0);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const stopJenny = () => {
+    if (audioRef.current) { audioRef.current.pause(); audioRef.current.src = ""; audioRef.current = null; }
+    window.speechSynthesis?.cancel();
+  };
+
+  const speakWithJenny = async (text: string, onDone?: () => void) => {
+    stopJenny();
+    try {
+      const res = await fetch(`${base}openai/tts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      if (!res.ok) throw new Error("TTS failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.onended = () => { URL.revokeObjectURL(url); audioRef.current = null; onDone?.(); };
+      audio.onerror = () => { URL.revokeObjectURL(url); audioRef.current = null; speakText(text, onDone); };
+      await audio.play();
+    } catch { speakText(text, onDone); }
+  };
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -117,30 +150,6 @@ export function SiriusLabChatPanel({ pin, accessLevel, navMode, activeProject, o
     const id = setInterval(() => setWaveTick(t => t + 1), 90);
     return () => clearInterval(id);
   }, []);
-
-  const loadHistory = async () => {
-    setHistoryLoading(true);
-    try {
-      const resp = await fetch(`${base}/api/lab/conversations`, { headers: { "x-lab-pin": pin } });
-      if (resp.ok) setHistoryList(await resp.json());
-    } catch {}
-    setHistoryLoading(false);
-  };
-
-  const loadConversation = async (convId: number) => {
-    try {
-      const resp = await fetch(`${base}/api/lab/conversations/${convId}/messages`, { headers: { "x-lab-pin": pin } });
-      if (!resp.ok) return;
-      const rows: { role: string; content: string }[] = await resp.json();
-      const loaded: LabChatMsg[] = rows
-        .filter(r => r.role === "user" || r.role === "assistant")
-        .map(r => ({ role: r.role as "user" | "assistant", content: r.content }));
-      setMessages(loaded);
-      conversationIdRef.current = convId;
-      try { localStorage.setItem(CONV_ID_KEY, String(convId)); } catch {}
-      setShowHistory(false);
-    } catch {}
-  };
 
   const stopListeningNow = () => {
     try { recognitionRef.current?.stop(); } catch {}
@@ -202,36 +211,29 @@ export function SiriusLabChatPanel({ pin, accessLevel, navMode, activeProject, o
 
   useEffect(() => {
     stoppedRef.current = false;
-    if (hasGreetedRef.current) return;
+    if (hasGreetedRef.current) {
+      setTimeout(() => startListeningLoop(), 600);
+      return;
+    }
     hasGreetedRef.current = true;
-
-    const runStartup = async () => {
-      if (stoppedRef.current) return;
-
-      if (accessLevel !== "guest") {
-        // Real startup — Sirius runs system_check + check_server_health herself per TASK 1.
-        // No user message is added to the display; the API messages array has no prior
-        // assistant messages so the server knows this is startup and runs diagnostics.
-        // sendWithMessages handles streaming UI (thinking dots, action cards, text) and voice.
-        await sendWithMessages([{ role: "user", content: "begin session" }]);
-      } else {
-        setMessages(prev => [...prev, {
-          role: "assistant",
-          content: "Hello. I'm Sirius. Ask me anything about this company, its projects, or the market.",
-        }]);
-        speakText("Hello. I'm Sirius. Ask me anything.", () => { setVoicePhase("idle"); }, 0.87, pin);
-      }
-    };
-
-    setTimeout(runStartup, 500);
-    return () => { stoppedRef.current = true; stopListeningNow(); stopSpeaking(); };
+    const greeting = accessLevel === "guest"
+      ? "Hello. I'm Sirius. Ask me anything about this company, its projects, or the market."
+      : "I'm here, Garry. What would you like to work on?";
+    setTimeout(() => {
+      setVoicePhase("speaking");
+      speakWithJenny(greeting, () => {
+        setVoicePhase("idle");
+        if (!stoppedRef.current) startListeningLoop();
+      });
+    }, 500);
+    return () => { stoppedRef.current = true; stopListeningNow(); stopJenny(); };
   }, []);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, streamingText, streamingActions]);
 
-  const sendWithMessages = async (apiMessages: { role: string; content: string }[], imageBase64?: string, documentBase64?: string, documentName?: string) => {
+  const sendWithMessages = async (apiMessages: { role: string; content: string }[]) => {
     setStreaming(true);
     setStreamingText("");
     setStreamingActions([]);
@@ -272,13 +274,10 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 120_000);
 
-      const body: any = { messages: messagesWithContext, conversationId: conversationIdRef.current };
-      if (imageBase64) body.imageBase64 = imageBase64;
-      if (documentBase64) { body.documentBase64 = documentBase64; body.documentName = documentName; }
       const res = await fetch(`${base}lab/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-lab-pin": pin },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ messages: messagesWithContext }),
         signal: controller.signal,
       });
       clearTimeout(timeout);
@@ -289,7 +288,6 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
       const decoder = new TextDecoder();
       let buffer = "";
       let streamDone = false;
-      const images: string[] = [];
 
       while (!streamDone) {
         const { done, value } = await reader.read();
@@ -304,60 +302,16 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
           if (raw === "[DONE]") { streamDone = true; break; }
           try {
             const evt = JSON.parse(raw);
-            // ── text streaming ────────────────────────────────────────────
-            if (evt.content) {
-              fullText += evt.content;
-              setStreamingText(fullText);
-              setThinkingText("");
-              setWebSearching(false);
-            } else if (evt.type === "text" && evt.delta) {
+            if (evt.type === "text" && evt.delta) {
               fullText += evt.delta;
               setStreamingText(fullText);
               setThinkingText("");
               setWebSearching(false);
-            } else if (evt.done) {
-              streamDone = true;
-            } else if (evt.type === "image" && evt.url) {
-              images.push(evt.url);
-              setStreamingImages([...images]);
-              setThinkingText("");
-            // ── action cards for every tool Sirius uses ───────────────────
             } else if (evt.type === "action") {
               const card: ActionCard = { tool: evt.tool, label: evt.label, detail: evt.detail, color: evt.color, icon: evt.icon, result: evt.result };
               actions.push(card);
               setStreamingActions([...actions]);
               setThinkingText("");
-            } else if (evt.type === "reading_file") {
-              const card: ActionCard = { tool: "read_source_file", label: "Reading file", detail: evt.path, color: "hsl(220 70% 55%)", icon: "📄" };
-              actions.push(card); setStreamingActions([...actions]); setThinkingText("");
-            } else if (evt.type === "executing_code") {
-              const card: ActionCard = { tool: "execute_code", label: `Running ${evt.language || "code"}`, detail: "", color: "hsl(280 70% 55%)", icon: "⚡" };
-              actions.push(card); setStreamingActions([...actions]); setThinkingText("");
-            } else if (evt.type === "code_result") {
-              const last = actions[actions.length - 1];
-              if (last?.tool === "execute_code") {
-                actions[actions.length - 1] = { ...last, detail: evt.success ? `Done in ${evt.executionMs}ms` : "Failed", color: evt.success ? "hsl(142 71% 45%)" : "hsl(0 72% 51%)" };
-                setStreamingActions([...actions]);
-              }
-            } else if (evt.type === "proposing_change") {
-              const card: ActionCard = { tool: "propose_code_change", label: "Writing change", detail: evt.filePath, color: "hsl(38 92% 50%)", icon: "✏️" };
-              actions.push(card); setStreamingActions([...actions]); setThinkingText("");
-            } else if (evt.type === "deploy_result") {
-              const last = actions[actions.length - 1];
-              if (last?.tool === "propose_code_change") {
-                actions[actions.length - 1] = { ...last, label: evt.success ? "Change deployed ✓" : "Change rejected", color: evt.success ? "hsl(142 71% 45%)" : "hsl(0 72% 51%)" };
-                setStreamingActions([...actions]);
-              }
-            } else if (evt.type === "field_saved") {
-              const card: ActionCard = { tool: "save_to_project", label: `Saved: ${evt.label || evt.field}`, detail: evt.preview ? evt.preview.slice(0, 60) : "", color: "hsl(142 71% 45%)", icon: "💾" };
-              actions.push(card); setStreamingActions([...actions]); setThinkingText("");
-            } else if (evt.type === "render_queued") {
-              const card: ActionCard = { tool: "generate_render", label: "Render queued", detail: evt.description ? evt.description.slice(0, 60) : "", color: "hsl(193 100% 40%)", icon: "🎨" };
-              actions.push(card); setStreamingActions([...actions]); setThinkingText("");
-            } else if (evt.type === "sending_to_cad") {
-              const card: ActionCard = { tool: "send_to_new_dimensions", label: "Sending to New Dimensions", detail: "", color: "hsl(193 100% 40%)", icon: "📐" };
-              actions.push(card); setStreamingActions([...actions]); setThinkingText("");
-            // ── status / thinking ────────────────────────────────────────
             } else if (evt.type === "thinking") {
               setThinkingText(evt.text || "");
             } else if (evt.type === "status" && evt.message) {
@@ -379,17 +333,8 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
               } else if (evt.section) {
                 pendingNavRef.current = { section: evt.section as NavMode };
               }
-            } else if (evt.type === "conversation_id" && evt.conversationId) {
-              conversationIdRef.current = evt.conversationId;
-              try { localStorage.setItem(CONV_ID_KEY, String(evt.conversationId)); } catch {}
             } else if (evt.type === "error") {
               fullText = evt.message || "Something went wrong.";
-              streamDone = true;
-            } else if (evt.error) {
-              const isCredits = String(evt.error).toLowerCase().includes("credit") || String(evt.error).toLowerCase().includes("balance");
-              fullText = isCredits
-                ? "I'm temporarily offline — my API credits need topping up. I'll be back shortly."
-                : `Something went wrong: ${evt.error}`;
               streamDone = true;
             }
           } catch {}
@@ -412,8 +357,8 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
       }
 
       const cleanedText = fullText.replace(/<<[^>]+>>/g, "").trim();
-      const finalText = cleanedText || (images.length > 0 ? "" : "No response — please try again.");
-      setMessages(prev => [...prev, { role: "assistant", content: finalText, actions: actions.length > 0 ? [...actions] : undefined, images: images.length > 0 ? [...images] : undefined }]);
+      const finalText = cleanedText || "No response — please try again.";
+      setMessages(prev => [...prev, { role: "assistant", content: finalText, actions: actions.length > 0 ? [...actions] : undefined }]);
 
       if (chatInputModeRef.current === "keyboard") {
         const pendingBuild = pendingBuildRef.current;
@@ -433,14 +378,8 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
       }
 
       setVoicePhase("speaking");
-      const _voiceRaw = finalText.replace(/[*#>`_~]/g, "").replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
-      const _voiceMax = 1200;
-      const voiceText = _voiceRaw.length <= _voiceMax ? _voiceRaw : (() => {
-        const cut = _voiceRaw.slice(0, _voiceMax);
-        const lastStop = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("! "), cut.lastIndexOf("? "), cut.lastIndexOf(".\n"), cut.lastIndexOf("!\n"), cut.lastIndexOf("?\n"));
-        return lastStop > 600 ? cut.slice(0, lastStop + 1) : cut;
-      })();
-      speakText(voiceText, () => {
+      const voiceText = finalText.replace(/[*#>`_~]/g, "").replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").slice(0, 500);
+      speakWithJenny(voiceText, () => {
         setVoicePhase("idle");
         const pendingBuild = pendingBuildRef.current;
         const pendingNav = pendingNavRef.current;
@@ -458,17 +397,16 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
         } else if (!stoppedRef.current) {
           setTimeout(() => startListeningLoop(), 400);
         }
-      }, 0.87, pin);
+      });
 
     } catch (err: any) {
       const msg = err?.name === "AbortError" ? "Request timed out — Sirius took too long. Try again." : "Something went wrong — try again.";
       setMessages(prev => [...prev, { role: "assistant", content: msg }]);
-      speakText(msg, () => { if (!stoppedRef.current) setTimeout(() => startListeningLoop(), 400); }, 0.87, pin);
+      speakWithJenny(msg, () => { if (!stoppedRef.current) setTimeout(() => startListeningLoop(), 400); });
     } finally {
       setStreaming(false);
       setStreamingText("");
       setStreamingActions([]);
-      setStreamingImages([]);
       setThinkingText("");
       setWebSearching(false);
       setWebSearchQuery("");
@@ -488,52 +426,86 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
     }
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = ev => {
-      setAttachedFile(ev.target?.result as string);
-      setAttachedName(file.name);
-      setAttachedMime(file.type || "application/octet-stream");
-    };
-    reader.readAsDataURL(file);
-    e.target.value = "";
+  const detectLabNavIntent = (text: string): NavMode | null => {
+    const t = text.toLowerCase();
+    const navMap: [string[], NavMode][] = [
+      [["dashboard", "home", "overview"], "dashboard"],
+      [["project", "portfolio", "innovations"], "projects"],
+      [["bot lab", "botlab", "automation bots", "bots"], "botlab"],
+      [["scout", "scan", "opportunities", "scanning"], "scout"],
+      [["intelligence feed", "feed", "market signals", "trends"], "feed"],
+      [["funding radar", "grants", "funding", "grant"], "grants"],
+      [["commerce", "e-commerce", "retail", "shop"], "commerce"],
+      [["outreach", "sales contacts", "partners"], "outreach"],
+      [["auto lab", "autolab", "pending approval"], "autolab"],
+      [["revenue", "sales plan", "unit economics", "commission"], "revenue"],
+      [["agency", "client delivery"], "agency"],
+      [["mission", "kpi", "objectives"], "mission"],
+      [["growth", "marketing", "growth engine"], "growth"],
+      [["brain", "strategic intelligence", "deep analysis"], "brain"],
+      [["deep research", "research"], "research"],
+      [["document", "docs", "upload"], "docs"],
+      [["lab chat", "labchat", "full conversation"], "labchat"],
+      [["app builder", "appbuilder", "build app"], "appbuilder"],
+      [["ai architecture", "ai arch", "architecture"], "ai-arch"],
+      [["command centre", "orchestrate", "orchestration", "full pipeline"], "orchestrate"],
+      [["system audit", "sysaudit", "platform audit", "audit", "health check", "platform health"], "sysaudit"],
+      [["upgrades", "upgrade wishlist", "what sirius needs", "sirius upgrades", "buy for sirius", "capability upgrades"], "upgrades"],
+    ];
+    const goVerbs = ["go to", "take me to", "open", "show me", "navigate to", "switch to"];
+    const hasGoVerb = goVerbs.some(v => t.includes(v));
+    if (!hasGoVerb) return null;
+    for (const [keywords, mode] of navMap) {
+      if (keywords.some(k => t.includes(k))) return mode;
+    }
+    return null;
   };
-
-  const clearAttachment = () => { setAttachedFile(null); setAttachedName(null); setAttachedMime(null); };
-  const isImageMime = (mime: string | null) => !!(mime && mime.startsWith("image/"));
 
   const submitTextMessage = () => {
     const text = textInput.trim();
-    if (!text && !attachedFile) return;
+    if (!text) return;
     if (streaming) {
       setQueuedMessage(text);
       setTextInput("");
       return;
     }
-    const imgForDisplay = attachedFile && isImageMime(attachedMime) ? attachedFile : undefined;
-    const imgB64 = attachedFile && isImageMime(attachedMime) ? attachedFile : undefined;
-    const docB64 = attachedFile && !isImageMime(attachedMime) ? attachedFile : undefined;
-    const docName = attachedName && !isImageMime(attachedMime) ? attachedName : undefined;
     setTextInput("");
-    clearAttachment();
-    const userMsg: LabChatMsg = { role: "user", content: text, attachedImageUrl: imgForDisplay };
+    const userMsg: LabChatMsg = { role: "user", content: text };
     setMessages(prev => [...prev, userMsg]);
 
+    if (onNavigate) {
+      const navTarget = detectLabNavIntent(text);
+      if (navTarget) {
+        const navName = NAV_LABELS[navTarget] ?? navTarget;
+        setMessages(prev => [...prev, { role: "assistant", content: `Taking you to ${navName} now.` }]);
+        speakWithJenny(`Taking you to ${navName}.`);
+        setTimeout(() => onNavigate!(navTarget), 200);
+        return;
+      }
+    }
+
     const apiMessages = [...messagesRef.current, userMsg].map(m => ({ role: m.role, content: m.content }));
-    sendWithMessages(apiMessages, imgB64 || undefined, docB64 || undefined, docName || undefined);
+    const isImage = attachedMime?.startsWith("image/");
+    sendWithMessages(
+      apiMessages,
+      isImage ? attachedFile || undefined : undefined,
+      !isImage ? attachedFile || undefined : undefined,
+      attachedName || undefined
+    );
+    setAttachedFile(null);
+    setAttachedName(null);
+    setAttachedMime(null);
   };
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 relative" style={{ background: "#F5F7FF" }}>
+    <div className="flex-1 flex flex-col min-h-0" style={{ background: "#F5F7FF" }}>
 
       <div className="flex items-center justify-between px-5 py-3 border-b flex-shrink-0" style={{ borderColor: "rgba(15,23,42,0.07)", background: "#FFFFFF" }}>
         <div className="flex items-center gap-3">
           <div className="relative flex-shrink-0">
             <div className="w-10 h-10 rounded-2xl overflow-hidden"
               style={{ border: "1.5px solid rgba(0,212,255,0.3)", boxShadow: voicePhase === "speaking" ? "0 0 18px rgba(0,212,255,0.35)" : "0 0 8px rgba(0,212,255,0.1)" }}>
-              <img src="/logo-v2.png" alt="Sirius" className="w-full h-full object-cover" />
+              <img src="/twins.jpg" alt="Sirius" className="w-full h-full object-cover" />
             </div>
             <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 animate-pulse"
               style={{ background: voicePhase === "listening" ? "hsl(0,75%,50%)" : voicePhase === "speaking" ? "hsl(193,100%,50%)" : "hsl(155,70%,50%)", borderColor: "#FFFFFF" }} />
@@ -546,16 +518,8 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {accessLevel !== "guest" && (
-            <button onClick={() => { setShowHistory(h => { if (!h) loadHistory(); return !h; }); }}
-              className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg transition-all hover:bg-slate-900/5"
-              style={{ color: showHistory ? "hsl(193,100%,35%)" : "rgba(15,23,42,0.4)" }}
-              title="Chat history">
-              <History className="w-3.5 h-3.5" />
-            </button>
-          )}
           {messages.length > 0 && (
-            <button onClick={() => { setMessages([]); stoppedRef.current = true; stopListeningNow(); window.speechSynthesis?.cancel(); try { localStorage.removeItem(CHAT_STORAGE_KEY); } catch {} setTimeout(() => { stoppedRef.current = false; hasGreetedRef.current = false; }, 100); }}
+            <button onClick={() => { setMessages([]); stoppedRef.current = true; stopListeningNow(); stopJenny(); try { localStorage.removeItem(CHAT_STORAGE_KEY); } catch {} setTimeout(() => { stoppedRef.current = false; hasGreetedRef.current = false; }, 100); }}
               className="text-xs px-2 py-1 rounded-lg transition-all hover:bg-slate-900/5"
               style={{ color: "rgba(15,23,42,0.4)" }}>
               Clear
@@ -564,61 +528,39 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
         </div>
       </div>
 
-      {showHistory && (
-        <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "#F5F7FF" }}>
-          <div className="flex items-center justify-between px-5 py-3 border-b flex-shrink-0" style={{ borderColor: "rgba(15,23,42,0.07)", background: "#FFFFFF" }}>
-            <div className="flex items-center gap-2">
-              <History className="w-4 h-4" style={{ color: "hsl(193,100%,35%)" }} />
-              <span className="font-bold text-sm text-slate-800">Chat History</span>
-            </div>
-            <button onClick={() => setShowHistory(false)} className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-slate-100">
-              <X className="w-4 h-4 text-slate-400" />
-            </button>
-          </div>
-          <div className="flex-1 overflow-y-auto py-2">
-            {historyLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="w-5 h-5 animate-spin text-cyan-500" />
-              </div>
-            ) : historyList.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
-                <History className="w-8 h-8 mb-3" style={{ color: "rgba(15,23,42,0.15)" }} />
-                <p className="text-sm text-slate-400">No saved conversations yet</p>
-              </div>
-            ) : historyList.map(conv => (
-              <button key={conv.id} onClick={() => loadConversation(conv.id)}
-                className="w-full flex items-center gap-3 px-5 py-3.5 text-left hover:bg-white transition-all border-b"
-                style={{ borderColor: "rgba(15,23,42,0.05)" }}>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-700 truncate">{conv.title || "Conversation"}</p>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    {conv.message_count} message{conv.message_count !== 1 ? "s" : ""} ·{" "}
-                    {new Date(conv.last_message_at || "").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
-                  </p>
-                </div>
-                <ChevronRight className="w-4 h-4 flex-shrink-0 text-slate-300" />
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
       <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
 
         {messages.length === 0 && !streaming && (
-          <div className="flex flex-col items-center justify-center flex-1 gap-4 py-12 px-6">
-            <div className="w-14 h-14 rounded-2xl overflow-hidden" style={{ border: "1.5px solid rgba(0,212,255,0.3)", boxShadow: "0 0 24px rgba(0,212,255,0.15)" }}>
-              <img src="/logo-v2.png" alt="Sirius" className="w-full h-full object-cover" />
+          <div className="flex flex-col items-center justify-center flex-1 gap-6 py-8">
+            <div className="flex items-center gap-1 h-14">
+              {Array.from({ length: 18 }, (_, i) => {
+                const active = voicePhase === "listening" || voicePhase === "speaking";
+                const height = active
+                  ? 12 + Math.abs(Math.sin((waveTick * 0.25 + i * 0.6))) * 36
+                  : 6 + Math.abs(Math.sin(i * 0.5)) * 10;
+                const color = voicePhase === "listening"
+                  ? `hsla(0,75%,55%,${0.5 + 0.5 * Math.abs(Math.sin(waveTick * 0.3 + i))})`
+                  : voicePhase === "speaking"
+                  ? `hsla(193,100%,45%,${0.5 + 0.5 * Math.abs(Math.sin(waveTick * 0.35 + i))})`
+                  : "rgba(15,23,42,0.12)";
+                return <div key={i} style={{ width: 4, height: `${height}px`, background: color, borderRadius: 4, transition: "height 0.1s ease, background 0.3s ease" }} />;
+              })}
             </div>
             <div className="text-center">
-              <p className="text-slate-700 font-semibold text-base">Sirius is initialising…</p>
-              <p className="text-slate-400 text-sm mt-1">One moment — loading your context</p>
+              <p className="text-slate-800 font-bold text-base">
+                {voicePhase === "listening" ? "I'm listening — speak now" : voicePhase === "speaking" ? "Sirius is speaking…" : "Ready. Just start talking."}
+              </p>
+              <p className="text-slate-400 text-sm mt-1 max-w-xs mx-auto leading-relaxed">
+                {voicePhase === "idle" ? "Tap the mic to start, or wait — Sirius will speak first." : ""}
+              </p>
             </div>
-            <div className="flex items-center gap-1.5 mt-1">
-              <div className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: "rgba(0,212,255,0.5)", animationDelay: "0ms" }} />
-              <div className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: "rgba(0,212,255,0.5)", animationDelay: "150ms" }} />
-              <div className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: "rgba(0,212,255,0.5)", animationDelay: "300ms" }} />
-            </div>
+            {voicePhase === "idle" && !streaming && (
+              <button onClick={() => startListeningLoop()}
+                className="flex items-center gap-2 px-6 py-3 rounded-2xl font-semibold text-sm transition-all hover:opacity-90 active:scale-95"
+                style={{ background: "linear-gradient(135deg, hsl(193,100%,35%), hsl(226,70%,45%))", color: "#fff", boxShadow: "0 4px 20px rgba(0,212,255,0.25)" }}>
+                <Mic className="w-4 h-4" /> Tap to Speak
+              </button>
+            )}
           </div>
         )}
 
@@ -627,7 +569,7 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
             {msg.role === "assistant" && (
               <div className="w-8 h-8 rounded-xl overflow-hidden flex-shrink-0 mt-1"
                 style={{ border: "1px solid rgba(0,212,255,0.2)" }}>
-                <img src="/logo-v2.png" alt="Sirius" className="w-full h-full object-cover" />
+                <img src="/twins.jpg" alt="Sirius" className="w-full h-full object-cover" />
               </div>
             )}
             <div className="flex flex-col gap-1.5 max-w-[78%]">
@@ -644,24 +586,17 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
                   ))}
                 </div>
               )}
-              {msg.images && msg.images.length > 0 && (
-                <div className="flex flex-col gap-2">
-                  {msg.images.map((url, ii) => (
-                    <img key={ii} src={url} alt="Generated image" className="rounded-2xl max-w-full shadow-md" style={{ maxHeight: "360px", objectFit: "contain", border: "1px solid rgba(15,23,42,0.09)" }} />
-                  ))}
-                </div>
-              )}
-              {(msg.content || msg.attachedImageUrl) && (
+              {msg.content && (
                 <div className="px-4 py-3 rounded-2xl text-sm leading-relaxed"
                   style={msg.role === "user"
                     ? { background: "hsl(213,60%,88%)", color: "rgba(15,23,42,0.9)", borderRadius: "18px 18px 4px 18px" }
                     : { background: "#FFFFFF", color: "rgba(15,23,42,0.82)", border: "1px solid rgba(15,23,42,0.09)", borderRadius: "18px 18px 18px 4px" }}>
-                  {msg.attachedImageUrl && (
-                    <img src={msg.attachedImageUrl} alt="Attached" className="rounded-xl mb-2 max-w-full" style={{ maxHeight: "220px", objectFit: "contain" }} />
-                  )}
-                  {msg.content && <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ img: ({ src, alt }) => src ? <span className="block my-2"><img src={src} alt={alt || "Image"} className="rounded-xl max-w-full" style={{ maxHeight: "400px", objectFit: "contain" }} onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} /><span className="flex gap-2 mt-1.5"><a href={src} download target="_blank" rel="noopener noreferrer" className="text-xs underline opacity-60 hover:opacity-100">Download</a><a href={src} target="_blank" rel="noopener noreferrer" className="text-xs underline opacity-60 hover:opacity-100">Open ↗</a></span></span> : null }}>{preprocessImageUrls(msg.content)}</ReactMarkdown>}
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ img: ({ src: imgSrc, alt }) => <img src={imgSrc} alt={alt || ""} style={{ maxWidth: "100%", borderRadius: "8px", margin: "6px 0", maxHeight: "420px", objectFit: "contain", display: "block" }} /> }}>{msg.content}</ReactMarkdown>
                 </div>
               )}
+              {msg.role === "assistant" && msg.content && extractSandboxUrls(msg.content).map(url => (
+                <SandboxPreviewCard key={url} url={url} />
+              ))}
             </div>
           </div>
         ))}
@@ -670,7 +605,7 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
           <div className="flex gap-3">
             <div className="w-8 h-8 rounded-xl overflow-hidden flex-shrink-0 mt-1"
               style={{ border: "1px solid rgba(0,212,255,0.2)" }}>
-              <img src="/logo-v2.png" alt="Sirius" className="w-full h-full object-cover" />
+              <img src="/twins.jpg" alt="Sirius" className="w-full h-full object-cover" />
             </div>
             <div className="flex flex-col gap-1.5 max-w-[78%]">
               {streamingActions.length > 0 && (
@@ -700,17 +635,10 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
                   {thinkingText}
                 </div>
               )}
-              {streamingImages.length > 0 && (
-                <div className="flex flex-col gap-2">
-                  {streamingImages.map((url, ii) => (
-                    <img key={ii} src={url} alt="Generated image" className="rounded-2xl max-w-full shadow-md" style={{ maxHeight: "360px", objectFit: "contain", border: "1px solid rgba(15,23,42,0.09)" }} />
-                  ))}
-                </div>
-              )}
               {streamingText ? (
                 <div className="px-4 py-3 rounded-2xl text-sm leading-relaxed"
                   style={{ background: "#FFFFFF", color: "rgba(15,23,42,0.82)", border: "1px solid rgba(15,23,42,0.09)", borderRadius: "18px 18px 18px 4px" }}>
-                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ img: ({ src, alt }) => src ? <span className="block my-2"><img src={src} alt={alt || "Image"} className="rounded-xl max-w-full" style={{ maxHeight: "400px", objectFit: "contain" }} onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} /></span> : null }}>{preprocessImageUrls(streamingText)}</ReactMarkdown>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ img: ({ src: imgSrc, alt }) => <img src={imgSrc} alt={alt || ""} style={{ maxWidth: "100%", borderRadius: "8px", margin: "6px 0", maxHeight: "420px", objectFit: "contain", display: "block" }} /> }}>{streamingText}</ReactMarkdown>
                 </div>
               ) : !thinkingText && streamingActions.length === 0 && (
                 <div className="px-4 py-3 rounded-2xl"
@@ -729,21 +657,6 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
       </div>
 
       <div className="flex-shrink-0 border-t" style={{ borderColor: "rgba(15,23,42,0.07)", background: "#FFFFFF" }}>
-        {attachedFile && (
-          <div className="flex items-center gap-2 mx-4 mt-3 px-2 py-1.5 rounded-xl" style={{ background: "rgba(0,198,255,0.08)", border: "1px solid rgba(0,198,255,0.2)" }}>
-            {isImageMime(attachedMime) ? (
-              <img src={attachedFile} alt="preview" className="w-8 h-8 rounded-lg object-cover flex-shrink-0" />
-            ) : (
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "rgba(0,198,255,0.15)" }}>
-                <Paperclip className="w-3.5 h-3.5" style={{ color: "hsl(193,100%,40%)" }} />
-              </div>
-            )}
-            <span className="text-xs font-medium flex-1 truncate" style={{ color: "hsl(193,100%,35%)" }}>{attachedName}</span>
-            <button onClick={clearAttachment} className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: "rgba(15,23,42,0.08)" }}>
-              <X className="w-3 h-3" style={{ color: "rgba(15,23,42,0.5)" }} />
-            </button>
-          </div>
-        )}
         {(voicePhase !== "idle" || streaming || voiceHint) && (
           <div className="flex items-center gap-2 px-4 pt-2 pb-0">
             <div className="flex items-center gap-0.5 h-4">
@@ -759,15 +672,67 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
             </p>
           </div>
         )}
+        {attachedName && (
+          <div className="flex items-center gap-2 px-4 pt-2">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium"
+              style={{ background: "hsl(193,100%,52%,0.08)", border: "1px solid hsl(193,100%,52%,0.25)" }}>
+              <Paperclip size={12} style={{ color: "hsl(193,100%,35%)" }} />
+              <span className="text-slate-700 max-w-[200px] truncate">{attachedName}</span>
+              <button
+                onClick={() => { setAttachedFile(null); setAttachedName(null); setAttachedMime(null); }}
+                className="ml-1 rounded-full w-4 h-4 flex items-center justify-center hover:bg-slate-200">
+                <X size={9} />
+              </button>
+            </div>
+          </div>
+        )}
         <div className="flex items-end gap-2 px-4 py-3">
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            accept="image/*,.pdf,.docx,.doc,.txt,.csv,.md,.json,.py,.js,.ts,.tsx,.jsx"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              const isImage = file.type.startsWith("image/");
+              const reader = new FileReader();
+              reader.onload = (ev) => {
+                const result = ev.target?.result as string;
+                if (isImage) {
+                  setAttachedFile(result);
+                  setAttachedMime(file.type);
+                  setAttachedName(file.name);
+                } else {
+                  setAttachedFile(result.split(",")[1]);
+                  setAttachedMime(file.type);
+                  setAttachedName(file.name);
+                }
+              };
+              reader.readAsDataURL(file);
+              e.target.value = "";
+            }}
+          />
+
+          {/* Attachment button */}
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            title="Attach a file or image"
+            className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 transition-all active:scale-95"
+            style={{
+              background: attachedFile ? "hsl(193,100%,35%)" : "rgba(15,23,42,0.06)",
+              border: attachedFile ? "none" : "1.5px solid rgba(15,23,42,0.12)",
+              color: attachedFile ? "#fff" : "rgba(15,23,42,0.4)",
+            }}>
+            <Paperclip className="w-4 h-4" />
+          </button>
+
           <button
             onClick={() => {
               if (voicePhase === "listening") { stopListeningNow(); }
-              else if (voicePhase === "speaking") { window.speechSynthesis?.cancel(); setVoicePhase("idle"); }
-              else if (!streaming) {
-                if (chatInputMode === "keyboard") switchChatMode("voice");
-                else startListeningLoop();
-              }
+              else if (voicePhase === "speaking") { stopJenny(); setVoicePhase("idle"); }
+              else if (!streaming) { startListeningLoop(); }
             }}
             title={voicePhase === "listening" ? "Stop listening" : "Tap to speak"}
             className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 transition-all active:scale-95"
@@ -778,23 +743,6 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
             }}>
             {voicePhase === "listening" ? <MicOff className="w-4 h-4" style={{ color: "#fff" }} /> : <Mic className="w-4 h-4" style={{ color: "#fff" }} />}
           </button>
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            title="Attach image or document"
-            className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 transition-all active:scale-95 flex-shrink-0"
-            style={{
-              background: attachedFile ? "rgba(0,198,255,0.15)" : "rgba(15,23,42,0.06)",
-              border: attachedFile ? "1.5px solid rgba(0,198,255,0.4)" : "1.5px solid rgba(15,23,42,0.1)",
-            }}>
-            <Paperclip className="w-4 h-4" style={{ color: attachedFile ? "hsl(193,100%,40%)" : "rgba(15,23,42,0.4)" }} />
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*,.pdf,.docx,.doc,.txt,.csv,.md,.json,.xls,.xlsx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/csv,text/markdown,application/json"
-            className="hidden"
-            onChange={handleFileSelect}
-          />
           <textarea
             ref={textInputRef}
             value={textInput}
@@ -805,7 +753,7 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
             onKeyDown={e => {
               if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submitTextMessage(); }
             }}
-            placeholder={queuedMessage ? `Queued: "${queuedMessage.slice(0, 40)}${queuedMessage.length > 40 ? "…" : ""}"` : streaming ? "Type your next message — it'll send when she finishes…" : "Type a message or attach an image/doc…"}
+            placeholder={queuedMessage ? `Queued: "${queuedMessage.slice(0, 40)}${queuedMessage.length > 40 ? "…" : ""}"` : streaming ? "Type your next message — it'll send when she finishes…" : "Type a message or tap the mic to speak…"}
             rows={1}
             className="flex-1 resize-none rounded-2xl px-4 py-3 text-sm outline-none transition-all"
             style={{
@@ -825,15 +773,15 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
           />
           <button
             onClick={submitTextMessage}
-            disabled={!textInput.trim() && !attachedFile}
+            disabled={!textInput.trim()}
             className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 transition-all active:scale-95"
             style={{
-              background: (textInput.trim() || attachedFile) ? (streaming ? "hsl(45,90%,55%)" : "linear-gradient(135deg, hsl(226,70%,50%), hsl(193,100%,35%))") : "rgba(15,23,42,0.08)",
-              boxShadow: (textInput.trim() || attachedFile) ? "0 4px 14px rgba(99,102,241,0.25)" : "none",
+              background: textInput.trim() ? (streaming ? "hsl(45,90%,55%)" : "linear-gradient(135deg, hsl(226,70%,50%), hsl(193,100%,35%))") : "rgba(15,23,42,0.08)",
+              boxShadow: textInput.trim() ? "0 4px 14px rgba(99,102,241,0.25)" : "none",
             }}>
-            {streaming && (textInput.trim() || attachedFile)
+            {streaming && textInput.trim()
               ? <Clock className="w-4 h-4 text-white" />
-              : <Send className="w-4 h-4" style={{ color: (textInput.trim() || attachedFile) ? "#fff" : "rgba(15,23,42,0.3)" }} />
+              : <Send className="w-4 h-4" style={{ color: textInput.trim() ? "#fff" : "rgba(15,23,42,0.3)" }} />
             }
           </button>
         </div>

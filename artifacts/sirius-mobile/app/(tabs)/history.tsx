@@ -16,7 +16,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Colors from "@/constants/colors";
 import { Conversation, deleteConversation, fetchConversations, getUserId } from "@/lib/api";
-import { useApp } from "@/context/AppContext";
 
 function ConversationItem({
   item,
@@ -68,19 +67,11 @@ export default function HistoryScreen() {
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
-  const { userId: ctxUserId } = useApp();
-
   const { data: conversations = [], isLoading, refetch, isRefetching } = useQuery({
-    queryKey: ["conversations", ctxUserId],
+    queryKey: ["conversations"],
     queryFn: async () => {
-      // Use context userId first (set after login), fall back to stored ID
-      const uid = ctxUserId || (await getUserId());
-      const convos = await fetchConversations(uid);
-      // If nothing returned, try without filter (catches userId mismatch edge case)
-      if ((!convos || convos.length === 0) && uid) {
-        try { return await fetchConversations(undefined); } catch {}
-      }
-      return convos;
+      const uid = await getUserId();
+      return fetchConversations(uid);
     },
     staleTime: 30_000,
   });
@@ -109,10 +100,6 @@ export default function HistoryScreen() {
   return (
     <View style={[styles.root, { backgroundColor: Colors.background }]}>
       <View style={[styles.header, { paddingTop: topPad + 8 }]}>
-        <Pressable onPress={() => router.push("/(tabs)" as any)} style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.6 }]}>
-          <Feather name="chevron-left" size={20} color={Colors.primary} />
-          <Text style={styles.backBtnText}>Home</Text>
-        </Pressable>
         <Text style={styles.heading}>History</Text>
         <Pressable
           onPress={() => refetch()}
@@ -167,8 +154,6 @@ export default function HistoryScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  backBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
-  backBtnText: { fontSize: 15, fontWeight: "600", color: Colors.primary },
   header: {
     flexDirection: "row",
     alignItems: "center",

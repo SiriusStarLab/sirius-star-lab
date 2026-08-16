@@ -1,6 +1,5 @@
 import { db, userProfilesTable } from "@workspace/db";
-import OpenAI from "openai";
-const openaiDirect = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+import { openai } from "@workspace/ai-client";
 
 /**
  * THE SINGLE CANONICAL MEMORY ENGINE.
@@ -17,6 +16,29 @@ const openaiDirect = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
  * Nothing else writes to the memories field. Any caller that was producing its
  * own format (e.g. [Business], [Goals]) must be replaced with a call here.
  */
+
+/** Robust JSON extractor — handles markdown fences, prose before/after the object */
+function extractJson(text: string): any {
+  // 1. Strip all ``` fences (with or without language tag)
+  let s = text.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "").trim();
+
+  // 2. Try direct parse first
+  try { return JSON.parse(s); } catch (_) {}
+
+  // 3. Extract outermost { ... } block
+  const start = s.indexOf("{");
+  const end = s.lastIndexOf("}");
+  if (start !== -1 && end > start) {
+    try { return JSON.parse(s.slice(start, end + 1)); } catch (_) {}
+  }
+
+  // 4. Regex fallback — first JSON-like object in the string
+  const m = s.match(/\{[\s\S]*\}/);
+  if (m) { try { return JSON.parse(m[0]); } catch (_) {} }
+
+  throw new Error("No valid JSON found in response: " + s.slice(0, 120));
+}
+
 export async function extractAndSaveMemories(
   userId: string,
   conversation: Array<{ role: string; content: string | any }>,
@@ -60,7 +82,7 @@ export async function extractAndSaveMemories(
 
     let response;
     try {
-      response = await openaiDirect.chat.completions.create(
+      response = await openai.chat.completions.create(
         {
           model: "openai/gpt-4o-mini",
           messages: [
@@ -99,8 +121,7 @@ Rules:
     const raw = response.choices[0]?.message?.content;
     if (!raw) return;
 
-    const stripped = raw.replace(/^```(?:json)?\s*/m, "").replace(/```\s*$/m, "").trim();
-    const parsed = JSON.parse(stripped);
+    const parsed = extractJson(raw);
     const newFacts: string[] = Array.isArray(parsed.new_facts) ? parsed.new_facts : [];
     const removeFacts: string[] = Array.isArray(parsed.remove_facts) ? parsed.remove_facts : [];
 

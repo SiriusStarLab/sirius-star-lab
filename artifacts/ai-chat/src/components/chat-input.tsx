@@ -199,14 +199,36 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
     }
   };
 
+  // Compress images to max 1200px, JPEG 0.88 before storing —
+  // prevents large screenshots from breaking the img preview or overflowing the API
+  const compressImage = (dataUrl: string): Promise<string> =>
+    new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 1200;
+        const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (ctx) ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL("image/jpeg", 0.88));
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    });
+
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (ev) => {
-      const result = ev.target?.result as string;
-      setImageBase64(result);
-      setImagePreview(result);
+    reader.onload = async (ev) => {
+      const raw = ev.target?.result as string;
+      const compressed = await compressImage(raw);
+      setImageBase64(compressed);
+      setImagePreview(compressed);
       setDocumentBase64(null);
       setDocumentName(null);
     };
@@ -219,11 +241,12 @@ export function ChatInput({ onSend, isTyping, onStop, voiceMode = false, onToggl
     if (!file) return;
     const isImage = file.type.startsWith("image/");
     const reader = new FileReader();
-    reader.onload = (ev) => {
+    reader.onload = async (ev) => {
       const result = ev.target?.result as string;
       if (isImage) {
-        setImageBase64(result);
-        setImagePreview(result);
+        const compressed = await compressImage(result);
+        setImageBase64(compressed);
+        setImagePreview(compressed);
         setDocumentBase64(null);
         setDocumentName(null);
       } else {

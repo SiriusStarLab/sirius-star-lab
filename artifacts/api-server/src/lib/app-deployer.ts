@@ -1,10 +1,13 @@
 import { execSync } from "child_process";
-import { mkdirSync, writeFileSync, existsSync, readFileSync, readdirSync } from "fs";
+import { mkdirSync, writeFileSync, existsSync, readFileSync, readdirSync, cpSync, rmSync } from "fs";
 import { join, dirname } from "path";
 
-const APPS_ROOT = "/opt/sirius-apps";
-const NGINX_APPS_DIR = "/etc/nginx/deployed-apps";
+const SANDBOX_APPS_ROOT = "/opt/sirius-sandbox-apps";
+const PROD_APPS_ROOT = "/opt/sirius-apps";
+const NGINX_SANDBOX_DIR = "/etc/nginx/sandbox-apps";
+const NGINX_PROD_DIR = "/etc/nginx/deployed-apps";
 const SANDBOX_DOMAIN = "https://sandbox.sirius-ai.live";
+const PROD_DOMAIN = "https://sirius-ai.live";
 
 export interface DeployResult {
   success: boolean;
@@ -110,7 +113,7 @@ function scaffoldViteProject(feDir: string, appName: string, log: string[]): voi
                         existsSync(join(feDir, "vite.config.js")) ||
                         existsSync(join(feDir, "vite.config.mjs"));
   // Determine the base URL from the app directory name
-  const appSlug = appDir.replace(/.*\//, "");
+  const appSlug = feDir.replace(/.*\//, "");
   const baseUrl = `/apps/${appSlug}/`;
 
   if (!hasViteConfig) {
@@ -179,11 +182,176 @@ export default defineConfig({
       version: "1.0.0",
       type: "module",
       scripts: { dev: "vite", build: "vite build", preview: "vite preview" },
-      dependencies: { react: "^18.0.0", "react-dom": "^18.0.0" },
+      dependencies: {
+        "react": "^18.3.1",
+        "react-dom": "^18.3.1",
+        "lucide-react": "^0.460.0",
+        "clsx": "^2.1.1",
+        "react-router-dom": "^6.28.0",
+      },
       devDependencies: { vite: "^5.0.0", "@vitejs/plugin-react": "^4.0.0" },
     };
     writeFileSync(pkgPath, JSON.stringify(pkg, null, 2), "utf-8");
     log.push("\u2705 Created minimal package.json for Vite build");
+  }
+}
+
+
+// ── Dependency auto-scanner ──────────────────────────────────────────────────
+const NODE_BUILTINS = new Set([
+  "fs","path","child_process","http","https","url","crypto","os","net","events",
+  "stream","buffer","util","assert","zlib","readline","worker_threads","cluster",
+  "dns","tls","dgram","v8","vm","timers","process","module","querystring",
+  "string_decoder","http2","perf_hooks","async_hooks","inspector","trace_events",
+  "fs/promises","path/posix","path/win32","node:fs","node:path","node:http",
+  "node:https","node:crypto","node:os","node:stream","node:buffer","node:util",
+]);
+
+/**
+ * Scan all source files in feDir, extract third-party package names from import/require
+ * statements, compare against installed packages, and install anything missing.
+ */
+function scanAndInstallMissingDeps(feDir: string, log: string[]): void {
+  const pkgPath = join(feDir, "package.json");
+  let installed: Set<string> = new Set();
+  if (existsSync(pkgPath)) {
+    try {
+      const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
+      const allDeps = { ...pkg.dependencies, ...pkg.devDependencies, ...pkg.peerDependencies };
+      installed = new Set(Object.keys(allDeps));
+    } catch {}
+  }
+
+  const importedPkgs = new Set<string>();
+  const scanDir = (dir: string): void => {
+    if (!existsSync(dir)) return;
+    for (const ent of readdirSync(dir, { withFileTypes: true })) {
+      if (ent.name === "node_modules" || ent.name === ".git") continue;
+      const full = join(dir, ent.name);
+      if (ent.isDirectory()) { scanDir(full); continue; }
+      if (!/\.(tsx?|jsx?)$/.test(ent.name)) continue;
+      let src = "";
+      try { src = readFileSync(full, "utf-8"); } catch { continue; }
+      // Match: import ... from 'pkg'  |  import('pkg')  |  require('pkg')
+      const re = /(?:import\s+[^"']*\s+from\s+|import\s*\(|require\s*\()\s*["']([^"'./][^"']*)["']/g;
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(src)) !== null) {
+        const raw = m[1];
+        // Get the npm package name (first 1 or 2 segments for scoped packages)
+        const name = raw.startsWith("@")
+          ? raw.split("/").slice(0, 2).join("/")
+          : raw.split("/")[0];
+        if (!NODE_BUILTINS.has(name)) importedPkgs.add(name);
+      }
+    }
+  };
+  scanDir(feDir);
+
+  const missing = [...importedPkgs].filter(p => !installed.has(p));
+  if (missing.length === 0) {
+    log.push("Dependency scan: all imports satisfied");
+    return;
+  }
+
+  log.push(`Dependency scan: missing packages detected — \${missing.join(", ")}`);
+  // Install in batches to avoid arg-list overflow
+  for (let i = 0; i < missing.length; i += 20) {
+    const batch = missing.slice(i, i + 20);
+    const out = run(`npm install --legacy-peer-deps \${batch.join(" ")} 2>&1`, feDir, log);
+    if (out.ok) {
+      log.push(`Installed: \${batch.join(", ")}`);
+    } else {
+      log.push(`Warning: some packages failed to install (\${batch.join(", ")})`);
+    }
+  }
+}
+
+
+// ── Tailwind CSS auto-configurator ──────────────────────────────────────────
+function detectAndConfigureTailwind(feDir: string, log: string[]): void {
+  const hasTwConfig = ["tailwind.config.js","tailwind.config.ts","tailwind.config.cjs"]
+    .some(f => existsSync(join(feDir, f)));
+
+  // Scan source + CSS files for any Tailwind usage signal
+  let hasTwUsage = hasTwConfig;
+  const checkDir = (dir: string): boolean => {
+    if (!existsSync(dir)) return false;
+    for (const ent of readdirSync(dir, { withFileTypes: true })) {
+      if (ent.name === "node_modules" || ent.name === ".git") continue;
+      const full = join(dir, ent.name);
+      if (ent.isDirectory()) { if (checkDir(full)) return true; continue; }
+      if (!/\.(css|tsx?|jsx?)$/.test(ent.name)) continue;
+      try {
+        const src = readFileSync(full, "utf-8");
+        if (src.includes("@tailwind") || src.includes("from 'tailwindcss'") ||
+            src.includes('"tailwindcss"') || src.includes("tailwind.config")) return true;
+      } catch {}
+    }
+    return false;
+  };
+  if (!hasTwUsage) hasTwUsage = checkDir(feDir);
+  if (!hasTwUsage) return;
+
+  log.push("Tailwind CSS detected — auto-configuring...");
+
+  // Detect Tailwind version from package.json
+  const pkgPath = join(feDir, "package.json");
+  let twVersion = "";
+  if (existsSync(pkgPath)) {
+    try {
+      const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
+      const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+      twVersion = deps["tailwindcss"] || "";
+    } catch {}
+  }
+  const isV4 = /^[\^~]?4/.test(twVersion);
+
+  if (isV4) {
+    // Tailwind v4: use @tailwindcss/vite plugin
+    const cfgFiles = ["vite.config.ts","vite.config.js","vite.config.mjs"].map(f => join(feDir, f));
+    const viteConf = cfgFiles.find(f => existsSync(f));
+    if (viteConf) {
+      let cfg = readFileSync(viteConf, "utf-8");
+      if (!cfg.includes("@tailwindcss/vite") && !cfg.includes("tailwindcss")) {
+        cfg = "import tailwindcss from '@tailwindcss/vite';\n" + cfg;
+        cfg = cfg.replace("plugins: [react()]", "plugins: [react(), tailwindcss()]");
+        cfg = cfg.replace("plugins: [react(),", "plugins: [react(), tailwindcss(),");
+        writeFileSync(viteConf, cfg, "utf-8");
+        log.push("Patched vite config: added @tailwindcss/vite plugin (v4)");
+      }
+    }
+    run("npm install @tailwindcss/vite --legacy-peer-deps 2>&1", feDir, log);
+  } else {
+    // Tailwind v3: PostCSS approach
+    const postcssPath = join(feDir, "postcss.config.js");
+    if (!existsSync(postcssPath) && !existsSync(join(feDir, "postcss.config.cjs"))) {
+      writeFileSync(postcssPath,
+        "module.exports = { plugins: { tailwindcss: {}, autoprefixer: {} } };\n", "utf-8");
+      log.push("Created postcss.config.js (Tailwind v3)");
+    }
+    if (!hasTwConfig) {
+      writeFileSync(join(feDir, "tailwind.config.js"),
+        "/** @type {import('tailwindcss').Config} */\n" +
+        "module.exports = { content: ['./index.html','./src/**/*.{js,ts,jsx,tsx}'], " +
+        "theme: { extend: {} }, plugins: [] };\n", "utf-8");
+      log.push("Created tailwind.config.js");
+    }
+    // Ensure CSS entry has @tailwind directives
+    const cssEntry = join(feDir, "src", "index.css");
+    if (existsSync(cssEntry)) {
+      const css = readFileSync(cssEntry, "utf-8");
+      if (!css.includes("@tailwind")) {
+        writeFileSync(cssEntry,
+          "@tailwind base;\n@tailwind components;\n@tailwind utilities;\n" + css, "utf-8");
+        log.push("Prepended @tailwind directives to index.css");
+      }
+    } else {
+      mkdirSync(join(feDir, "src"), { recursive: true });
+      writeFileSync(cssEntry,
+        "@tailwind base;\n@tailwind components;\n@tailwind utilities;\n", "utf-8");
+      log.push("Created src/index.css with @tailwind directives");
+    }
+    run("npm install tailwindcss postcss autoprefixer --save-dev --legacy-peer-deps 2>&1", feDir, log);
   }
 }
 
@@ -244,7 +412,7 @@ export async function deployAppSession(
 ): Promise<DeployResult> {
   const log: string[] = [];
   const slug = makeSlug(appName);
-  const appDir = join(APPS_ROOT, slug);
+  const appDir = join(SANDBOX_APPS_ROOT, slug);
 
   log.push(`Deploying "${appName}" \u2192 ${slug}`);
 
@@ -399,6 +567,8 @@ export async function deployAppSession(
 
     // Install in feDir — now works as standalone since workspace config was removed
     run("npm install --include=dev --legacy-peer-deps 2>&1", feDir, log);
+    scanAndInstallMissingDeps(feDir, log);
+    detectAndConfigureTailwind(feDir, log);
 
     const actualVite = findViteBin(feDir);
     log.push(`Using vite: ${actualVite}`);
@@ -555,7 +725,16 @@ export async function deployAppSession(
       run(`npx tsx ${entry} --version 2>&1 || true`, beDir, log);
       const pm2Name = `sirius-app-${beSlug}`;
       run(`pm2 delete ${pm2Name} 2>/dev/null || true`, beDir, log);
-      run(`PORT=${port} pm2 start ${entry} --name ${pm2Name} --interpreter=$(which npx) --interpreter-args=tsx 2>&1 || PORT=${port} pm2 start ${entry} --name ${pm2Name} 2>&1 || true`, beDir, log);
+      const SAFE_ENV_KEYS = [
+      "DATABASE_URL","OPENAI_API_KEY","AI_INTEGRATIONS_OPENAI_API_KEY",
+      "AI_INTEGRATIONS_OPENAI_BASE_URL","AI_INTEGRATIONS_OPENROUTER_API_KEY",
+      "AI_INTEGRATIONS_OPENROUTER_BASE_URL","SESSION_SECRET","OPENAI_BASE_URL",
+      "STRIPE_SECRET_KEY","STRIPE_PUBLISHABLE_KEY","STRIPE_WEBHOOK_SECRET",
+    ];
+    const envVarPairs = SAFE_ENV_KEYS
+      .filter(k => process.env[k])
+      .map(k => `${k}="${(process.env[k] || "").replace(/"/g, '\\"')}"`).join(" ");
+    const envVars = `PORT=${port} NODE_ENV=production ${envVarPairs}`; run(`${envVars} pm2 start ${entry} --name ${pm2Name} --interpreter=$(which npx) --interpreter-args=tsx 2>&1 || ${envVars} pm2 start ${entry} --name ${pm2Name} 2>&1 || true`, beDir, log);
       log.push(`Backend (tsx) attempted on port ${port}`);
     } else if (entry) {
       const pm2Name = `sirius-app-${beSlug}`;
@@ -575,11 +754,14 @@ export async function deployAppSession(
 
   // ── 5. Fallback landing page if nothing built ─────────────────────────────────
   if (!distDir && !backendPort) {
+    log.push("⚠️  BUILD FAILED — all frontend build attempts failed. Check log above for compiler errors.");
+    log.push("   Common causes: missing package.json, unresolved imports, TypeScript errors in generated code.");
+    log.push("   Tell Sirius the exact error above and she can patch the generated files and redeploy.");
     distDir = createLandingPage(appDir, appName, files, log);
   }
 
   // ── 6. Write nginx config ────────────────────────────────────────────────────
-  const nginxConf = join(NGINX_APPS_DIR, `${slug}.conf`);
+  const nginxConf = join(NGINX_SANDBOX_DIR, `${slug}.conf`);
   let nginxBlock = "";
 
   if (distDir) {
@@ -620,7 +802,7 @@ export async function deployAppSession(
   }
 
   try {
-    mkdirSync(NGINX_APPS_DIR, { recursive: true });
+    mkdirSync(NGINX_SANDBOX_DIR, { recursive: true });
     writeFileSync(nginxConf, nginxBlock, "utf-8");
     log.push(`\u2705 nginx config written`);
   } catch (e: any) {
@@ -637,15 +819,174 @@ export async function deployAppSession(
   return { success: true, url: liveUrl, slug, port: backendPort, log };
 }
 
-export async function listDeployedApps(): Promise<{ slug: string; url: string; hasBackend: boolean }[]> {
+export interface AppStatus {
+  slug: string;
+  sandboxUrl: string;
+  prodUrl?: string;
+  inSandbox: boolean;
+  inProduction: boolean;
+  hasBackend: boolean;
+}
+
+export async function listDeployedApps(): Promise<AppStatus[]> {
+  const results: AppStatus[] = [];
+  const seen = new Set<string>();
   try {
-    const slugs = readdirSync(APPS_ROOT).filter(d => !d.startsWith("."));
-    return slugs.map(slug => ({
-      slug,
-      url: `${SANDBOX_DOMAIN}/apps/${slug}/`,
-      hasBackend: existsSync(join(APPS_ROOT, slug, "backend")) || existsSync(join(APPS_ROOT, slug, "server")),
-    }));
-  } catch {
-    return [];
+    if (existsSync(SANDBOX_APPS_ROOT)) {
+      for (const slug of readdirSync(SANDBOX_APPS_ROOT).filter(d => !d.startsWith("."))) {
+        seen.add(slug);
+        results.push({
+          slug,
+          sandboxUrl: `${SANDBOX_DOMAIN}/apps/${slug}/`,
+          prodUrl: existsSync(join(PROD_APPS_ROOT, slug)) ? `${PROD_DOMAIN}/apps/${slug}/` : undefined,
+          inSandbox: true,
+          inProduction: existsSync(join(PROD_APPS_ROOT, slug)),
+          hasBackend: existsSync(join(SANDBOX_APPS_ROOT, slug, "backend")) || existsSync(join(SANDBOX_APPS_ROOT, slug, "server")),
+        });
+      }
+    }
+    if (existsSync(PROD_APPS_ROOT)) {
+      for (const slug of readdirSync(PROD_APPS_ROOT).filter(d => !d.startsWith("."))) {
+        if (!seen.has(slug)) {
+          results.push({
+            slug,
+            sandboxUrl: `${SANDBOX_DOMAIN}/apps/${slug}/`,
+            prodUrl: `${PROD_DOMAIN}/apps/${slug}/`,
+            inSandbox: false,
+            inProduction: true,
+            hasBackend: existsSync(join(PROD_APPS_ROOT, slug, "backend")) || existsSync(join(PROD_APPS_ROOT, slug, "server")),
+          });
+        }
+      }
+    }
+  } catch {}
+  return results;
+}
+
+/** Promote a sandbox app to production: copies files + writes prod nginx conf */
+/**
+ * Rebuild an already-deployed sandbox app from its existing source files on disk.
+ * Called automatically after patch_source_file edits a sandbox app.
+ */
+export async function rebuildSandboxApp(slug: string): Promise<DeployResult> {
+  const appDir = join(SANDBOX_APPS_ROOT, slug);
+  const log: string[] = [];
+
+  if (!existsSync(appDir)) {
+    return { success: false, log, error: `Sandbox app dir not found: ${appDir}` };
+  }
+  log.push(`Rebuilding "${slug}" from existing source on disk…`);
+
+  // Detect structure (same logic as deployAppSession)
+  const hasFrontendDir = existsSync(join(appDir, "frontend", "src")) || existsSync(join(appDir, "frontend", "package.json"));
+  const hasClientDir   = existsSync(join(appDir, "client", "src"))   || existsSync(join(appDir, "client",   "package.json"));
+  const hasRootSrc     = existsSync(join(appDir, "src"));
+  const hasRootPkg     = existsSync(join(appDir, "package.json"));
+
+  const feDir = hasFrontendDir ? join(appDir, "frontend")
+              : hasClientDir   ? join(appDir, "client")
+              : (hasRootSrc || hasRootPkg) ? appDir
+              : null;
+
+  if (!feDir) {
+    return { success: false, log, error: "Cannot detect frontend directory for rebuild" };
+  }
+
+  // Scaffold, scan deps, configure Tailwind, build
+  scaffoldViteProject(feDir, slug, log);
+  scanAndInstallMissingDeps(feDir, log);
+  detectAndConfigureTailwind(feDir, log);
+
+  const findViteBin = (dir: string): string => {
+    const candidates = [
+      join(dir, "../node_modules/.bin/vite"),
+      join(appDir, "node_modules/.bin/vite"),
+      join(dir, "node_modules/.bin/vite"),
+    ];
+    for (const c of candidates) { if (existsSync(c)) return c; }
+    return "npx vite";
+  };
+
+  const actualVite = findViteBin(feDir);
+  const buildOut = run(`${actualVite} build 2>&1`, feDir, log);
+
+  const distDir = existsSync(join(feDir, "dist")) ? join(feDir, "dist")
+                : existsSync(join(feDir, "build")) ? join(feDir, "build")
+                : null;
+
+  if (!distDir) {
+    log.push("Build failed — see output above");
+    return { success: false, log, error: "Build failed: " + (buildOut.out || "").slice(-500) };
+  }
+
+  log.push("Build succeeded — reloading nginx");
+  run("nginx -s reload 2>&1 || true", appDir, log);
+
+  const liveUrl = `https://sandbox.sirius-ai.live/apps/${slug}/`;
+  log.push(`Rebuilt and live at: ${liveUrl}`);
+  return { success: true, url: liveUrl, slug, log };
+}
+
+
+export async function promoteApp(slug: string): Promise<{ success: boolean; url?: string; log: string[]; error?: string }> {
+  const log: string[] = [];
+  const sandboxDir = join(SANDBOX_APPS_ROOT, slug);
+  const prodDir = join(PROD_APPS_ROOT, slug);
+  const nginxProdConf = join(NGINX_PROD_DIR, `${slug}.conf`);
+
+  if (!existsSync(sandboxDir)) {
+    return { success: false, log, error: `No sandbox app found for slug "${slug}". Deploy it first.` };
+  }
+
+  try {
+    // 1. Copy sandbox → production
+    if (existsSync(prodDir)) rmSync(prodDir, { recursive: true, force: true });
+    cpSync(sandboxDir, prodDir, { recursive: true });
+    log.push(`✅ Copied ${sandboxDir} → ${prodDir}`);
+
+    // 2. Find the dist dir in prod copy
+    const possibleDists = [
+      join(prodDir, "frontend", "dist"),
+      join(prodDir, "dist"),
+      join(prodDir, "_landing", "dist"),
+    ];
+    const distDir = possibleDists.find(d => existsSync(d));
+
+    // 3. Write production nginx conf
+    let nginxBlock = "";
+    if (distDir) {
+      nginxBlock = [
+        `location /apps/${slug}/ {`,
+        `    alias ${distDir}/;`,
+        `    index index.html;`,
+        `    try_files $uri $uri/ @spa_${slug.replace(/-/g, "_")};`,
+        `}`,
+        `location @spa_${slug.replace(/-/g, "_")} {`,
+        `    root ${distDir};`,
+        `    try_files /index.html =404;`,
+        `}`,
+      ].join("\n");
+    } else {
+      return { success: false, log, error: `No dist directory found in sandbox app "${slug}". Make sure it built correctly.` };
+    }
+
+    mkdirSync(NGINX_PROD_DIR, { recursive: true });
+    writeFileSync(nginxProdConf, nginxBlock, "utf-8");
+    log.push(`✅ Production nginx conf written`);
+
+    // 4. Reload nginx
+    try {
+      const { execSync } = await import("child_process");
+      execSync("nginx -t && nginx -s reload", { encoding: "utf-8", stdio: ["pipe","pipe","pipe"] });
+      log.push(`✅ nginx reloaded`);
+    } catch (e: any) {
+      log.push(`⚠️ nginx reload failed: ${e.message?.slice(0, 200)}`);
+    }
+
+    const prodUrl = `${PROD_DOMAIN}/apps/${slug}/`;
+    log.push(`🚀 Live in production at: ${prodUrl}`);
+    return { success: true, url: prodUrl, log };
+  } catch (e: any) {
+    return { success: false, log, error: e.message };
   }
 }

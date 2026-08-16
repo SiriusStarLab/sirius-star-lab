@@ -275,7 +275,7 @@ ${contact.location ? `Location: ${contact.location}` : ""}
 ${contact.companySize ? `Company size: ${contact.companySize}` : ""}
 
 About Sirius Star Lab (for context):
-Sirius Star Lab is an intelligence partnership platform — it provides autonomous business intelligence, AI-powered sales and outreach automation, content operations, and custom AI agent development. Plans from £9.99/month consumer to £2,499/month managed agency service.
+Sirius Star Lab is an intelligence partnership platform — it provides autonomous business intelligence, AI-powered sales and outreach automation, content operations, and custom AI agent development. Plans from £5/month consumer to £2,499/month managed agency service.
 
 Write this as if Garry personally wrote it — sharp, direct, no waffle. Reference something specific about their sector or company. Keep under 180 words body. One clear call to action (book a 15-min call or visit siriusai.app).
 

@@ -1,4 +1,5 @@
 import Stripe from "stripe";
+import { StripeSync } from "stripe-replit-sync";
 
 function getStripeSecretKey(): string {
   const key = (process.env.STRIPE_SECRET_KEY ?? "").trim();
@@ -20,6 +21,19 @@ export function getUncachableStripeClient(): Stripe {
   return new Stripe(secretKey, { apiVersion: "2025-03-31.basil" as any });
 }
 
-export function getStripeSync(): never {
-  throw new Error("Stripe sync is not used in this deployment.");
+let _stripeSync: StripeSync | null = null;
+
+export function getStripeSync(): StripeSync {
+  if (_stripeSync) return _stripeSync;
+
+  const secretKey = getStripeSecretKey();
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) throw new Error("DATABASE_URL required for Stripe sync.");
+
+  _stripeSync = new StripeSync({
+    poolConfig: { connectionString: databaseUrl, max: 5 },
+    stripeSecretKey: secretKey,
+  });
+
+  return _stripeSync;
 }

@@ -14,7 +14,7 @@ export type SubscriptionStatus = {
 const DEFAULT: SubscriptionStatus = {
   tier: "free",
   dailyMessageCount: 0,
-  dailyLimit: 20,
+  dailyLimit: 30,
   canSendMessage: true,
   hasStripeCustomer: false,
 };
@@ -40,12 +40,13 @@ export function useSubscription() {
 
   useEffect(() => { fetch_(); }, [fetch_]);
 
-  // isPremium covers both plus and pro subscribers — they all map to one Premium tier
   const isPremium = status.tier !== "free";
+  const isPlus = status.tier === "plus";
+  const isPro = status.tier === "pro";
 
   const usagePercent = status.dailyLimit
     ? Math.min(100, (status.dailyMessageCount / status.dailyLimit) * 100)
     : 0;
 
-  return { status, isLoading, isPremium, usagePercent, refetch: fetch_ };
+  return { status, isLoading, isPremium, isPlus, isPro, usagePercent, refetch: fetch_ };
 }

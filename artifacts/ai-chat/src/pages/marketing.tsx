@@ -276,7 +276,7 @@ export function MarketingPage() {
         style={{ background: "rgba(5,9,18,0.85)", backdropFilter: "blur(20px)", borderBottom: `1px solid ${BORDER}` }}>
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full overflow-hidden" style={{ border: "1px solid rgba(0,200,180,0.3)" }}>
-            <img src="/logo-v2.png" alt="Sirius Star Lab" className="w-full h-full object-cover" />
+            <img src="/twins.jpg" alt="Sirius Star Lab" className="w-full h-full object-cover" />
           </div>
           <span className="font-bold text-white text-sm tracking-tight">Sirius Star Lab</span>
           <span className="hidden sm:block text-xs px-2 py-0.5 rounded-full font-mono" style={{ background: "rgba(0,200,180,0.1)", color: TEAL, border: "1px solid rgba(0,200,180,0.2)" }}>
@@ -323,7 +323,7 @@ export function MarketingPage() {
           <div className="absolute -inset-4 rounded-full" style={{ border: "1px dashed rgba(0,200,180,0.2)", animation: "spin 12s linear infinite" }} />
           <div className="absolute -inset-8 rounded-full" style={{ border: "1px dashed rgba(0,200,180,0.1)", animation: "spin 20s linear infinite reverse" }} />
           <div className="relative rounded-full overflow-hidden" style={{ width: 120, height: 120, border: "2px solid rgba(0,200,180,0.4)", boxShadow: "0 0 40px rgba(0,200,180,0.25)" }}>
-            <img src="/logo-v2.png" alt="Sirius Star Lab" className="w-full h-full object-cover" />
+            <img src="/twins.jpg" alt="Sirius Star Lab" className="w-full h-full object-cover" />
           </div>
         </motion.div>
 
@@ -562,7 +562,7 @@ export function MarketingPage() {
         <div className="absolute inset-0 pointer-events-none" style={{ background: `radial-gradient(ellipse 60% 50% at 50% 50%, ${TEAL}0a, transparent)` }} />
         <Reveal className="max-w-2xl mx-auto relative z-10">
           <div className="w-16 h-16 rounded-2xl mx-auto mb-8 overflow-hidden" style={{ border: "1px solid rgba(0,200,180,0.4)", boxShadow: `0 0 40px ${TEAL}25` }}>
-            <img src="/logo-v2.png" alt="Sirius Star Lab" className="w-full h-full object-cover" />
+            <img src="/twins.jpg" alt="Sirius Star Lab" className="w-full h-full object-cover" />
           </div>
           <p className="text-xs font-mono mb-4" style={{ color: TEAL, letterSpacing: "0.2em" }}>READY WHEN YOU ARE</p>
           <h2 className="text-4xl sm:text-5xl font-black text-white mb-5 leading-tight">
@@ -591,7 +591,7 @@ export function MarketingPage() {
         style={{ borderTop: `1px solid ${BORDER}`, color: "rgba(255,255,255,0.2)" }}>
         <div className="flex items-center gap-2">
           <div className="w-5 h-5 rounded-full overflow-hidden opacity-60">
-            <img src="/logo-v2.png" alt="Sirius Star Lab" className="w-full h-full object-cover" />
+            <img src="/twins.jpg" alt="Sirius Star Lab" className="w-full h-full object-cover" />
           </div>
           <span>Sirius Star Lab · Sirius Star Lab · Scotland</span>
         </div>

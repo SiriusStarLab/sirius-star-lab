@@ -1,100 +1,16 @@
-import React, { useState, useCallback } from "react";
+import React from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
-import { Zap, User, Globe, ExternalLink, Download, Sparkles, ChevronDown, ChevronRight, Brain, Play, Loader2, CheckCircle, XCircle } from "lucide-react";
+import { Zap, User, Globe, ExternalLink, Download, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { type ChatMessage as ChatMessageType } from "@/hooks/use-chat";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface ChatMessageProps {
   message: ChatMessageType;
-}
-
-type CodeRunState = { status: "idle" | "running" | "done" | "error"; output?: string; error?: string };
-
-function CodeBlock({ language, code }: { language: string; code: string }) {
-  const runnable = ["python", "javascript", "js", "py"].includes((language || "").toLowerCase());
-  const [runState, setRunState] = useState<CodeRunState>({ status: "idle" });
-
-  const runCode = useCallback(async () => {
-    setRunState({ status: "running" });
-    const lang = ["python", "py"].includes(language.toLowerCase()) ? "python" : "javascript";
-    try {
-      const res = await fetch("/api/openai/run-code", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, language: lang }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setRunState({ status: "done", output: data.stdout || "(no output)" });
-      } else {
-        setRunState({ status: "error", error: data.stderr || data.error || "Unknown error" });
-      }
-    } catch (err: any) {
-      setRunState({ status: "error", error: err?.message || "Failed to connect" });
-    }
-  }, [code, language]);
-
-  return (
-    <div className="my-2 rounded-xl overflow-hidden" style={{ border: "1px solid hsl(193 100% 52% / 0.18)", background: "hsl(220 13% 9%)" }}>
-      <div className="flex items-center justify-between px-3 py-1.5" style={{ borderBottom: "1px solid hsl(193 100% 52% / 0.12)", background: "hsl(220 13% 7%)" }}>
-        <span className="text-[10px] font-mono text-muted-foreground/50 uppercase tracking-widest">{language || "code"}</span>
-        {runnable && (
-          <button
-            onClick={runCode}
-            disabled={runState.status === "running"}
-            className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono transition-all"
-            style={{ background: runState.status === "running" ? "hsl(193 100% 52% / 0.1)" : "hsl(193 100% 52% / 0.15)", color: "hsl(193 100% 52%)", border: "1px solid hsl(193 100% 52% / 0.25)" }}
-          >
-            {runState.status === "running" ? <Loader2 size={9} className="animate-spin" /> : <Play size={9} />}
-            {runState.status === "running" ? "Running…" : "▶ Run"}
-          </button>
-        )}
-      </div>
-      <pre className="p-3 text-[13px] font-mono text-foreground/85 overflow-x-auto leading-relaxed"><code>{code}</code></pre>
-      {(runState.status === "done" || runState.status === "error") && (
-        <div className="px-3 py-2.5" style={{ borderTop: "1px solid hsl(193 100% 52% / 0.12)", background: "hsl(220 13% 6%)" }}>
-          <div className="flex items-center gap-1.5 mb-1.5">
-            {runState.status === "done"
-              ? <><CheckCircle size={10} className="text-green-400" /><span className="text-[9px] font-mono text-green-400 uppercase tracking-widest">Output</span></>
-              : <><XCircle size={10} className="text-red-400" /><span className="text-[9px] font-mono text-red-400 uppercase tracking-widest">Error</span></>}
-          </div>
-          <pre className="text-[12px] font-mono whitespace-pre-wrap" style={{ color: runState.status === "done" ? "hsl(142 71% 70%)" : "hsl(0 72% 65%)" }}>
-            {runState.status === "done" ? runState.output : runState.error}
-          </pre>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function preprocessContent(content: string): string {
-  let result = content;
-  // "URL: https://...image.png" → markdown image
-  result = result.replace(
-    /URL:\s*(https?:\/\/\S+\.(png|jpg|jpeg|gif|webp|bmp|svg)(\?\S*)?)/gi,
-    (_, url) => `\n\n![Generated image](${url})\n\n`
-  );
-  // Saved to: /opt/sirius/...renders/file.png → rendered image via API
-  result = result.replace(
-    /Saved to:\s*\/opt\/sirius\/artifacts\/api-server\/public\/renders\/([\w.\-]+)/gi,
-    (_, filename) => `\n\n![Generated image](https://sirius-ai.live/api/lab/renders/${filename})\n\n`
-  );
-  // Any bare https URL ending in an image extension not already inside a markdown link/image
-  result = result.replace(
-    /(?<!\()(https?:\/\/[^\s)\]"']+\.(png|jpg|jpeg|gif|webp|bmp|svg)([?#][^\s)\]"']*)?)/gi,
-    (url) => `\n\n![Generated image](${url})\n\n`
-  );
-  // Normalize LaTeX delimiters for remark-math:
-  // \[ ... \] → $$ ... $$ (display math)
-  result = result.replace(/\\\[([^]*?)\\\]/g, (_m, inner) => `\n$$${inner}$$\n`);
-  // \( ... \) → $ ... $ (inline math)
-  result = result.replace(/\\\(([^]*?)\\\)/g, (_m, inner) => `$${inner}$`);
-  return result;
 }
 
 export function ChatMessage({ message }: ChatMessageProps) {
@@ -104,10 +20,6 @@ export function ChatMessage({ message }: ChatMessageProps) {
   const hasImage = !isUser && !!message.imageB64;
   const isGeneratingImage = !isUser && !!message.isGeneratingImage;
   const wasSearched = !isUser && !!message.wasSearched;
-  const hasActions = !isUser && (message.actions?.length ?? 0) > 0;
-  const hasThinking = !isUser && !!message.thinkingContent;
-  const [actionsExpanded, setActionsExpanded] = useState(false);
-  const [thinkingExpanded, setThinkingExpanded] = useState(false);
 
   const handleDownload = () => {
     if (!message.imageB64) return;
@@ -165,7 +77,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
           </span>
 
           <div className={cn(
-            "text-[15px] md:text-[16px] leading-[1.75] break-words font-[500]",
+            "text-[15px] md:text-[16px] leading-[1.75] break-words font-[430]",
             isUser
               ? "px-4 py-3 rounded-xl rounded-tr-sm text-white"
               : "text-foreground prose prose-base max-w-full"
@@ -179,7 +91,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
               <div>
                 {message.uploadedImageBase64 && (
                   <img
-                    src={message.uploadedImageBase64}
+                    src={`data:image/jpeg;base64,${message.uploadedImageBase64}`}
                     alt="Uploaded image"
                     className="max-w-[280px] rounded-lg mb-2 block"
                     style={{ border: "1px solid hsl(193 100% 52% / 0.2)" }}
@@ -189,151 +101,6 @@ export function ChatMessage({ message }: ChatMessageProps) {
               </div>
             ) : (
               <>
-                {/* Thinking block — shown when extended reasoning is active */}
-                <AnimatePresence>
-                  {hasThinking && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="mb-3"
-                    >
-                      <button
-                        onClick={() => setThinkingExpanded(v => !v)}
-                        className="flex items-center gap-2 px-3 py-1.5 rounded-xl w-full text-left transition-all"
-                        style={{ background: "hsl(270 70% 60% / 0.08)", border: "1px solid hsl(270 70% 60% / 0.2)" }}
-                      >
-                        <Brain size={11} style={{ color: "hsl(270 70% 65%)" }} className={message.isStreaming && !message.content ? "animate-pulse" : ""} />
-                        <span className="text-[10px] font-mono uppercase tracking-widest" style={{ color: "hsl(270 70% 65%)" }}>
-                          {message.isStreaming && !message.content ? "Thinking…" : "Reasoning trace"}
-                        </span>
-                        <span className="ml-auto">
-                          {thinkingExpanded ? <ChevronDown size={9} style={{ color: "hsl(270 70% 60%)" }} /> : <ChevronRight size={9} style={{ color: "hsl(270 70% 60%)" }} />}
-                        </span>
-                      </button>
-                      <AnimatePresence>
-                        {thinkingExpanded && (
-                          <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: "auto" }}
-                            exit={{ opacity: 0, height: 0 }}
-                            className="overflow-hidden"
-                          >
-                            <div
-                              className="mt-1 px-3 py-2.5 rounded-xl text-[12px] font-mono leading-relaxed whitespace-pre-wrap max-h-64 overflow-y-auto"
-                              style={{ background: "hsl(270 70% 60% / 0.05)", border: "1px solid hsl(270 70% 60% / 0.12)", color: "hsl(270 50% 70%)" }}
-                            >
-                              {message.thinkingContent}
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                {/* Action log — live during streaming, collapses to pill after */}
-                <AnimatePresence>
-                  {hasActions && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0 }}
-                      className="mb-3"
-                    >
-                      {message.isStreaming ? (
-                        /* Live expanding list while Sirius is working */
-                        <div
-                          className="rounded-xl px-3 py-2.5 flex flex-col gap-1.5"
-                          style={{ background: "hsl(193 100% 52% / 0.06)", border: "1px solid hsl(193 100% 52% / 0.15)" }}
-                        >
-                          {message.actions!.map((step, i) => (
-                            <motion.div
-                              key={i}
-                              initial={{ opacity: 0, x: -6 }}
-                              animate={{ opacity: 1, x: 0 }}
-                              transition={{ duration: 0.2 }}
-                              className="flex items-center gap-2"
-                            >
-                              <span className="text-base leading-none" style={{ minWidth: "1.1em" }}>
-                                {step.icon || "⚡"}
-                              </span>
-                              <span
-                                className="text-[11px] font-mono tracking-wide font-medium"
-                                style={{ color: step.color || "hsl(193 100% 52%)" }}
-                              >
-                                {step.label}
-                              </span>
-                              {step.detail && (
-                                <span className="text-[10px] font-mono text-muted-foreground/55 truncate max-w-[200px]">
-                                  · {step.detail}
-                                </span>
-                              )}
-                            </motion.div>
-                          ))}
-                          {/* Pulsing "working" dot */}
-                          <div className="flex items-center gap-1.5 mt-0.5 pt-1.5" style={{ borderTop: "1px solid hsl(193 100% 52% / 0.1)" }}>
-                            <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-                            <span className="text-[9px] font-mono text-primary/50 tracking-widest uppercase">Working…</span>
-                          </div>
-                        </div>
-                      ) : (
-                        /* Collapsed pill once response is complete */
-                        <button
-                          onClick={() => setActionsExpanded(v => !v)}
-                          className="flex items-center gap-1.5 px-2.5 py-1 rounded-full transition-all"
-                          style={{
-                            background: "hsl(193 100% 52% / 0.07)",
-                            border: "1px solid hsl(193 100% 52% / 0.18)",
-                          }}
-                        >
-                          {actionsExpanded
-                            ? <ChevronDown size={9} className="text-primary/60" />
-                            : <ChevronRight size={9} className="text-primary/60" />}
-                          <span className="text-[9px] font-mono text-primary/60 uppercase tracking-widest">
-                            {message.actions!.length} action{message.actions!.length !== 1 ? "s" : ""} taken
-                          </span>
-                        </button>
-                      )}
-
-                      {/* Expanded detail when pill is clicked */}
-                      <AnimatePresence>
-                        {!message.isStreaming && actionsExpanded && (
-                          <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: "auto" }}
-                            exit={{ opacity: 0, height: 0 }}
-                            className="overflow-hidden mt-2"
-                          >
-                            <div
-                              className="rounded-xl px-3 py-2.5 flex flex-col gap-1.5"
-                              style={{ background: "hsl(193 100% 52% / 0.06)", border: "1px solid hsl(193 100% 52% / 0.15)" }}
-                            >
-                              {message.actions!.map((step, i) => (
-                                <div key={i} className="flex items-center gap-2">
-                                  <span className="text-base leading-none" style={{ minWidth: "1.1em" }}>
-                                    {step.icon || "⚡"}
-                                  </span>
-                                  <span
-                                    className="text-[11px] font-mono tracking-wide font-medium"
-                                    style={{ color: step.color || "hsl(193 100% 52%)" }}
-                                  >
-                                    {step.label}
-                                  </span>
-                                  {step.detail && (
-                                    <span className="text-[10px] font-mono text-muted-foreground/55 truncate max-w-[200px]">
-                                      · {step.detail}
-                                    </span>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
                 {/* Searching indicator */}
                 <AnimatePresence>
                   {isSearching && (
@@ -370,40 +137,8 @@ export function ChatMessage({ message }: ChatMessageProps) {
 
                 {/* Message text */}
                 {message.content ? (
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm, remarkMath]}
-                    rehypePlugins={[rehypeKatex]}
-                    components={{
-                      img: ({ src, alt }) => {
-                        if (!src) return null;
-                        return (
-                          <span className="block my-2">
-                            <img
-                              src={src}
-                              alt={alt || "Image"}
-                              className="rounded-xl max-w-full"
-                              style={{ maxHeight: "400px", objectFit: "contain" }}
-                              onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
-                            />
-                            <span className="flex items-center gap-2 mt-1.5">
-                              <a href={src} download target="_blank" rel="noopener noreferrer"
-                                className="text-xs underline opacity-60 hover:opacity-100">Download</a>
-                              <a href={src} target="_blank" rel="noopener noreferrer"
-                                className="text-xs underline opacity-60 hover:opacity-100">Open full size ↗</a>
-                            </span>
-                          </span>
-                        );
-                      },
-                      code({ node, className, children, ...props }: any) {
-                        const match = /language-(\w+)/.exec(className || "");
-                        const isBlock = !props.inline;
-                        if (isBlock) {
-                          return <CodeBlock language={match?.[1] || ""} code={String(children).replace(/\n$/, "")} />;
-                        }
-                        return <code className={className} {...props}>{children}</code>;
-                      },
-                    }}
-                  >{preprocessContent(message.content)}</ReactMarkdown>
+                  <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]}
+                    rehypePlugins={[rehypeKatex]}>{message.content}</ReactMarkdown>
                 ) : !isSearching ? (
                   <div className="flex items-center gap-1 h-6">
                     {[0, 150, 300].map(d => (

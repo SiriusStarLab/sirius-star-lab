@@ -1,23 +1,34 @@
 import React, { useEffect, useRef, useState } from "react";
-import { speakText, stopSpeaking } from "@/pages/star-lab/voice-utils";
 import { useRoute, useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, CheckCircle2, Smartphone, PlusCircle } from "lucide-react";
+import { Menu, Home, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sidebar } from "@/components/sidebar";
 import { ChatMessage } from "@/components/chat-message";
 import { ChatInput } from "@/components/chat-input";
-import { IOSInstallGuide } from "@/components/pwa-install-prompt";
+import { DailyWisdom } from "@/components/daily-wisdom";
+import { TopicHub } from "@/components/topic-hub";
+import { MoodCheckin } from "@/components/mood-checkin";
 import { useChat } from "@/hooks/use-chat";
 import { useProfile } from "@/hooks/use-profile";
 import { useGetOpenaiConversation } from "@workspace/api-client-react";
 
-function isIOS() { return /iphone|ipad|ipod/i.test(navigator.userAgent); }
-function isInStandaloneMode() {
-  return window.matchMedia("(display-mode: standalone)").matches || (window.navigator as any).standalone === true;
-}
-function isMobileDevice() { return /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent); }
+const SURPRISE_PROMPTS = [
+  "Tell me the most mind-blowing fact about the universe that most people have never heard.",
+  "What is the strangest thing that quantum physics tells us about reality?",
+  "Tell me something from history that was buried or forgotten — something that changes how we see the world.",
+  "What is the biggest unsolved mystery in science right now?",
+  "Explain the hard problem of consciousness — why can't science explain why we feel anything at all?",
+  "Give me the most extraordinary fact about the human body that most doctors don't mention.",
+  "What do we actually know about consciousness from neuroscience — and where does it break down?",
+  "Tell me something about the ocean that most people have no idea about.",
+  "What is the most incredible animal ability on Earth — something that makes our senses look primitive?",
+  "Give me the most profound philosophical question ever asked — one so deep even the greatest minds couldn't answer it.",
+  "What ancient wisdom have modern scientists confirmed is actually correct?",
+  "What does physics say about parallel universes? The actual serious academic theories.",
+];
 
+type ExpandedSection = "topics" | "mood" | "wisdom" | null;
 
 export function ChatPage() {
   const [matchConv, convParams] = useRoute("/c/:id");
@@ -27,23 +38,11 @@ export function ChatPage() {
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [upgradeParam, setUpgradeParam] = useState<"plus" | "pro" | null>(null);
-  const [chatMode, setChatMode] = useState("guru");
+  const [expandedSection, setExpandedSection] = useState<ExpandedSection>(null);
   const [savedFlash, setSavedFlash] = useState(false);
-  const [showPWAGuide, setShowPWAGuide] = useState(false);
-  const [installEventReady, setInstallEventReady] = useState(() => !!(window as any).__siriusPWAInstallEvent);
-  useEffect(() => {
-    if (installEventReady) return;
-    const onReady = () => setInstallEventReady(true);
-    window.addEventListener("sirius-pwa-installable", onReady);
-    return () => window.removeEventListener("sirius-pwa-installable", onReady);
-  }, [installEventReady]);
-  // Show the button on mobile UAs (guide flow) OR any device (desktop/laptop
-  // Chrome/Edge included) once the browser has actually fired the native install prompt
-  const showInstallButton = !isIOS() && !isInStandaloneMode() && (isMobileDevice() || installEventReady);
   const [voiceMode, setVoiceMode] = useState(() => localStorage.getItem("sirius_voice_mode") === "true");
   const prevConvId = useRef<number | undefined>(undefined);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const { profile } = useProfile();
   const aiName = profile.aiName || "Sirius";
 
@@ -97,26 +96,8 @@ export function ChatPage() {
     return;
   }, [conversationId]);
 
-  const msgCountRef = useRef(0);
   useEffect(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
-    const isNew = messages.length !== msgCountRef.current;
-    msgCountRef.current = messages.length;
-    // New message added (but skip the initial recap-bridge card appearing alone)
-    if (isNew && !isTyping && messages.length > 1) {
-      setTimeout(() => {
-        const c = scrollContainerRef.current;
-        if (!c) return;
-        c.scrollTo({ top: Math.max(0, c.scrollHeight - c.clientHeight * 1.15), behavior: "smooth" });
-      }, 40);
-      return;
-    }
-    // Streaming: follow bottom only if user is already near it
-    const dist = container.scrollHeight - container.scrollTop - container.clientHeight;
-    if (dist < 180) {
-      container.scrollTop = container.scrollHeight;
-    }
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
 
   const toggleVoiceMode = () => {
@@ -128,23 +109,71 @@ export function ChatPage() {
     });
   };
 
-  const stopTTS = () => { stopSpeaking(); };
+  const playTTS = (text: string) => {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
 
-  const playTTS = async (text: string) => {
-    stopSpeaking();
     const clean = text
       .replace(/\*\*/g, "")
       .replace(/#{1,6}\s/g, "")
-      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
-    speakText(clean, undefined, 0.87);
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+      .slice(0, 6000);
+
+    // Split into sentence-sized chunks to work around Chrome's ~15s speech cutoff bug.
+    // Chrome silently stops speaking long utterances; chaining short ones avoids this.
+    const sentences = clean.match(/[^.!?]+[.!?]+[\s]*/g) || [clean];
+    const chunks: string[] = [];
+    let current = "";
+    for (const s of sentences) {
+      if ((current + s).length > 220) {
+        if (current) chunks.push(current.trim());
+        current = s;
+      } else {
+        current += s;
+      }
+    }
+    if (current.trim()) chunks.push(current.trim());
+
+    const voices = window.speechSynthesis.getVoices();
+    const preferred = voices.find(v => v.lang === "en-GB" && v.name.toLowerCase().includes("female"))
+      || voices.find(v => v.lang === "en-GB")
+      || voices.find(v => v.lang.startsWith("en"));
+
+    const speakChunk = (index: number) => {
+      if (index >= chunks.length) return;
+      const utt = new SpeechSynthesisUtterance(chunks[index]);
+      utt.lang = "en-GB";
+      utt.rate = 0.95;
+      utt.pitch = 1.0;
+      if (preferred) utt.voice = preferred;
+      utt.onend = () => speakChunk(index + 1);
+      utt.onerror = () => speakChunk(index + 1); // skip broken chunk, keep going
+      window.speechSynthesis.speak(utt);
+    };
+
+    speakChunk(0);
   };
 
+  const stopTTS = () => {
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+  };
+
+  // When a topic/mood/wisdom chip triggers a chat, collapse the section
   const handleSend = (content: string, imageBase64?: string, mode?: string, documentBase64?: string, documentName?: string) => {
-    sendMessage(content, imageBase64, mode ?? chatMode, documentBase64, documentName, voiceMode ? playTTS : undefined);
+    setExpandedSection(null);
+    sendMessage(content, imageBase64, mode, documentBase64, documentName, voiceMode ? playTTS : undefined);
+  };
+
+  const toggleSection = (section: ExpandedSection) => {
+    setExpandedSection(prev => prev === section ? null : section);
+  };
+
+  const surpriseMe = () => {
+    const idx = Math.floor(Math.random() * SURPRISE_PROMPTS.length);
+    handleSend(SURPRISE_PROMPTS[idx]);
   };
 
   const isEmpty = messages.length === 0;
-  const isRecapOnly = messages.length === 1 && messages[0].id === "recap-bridge";
   const isInitialLoading = !!conversationId && isDbLoading && isEmpty;
 
   return (
@@ -155,8 +184,6 @@ export function ChatPage() {
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
         forceOpenPricing={upgradeParam}
-        chatMode={chatMode}
-        onChatModeChange={m => { setChatMode(m); setIsSidebarOpen(false); }}
         onNewSession={() => {
           clearMessages();
           setLocation("/");
@@ -166,29 +193,32 @@ export function ChatPage() {
 
       <div className="flex-1 flex flex-col h-full relative z-10 w-full min-w-0">
 
-        {/* Top bar — always visible, Gemini-style */}
-        <header className="flex items-center justify-between px-2 py-2 border-b border-border/40 bg-background/80 backdrop-blur-md sticky top-0 z-20">
+        {/* Mobile header */}
+        <header className="flex items-center justify-between p-3 border-b border-border/40 bg-background/80 backdrop-blur-md sticky top-0 z-20">
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => setIsSidebarOpen(true)}
-            title="Menu"
-            className="relative text-muted-foreground hover:text-foreground"
+            onClick={() => setLocation("/")}
+            title="New session"
+            className="text-muted-foreground hover:text-foreground"
+            style={{ opacity: conversationId ? 1 : 0.35 }}
           >
-            <Menu size={20} />
+            <Home size={18} />
           </Button>
-          <span className="font-mono text-[11px] tracking-widest text-muted-foreground uppercase truncate max-w-[200px]">
+          <span className="font-mono text-[11px] tracking-widest text-muted-foreground uppercase truncate max-w-[160px]">
             {conversationId ? (dbConversation?.title || "Session") : aiName}
           </span>
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => { clearMessages(); setLocation("/"); }}
-            title="New session"
-            className="text-muted-foreground hover:text-foreground"
-            style={{ opacity: messages.length > 0 ? 1 : 0.35 }}
+            onClick={() => setIsSidebarOpen(true)}
+            title="Chat history"
+            className="relative text-muted-foreground hover:text-foreground"
           >
-            <PlusCircle size={18} />
+            <Menu size={20} />
+            {conversationId && (
+              <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+            )}
           </Button>
         </header>
 
@@ -210,7 +240,7 @@ export function ChatPage() {
         </AnimatePresence>
 
         {/* Chat area */}
-        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto scroll-smooth pb-44 sm:pb-36">
+        <div className="flex-1 overflow-y-auto scroll-smooth pb-36">
           {isInitialLoading ? (
             <div className="h-full flex items-center justify-center">
               <div className="flex flex-col items-center gap-4 text-muted-foreground">
@@ -222,9 +252,9 @@ export function ChatPage() {
                 </p>
               </div>
             </div>
-          ) : (isEmpty || isRecapOnly) ? (
+          ) : isEmpty ? (
             /* ── Welcome screen: Gemini-inspired clean layout ── */
-            <div className="relative min-h-full flex flex-col items-center pb-16 px-5 md:px-8 max-w-3xl mx-auto w-full justify-center">
+            <div className="relative min-h-full flex flex-col items-center justify-center pb-44 px-5 md:px-8 max-w-2xl mx-auto w-full">
 
               {/* Ambient background glow */}
               <div
@@ -266,7 +296,7 @@ export function ChatPage() {
                   }}
                 >
                   <img
-                    src="/logo-v2.png"
+                    src="/twins.jpg"
                     alt="Sirius Star Lab"
                     className="w-full h-full object-cover"
                     style={{ filter: "brightness(1.12) contrast(1.06) saturate(1.18)" }}
@@ -286,65 +316,118 @@ export function ChatPage() {
                   I'm {aiName} · I think, so I am
                 </p>
                 <h1 className="text-[2.1rem] md:text-[2.8rem] font-bold tracking-tight leading-tight mb-3 text-foreground">
-                  Welcome to Sirius — a place where you become a star
+                  Welcome to Sirius — where you become a star
                 </h1>
                 <p className="text-base md:text-lg font-medium text-muted-foreground/70">
                   What would you like to do?
                 </p>
               </motion.div>
 
-              {/* Chat input — embedded in empty state, sits between heading and tagline */}
+              {/* Quick-action chips */}
               <motion.div
-                initial={{ y: 14, opacity: 0 }}
+                initial={{ y: 10, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.25, duration: 0.45, ease: "easeOut" }}
-                className="relative z-10 w-full mb-6"
+                transition={{ delay: 0.28, duration: 0.4 }}
+                className="relative z-10 flex flex-wrap gap-2.5 justify-center mb-5"
               >
-                <ChatInput onSend={handleSend} isTyping={isTyping} onStop={stopStream} voiceMode={voiceMode} onToggleVoice={toggleVoiceMode} externalMode={chatMode} />
+                {/* Surprise me */}
+                <button
+                  onClick={surpriseMe}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium transition-all duration-200 active:scale-95 hover:brightness-105"
+                  style={{
+                    background: "hsl(193 100% 52% / 0.08)",
+                    border: "1px solid hsl(193 100% 52% / 0.35)",
+                    color: "hsl(193 100% 32%)",
+                  }}
+                >
+                  <span>🎲</span>
+                  <span>Surprise me</span>
+                </button>
+
+                {/* World subjects */}
+                <button
+                  onClick={() => toggleSection("topics")}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium transition-all duration-200 active:scale-95"
+                  style={{
+                    background: expandedSection === "topics" ? "hsl(193 100% 52% / 0.12)" : "hsl(210 30% 95%)",
+                    border: expandedSection === "topics" ? "1px solid hsl(193 100% 52% / 0.55)" : "1px solid hsl(210 25% 88%)",
+                    color: expandedSection === "topics" ? "hsl(193 100% 32%)" : "hsl(220 18% 42%)",
+                  }}
+                >
+                  <span>🌍</span>
+                  <span>World subjects</span>
+                </button>
+
+                {/* How are you feeling */}
+                <button
+                  onClick={() => toggleSection("mood")}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium transition-all duration-200 active:scale-95"
+                  style={{
+                    background: expandedSection === "mood" ? "hsl(210 90% 60% / 0.10)" : "hsl(210 30% 95%)",
+                    border: expandedSection === "mood" ? "1px solid hsl(210 90% 60% / 0.45)" : "1px solid hsl(210 25% 88%)",
+                    color: expandedSection === "mood" ? "hsl(210 90% 38%)" : "hsl(220 18% 42%)",
+                  }}
+                >
+                  <span>💙</span>
+                  <span>How are you feeling?</span>
+                </button>
+
+                {/* Daily wisdom */}
+                <button
+                  onClick={() => toggleSection("wisdom")}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium transition-all duration-200 active:scale-95"
+                  style={{
+                    background: expandedSection === "wisdom" ? "hsl(45 90% 55% / 0.10)" : "hsl(210 30% 95%)",
+                    border: expandedSection === "wisdom" ? "1px solid hsl(45 90% 55% / 0.45)" : "1px solid hsl(210 25% 88%)",
+                    color: expandedSection === "wisdom" ? "hsl(38 90% 32%)" : "hsl(220 18% 42%)",
+                  }}
+                >
+                  <span>✨</span>
+                  <span>Daily wisdom</span>
+                </button>
               </motion.div>
 
-              {/* Add to Home Screen — only on mobile, only when not already installed */}
-              {showInstallButton && (
-                <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.4, duration: 0.35 }}
-                  className="relative z-10 flex justify-center mt-1 mb-3"
-                >
-                  <button
-                    onClick={async () => {
-                      const evt = (window as any).__siriusPWAInstallEvent;
-                      if (evt && !isIOS()) {
-                        await evt.prompt();
-                      } else {
-                        setShowPWAGuide(true);
-                      }
-                    }}
-                    className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-medium transition-all duration-200 active:scale-95"
-                    style={{
-                      background: "hsl(193 100% 52% / 0.07)",
-                      border: "1px solid hsl(193 100% 52% / 0.28)",
-                      color: "hsl(193 100% 35%)",
-                    }}
+              {/* Expandable content sections */}
+              <AnimatePresence mode="wait">
+                {expandedSection === "topics" && (
+                  <motion.div
+                    key="topics"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.25 }}
+                    className="relative z-10 w-full"
                   >
-                    <Smartphone size={13} />
-                    Add to Home Screen
-                  </button>
-                </motion.div>
-              )}
+                    <TopicHub onSelect={handleSend} />
+                  </motion.div>
+                )}
 
-              {/* Recap bridge card — shown inside welcome screen when returning after 12h+ */}
-              {isRecapOnly && (
-                <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.35, duration: 0.4 }}
-                  className="relative z-10 w-full mt-2"
-                >
-                  <ChatMessage message={messages[0]} />
-                </motion.div>
-              )}
+                {expandedSection === "mood" && (
+                  <motion.div
+                    key="mood"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.25 }}
+                    className="relative z-10 w-full"
+                  >
+                    <MoodCheckin onSelect={handleSend} />
+                  </motion.div>
+                )}
 
+                {expandedSection === "wisdom" && (
+                  <motion.div
+                    key="wisdom"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.25 }}
+                    className="relative z-10 w-full"
+                  >
+                    <DailyWisdom onReflect={handleSend} />
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           ) : (
             <div className="flex flex-col pb-4">
@@ -353,50 +436,19 @@ export function ChatPage() {
                   <ChatMessage key={message.id || index} message={message} />
                 ))}
               </AnimatePresence>
-              {/* Follow-up question chips */}
-              {(() => {
-                const lastMsg = messages[messages.length - 1];
-                if (lastMsg?.role === "assistant" && !lastMsg.isStreaming && lastMsg.followups?.length) {
-                  return (
-                    <div className="flex flex-wrap gap-2 px-4 pb-3 pt-1">
-                      {lastMsg.followups.map((q, i) => (
-                        <button
-                          key={i}
-                          onClick={() => handleSend(q)}
-                          className="text-xs px-3 py-1.5 rounded-full text-left transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
-                          style={{
-                            background: "hsl(193 100% 52% / 0.06)",
-                            border: "1px solid hsl(193 100% 52% / 0.22)",
-                            color: "hsl(193 100% 30%)",
-                          }}
-                        >
-                          {q}
-                        </button>
-                      ))}
-                    </div>
-                  );
-                }
-                return null;
-              })()}
               <div ref={messagesEndRef} className="h-4" />
             </div>
           )}
         </div>
 
-        {/* Input bar — shown when conversation has real messages (not just the recap card) */}
-        {!isEmpty && !isRecapOnly && (
-          <div
-            className="absolute bottom-14 left-0 right-0 z-30 pt-10 pb-3 px-4 md:px-8"
-            style={{ background: "linear-gradient(to top, hsl(var(--background)) 60%, transparent)" }}
-          >
-            <ChatInput onSend={handleSend} isTyping={isTyping} onStop={stopStream} voiceMode={voiceMode} onToggleVoice={toggleVoiceMode} externalMode={chatMode} />
-          </div>
-        )}
+        {/* Input bar */}
+        <div
+          className="absolute bottom-0 left-0 right-0 z-30 pt-10 pb-5 px-4 md:px-8"
+          style={{ background: "linear-gradient(to top, hsl(var(--background)) 60%, transparent)" }}
+        >
+          <ChatInput onSend={handleSend} isTyping={isTyping} onStop={stopStream} voiceMode={voiceMode} onToggleVoice={toggleVoiceMode} />
+        </div>
       </div>
-
-      <AnimatePresence>
-        {showPWAGuide && <IOSInstallGuide onClose={() => setShowPWAGuide(false)} />}
-      </AnimatePresence>
     </div>
   );
 }

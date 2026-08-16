@@ -1,45 +1,7 @@
 import React, { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Check, Copy, Download } from "lucide-react";
-
-const IMAGE_EXT_RE = /\.(png|jpg|jpeg|gif|webp|bmp|svg)(\?.*)?$/i;
-
-function preprocessContent(content: string): string {
-  let result = content;
-
-  // 1. "URL: https://..." or "Image generated at URL: https://..." → markdown image
-  result = result.replace(
-    /(?:Image generated at URL|URL):\s*(https?:\/\/\S+)/gi,
-    (_, url) => `\n\n![Generated image](${url})\n\n`
-  );
-
-  // 2. "Saved to: /opt/sirius/.../renders/file.png" → URL → markdown image
-  result = result.replace(
-    /Saved to:\s*\/opt\/sirius\/artifacts\/api-server\/public\/renders\/([\w.\-]+)/gi,
-    (_, filename) => `\n\n![Generated image](https://sirius-ai.live/api/lab/renders/${filename})\n\n`
-  );
-
-  // 3. Bare https://sirius-ai.live/api/lab/renders/file.png not already in markdown
-  result = result.replace(
-    /(?<!\()( |^)(https?:\/\/[^\s)]+\/api\/lab\/renders\/[\w.\-]+)/gm,
-    (_, space, url) => `${space}\n\n![Generated image](${url})\n\n`
-  );
-
-  // 4. Bare Pollinations.ai URL not already inside a markdown image
-  result = result.replace(
-    /(?<!\()(https?:\/\/image\.pollinations\.ai\/[^\s)\]"']+)/gi,
-    (url) => `\n\n![Generated image](${url})\n\n`
-  );
-
-  // 5. Any bare https URL ending in an image extension not already inside a markdown link/image
-  result = result.replace(
-    /(?<!\()(https?:\/\/[^\s)\]"']+\.(png|jpg|jpeg|gif|webp|bmp|svg)([?#][^\s)\]"']*)?)/gi,
-    (url) => `\n\n![Generated image](${url})\n\n`
-  );
-
-  return result;
-}
+import { Check, Copy } from "lucide-react";
 
 export function LabMarkdown({ content, streaming }: { content: string; streaming: boolean }) {
   const [copiedBlock, setCopiedBlock] = useState<number | null>(null);
@@ -51,7 +13,6 @@ export function LabMarkdown({ content, streaming }: { content: string; streaming
   };
 
   let codeBlockIdx = 0;
-  const processed = preprocessContent(content);
 
   return (
     <div style={{ fontSize: "0.82rem", color: "rgba(15,23,42,0.82)", lineHeight: 1.65 }}>
@@ -78,40 +39,6 @@ export function LabMarkdown({ content, streaming }: { content: string; streaming
               {children}
             </blockquote>
           ),
-          img: ({ src, alt }) => {
-            if (!src) return null;
-            return (
-              <div className="my-3">
-                <img
-                  src={src}
-                  alt={alt || "Generated image"}
-                  className="rounded-xl max-w-full"
-                  style={{ maxHeight: "480px", objectFit: "contain", border: "1px solid rgba(15,23,42,0.1)", background: "#f8fafc" }}
-                  onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
-                />
-                <div className="flex items-center gap-2 mt-1.5">
-                  <a
-                    href={src}
-                    download
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg transition-all"
-                    style={{ background: "rgba(0,198,255,0.1)", color: "hsl(193,100%,40%)", border: "1px solid rgba(0,198,255,0.2)" }}>
-                    <Download className="w-3 h-3" />
-                    Download
-                  </a>
-                  <a
-                    href={src}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs"
-                    style={{ color: "rgba(15,23,42,0.4)" }}>
-                    Open full size ↗
-                  </a>
-                </div>
-              </div>
-            );
-          },
           table: ({ children }) => (
             <div className="overflow-x-auto my-2 rounded-lg" style={{ border: "1px solid rgba(15,23,42,0.1)" }}>
               <table className="w-full text-xs" style={{ borderCollapse: "collapse" }}>{children}</table>
@@ -151,7 +78,7 @@ export function LabMarkdown({ content, streaming }: { content: string; streaming
           },
         }}
       >
-        {processed}
+        {content}
       </ReactMarkdown>
       {streaming && <span className="inline-block w-1.5 h-3.5 ml-0.5 rounded-sm animate-pulse" style={{ background: "hsl(193,100%,50%)", verticalAlign: "middle" }} />}
     </div>

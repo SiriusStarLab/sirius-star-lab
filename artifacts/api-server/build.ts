@@ -88,7 +88,7 @@ async function buildAll() {
     format: "cjs" as const,
     define: { "process.env.NODE_ENV": '"production"' },
     conditions: ["require", "node", "default"],
-    minify: true,
+    minify: false,
     external: externals,
     alias: workspaceAliases,
     logLevel: "info" as const,

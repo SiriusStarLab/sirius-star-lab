@@ -10,9 +10,7 @@ interface Props {
 }
 
 export function LabAuthGate({ children, title = "Star Lab" }: Props) {
-  const [status, setStatus] = useState<"locked" | "unlocked">(() => {
-    return sessionStorage.getItem(SESSION_KEY) ? "unlocked" : "locked";
-  });
+  const [status, setStatus] = useState<"checking" | "locked" | "unlocked">("checking");
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [attemptsLeft, setAttemptsLeft] = useState<number | null>(null);
@@ -20,10 +18,14 @@ export function LabAuthGate({ children, title = "Star Lab" }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (status === "locked") {
+    const stored = sessionStorage.getItem(SESSION_KEY);
+    if (stored) {
+      setStatus("unlocked");
+    } else {
+      setStatus("locked");
       setTimeout(() => inputRef.current?.focus(), 100);
     }
-  }, [status]);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,8 +45,6 @@ export function LabAuthGate({ children, title = "Star Lab" }: Props) {
 
       if (res.ok && data.success) {
         sessionStorage.setItem(SESSION_KEY, pin.trim());
-        sessionStorage.setItem("lab_role", data.role === "guest" ? "guest" : "owner");
-        localStorage.removeItem("lab_pin_persist");
         setStatus("unlocked");
       } else if (res.status === 403) {
         setError("Access locked — too many incorrect attempts. Try again in 15 minutes.");
@@ -66,6 +66,8 @@ export function LabAuthGate({ children, title = "Star Lab" }: Props) {
       setLoading(false);
     }
   };
+
+  if (status === "checking") return null;
 
   if (status === "unlocked") return <>{children}</>;
 

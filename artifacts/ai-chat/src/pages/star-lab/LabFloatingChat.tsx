@@ -25,7 +25,9 @@ export function LabFloatingChat({ pin, navMode, activeProject, onNavigate, onOpe
 }) {
   const CHAT_STORAGE_KEY = `lab_chat_${accessLevel}`;
 
-  const [open, setOpen] = React.useState(false);
+  const [open, setOpen] = React.useState(() => {
+    try { const s = localStorage.getItem(CHAT_STORAGE_KEY); return s ? JSON.parse(s).length > 0 : false; } catch { return false; }
+  });
   const [messages, setMessages] = React.useState<{ role: "user" | "assistant"; content: string; actions?: { label: string; color: string; icon?: string }[] }[]>(() => {
     try { const s = localStorage.getItem(CHAT_STORAGE_KEY); return s ? JSON.parse(s) : []; } catch { return []; }
   });
@@ -43,9 +45,6 @@ export function LabFloatingChat({ pin, navMode, activeProject, onNavigate, onOpe
   const bottomRef = React.useRef<HTMLDivElement>(null);
   const recognitionRef = React.useRef<any>(null);
   const stoppedRef = React.useRef(false);
-  const conversationIdRef = React.useRef<number | null>(null);
-  const pendingNavRef = React.useRef<{ section: NavMode; projectId?: number | null } | null>(null);
-  const pendingNavAndBuildRef = React.useRef<{ section: NavMode; prompt?: string } | null>(null);
   const base = getApiBase();
   const prevNavModeRef = React.useRef(navMode);
 
@@ -62,8 +61,17 @@ export function LabFloatingChat({ pin, navMode, activeProject, onNavigate, onOpe
   }, [messages, CHAT_STORAGE_KEY]);
 
   React.useEffect(() => {
+    if (prevNavModeRef.current === "labchat" && navMode !== "labchat") {
+      try {
+        const saved = localStorage.getItem(CHAT_STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed.length > 0) { setMessages(parsed); setOpen(true); }
+        }
+      } catch {}
+    }
     prevNavModeRef.current = navMode;
-  }, [navMode]);
+  }, [navMode, CHAT_STORAGE_KEY]);
 
   React.useEffect(() => {
     const id = setInterval(() => setWaveTick(t => t + 1), 90);
@@ -105,7 +113,7 @@ export function LabFloatingChat({ pin, navMode, activeProject, onNavigate, onOpe
         speakText(greeting, () => {
           setVoicePhase("idle");
           if (!stoppedRef.current) startVoiceListening(text => sendVoice(text));
-        }, 0.87, pin);
+        });
       } else {
         if (!streaming && voicePhase === "idle") {
           setTimeout(() => {
@@ -120,6 +128,41 @@ export function LabFloatingChat({ pin, navMode, activeProject, onNavigate, onOpe
   React.useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, streamText]);
+
+  const detectNavIntent = (text: string): NavMode | null => {
+    const t = text.toLowerCase();
+    const navMap: [string[], NavMode][] = [
+      [["dashboard", "home", "overview"], "dashboard"],
+      [["project", "portfolio", "innovations"], "projects"],
+      [["bot lab", "botlab", "automation bots", "bots"], "botlab"],
+      [["scout", "scan", "opportunities", "scanning"], "scout"],
+      [["intelligence feed", "feed", "market signals", "trends"], "feed"],
+      [["funding radar", "grants", "funding", "grant"], "grants"],
+      [["commerce", "e-commerce", "retail", "shop"], "commerce"],
+      [["outreach", "sales contacts", "partners"], "outreach"],
+      [["auto lab", "autolab", "pending approval"], "autolab"],
+      [["revenue", "sales plan", "unit economics", "commission"], "revenue"],
+      [["agency", "client delivery"], "agency"],
+      [["mission", "kpi", "objectives"], "mission"],
+      [["growth", "marketing", "growth engine"], "growth"],
+      [["brain", "strategic intelligence", "deep analysis"], "brain"],
+      [["deep research", "research"], "research"],
+      [["document", "docs", "upload"], "docs"],
+      [["lab chat", "labchat", "full conversation"], "labchat"],
+      [["app builder", "appbuilder", "build app"], "appbuilder"],
+      [["ai architecture", "ai arch", "architecture"], "ai-arch"],
+      [["command centre", "orchestrate", "orchestration", "full pipeline"], "orchestrate"],
+      [["system audit", "sysaudit", "platform audit", "audit", "health check", "platform health"], "sysaudit"],
+      [["upgrades", "upgrade wishlist", "what sirius needs", "sirius upgrades", "buy for sirius", "capability upgrades"], "upgrades"],
+    ];
+    const goVerbs = ["go to", "take me to", "open", "show me", "navigate to", "switch to", "go"];
+    const hasGoVerb = goVerbs.some(v => t.includes(v));
+    if (!hasGoVerb) return null;
+    for (const [keywords, mode] of navMap) {
+      if (keywords.some(k => t.includes(k))) return mode;
+    }
+    return null;
+  };
 
   const extractProjectQuery = (text: string): string | null => {
     const t = text.toLowerCase();
@@ -143,6 +186,22 @@ export function LabFloatingChat({ pin, navMode, activeProject, onNavigate, onOpe
     const newMsg = { role: "user" as const, content: text };
     setMessages(prev => [...prev, newMsg]);
 
+    const navTarget = detectNavIntent(text);
+    if (navTarget) {
+      const navName = NAV_LABELS[navTarget] ?? navTarget;
+      const reply = `Taking you to ${navName} now.`;
+      setMessages(prev => [...prev, { role: "assistant", content: reply }]);
+      stoppedRef.current = true;
+      stopListeningNow();
+      setVoicePhase("speaking");
+      speakText(reply, () => {
+        setVoicePhase("idle");
+        onNavigate(navTarget);
+        setTimeout(() => setOpen(false), 300);
+      });
+      return;
+    }
+
     const projQuery = extractProjectQuery(text);
     if (projQuery && onOpenProject) {
       setMessages(prev => [...prev, { role: "assistant", content: `Searching for "${projQuery}"…` }]);
@@ -165,7 +224,7 @@ export function LabFloatingChat({ pin, navMode, activeProject, onNavigate, onOpe
             speakText(reply, () => {
               setVoicePhase("idle");
               setPendingOpen({ id: found.id, name: found.name });
-            }, 0.87, pin);
+            });
             return;
           }
         }
@@ -210,7 +269,7 @@ VOICE STYLE: Short, direct sentences. No bullet points or markdown. Report what 
       const res = await fetch(`${base}lab/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-lab-pin": pin },
-        body: JSON.stringify({ messages: apiMessages, conversationId: conversationIdRef.current }),
+        body: JSON.stringify({ messages: apiMessages }),
         signal: fetchController.signal,
       });
       if (!res.ok || !res.body) { clearTimeout(fetchTimeout); throw new Error("Chat failed"); }
@@ -238,13 +297,8 @@ VOICE STYLE: Short, direct sentences. No bullet points or markdown. Report what 
           if (raw === "[DONE]") break;
           try {
             const evt = JSON.parse(raw);
-            if (evt.type === "done" || evt.done) break;
-            // ── text streaming ────────────────────────────────────────────
-            if (evt.content) {
-              full += evt.content;
-              setStreamText(full);
-              setThinkingText("");
-            } else if (evt.type === "text" && evt.delta) {
+            if (evt.type === "done") break;
+            if (evt.type === "text" && evt.delta) {
               full += evt.delta;
               setStreamText(full);
               setThinkingText("");
@@ -255,60 +309,32 @@ VOICE STYLE: Short, direct sentences. No bullet points or markdown. Report what 
             if (evt.type === "status" && evt.message) {
               setThinkingText(evt.message);
             }
-            // ── action cards for every tool Sirius uses ───────────────────
             if (evt.type === "action" && evt.label) {
               const card = { label: evt.label, color: evt.color || "hsl(193,100%,35%)", icon: evt.icon, detail: evt.detail };
               liveActions.push(card);
               setStreamingActions([...liveActions]);
               setThinkingText("");
             }
-            if (evt.type === "reading_file") {
-              liveActions.push({ label: "Reading file", detail: evt.path, color: "hsl(220 70% 55%)", icon: "📄" });
-              setStreamingActions([...liveActions]); setThinkingText("");
-            }
-            if (evt.type === "executing_code") {
-              liveActions.push({ label: `Running ${evt.language || "code"}`, detail: "", color: "hsl(280 70% 55%)", icon: "⚡" });
-              setStreamingActions([...liveActions]); setThinkingText("");
-            }
-            if (evt.type === "code_result") {
-              const last = liveActions[liveActions.length - 1];
-              if (last) { liveActions[liveActions.length - 1] = { ...last, detail: evt.success ? `Done in ${evt.executionMs}ms` : "Failed", color: evt.success ? "hsl(142 71% 45%)" : "hsl(0 72% 51%)" }; setStreamingActions([...liveActions]); }
-            }
-            if (evt.type === "proposing_change") {
-              liveActions.push({ label: "Writing change", detail: evt.filePath, color: "hsl(38 92% 50%)", icon: "✏️" });
-              setStreamingActions([...liveActions]); setThinkingText("");
-            }
-            if (evt.type === "deploy_result") {
-              const last = liveActions[liveActions.length - 1];
-              if (last) { liveActions[liveActions.length - 1] = { ...last, label: evt.success ? "Change deployed ✓" : "Change rejected", color: evt.success ? "hsl(142 71% 45%)" : "hsl(0 72% 51%)" }; setStreamingActions([...liveActions]); }
-            }
-            if (evt.type === "field_saved") {
-              liveActions.push({ label: `Saved: ${evt.label || evt.field}`, detail: evt.preview ? evt.preview.slice(0, 60) : "", color: "hsl(142 71% 45%)", icon: "💾" });
-              setStreamingActions([...liveActions]); setThinkingText("");
-            }
-            if (evt.type === "render_queued") {
-              liveActions.push({ label: "Render queued", detail: evt.description ? evt.description.slice(0, 60) : "", color: "hsl(193 100% 40%)", icon: "🎨" });
-              setStreamingActions([...liveActions]); setThinkingText("");
-            }
-            if (evt.type === "sending_to_cad") {
-              liveActions.push({ label: "Sending to New Dimensions", detail: "", color: "hsl(193 100% 40%)", icon: "📐" });
-              setStreamingActions([...liveActions]); setThinkingText("");
-            }
             if (evt.type === "navigate") {
               if (evt.section) {
-                pendingNavRef.current = { section: evt.section as NavMode, projectId: evt.projectId || null };
+                stoppedRef.current = true;
+                stopListeningNow();
+                onNavigate(evt.section as NavMode);
+                if (evt.projectId && onOpenProject) {
+                  const pName = streamText.match(/"([^"]+)"/)?.[1] ?? `project #${evt.projectId}`;
+                  setPendingOpen({ id: evt.projectId, name: pName });
+                } else {
+                  setTimeout(() => setOpen(false), 600);
+                }
               }
             }
             if (evt.type === "navigate_and_build") {
               if (evt.section) {
-                pendingNavAndBuildRef.current = { section: evt.section as NavMode, prompt: evt.prompt || "" };
+                stoppedRef.current = true;
+                stopListeningNow();
+                onNavigate(evt.section as NavMode);
+                setTimeout(() => setOpen(false), 600);
               }
-            }
-            if (evt.type === "conversation_id" && evt.conversationId) {
-              conversationIdRef.current = evt.conversationId;
-            }
-            if (evt.type === "error") {
-              full = evt.message || "Something went wrong — please try again.";
             }
           } catch {}
         }
@@ -316,39 +342,22 @@ VOICE STYLE: Short, direct sentences. No bullet points or markdown. Report what 
 
       clearInterval(activityTimeout);
 
-      const cleanText = (full || "No response — please try again.").replace(/<<[^>]+>>/g, "").replace(/[*#>`_~]/g, "").trim();
+      if (full) {
+        const cleanText = full.replace(/<<[^>]+>>/g, "").replace(/[*#>`_~]/g, "").trim();
+        setMessages(prev => [...prev, { role: "assistant", content: cleanText, actions: liveActions.length ? liveActions : undefined }]);
 
-      setMessages(prev => [...prev, { role: "assistant", content: cleanText, actions: liveActions.length ? liveActions : undefined }]);
-
-      const pendingNav = pendingNavRef.current;
-      const pendingNavAndBuild = pendingNavAndBuildRef.current;
-      pendingNavRef.current = null;
-      pendingNavAndBuildRef.current = null;
-
-      if (pendingNavAndBuild) {
-        setTimeout(() => {
-          onNavigate(pendingNavAndBuild.section);
-        }, 300);
-      } else if (pendingNav) {
-        setTimeout(() => {
-          onNavigate(pendingNav.section);
-          if (pendingNav.projectId && onOpenProject) {
-            setTimeout(() => onOpenProject!(pendingNav.projectId!), 300);
-          }
-        }, 300);
+        const spokenText = cleanText.length > 350 ? cleanText.slice(0, 350) + "." : cleanText;
+        setVoicePhase("speaking");
+        speakText(spokenText, () => {
+          setVoicePhase("idle");
+          if (!stoppedRef.current) setTimeout(() => startVoiceListening(t => sendVoice(t)), 400);
+        });
       }
-
-      const spokenText = cleanText.length > 350 ? cleanText.slice(0, 350) + "." : cleanText;
-      setVoicePhase("speaking");
-      speakText(spokenText, () => {
-        setVoicePhase("idle");
-        if (!stoppedRef.current) setTimeout(() => startVoiceListening(t => sendVoice(t)), 400);
-      }, 0.87, pin);
     } catch {
       const errMsg = "Something went wrong — please try again.";
       setMessages(prev => [...prev, { role: "assistant", content: errMsg }]);
       setVoicePhase("speaking");
-      speakText(errMsg, () => { setVoicePhase("idle"); if (!stoppedRef.current) setTimeout(() => startVoiceListening(t => sendVoice(t)), 400); }, 0.87, pin);
+      speakText(errMsg, () => { setVoicePhase("idle"); if (!stoppedRef.current) setTimeout(() => startVoiceListening(t => sendVoice(t)), 400); });
     } finally {
       setStreaming(false);
       setStreamText("");
@@ -380,7 +389,7 @@ VOICE STYLE: Short, direct sentences. No bullet points or markdown. Report what 
 
           <div className="flex-shrink-0 flex items-center gap-2.5 px-4 py-3" style={{ background: "linear-gradient(135deg, rgba(15,23,42,0.97), rgba(20,30,55,0.97))", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
             <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0" style={{ border: "1.5px solid hsl(193,100%,50%)" }}>
-              <img src="/logo-v2.png" alt="Sirius" className="w-full h-full object-cover" />
+              <img src="/twins.jpg" alt="Sirius" className="w-full h-full object-cover" />
             </div>
             <div className="flex-1">
               <p className="text-xs font-bold text-white leading-none">Sirius</p>
@@ -398,7 +407,7 @@ VOICE STYLE: Short, direct sentences. No bullet points or markdown. Report what 
               <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"} items-end gap-2`}>
                 {m.role === "assistant" && (
                   <div className="w-5 h-5 rounded-full overflow-hidden flex-shrink-0 mb-0.5" style={{ border: "1px solid hsl(193,100%,70%)" }}>
-                    <img src="/logo-v2.png" alt="" className="w-full h-full object-cover" />
+                    <img src="/twins.jpg" alt="" className="w-full h-full object-cover" />
                   </div>
                 )}
                 <div className="flex flex-col gap-1.5">
@@ -429,7 +438,7 @@ VOICE STYLE: Short, direct sentences. No bullet points or markdown. Report what 
             {streaming && (
               <div className="flex justify-start items-start gap-2">
                 <div className="w-5 h-5 rounded-full overflow-hidden flex-shrink-0 mt-1" style={{ border: "1px solid hsl(193,100%,70%)" }}>
-                  <img src="/logo-v2.png" alt="" className="w-full h-full object-cover" />
+                  <img src="/twins.jpg" alt="" className="w-full h-full object-cover" />
                 </div>
                 <div className="flex flex-col gap-1.5 max-w-[270px]">
                   {streamingActions.map((a, ai) => (
@@ -570,7 +579,7 @@ VOICE STYLE: Short, direct sentences. No bullet points or markdown. Report what 
         }}
       >
         <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0" style={{ border: "1.5px solid rgba(255,255,255,0.3)" }}>
-          <img src="/logo-v2.png" alt="Sirius" className="w-full h-full object-cover" />
+          <img src="/twins.jpg" alt="Sirius" className="w-full h-full object-cover" />
         </div>
         {open && <span className="text-xs font-semibold text-white whitespace-nowrap">Close chat</span>}
         {!open && unread && (

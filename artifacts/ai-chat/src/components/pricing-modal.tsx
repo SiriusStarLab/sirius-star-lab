@@ -8,7 +8,7 @@ interface PricingModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentTier?: string;
-  defaultTier?: "premium";
+  defaultTier?: "plus" | "pro";
 }
 
 export function PricingModal({ isOpen, onClose, currentTier = "free", defaultTier }: PricingModalProps) {

@@ -162,12 +162,8 @@ setInterval(() => {
   }
 }, 30 * 60 * 1000);
 
-const LOCALHOST_IPS = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1", "localhost"]);
-
 export function recordPinFailure(req: Request): { banned: boolean; remaining: number; banExpiresAt: Date | null } {
   const ip = getClientIp(req);
-  // Internal server-to-server calls must never be subjected to the brute-force ban
-  if (LOCALHOST_IPS.has(ip)) return { banned: false, remaining: MAX_PIN_FAILURES, banExpiresAt: null };
   const now = Date.now();
   let record = pinAttempts.get(ip) ?? { failures: 0, firstFailure: now, bannedUntil: null };
 
@@ -192,8 +188,6 @@ export function recordPinFailure(req: Request): { banned: boolean; remaining: nu
 
 export function checkPinBan(req: Request): { banned: boolean; banExpiresAt: Date | null } {
   const ip = getClientIp(req);
-  // Localhost is always trusted — never block internal server calls
-  if (LOCALHOST_IPS.has(ip)) return { banned: false, banExpiresAt: null };
   const record = pinAttempts.get(ip);
   if (!record?.bannedUntil) return { banned: false, banExpiresAt: null };
   if (Date.now() > record.bannedUntil) {

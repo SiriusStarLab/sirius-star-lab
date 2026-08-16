@@ -7,7 +7,6 @@ import {
   Dimensions,
   FlatList,
   KeyboardAvoidingView,
-  Linking,
   Platform,
   Pressable,
   StyleSheet,
@@ -69,10 +68,8 @@ export default function OnboardingScreen() {
   const { updateLocalProfile } = useApp();
   const [activeIndex, setActiveIndex] = useState(0);
   const [showNameInput, setShowNameInput] = useState(false);
-  const [showAiConsent, setShowAiConsent] = useState(false);
   const [name, setName] = useState("");
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const consentAnim = useRef(new Animated.Value(0)).current;
   const flatRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
 
@@ -100,6 +97,7 @@ export default function OnboardingScreen() {
 
   const handleNext = () => {
     if (isLast) {
+      // Transition to name step
       setShowNameInput(true);
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -111,27 +109,7 @@ export default function OnboardingScreen() {
     }
   };
 
-  const handleSkipOnboarding = () => {
-    setShowNameInput(true);
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 280,
-      useNativeDriver: true,
-    }).start();
-  };
-
-  const handleNameContinue = () => {
-    setShowAiConsent(true);
-    Animated.timing(consentAnim, {
-      toValue: 1,
-      duration: 280,
-      useNativeDriver: true,
-    }).start();
-  };
-
-  const handleAgreeAndStart = () => {
-    finishOnboarding(name);
-  };
+  const handleSkipOnboarding = () => finishOnboarding();
 
   return (
     <View style={[styles.root, { backgroundColor: Colors.background }]}>
@@ -151,7 +129,7 @@ export default function OnboardingScreen() {
       </View>
 
       {/* Slides */}
-      {!showNameInput && !showAiConsent && (
+      {!showNameInput && (
         <FlatList
           ref={flatRef}
           data={SLIDES}
@@ -168,7 +146,7 @@ export default function OnboardingScreen() {
       )}
 
       {/* Name input — fades in after last slide */}
-      {showNameInput && !showAiConsent && (
+      {showNameInput && (
         <Animated.View style={[styles.nameContainer, { opacity: fadeAnim }]}>
           <KeyboardAvoidingView
             behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -193,77 +171,16 @@ export default function OnboardingScreen() {
               autoCorrect={false}
               maxLength={40}
               returnKeyType="done"
-              onSubmitEditing={handleNameContinue}
+              onSubmitEditing={() => finishOnboarding(name)}
             />
           </KeyboardAvoidingView>
         </Animated.View>
       )}
 
-      {/* AI Data Consent — required before entering app (Apple §5.1.1 / §5.1.2) */}
-      {showAiConsent && (
-        <Animated.View style={[styles.nameContainer, { opacity: consentAnim }]}>
-          <View style={styles.nameInner}>
-            <View style={[styles.iconWrap, { borderColor: "#a78bfa33" }]}>
-              <Feather name="shield" size={40} color="#a78bfa" />
-            </View>
-
-            <Text style={styles.title}>Your data & privacy</Text>
-            <Text style={[styles.consentSubtitle]}>
-              Please read before continuing
-            </Text>
-
-            <View style={styles.consentBox}>
-              <Text style={[styles.consentText, { fontWeight: "600", marginBottom: 10 }]}>
-                Sirius shares the following data with third-party AI providers to generate responses:
-              </Text>
-
-              {[
-                "Your conversation messages (text you type or speak)",
-                "Any images or documents you attach to messages",
-                "Mood check-in selections you make in the Explore tab",
-              ].map((item, i) => (
-                <View key={i} style={{ flexDirection: "row", marginBottom: 6 }}>
-                  <Text style={[styles.consentText, { color: "#a78bfa", marginRight: 8 }]}>•</Text>
-                  <Text style={[styles.consentText, { flex: 1 }]}>{item}</Text>
-                </View>
-              ))}
-
-              <Text style={[styles.consentText, { marginTop: 12 }]}>
-                This data is sent to:{"  "}
-                <Text style={styles.consentBold}>Anthropic</Text> (Claude AI) and{"  "}
-                <Text style={styles.consentBold}>OpenAI</Text>.
-                It may be processed on their servers in the United States.
-              </Text>
-
-              <Text style={[styles.consentText, { marginTop: 12 }]}>
-                This data is used solely to generate your AI responses. It is not used for advertising. Please do not share sensitive financial or medical information.
-              </Text>
-
-              <Text style={[styles.consentText, { marginTop: 12 }]}>
-                By tapping <Text style={styles.consentBold}>I consent & continue</Text>, you give permission for this data to be shared as described in our{" "}
-                <Text
-                  style={styles.consentLink}
-                  onPress={() => Linking.openURL("https://sirius-ai.live/privacy")}
-                >
-                  Privacy Policy
-                </Text>
-                {" "}and{" "}
-                <Text
-                  style={styles.consentLink}
-                  onPress={() => Linking.openURL("https://sirius-ai.live/terms")}
-                >
-                  Terms of Use
-                </Text>
-                .
-              </Text>
-            </View>
-          </View>
-        </Animated.View>
-      )}
-
-      {/* Bottom controls — slides */}
-      {!showNameInput && !showAiConsent ? (
+      {/* Bottom controls */}
+      {!showNameInput ? (
         <View style={[styles.bottom, { paddingBottom: insets.bottom + 24 }]}>
+          {/* Dots — hidden on last slide */}
           {!isLast && (
             <View style={styles.dots}>
               {SLIDES.map((_, i) => (
@@ -292,7 +209,7 @@ export default function OnboardingScreen() {
             )}
           </Pressable>
         </View>
-      ) : showNameInput && !showAiConsent ? (
+      ) : (
         <Animated.View
           style={[
             styles.bottom,
@@ -300,51 +217,12 @@ export default function OnboardingScreen() {
           ]}
         >
           <Pressable
-            onPress={handleNameContinue}
+            onPress={() => finishOnboarding(name)}
             style={({ pressed }) => [styles.cta, pressed && { opacity: 0.8 }]}
           >
             <Text style={styles.ctaText}>
-              {name.trim() ? "Continue" : "Skip for now"}
+              {name.trim() ? "Start" : "Skip for now"}
             </Text>
-            <Feather name="arrow-right" size={18} color={Colors.background} />
-          </Pressable>
-          <Text style={styles.termsNote}>
-            {"By continuing you agree to our "}
-            <Text
-              style={styles.termsLink}
-              onPress={() => Linking.openURL("https://sirius-ai.live/terms")}
-            >
-              Terms of Service
-            </Text>
-            {" and "}
-            <Text
-              style={styles.termsLink}
-              onPress={() => Linking.openURL("https://sirius-ai.live/privacy")}
-            >
-              Privacy Policy
-            </Text>
-            {"."}
-          </Text>
-        </Animated.View>
-      ) : (
-        <Animated.View
-          style={[
-            styles.bottom,
-            { paddingBottom: insets.bottom + 24, opacity: consentAnim },
-          ]}
-        >
-          <Pressable
-            onPress={handleAgreeAndStart}
-            style={({ pressed }) => [styles.ctaConsent, pressed && { opacity: 0.8 }]}
-          >
-            <Feather name="check" size={18} color={Colors.background} />
-            <Text style={styles.ctaText}>I consent &amp; continue</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => Linking.openURL("https://sirius-ai.live/privacy")}
-            style={({ pressed }) => [styles.privacyBtn, pressed && { opacity: 0.6 }]}
-          >
-            <Text style={styles.privacyBtnText}>Read full Privacy Policy</Text>
           </Pressable>
         </Animated.View>
       )}
@@ -429,42 +307,10 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
 
-  /* ── AI Consent ── */
-  consentSubtitle: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 13,
-    color: Colors.textMuted,
-    marginTop: 4,
-    marginBottom: 16,
-    textAlign: "center",
-  },
-  consentBox: {
-    backgroundColor: Colors.surface,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "rgba(167,139,250,0.2)",
-    padding: 20,
-    width: "100%",
-  },
-  consentText: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 15,
-    color: Colors.textMuted,
-    lineHeight: 24,
-  },
-  consentBold: {
-    fontFamily: "Inter_600SemiBold",
-    color: Colors.text,
-  },
-  consentLink: {
-    color: Colors.primary,
-    textDecorationLine: "underline",
-  },
-
   /* ── Bottom ── */
   bottom: {
     paddingHorizontal: 28,
-    gap: 16,
+    gap: 24,
     paddingTop: 8,
   },
   dots: {
@@ -487,40 +333,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 8,
   },
-  ctaConsent: {
-    backgroundColor: "#7c3aed",
-    borderRadius: 16,
-    paddingVertical: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-  },
   ctaText: {
     fontFamily: "Inter_600SemiBold",
     fontSize: 17,
     color: Colors.background,
-  },
-  termsNote: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 12,
-    color: Colors.textMuted,
-    textAlign: "center",
-    lineHeight: 18,
-    paddingHorizontal: 8,
-  },
-  termsLink: {
-    color: Colors.primary,
-    textDecorationLine: "underline",
-  },
-  privacyBtn: {
-    alignItems: "center",
-    paddingVertical: 8,
-  },
-  privacyBtnText: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 13,
-    color: Colors.textMuted,
-    textDecorationLine: "underline",
   },
 });

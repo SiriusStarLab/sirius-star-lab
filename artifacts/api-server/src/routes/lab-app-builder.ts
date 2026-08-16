@@ -3,7 +3,7 @@ import { eq, desc, or } from "drizzle-orm";
 import { db, appBuilderSessions, labProjects } from "@workspace/db";
 import { openai } from "@workspace/ai-client";
 import { authMiddleware } from "../lib/lab-auth.js";
-import { deployAppSession, listDeployedApps } from "../lib/app-deployer.js";
+import { deployAppSession, listDeployedApps, promoteApp } from "../lib/app-deployer.js";
 
 const router: IRouter = Router();
 
@@ -347,8 +347,7 @@ UI requirements:
 - Mobile-first responsive — works on 375px and 1440px
 - Every form: client-side zod validation with inline error messages, loading state on submit, success/error toast
 - Every data list: loading skeleton (not spinner), empty state with an action CTA, error retry button
-- Zero dead nav links — every page in the nav must have a corresponding page component
-- PREVIEW COMPATIBILITY: Use CDN links for CSS frameworks and JS libraries (Tailwind CDN, Alpine.js CDN, Chart.js CDN, etc.) wherever possible instead of npm packages. Where the app is a simple UI without a complex build pipeline, output a self-contained index.html with styles inlined or loaded from CDN — this enables instant live preview in the browser without any build step.`,
+- Zero dead nav links — every page in the nav must have a corresponding page component`,
 
     backend: `${base}
 
@@ -1272,6 +1271,22 @@ router.post('/lab/app-builder/sessions/:id/deploy', authMiddleware, async (req: 
 router.get('/lab/app-builder/deployed', authMiddleware, async (_req: Request, res: Response) => {
   const apps = await listDeployedApps();
   res.json({ apps });
+});
+
+
+// ─── Promote App to Production ──────────────────────────────────────────────
+router.post('/lab/app-builder/apps/:slug/promote', authMiddleware, async (req: Request, res: Response) => {
+  const { slug } = req.params as { slug: string };
+  try {
+    const result = await promoteApp(slug);
+    if (result.success) {
+      res.json({ ok: true, url: result.url, log: result.log });
+    } else {
+      res.status(400).json({ ok: false, error: result.error, log: result.log });
+    }
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
+  }
 });
 
 export default router;

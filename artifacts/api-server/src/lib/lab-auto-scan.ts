@@ -383,65 +383,19 @@ ABSOLUTE RULES — VIOLATING THESE BREAKS THE BUILD:
   return rolePrompts[agentId] || base;
 }
 
-// How long a single build may run before it is force-killed (default 3 minutes)
-const BUILD_TIMEOUT_MS = parseInt(process.env.AUTO_BUILD_TIMEOUT_MS || "180000", 10);
-
-// Maximum builds that may run in a single calendar day
-const BUILD_DAILY_CAP = parseInt(process.env.AUTO_BUILD_DAILY_CAP || "10", 10);
-
-function buildTimeout(ms: number): Promise<never> {
-  return new Promise((_, reject) =>
-    setTimeout(() => reject(new Error(`[Auto-Build] Timed out after ${ms / 1000}s`)), ms),
-  );
-}
-
 export async function triggerAutoBuildForProject(
   projectId: number,
   name: string,
   brief: string,
   industry: string,
 ): Promise<void> {
-  // Kill switch — disabled to prevent runaway API spend
-  if (process.env.AUTO_BUILD_ENABLED !== "true") {
-    console.log(`[Auto-Build] DISABLED — skipping "${name}". Set AUTO_BUILD_ENABLED=true to re-enable.`);
-    return;
-  }
-
   if (!isSoftwareBuildable(name, brief)) {
     console.log(`[Auto-Build] Skipping "${name}" — not a software product`);
     return;
   }
 
-  // Daily cap — count sessions started today using raw SQL
-  const { sql } = await import("drizzle-orm");
-  const [dailyResult] = await db
-    .execute(sql`SELECT COUNT(*) as cnt FROM app_builder_sessions WHERE created_at >= CURRENT_DATE`)
-    .catch(() => [{ cnt: "0" }]) as any[];
+  console.log(`[Auto-Build] ▶ Starting autonomous build for "${name}" (project #${projectId})`);
 
-  const buildsToday = parseInt(dailyResult?.cnt || "0", 10);
-  if (buildsToday >= BUILD_DAILY_CAP) {
-    console.log(`[Auto-Build] Daily cap reached (${buildsToday}/${BUILD_DAILY_CAP}) — skipping "${name}". Resets at midnight.`);
-    return;
-  }
-
-  console.log(`[Auto-Build] ▶ Starting autonomous build for "${name}" (project #${projectId}) — build ${buildsToday + 1}/${BUILD_DAILY_CAP} today — timeout ${BUILD_TIMEOUT_MS / 1000}s`);
-
-  try {
-    await Promise.race([
-      runAutoBuild(projectId, name, brief, industry),
-      buildTimeout(BUILD_TIMEOUT_MS),
-    ]);
-  } catch (err: any) {
-    console.error(`[Auto-Build] ✗ "${name}": ${err?.message}`);
-  }
-}
-
-async function runAutoBuild(
-  projectId: number,
-  name: string,
-  brief: string,
-  industry: string,
-): Promise<void> {
   try {
     // Step 1 — Interpret: extract structured requirements from the brief
     const interpretRes = await openai.chat.completions.create({

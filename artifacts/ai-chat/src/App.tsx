@@ -1,4 +1,5 @@
-import { Switch, Route, Router as WouterRouter } from "wouter";
+import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
+import { useEffect } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -9,7 +10,6 @@ import { CheckoutSuccessPage } from "@/pages/checkout-success";
 import { CheckoutCancelPage } from "@/pages/checkout-cancel";
 import { StarLabPage } from "@/pages/star-lab";
 import { MarketingPage } from "@/pages/marketing";
-import { PricingPage } from "@/pages/pricing";
 import { DreamLabPage } from "@/pages/dream-lab";
 import { WellbeingPage } from "@/pages/wellbeing";
 import { UniversePage } from "@/pages/universe";
@@ -17,9 +17,12 @@ import { DiscoverPage } from "@/pages/discover";
 import { LearnPage } from "@/pages/learn";
 import { ComparePage } from "@/pages/compare";
 import { CreatorLabPage } from "@/pages/creator-lab";
+import { MemoriesPage } from "@/pages/memories";
+import { ProjectsPage } from "@/pages/projects";
 import NotFound from "@/pages/not-found";
 import { PWAInstallPrompt } from "@/components/pwa-install-prompt";
 import { ReconnectionBanner } from "@/components/reconnection-banner";
+import { LabAuthGate } from "@/components/lab-auth-gate";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -38,16 +41,17 @@ function Router() {
       <Route path="/privacy" component={PrivacyPage} />
       <Route path="/checkout/success" component={CheckoutSuccessPage} />
       <Route path="/checkout/cancel" component={CheckoutCancelPage} />
-      <Route path="/star-lab" component={StarLabPage} />
+      <Route path="/origin" component={() => <LabAuthGate><StarLabPage /></LabAuthGate>} />
+      <Route path="/star-lab" component={() => { const [, nav] = useLocation(); useEffect(() => nav("/origin"), []); return null; }} />
       <Route path="/creator-lab" component={CreatorLabPage} />
       <Route path="/dream-lab" component={DreamLabPage} />
       <Route path="/wellbeing" component={WellbeingPage} />
       <Route path="/universe" component={UniversePage} />
-      <Route path="/admin" component={StarLabPage} />
+      <Route path="/admin" component={() => <LabAuthGate><StarLabPage /></LabAuthGate>} />
       <Route path="/learn" component={LearnPage} />
       <Route path="/why-sirius" component={MarketingPage} />
       <Route path="/agency" component={MarketingPage} />
-      <Route path="/pricing" component={PricingPage} />
+      <Route path="/pricing" component={MarketingPage} />
       <Route path="/compare" component={ComparePage} />
       <Route path="/discover" component={DiscoverPage} />
       <Route path="/memories" component={MemoriesPage} />

@@ -2,6 +2,7 @@ import { db, siriusTasks, userProfilesTable, labProjects, siriusNotifications } 
 import { openai } from "@workspace/ai-client";
 import { eq, asc, notInArray, and, sql } from "drizzle-orm";
 import { sendTelegram } from "./lib/telegram.js";
+import { requireGarryApproval } from "./lib/approval-gate.js";
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync } from "fs";
 import { join } from "path";
 import { randomUUID } from "crypto";
@@ -184,11 +185,17 @@ async function executeTool(name: string, args: any): Promise<string> {
       if (!filePath.startsWith("/opt/sirius") && !filePath.startsWith("/tmp")) {
         return "Can only write within /opt/sirius/ or /tmp/.";
       }
+      // ── Approval gate — Garry must approve before any autonomous code change ──
+      const approved = await requireGarryApproval(
+        `Write file: ${filePath}`,
+        `Content length: ${String(content).length} chars`,
+      );
+      if (!approved) return `❌ Code modification blocked — Garry did not approve writing ${filePath}`;
       try {
         const dir = filePath.substring(0, filePath.lastIndexOf("/"));
         if (dir) mkdirSync(dir, { recursive: true });
         writeFileSync(filePath, content, "utf-8");
-        return `Written ${content.length} chars to ${filePath}`;
+        return `Written ${String(content).length} chars to ${filePath}`;
       } catch (e: any) {
         return `Write failed: ${e?.message}`;
       }

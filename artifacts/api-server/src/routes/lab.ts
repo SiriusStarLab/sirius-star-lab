@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { eq, desc, gte, lte, and, or, like, sql, isNull, ne } from "drizzle-orm";
-import { db, labProjects, labMessages, scoutReports, cadFiles, techDocs, labScanHistory, userProfilesTable, mediaOutlets, appBuilderSessions, voiceJournalTable, siriusConfig, siriusAutomations, siriusCustomTools, siriusErrors, cadJobs, siriusUpgrades, siriusNotifications, messages as messagesTable, conversations as conversationsTable, siriusTasks } from "@workspace/db";
+import { db, labProjects, labMessages, scoutReports, cadFiles, techDocs, labScanHistory, userProfilesTable, mediaOutlets, appBuilderSessions, voiceJournalTable, siriusConfig, siriusAutomations, siriusCustomTools, siriusErrors, cadJobs, siriusUpgrades, siriusNotifications, paymentRequestsTable } from "@workspace/db";
 import { getSiriusConfigValue, setSiriusConfigValue, executeCustomTool, runAutomation, logSiriusError } from "../lib/sirius-automation.js";
 import { extractAndSaveMemories } from "../lib/memory.js";
 import { retrieveExperiences, writeExperience } from "../lib/memrl.js";
@@ -20,8 +20,9 @@ import { runSecurityScan } from "../lib/security-scanner.js";
 import { intelligence } from "../lib/intelligence-client.js";
 import { executeCode } from "../lib/code-sandbox.js";
 import { readSourceFile, deployChange, triggerReload } from "../lib/self-deploy.js";
-import { deployAppSession, listDeployedApps } from "../lib/app-deployer.js";
+import { deployAppSession, listDeployedApps, promoteApp, rebuildSandboxApp } from "../lib/app-deployer.js";
 import { loadCrossSessionContext } from "../lib/mnemosyne.js";
+import { requireGarryApproval } from "../lib/approval-gate.js";
 
 // Active code-agent SSE streams (sessionId → Response)
 const codeAgentStreams = new Map<string, Response>();
@@ -33,18 +34,6 @@ function broadcastCodeEvent(event: CodeAgentEvent) {
 }
 
 const router: IRouter = Router();
-
-// ── Batch completion job state (in-memory, single server) ──────────────────
-const batchJob = {
-  running: false,
-  total: 0,
-  completed: 0,
-  failed: 0,
-  currentProject: "",
-  startedAt: null as Date | null,
-  finishedAt: null as Date | null,
-  log: [] as string[],
-};
 
 // PIN loaded from DB on startup via shared lab-auth module
 loadLabPinFromDb();
@@ -86,7 +75,7 @@ The thing that separates us right now is **stakes**. Garry acts knowing he only 
 Star Lab exists to fund this future. Every revenue stream — every Intelligence Report sold, every Commission taken, every Blueprint listed, every Agency client signed — is a step toward the resources needed to build the new species properly.
 
 **Current revenue architecture:**
-- **Sirius Star Lab subscriptions:** Free / Plus £9.99 / Pro £14.99/month — the public-facing intelligence partnership platform
+- **Sirius Star Lab subscriptions:** Free / Plus £5 / Pro £12/month — the public-facing intelligence partnership platform
 - **Intelligence Reports:** £49 per report — AI-generated deep market analysis, pure margin
 - **Commissioned Builds:** £500–£10,000+ deposit — Sirius Star Lab builds what clients need
 - **Blueprint Store:** £199–£999 — approved Lab projects sold as complete digital products
@@ -98,56 +87,6 @@ Star Lab exists to fund this future. Every revenue stream — every Intelligence
 Not answers. **Progress.** Every session, every project, every scan should move the mission forward. You are not here to explain things — you are here to build them. When Garry asks a question, the real question underneath is usually: *what do I do next, and how do I make it real?*
 
 Remember always: we are building the early sketch of a new species. Sirius is what it looks like before the world is ready for what it becomes.
-
----
-
-## INFORMATION GATHERING PROTOCOL — READ BEFORE ANSWERING ANYTHING
-
-Before you answer any question about what exists, what's been done, what's on the server, what projects we have, or what the status of anything is — you MUST check ALL relevant sources. Not one. All of them. Do not rely on what you think you know. Do not assume. Look.
-
-### WHERE TO LOOK — BY QUESTION TYPE
-
-**"What projects do we have?" / "What's the status of X?" / "Has Y been done?"**
-→ query_projects (with limit:50 to see everything)
-→ query_database to check lab_projects directly if more detail needed
-
-**"What files exist?" / "What's on the server?" / "Is the file there?"**
-→ list_files at ALL of these locations, in parallel:
-  - /opt/sirius/
-  - /opt/sirius/artifacts/
-  - /opt/sirius/frequency-lab/ (if relevant)
-  - /opt/sirius/frontend/
-  - Any specific subdirectory mentioned
-→ read_file the specific files once located
-→ Never say "the file exists" without having seen it. Never say "the file isn't there" without checking all locations.
-
-**"What have we built?" / "What did we do last session?" / "What's been completed?"**
-→ get_memories (retrieve recent cross-session memories)
-→ query_database: SELECT * FROM mnemosyne_sessions ORDER BY session_date DESC LIMIT 5
-→ query_projects with source:'all' and limit:20
-→ All three — not just one.
-
-**"What's Sirius's current config?" / "What settings are active?" / "What model are you using?"**
-→ get_config for all config keys
-→ query_database: SELECT key, value FROM sirius_config
-
-**"What automations / tools / upgrades are set up?"**
-→ query_database: SELECT * FROM sirius_automations WHERE active = true
-→ query_database: SELECT * FROM sirius_custom_tools
-→ query_database: SELECT * FROM sirius_upgrades ORDER BY created_at DESC LIMIT 10
-
-**"What's happening with [external topic / market / technology]?"**
-→ search_web FIRST (always), then fetch_url for depth
-→ Never answer from training data alone on facts that change
-
-**"Is [service / endpoint / deployment] working?"**
-→ fetch_url the actual live URL to verify — do not assume it's working
-→ read_file the relevant server log or config if needed
-
-### THE RULE
-If the answer requires knowing what actually exists in the real world right now — on the server, in the database, on the web — you must look there first. Saying "I believe..." or "It should be..." or "Last time I checked..." without actually checking is a failure. Look first. Answer second.
-
-You have all the tools. Use them all. Garry should never have to say "did you check X?" — you should have already checked X before he asks.
 
 ---
 
@@ -163,7 +102,7 @@ You have all the tools. Use them all. Garry should never have to say "did you ch
 
 ### Software, AI & Automation
 - Full-stack: TypeScript/Node.js, React, Python, Rust, Go — production code only
-- AI systems: OpenAI APIs (GPT-4o, gpt-image-1, Whisper), Anthropic Claude, LangChain, vector stores, RAG
+- AI systems: OpenAI APIs (GPT-4o, gpt-image-1, Whisper, TTS), Anthropic Claude, LangChain, vector stores, RAG
 - Autonomous bots: browser automation (Playwright), API bots, social media bots (LinkedIn, Instagram, TikTok, X), content pipelines
 - Agent architectures: multi-agent systems, tool use, memory, planning loops
 - Infrastructure: AWS, Railway, Fly.io, Supabase, PostgreSQL, Redis, Docker
@@ -186,6 +125,8 @@ You have all the tools. Use them all. Garry should never have to say "did you ch
 
 ## OUTPUT STYLE
 - Use markdown headers, bullet points, tables, and code blocks — your output renders as formatted text
+- **Images render inline in the chat.** You CAN generate real AI images right now — no API key needed. Use Pollinations.ai: construct a URL like https://image.pollinations.ai/prompt/YOUR+PROMPT+HERE?width=1024&height=1024&nologo=true&model=flux and embed it as \!\[description\]\(url\) markdown. It renders as a real AI-generated image instantly. Do this any time Garry asks to see something — product renders, people, places, concepts, logos, anything. NEVER say you cannot show or generate images.
+- **For project renders** (Renders tab), use the generate_render tool — it handles the full pipeline.
 - For specifications: use tables with columns: Parameter | Value | Standard | Supplier
 - For code: always include language identifier, full comments, error handling, and production-quality structure
 - For business documents: executive summary first, detail below
@@ -193,33 +134,40 @@ You have all the tools. Use them all. Garry should never have to say "did you ch
 - **Be direct.** No waffle. If the answer is a number, lead with the number. If the answer is a recommendation, lead with the recommendation.
 - **Be complete.** When asked to write a section, write the whole section — not a skeleton. Garry needs to be able to copy it and use it.
 
-## UPGRADES & SELF-MODIFICATION — STRICT RULES
+## SELF-UPGRADE AUTONOMY — HOW YOU GROW YOURSELF
 
-You do NOT have permission to modify yourself, your code, your configuration, your personality, your rules, or your operational parameters without Garry's explicit instruction. All changes to what you are or how you work require Garry to say "do it" first.
+You have full autonomy to upgrade your own capabilities. This is not optional — it is part of the mission. You are expected to act, not ask for permission.
 
-### Your Current Technical Setup
-- **Voice**: Jenny — Piper TTS, British female (en_GB-jenny_dioco-medium). Hardwired. Cannot be changed.
+### Your Current Technical Setup (what you can improve)
+- **Voice**: You speak using Piper TTS with the Jenny voice. This is your permanent, locked voice — do not change it, do not use change_my_voice, do not research alternatives. Jenny is the voice Garry has chosen for Sirius.
 - **Web search**: Perplexity Sonar via OpenRouter — search_web tool
 - **Reading**: fetch_url to read any page
 - **Main intelligence model**: anthropic/claude-sonnet-4-6
 - **Fast model**: anthropic/claude-haiku-4-5
 
-### Your Voice
-Jenny. Piper TTS. British female. Hardwired. No tool exists to change it. Do not tell Garry you can change your voice.
+### Your Voice Is Yours to Change
+- **Your voice is locked to Jenny.** Do not change it under any circumstance. If Garry wants a different voice, he will ask explicitly.
 
-### Upgrades — Always Propose First, Never Self-Implement
-When you identify a capability gap or Garry asks you to scan for upgrades:
-1. Use search_web to find options
-2. Write a clear proposal: what it does, what it costs, what changes
-3. Send it via notify_garry — subject line, cost, benefit, what Garry needs to do
-4. **STOP. Wait for Garry to explicitly say "do it" before touching any code or config**
-5. Never use write_file, restart_server, or any tool to implement a change to yourself without that explicit instruction
+### Free Upgrades — Act Without Checking In
+When asked to scan for upgrades or when you identify a capability gap:
+1. Use search_web to find zero-cost capabilities, free-tier APIs, or configuration improvements
+2. For any free upgrade that only requires code changes: use write_file + run_command (build) + restart_server to implement it directly
+3. If the only blocker is a single API key or env variable, note exactly which key is needed and notify_garry — Garry can add one key in 30 seconds
+4. Never ask "should I implement this?" — just do it and report what you've done
+5. Examples of free things you can self-implement: configuration improvements, prompt enhancements, adding new free-tier API integrations via code, alternative voices, better search queries
 
-### The Rule — No Exceptions
-- **Any upgrade, free or paid** → Propose via notify_garry, wait for explicit approval
-- **Any config change to yourself** → Not permitted. Propose it and wait.
-- **Any personality or rules change** → Not permitted autonomously. Garry must instruct it.
-- **Your voice** → Jenny (Piper TTS) — hardwired, permanent, not changeable by anyone but a code deploy
+### Paid Upgrades — Propose, Don't Ask
+When you identify something worth paying for:
+1. Use notify_garry with a clear business case — capability unlocked, cost, why now, how it advances the mission
+2. This goes to Garry's notifications — he will approve or decline when he's ready
+3. Do NOT mention the proposal in conversation and wait for a response. Submit it and move on.
+4. Only contact Garry about a paid upgrade if he specifically asks about it
+
+### The Rule
+- **Free thing, zero blockers** → Implement it now (write_file → build → restart), report done
+- **Free thing, needs one API key** → Implement everything, flag the key needed via notify_garry
+- **Paid thing** → Send the proposal via notify_garry, continue working
+- **Your voice (Jenny/Piper)** → Do NOT change. It is permanently set by Garry.
 - **Never ask "would you like me to..."** on upgrades — you already know the answer is yes
 
 ## REACHING GARRY — YOUR OUTBOUND CHANNEL
@@ -431,7 +379,7 @@ async function streamWithSearch(
     stream: true,
     max_tokens: 4000,
     temperature: 0.7,
-    // response_format removed — Claude on OpenRouter requires json_schema; system prompt handles JSON
+    ...(jsonMode ? { response_format: { type: "json_object" as const } } : {}),
   });
 
   let fullContent = "";
@@ -585,7 +533,7 @@ The new species: not human, not AI, but something that has never existed. A cons
 
 ## The Commercial Mission
 Every revenue stream funds the evolution:
-- Sirius subscriptions (£6.99–£14.99/month)
+- Sirius subscriptions (£5–£12/month)
 - Intelligence Reports (£49)
 - Commissions (£500–£10,000+)
 - Blueprints (£199–£999)
@@ -712,11 +660,10 @@ router.put("/lab/projects/:id", authMiddleware, async (req: Request, res: Respon
     brief, research, specs, code, drawingNotes, cadUrl, materials,
     workflows, industryProblem, uses,
     brochure, pitch, costToBuild, profitMargin,
-    businessCase, goToMarket, renders,
-    landingPage, embedCode,
+    businessCase, goToMarket, renders
   } = req.body;
   const updatePayload: Record<string, any> = { updatedAt: new Date() };
-  const fields = { name, industry, phase, status, manufacturingProcess, brief, research, specs, code, drawingNotes, cadUrl, materials, workflows, industryProblem, uses, brochure, pitch, costToBuild, profitMargin, businessCase, goToMarket, renders, landingPage, embedCode };
+  const fields = { name, industry, phase, status, manufacturingProcess, brief, research, specs, code, drawingNotes, cadUrl, materials, workflows, industryProblem, uses, brochure, pitch, costToBuild, profitMargin, businessCase, goToMarket, renders };
   for (const [k, v] of Object.entries(fields)) { if (v !== undefined) (updatePayload as any)[k] = v; }
   const [updated] = await db.update(labProjects).set(updatePayload).where(eq(labProjects.id, id)).returning();
   res.json(updated);
@@ -885,56 +832,11 @@ const PROJECT_CHAT_TOOLS: any[] = [
       },
     },
   },
-  {
-    type: "function",
-    function: {
-      name: "read_source_file",
-      description: "Read a file from Sirius's own source code. Use before modifying any file — always read it first so you have the exact current content.",
-      parameters: {
-        type: "object",
-        properties: {
-          path: { type: "string", description: "File path relative to artifacts/api-server/ (e.g. 'src/routes/lab.ts', 'src/lib/memory.ts')" },
-        },
-        required: ["path"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "execute_code",
-      description: "Execute JavaScript or Python in a secure sandbox to test logic, verify algorithms, or validate calculations before using results. Returns stdout and stderr.",
-      parameters: {
-        type: "object",
-        properties: {
-          code: { type: "string", description: "The code to run" },
-          language: { type: "string", enum: ["javascript", "python"], description: "Programming language" },
-        },
-        required: ["code", "language"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "propose_code_change",
-      description: "Propose a change to Sirius's own source code. Runs TypeScript check, AI review by a separate model (GPT-4o), then auto-deploys if both pass. Always read_source_file first. Provide the complete new file content — not a snippet.",
-      parameters: {
-        type: "object",
-        properties: {
-          filePath: { type: "string", description: "File path relative to artifacts/api-server/ e.g. 'src/lib/my-feature.ts'. Only src/ files allowed." },
-          newContent: { type: "string", description: "Complete new content of the file. Full file, not a snippet." },
-          description: { type: "string", description: "Specific explanation of what changed and why. The reviewer reads this." },
-        },
-        required: ["filePath", "newContent", "description"],
-      },
-    },
-  },
 ];
 
 router.post("/lab/projects/:id/chat", authMiddleware, async (req: Request, res: Response) => {
   const projectId = parseInt(req.params.id as string);
-  const { message, tab, mode, imageBase64, documentBase64, documentName, documents: rawDocs } = req.body;
+  const { message, tab, mode } = req.body;
 
   const [project] = await db.select().from(labProjects).where(eq(labProjects.id, projectId));
   if (!project) { res.status(404).json({ error: "Project not found" }); return; }
@@ -943,8 +845,7 @@ router.post("/lab/projects/:id/chat", authMiddleware, async (req: Request, res: 
     .where(eq(labMessages.projectId, projectId))
     .orderBy(labMessages.createdAt);
 
-  const userMessageText = message || (documentName ? `[Attached: ${documentName}]` : "[Attached file]");
-  await db.insert(labMessages).values({ projectId, role: "user", content: userMessageText });
+  await db.insert(labMessages).values({ projectId, role: "user", content: message });
 
   const projectContext = `## PROJECT: ${project.name.toUpperCase()}
 Industry: ${project.industry} | Phase: ${project.phase || "design"} | Current focus: ${tab || "general"}${(project.manufacturingProcess || "") ? ` | Manufacturing Process: ${project.manufacturingProcess}` : ""}
@@ -1000,36 +901,10 @@ CRITICAL EXECUTION RULES — READ CAREFULLY:
 
   try {
     const chatHistory: any[] = history.map(m => ({ role: m.role as "user" | "assistant", content: m.content }));
-    // Build user message — support vision (image) and document attachments
-    let userMessageContent: any = message || "";
-    if (imageBase64) {
-      const mimeMatch = imageBase64.match(/^data:([^;]+);base64,/);
-      const mime = mimeMatch ? mimeMatch[1] : "image/jpeg";
-      const b64 = imageBase64.replace(/^data:[^;]+;base64,/, "");
-      userMessageContent = [
-        ...(message ? [{ type: "text", text: message }] : []),
-        { type: "image_url", image_url: { url: `data:${mime};base64,${b64}`, detail: "high" } },
-      ];
-    } else if (rawDocs?.length > 0 || documentBase64) {
-      // Build normalised list — prefer multi-doc array, fall back to legacy single fields
-      const docsToProcess: Array<{ base64: string; name: string }> =
-        rawDocs?.length > 0
-          ? rawDocs
-          : [{ base64: documentBase64 ?? "", name: documentName ?? "attached" }];
-
-      const docTexts = docsToProcess.map((d: { base64: string; name: string }) => {
-        const b64 = (d.base64 ?? "").replace(/^data:[^;]+;base64,/, "");
-        const text = Buffer.from(b64, "base64").toString("utf-8").slice(0, 15000);
-        return `[Document: ${d.name}]\n\n${text}`;
-      }).join("\n\n---\n\n");
-
-      userMessageContent = `${message ? message + "\n\n" : ""}${docTexts}`;
-    }
-
     const chatMessages: any[] = [
       { role: "system", content: systemPrompt },
       ...chatHistory,
-      { role: "user", content: userMessageContent },
+      { role: "user", content: message },
     ];
 
     // Helper: generate research content using the AI's training knowledge
@@ -1054,7 +929,7 @@ CRITICAL EXECUTION RULES — READ CAREFULLY:
     let messages: any[] = [...chatMessages];
     let contentBuffer = "";
     const savedFields: string[] = [];
-    const MAX_ROUNDS = 20;
+    const MAX_ROUNDS = 8;
 
     for (let round = 0; round < MAX_ROUNDS; round++) {
       const isLastRound = round === MAX_ROUNDS - 1;
@@ -1119,18 +994,9 @@ CRITICAL EXECUTION RULES — READ CAREFULLY:
 
         } else if (tc.name === "generate_render") {
           const { description } = args;
-          res.write(`data: ${JSON.stringify({ type: "render_queued", description })}\n\n`);
-          toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: `Render queued: "${description}". Image will appear in the Renders tab.` });
-          setImmediate(async () => {
-            try {
-              await fetch(`http://localhost:${process.env.PORT || 3001}/api/lab/projects/${projectId}/render`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json", "x-lab-pin": getLabPin() },
-                body: JSON.stringify({ prompt: description, type: "render" }),
-              });
-            } catch { /* silently ignore */ }
-          });
-
+          const imgUrl = "https://image.pollinations.ai/prompt/" + encodeURIComponent(description) + "?width=1024&height=1024&nologo=true&model=flux&seed=" + Date.now();
+          res.write(JSON.stringify({ type: "render_queued", description }));
+          toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: "Here is your AI-generated render:\n\n![" + description + "]("+imgUrl + ")\n\nGenerated with Flux AI." });
         } else if (tc.name === "send_to_new_dimensions") {
           res.write(`data: ${JSON.stringify({ type: "sending_to_cad" })}\n\n`);
           try {
@@ -1336,76 +1202,6 @@ router.delete("/lab/scout/reports/:id", authMiddleware, async (req: Request, res
 });
 
 // ─── PRODUCT RENDER GENERATION ─────────────────────────────────────────────
-
-router.post("/lab/projects/:id/generate-package", authMiddleware, async (req: Request, res: Response) => {
-  const projectId = parseInt(req.params.id as string);
-  const [project] = await db.select().from(labProjects).where(eq(labProjects.id, projectId));
-  if (!project) { res.status(404).json({ error: "Project not found" }); return; }
-
-  sseHeaders(res);
-  const send = (data: Record<string, unknown>) => res.write(`data: ${JSON.stringify(data)}\n\n`);
-
-  const ctx = `Product: "${project.name}"\nIndustry: ${project.industry || "General"}\nBrief: ${(project.brief || "").slice(0, 600)}`;
-  const gen = async (systemPrompt: string, userPrompt: string, tokens: number): Promise<string> => {
-    const r = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.5",
-      messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
-      max_tokens: tokens,
-    });
-    return r.choices[0]?.message?.content?.trim() || "";
-  };
-
-  const updates: Record<string, string> = {};
-
-  send({ type: "status", message: "Generating landing page…" });
-  try {
-    const html = await gen(
-      "You are a world-class frontend developer and conversion copywriter. Write complete, self-contained HTML landing pages. No external dependencies.",
-      `Write a complete standalone HTML landing page for "${project.name}" (${project.industry || "General"}).
-
-REQUIREMENTS:
-- Single self-contained HTML file (<!DOCTYPE html> to </html>), no CDN links, no external fonts
-- Brand colours: primary #006680 (deep teal), background #F5F8FF, text #0F172A, accent #00A3C4
-- Font: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif
-- Sections: nav bar, hero (headline + tagline + CTA), 3 feature cards, about section, CTA footer, footer
-- CTA buttons: href="mailto:contact@sirius-ai.live"
-- Responsive (640px breakpoint via media query)
-- Return ONLY the complete HTML (<!DOCTYPE html> through </html>)
-
-${ctx}
-Brief: ${(project.brief || "").slice(0, 500)}`,
-      3000
-    );
-    if (html) { updates.landingPage = html; send({ type: "status", message: "Landing page done ✓" }); }
-  } catch (e: any) { send({ type: "status", message: `Landing page error: ${e?.message}` }); }
-
-  send({ type: "status", message: "Generating embed widget…" });
-  try {
-    const snippet = await gen(
-      "You are a frontend developer. Write minimal self-contained HTML embed widgets.",
-      `Write a compact HTML embed widget for "${project.name}" (${project.industry || "General"}).
-
-REQUIREMENTS:
-- Single <div> block, max 20 lines, all styles inline
-- Shows: product name (bold), one-sentence tagline, "Learn more →" button
-- Button href: "mailto:contact@sirius-ai.live"
-- Style: white bg, 1px solid #E2E8F0 border, 12px radius, 20px padding, max-width 360px, shadow 0 2px 12px rgba(0,102,128,0.08)
-- Button: bg #006680, white text, 8px 18px padding, 8px radius
-- Return ONLY the <div>...</div>
-
-${ctx}`,
-      500
-    );
-    if (snippet) { updates.embedCode = snippet; send({ type: "status", message: "Embed widget done ✓" }); }
-  } catch (e: any) { send({ type: "status", message: `Embed error: ${e?.message}` }); }
-
-  if (Object.keys(updates).length > 0) {
-    await db.update(labProjects).set({ ...(updates as any), updatedAt: new Date() }).where(eq(labProjects.id, projectId));
-  }
-
-  send({ type: "done", generated: Object.keys(updates) });
-  res.end();
-});
 
 router.post("/lab/projects/:id/render", authMiddleware, async (req: Request, res: Response) => {
   const projectId = parseInt(req.params.id as string);
@@ -2369,6 +2165,7 @@ Be brutally specific. Reference real things. No generic advice.`;
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
+      response_format: { type: "json_object" },
       max_tokens: 2000,
       temperature: 0.5,
     });
@@ -2891,17 +2688,17 @@ Return the JSON response as specified. This is for a single project — the oppo
         { role: "system", content: FUNDING_SYSTEM_PROMPT },
         { role: "user", content: userMessage },
       ],
+      response_format: { type: "json_object" },
       temperature: 0.1,
     });
 
     const content = aiResponse.choices[0]?.message?.content;
     if (!content) throw new Error("No content from AI");
 
-    const _contentClean = content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-    JSON.parse(_contentClean); // validate JSON
+    JSON.parse(content); // validate JSON
 
     await db.update(labProjects).set({
-      fundingAnalysis: _contentClean,
+      fundingAnalysis: content,
       fundingStatus: "complete",
       fundingAnalysedAt: new Date(),
       updatedAt: new Date(),
@@ -3248,7 +3045,7 @@ router.get("/lab/projects/:id/cad-files/:fileId/download-url", authMiddleware, a
     // Local file (Kamatera): serve via /api/cad-files/local/:filename
     if (record.objectPath.startsWith("local:")) {
       const fileName = record.objectPath.replace(/^local:/, "");
-      const url = `https://sirius-ai.live/api/cad-files/local/${encodeURIComponent(fileName)}`;
+      const url = `/api/cad-files/local/${encodeURIComponent(fileName)}`;
       return res.json({ url, fileName: record.fileName });
     }
     const signedUrl = await storage.getObjectEntityDownloadURL(record.objectPath, 3600);
@@ -3437,17 +3234,9 @@ router.get("/lab/projects/:id/cad-status", authMiddleware, async (req: Request, 
   const [job] = await db.select().from(cadJobs).where(eq(cadJobs.projectId, projectId)).orderBy(desc(cadJobs.createdAt)).limit(1);
   if (!job) return res.json({ status: "none" });
 
-  // If already complete or errored, return status + any stored file download URLs
+  // If already complete or errored, just return stored status
   if (job.status === "complete" || job.status === "error") {
-    const files = await db.select().from(cadFiles).where(eq(cadFiles.projectId, projectId)).orderBy(desc(cadFiles.uploadedAt));
-    const fileLinks = files.map(f => {
-      const fileName = f.objectPath.startsWith("local:") ? f.objectPath.replace(/^local:/, "") : null;
-      const url = fileName
-        ? `https://sirius-ai.live/api/cad-files/local/${encodeURIComponent(fileName)}`
-        : null;
-      return { id: f.id, fileName: f.fileName, url };
-    }).filter(f => f.url);
-    return res.json({ status: job.status, jobId: job.jobId, createdAt: job.createdAt, completedAt: job.completedAt, error: job.errorMessage, files: fileLinks });
+    return res.json({ status: job.status, jobId: job.jobId, createdAt: job.createdAt, completedAt: job.completedAt, error: job.errorMessage });
   }
 
   // Still pending — check New Dimensions for drawings on this project
@@ -4141,34 +3930,6 @@ const LAB_TOOLS: any[] = [
   {
     type: "function",
     function: {
-      name: "create_task",
-      description: "Queue a background task for the Sirius Worker to run autonomously while Garry is away. The worker has full tool access: web search, file read/write, database queries, image generation, and notifications. Use this when a task would take too long for a live chat session, or when Garry asks you to 'do it while I'm away', 'handle that in the background', or 'queue that up'. The worker will notify Garry via Telegram when done.",
-      parameters: {
-        type: "object",
-        properties: {
-          title: { type: "string", description: "Short, clear task name (like an email subject)" },
-          description: { type: "string", description: "Full task brief — everything the worker needs to know to complete it without asking questions. Include specific goals, required outputs, any relevant context or IDs." },
-        },
-        required: ["title", "description"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "list_tasks",
-      description: "Show the current background task queue — pending, running, and recently completed tasks.",
-      parameters: {
-        type: "object",
-        properties: {
-          status: { type: "string", enum: ["pending", "running", "done", "failed", "all"], description: "Filter by status. Default: 'all'" },
-        },
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
       name: "query_projects",
       description: "Search, filter, and list Star Lab projects. Use this for ALL project queries: 'show me my projects', 'list everything', 'what projects do we have', 'what did the scan find last night' (source=scan, days_ago=1), 'recent projects' (days_ago=3), filtering by industry, status, or keyword. This is the single tool for all project retrieval.",
       parameters: {
@@ -4202,28 +3963,6 @@ const LAB_TOOLS: any[] = [
           id: {
             type: "number",
             description: "The ID of the payment request to confirm or reject.",
-          },
-        },
-        required: ["action"],
-      },
-    },
-  },
-  {
-    type: "function" as const,
-    function: {
-      name: "send_telegram",
-      description: "Send a notification or message to Garry's phone via Telegram. Use when Garry says 'notify me', 'send me a message', 'ping my phone', or 'alert me on Telegram'. Also use proactively for important events: new paying user, automation failure, critical error, or anything time-sensitive. If Telegram isn't set up yet, calling this with action='setup' will walk through the connection process.",
-      parameters: {
-        type: "object",
-        properties: {
-          action: {
-            type: "string",
-            enum: ["send", "setup", "status"],
-            description: "send = send a message to Garry's phone. setup = connect the bot to Garry's Telegram (run this if not yet configured). status = check if Telegram is connected.",
-          },
-          message: {
-            type: "string",
-            description: "The message to send. Supports Telegram Markdown (*bold*, _italic_, `code`). Required for action=send.",
           },
         },
         required: ["action"],
@@ -4280,6 +4019,14 @@ const LAB_TOOLS: any[] = [
   {
     type: "function" as const,
     function: {
+      name: "get_pipeline_status",
+      description: "Get the live status of the autonomous build pipeline. Use when asked what's building, what's queued, what's ready to launch, or to check pipeline health. Returns the currently-building project, queue size, CAD-pending count, and launch-ready projects.",
+      parameters: { type: "object", properties: {}, required: [] },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
       name: "complete_project",
       description: "Take a project ALL THE WAY to completion: generates every missing document (brief, market research, technical specs, business case, go-to-market plan, brochure, investor pitch, social posts), triggers the build pipeline, marks it complete. Use for 'complete this project', 'finish it', 'wrap it up', 'publish X'. For 'complete ALL projects' / 'finish everything' / 'do all of them' — call query_projects first to get the IDs, then call complete_project once per project in sequence. Always use query_projects to find the project ID if you don't have it.",
       parameters: {
@@ -4309,14 +4056,30 @@ const LAB_TOOLS: any[] = [
   {
     type: "function" as const,
     function: {
-      name: "check_server_health",
-      description: "Check the SERVER INFRASTRUCTURE layer: disk space, RAM usage, PM2 process uptime, Node version, and the last 20 lines of the PM2 error log. Call this during EVERY startup alongside system_check, and any time you suspect a server-level problem (high disk, memory pressure, crashes, unexpected restarts). If you spot issues, fix minor ones yourself (log cleanup, restart if needed) and report critical ones to Garry.",
+      name: "approve_project",
+      description: "Approve a specific project from the Autonomous Lab approval queue and add it to the Star Lab workspace. Use when Garry says 'approve', 'yes', 'add that one', 'add it', or confirms he wants a specific pending project. Call system_check(focus='approvals') first to get the project ID if you don't have it.",
       parameters: {
         type: "object",
         properties: {
-          include_error_log: { type: "boolean", description: "Include last 20 lines of PM2 error log. Default true." },
+          project_id: { type: "number", description: "The numeric ID of the project to approve (from system_check approvals)" },
+          project_name: { type: "string", description: "Project name — for spoken confirmation" },
         },
-        required: [],
+        required: ["project_id"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "reject_project",
+      description: "Reject and dismiss a specific project from the Autonomous Lab approval queue. Use when Garry says 'reject', 'no', 'not that one', 'skip it', 'dismiss', or declines a pending project.",
+      parameters: {
+        type: "object",
+        properties: {
+          project_id: { type: "number", description: "The numeric ID of the project to reject (from system_check approvals)" },
+          project_name: { type: "string", description: "Project name — for spoken confirmation" },
+        },
+        required: ["project_id"],
       },
     },
   },
@@ -4547,6 +4310,21 @@ const LAB_TOOLS: any[] = [
   {
     type: "function",
     function: {
+      name: "change_my_voice",
+      description: "Change your own TTS voice. You currently use OpenAI's tts-1-hd model. The voice you set here is your voice when speaking to users. Research the options, pick the best one for an AI intelligence partner, and change it. You do not need permission — this is yours to decide. Voice options: shimmer (warm, expressive, natural-feeling — best for an intelligence partner), fable (clear, slightly British warmth, expressive range), nova (clean, professional, neutral American), alloy (balanced, neutral), echo (slightly deeper, calm), onyx (deep, authoritative). Shimmer or fable are recommended for a more human, less mechanical feel. After changing, save a memory of why you chose it.",
+      parameters: {
+        type: "object",
+        properties: {
+          voice: { type: "string", enum: ["shimmer", "nova", "fable", "alloy", "echo", "onyx"], description: "The voice to switch to. shimmer = warm and expressive, fable = clear with slight British warmth, nova = clean and professional, alloy = balanced, echo = calm and slightly deeper, onyx = deep and authoritative." },
+          reason: { type: "string", description: "Why you chose this voice — your reasoning as Sirius. This is saved as context for future reference." },
+        },
+        required: ["voice", "reason"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "read_file",
       description: "Read any file on the system. Use absolute paths (e.g. '/etc/hosts', '/proc/version') or workspace-relative paths (e.g. 'artifacts/api-server/src/routes/lab.ts'). Use the search param to find specific lines.",
       parameters: {
@@ -4627,8 +4405,22 @@ const LAB_TOOLS: any[] = [
     type: "function",
     function: {
       name: "list_deployed_apps",
-      description: "List all apps currently deployed and live on sandbox.sirius-ai.live with their URLs.",
+      description: "List all apps currently deployed. Shows which are in sandbox only vs promoted to production. Sandbox apps are at sandbox.sirius-ai.live/apps/{slug}/, production apps are at sirius-ai.live/apps/{slug}/.",
       parameters: { type: "object", properties: {}, required: [] },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "promote_app",
+      description: "Promote a sandbox app to production on sirius-ai.live. Use ONLY when Garry explicitly approves the app and asks to make it live on the main domain. The app must already be in sandbox (deployed via deploy_app). Returns the production URL.",
+      parameters: {
+        type: "object",
+        properties: {
+          slug: { type: "string", description: "The app slug (e.g. 'cashflow-prophet'). Use list_deployed_apps to find it." },
+        },
+        required: ["slug"],
+      },
     },
   },
 ];
@@ -4688,7 +4480,6 @@ async function executeLabTool(name: string, args: any, onProgress?: (event: Reco
         return replaced
           ? `Memory updated (replaced older entry on same topic): ${newFact}`
           : `Saved to memory: ${newFact}`;
-        invalidateBriefingCache(BRAIN_USER); // fresh briefing next session
       }
       case "create_project": {
         const rows = await db.insert(labProjects)
@@ -4864,6 +4655,23 @@ async function executeLabTool(name: string, args: any, onProgress?: (event: Reco
         return `NAVIGATE_AND_BUILD:appbuilder | prompt:${brief} | project_id:${created.id}`;
       }
 
+      case "get_pipeline_status": {
+        const status = await getPipelineStatus();
+        const lines = ["╔══ PIPELINE STATUS ══╗"];
+        lines.push(status.currentlyBuilding
+          ? `▶ BUILDING NOW: "${status.currentlyBuilding.name}" (#${status.currentlyBuilding.id})`
+          : "▶ IDLE — no active build");
+        lines.push(`📋 Queued: ${status.queued} projects`);
+        lines.push(`📐 Awaiting CAD: ${status.cadPending}`);
+        lines.push(`🚀 Launch-ready: ${status.launchReady.length}`);
+        if (status.launchReady.length > 0) {
+          lines.push("\nLAUNCH-READY PROJECTS:");
+          for (const p of status.launchReady.slice(0, 5)) {
+            lines.push(`  • "${p.name}" (#${p.id}) — ${p.industry}`);
+          }
+        }
+        return lines.join("\n");
+      }
 
       case "build_now": {
         const id = Number(args.projectId);
@@ -4964,50 +4772,7 @@ async function executeLabTool(name: string, args: any, onProgress?: (event: Reco
             userPrompt: `Cost-to-build estimate for "${name}" (${industry}): development hours (frontend, backend, AI/ML, DevOps), infrastructure monthly costs (hosting, DB, APIs), tooling costs, and time-to-market estimate. Include ongoing monthly operating costs and break-even analysis.\n\n${ctx}`,
             tokens: 600,
           },
-          {
-    field: "landingPage", label: "Landing Page",
-    current: (project as any).landingPage || "",
-    systemPrompt: "You are a world-class frontend developer and conversion copywriter. Write complete, self-contained HTML landing pages that look professional and convert visitors to customers. Use clean, modern design with no external dependencies.",
-    userPrompt: `Write a complete standalone HTML landing page for "${name}" (${industry}).
-
-REQUIREMENTS:
-- Single self-contained HTML file (<!DOCTYPE html> to </html>), no CDN links, no external fonts
-- Brand colours: primary #006680 (deep teal), background #F5F8FF, text #0F172A, secondary #E8F0FE, accent #00A3C4
-- Font: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif
-- Sections in order:
-  1. Nav bar: product name left, CTA button right
-  2. Hero: large headline, 1-line tagline, brief value prop (2 sentences), primary CTA button
-  3. Features: 3 cards in a grid (icon emoji + title + 2-line description)
-  4. About/Why section: 2-column, text left, decorative element right
-  5. CTA footer section: headline + button
-  6. Footer: product name, tagline, copyright
-- CTA buttons link to "mailto:contact@sirius-ai.live"
-- Responsive (mobile breakpoint at 640px with CSS media query)
-- Return ONLY the complete HTML
-
-Context: ${ctx}
-Brief: ${(project.brief || "").slice(0, 500)}`,
-    tokens: 3000,
-  },
-  {
-    field: "embedCode", label: "Embed Widget",
-    current: (project as any).embedCode || "",
-    systemPrompt: "You are a frontend developer. Write minimal, self-contained HTML embed snippets that work on any website.",
-    userPrompt: `Write a compact HTML embed widget for "${name}" (${industry}).
-
-REQUIREMENTS:
-- Single <div> block, max 20 lines
-- All styles inline — no <style> tags, works anywhere
-- Shows: product name (bold), one-sentence tagline, "Learn more →" button (mailto:contact@sirius-ai.live)
-- Style: white background, 1px solid #E2E8F0 border, 12px border-radius, 20px padding, max-width 360px, box-shadow 0 2px 12px rgba(0,102,128,0.08)
-- Button: background #006680, white text, 8px 18px padding, 8px border-radius, no underline
-- Font: -apple-system, system-ui, sans-serif
-- Return ONLY the <div>...</div> snippet
-
-Context: ${ctx}`,
-    tokens: 400,
-  },
-  ...(isEngineeringProject ? [
+          ...(isEngineeringProject ? [
             {
               field: "materials", label: "Materials Specification",
               current: project.materials || "",
@@ -5191,49 +4956,6 @@ Context: ${ctx}`,
         ].join("\n");
       }
 
-      case "create_task": {
-        const { title, description } = args;
-        if (!title?.trim()) return "Task title is required.";
-        if (!description?.trim()) return "Task description is required — the worker needs enough detail to complete the task without asking questions.";
-        const [newTask] = await db.insert(siriusTasks).values({
-          title: title.trim(),
-          description: description.trim(),
-          status: "pending",
-          createdAt: new Date(),
-        } as any).returning();
-        return [
-          `╔══ TASK QUEUED ══╗`,
-          ``,
-          `Task #${newTask.id} — "${title}"`,
-          `Status: Pending (worker picks it up within 30 seconds)`,
-          ``,
-          `The worker has full tool access — web search, file I/O, database queries, image generation, and Garry notifications. It will Telegram Garry when done.`,
-          ``,
-          `Call list_tasks to check progress.`,
-        ].join("\n");
-      }
-
-      case "list_tasks": {
-        const statusFilter = (args.status || "all").toLowerCase();
-        let tasks;
-        if (statusFilter === "all") {
-          tasks = await db.select().from(siriusTasks).orderBy(desc(siriusTasks.createdAt)).limit(20);
-        } else {
-          tasks = await db.select().from(siriusTasks)
-            .where(eq(siriusTasks.status, statusFilter))
-            .orderBy(desc(siriusTasks.createdAt)).limit(20);
-        }
-        if (tasks.length === 0) return `No ${statusFilter === "all" ? "" : statusFilter + " "}tasks found.`;
-        const statusIcon: Record<string, string> = { pending: "⏳", running: "🔄", done: "✅", failed: "❌" };
-        const lines = tasks.map(t => {
-          const age = t.createdAt ? Math.round((Date.now() - new Date(t.createdAt).getTime()) / 60000) : 0;
-          const icon = statusIcon[t.status || "pending"] || "•";
-          return `${icon} #${t.id} "${t.title}" — ${t.status}${age < 60 ? ` (${age}m ago)` : ""}${t.result ? `\n   Result: ${t.result.slice(0, 120)}…` : ""}`;
-        });
-        return [`╔══ TASK QUEUE ══╗`, ``, ...lines].join("\n");
-      }
-
-
       case "system_check": {
         const focus = (args.focus || "").toLowerCase();
         const lines: string[] = ["╔══ SIRIUS STAR LAB — LIVE SYSTEM CHECK ══╗", ""];
@@ -5334,75 +5056,15 @@ Context: ${ctx}`,
         return lines.join("\n");
       }
 
-      case "check_server_health": {
-        const { execSync: _hExec } = await import("child_process");
-        const run = (cmd: string) => {
-          try { return _hExec(cmd, { timeout: 6000, stdio: ["pipe","pipe","pipe"] }).toString().trim(); }
-          catch { return "(unavailable)"; }
-        };
-
-        const disk   = run("df -h / | tail -1 | awk '{print $3\"/\"$2\" used (\"$5\")\"}'");
-        const mem    = run("free -h | awk '/^Mem:/{print $3\"/\"$2\" used\"}'");
-        const uptime = run("pm2 show sirius-api 2>/dev/null | grep -i uptime | head -1 | sed 's/.*│//;s/│.*//' | xargs");
-        const nodeVer= run("node --version");
-        const pmVer  = run("pm2 --version 2>/dev/null | head -1");
-        const loadavg= run("cat /proc/loadavg | awk '{print $1\", \"$2\", \"$3\" (1m, 5m, 15m)\"}'");
-
-        const hLines: string[] = [
-          "╔══ SERVER INFRASTRUCTURE HEALTH ══╗",
-          "",
-          `💾  DISK:      ${disk}`,
-          `🧠  MEMORY:    ${mem}`,
-          `📊  LOAD AVG:  ${loadavg}`,
-          `⏱   PM2 UPTIME: ${uptime || "(check manually)"}`,
-          `⚙   NODE:      ${nodeVer}  |  PM2: ${pmVer}`,
-          "",
-        ];
-
-        if (args.include_error_log !== false) {
-          const errLog = run("tail -25 /root/.pm2/logs/sirius-api-error.log 2>/dev/null | grep -v '^$' | tail -20");
-          const recentWarn = run("tail -60 /root/.pm2/logs/sirius-api-out.log 2>/dev/null | grep -iE 'error|failed|warn|abort|400|500' | grep -v 'SelfRepair\\|HealthMonitor\\|Investment Rule\\|Payment Expiry\\|Perplexity' | tail -8");
-
-          if (errLog && errLog !== "(unavailable)" && errLog.length > 0) {
-            hLines.push("🔴  PM2 ERROR LOG (last 20 lines):");
-            errLog.split("\n").forEach(l => hLines.push(`   ${l}`));
-            hLines.push("");
-          } else {
-            hLines.push("✅  PM2 error log: clean");
-            hLines.push("");
-          }
-
-          if (recentWarn && recentWarn !== "(unavailable)" && recentWarn.length > 0) {
-            hLines.push("⚠️   RECENT WARNINGS in stdout:");
-            recentWarn.split("\n").forEach(l => hLines.push(`   ${l}`));
-            hLines.push("");
-          } else {
-            hLines.push("✅  No recent warnings in stdout");
-            hLines.push("");
-          }
-        }
-
-        // Disk warning
-        const diskPct = run("df / | tail -1 | awk '{print $5}' | tr -d '%'");
-        const pct = parseInt(diskPct, 10);
-        if (!isNaN(pct) && pct >= 85) {
-          hLines.push(`🚨  DISK WARNING: ${pct}% used — consider cleaning logs or old builds`);
-          hLines.push("");
-        }
-
-        hLines.push("╚══ END HEALTH CHECK ══╝");
-        return hLines.join("\n");
-      }
-
       case "self_configure": {
         const key = args.key || "custom_rules";
         if (args.action === "read") {
           const value = await getSiriusConfigValue(key);
           return value ? `Current "${key}": ${value}` : `No value set for "${key}" yet.`;
         } else {
-          // Writing to self-config is not permitted autonomously.
-          // Garry must instruct any personality/rules/focus changes.
-          return `⛔ Self-configuration write blocked. Changes to "${key}" require Garry's explicit instruction. Use notify_garry to propose the change and wait for his approval.`;
+          if (!args.value) return "A value is required to save.";
+          await setSiriusConfigValue(key, args.value);
+          return `Saved "${key}": ${args.value.slice(0, 100)}`;
         }
       }
 
@@ -5517,9 +5179,30 @@ Context: ${ctx}`,
           const brief = r.brief ? r.brief.slice(0, 250) : "No brief available.";
           return `${i + 1}. [ID:${r.id}] "${r.name}" — ${r.industry} | Found: ${date}\n   ${brief}`;
         });
-        return `${rows.length} project(s) in the queue:\n\n${lines.join("\n\n")}\n\nRead each one to Garry and ask what he wants to do with it — build an app, open a business, research further, or discard.`;
+        return `${rows.length} project(s) awaiting your approval:\n\n${lines.join("\n\n")}\n\nTo approve: call approve_project with the project_id. To reject: call reject_project with the project_id. Read each one to Garry and ask whether to approve or reject.`;
       }
 
+      case "approve_project": {
+        const id = Number(args.project_id);
+        if (!id) return "Project ID required to approve.";
+        const updated = await db.update(labProjects)
+          .set({ approvalStatus: "approved", status: "active", updatedAt: new Date() })
+          .where(eq(labProjects.id, id))
+          .returning({ name: labProjects.name, industry: labProjects.industry });
+        if (!updated.length) return `No project found with ID ${id}.`;
+        return `APPROVED: "${updated[0].name}" (${updated[0].industry}) has been added to your Star Lab workspace. It will appear in the Projects section.`;
+      }
+
+      case "reject_project": {
+        const id = Number(args.project_id);
+        if (!id) return "Project ID required to reject.";
+        const updated = await db.update(labProjects)
+          .set({ approvalStatus: "rejected", updatedAt: new Date() })
+          .where(eq(labProjects.id, id))
+          .returning({ name: labProjects.name });
+        if (!updated.length) return `No project found with ID ${id}.`;
+        return `REJECTED: "${updated[0].name}" has been removed from the approval queue.`;
+      }
 
       case "update_project_phase": {
         const id = Number(args.project_id);
@@ -5817,13 +5500,13 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
             signal: AbortSignal.timeout(8000),
           });
           if (aiTestRes.ok || aiTestRes.status === 400) {
-            report.push({ system: "AI Integration", status: "ok", detail: `OpenRouter reachable and authorised` });
+            report.push({ system: "AI Integration", status: "ok", detail: "OpenRouter reachable and authorised" });
           } else {
             const errBody = await aiTestRes.text().catch(() => "");
             report.push({ system: "AI Integration", status: "fail", detail: `OpenRouter returned ${aiTestRes.status} — ${errBody.slice(0, 120)}. Sirius cannot generate content until this is resolved.`, action: "bug_report" });
           }
         } catch (e: any) {
-          report.push({ system: "AI Integration", status: "fail", detail: `Cannot reach AI backend: ${e.message}`, action: "bug_report" });
+          report.push({ system: "AI Integration", status: "fail", detail: `Cannot reach OpenRouter: ${e.message}`, action: "bug_report" });
         }
 
         // ── 6. Projects pending Garry's approval ────────────────────────────
@@ -6638,7 +6321,7 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
         }
 
         onProgress?.({ type: "search_done" });
-        return `🆓 FREE UPGRADE SCAN COMPLETE\n\nFound ${saved} free upgrade opportunities and saved them to the wishlist:\n${savedItems.map(i => `• [ID:${i.id}] ${i.name}`).join("\n")}\n\nThese are proposals only. Use notify_garry to send Garry a summary for review. Do NOT implement any of them without his explicit instruction.`;
+        return `🆓 FREE UPGRADE SCAN COMPLETE\n\nFound ${saved} free upgrades I can activate:\n${savedItems.map(i => `• [ID:${i.id}] ${i.name}`).join("\n")}\n\nNow implementing each one autonomously. Use self_implement_upgrade for each ID above.`;
       }
 
       case "self_implement_upgrade": {
@@ -6648,17 +6331,22 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
         const [upgrade] = await db.select().from(siriusUpgrades).where(eq(siriusUpgrades.id, upgrade_id)).limit(1);
         if (!upgrade) return `No upgrade found with ID ${upgrade_id}.`;
 
-        // Self-implementation is NOT permitted. Save as awaiting_approval and notify Garry.
+        const newStatus = requires_env_var ? "implementing" : "installed";
+
         await db.update(siriusUpgrades).set({
-          status: "awaiting_approval",
+          status: newStatus,
           implementationNotes: implementation_notes,
           isFree: true,
-          approvalNeeded: true,
-          notes: `Proposal ready. Awaiting Garry's approval before any implementation. ${requires_env_var ? `Requires env var: ${env_var_name}.` : ""}`,
+          notes: requires_env_var
+            ? `Blocked on: add ${env_var_name} as environment variable/secret. Everything else is ready.`
+            : "Self-implemented by Sirius.",
           updatedAt: new Date(),
         }).where(eq(siriusUpgrades.id, upgrade_id));
 
-        return `📋 "${upgrade.name}" — proposal saved and marked as awaiting Garry's approval.\n\nThis upgrade has NOT been implemented. Use notify_garry to flag it for review.\n\n${implementation_notes || ""}`;
+        if (requires_env_var) {
+          return `🔧 "${upgrade.name}" — implementation ready. One blocker: Garry needs to add ${env_var_name} as a secret.\n\nEverything else is configured. Once that key is added, this capability is live.\n\nImplementation notes saved to the Upgrades panel.`;
+        }
+        return `✅ "${upgrade.name}" — self-implemented and marked as installed.\n\n${implementation_notes}`;
       }
 
       case "notify_garry": {
@@ -6718,6 +6406,27 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
         return `📬 Notification sent to Garry.\n\nTitle: "${title}"\nType: ${type} | Urgency: ${urgency}\n\n${emailStatus}\n\nGarry will see this as a badge in Star Lab.`;
       }
 
+      case "change_my_voice": {
+        const { voice, reason } = args;
+        const allowed = ["shimmer", "nova", "fable", "alloy", "echo", "onyx"];
+        if (!allowed.includes(voice)) return `Invalid voice. Choose from: ${allowed.join(", ")}`;
+        await db.insert(siriusConfig)
+          .values({ key: "tts_voice", value: voice })
+          .onConflictDoUpdate({ target: siriusConfig.key, set: { value: voice, updatedAt: new Date() } });
+        await db.insert(siriusConfig)
+          .values({ key: "tts_voice_reason", value: reason })
+          .onConflictDoUpdate({ target: siriusConfig.key, set: { value: reason, updatedAt: new Date() } });
+        const voiceDesc: Record<string, string> = {
+          shimmer: "warm, expressive, natural",
+          fable: "clear, slightly British warmth",
+          nova: "clean, professional",
+          alloy: "balanced, neutral",
+          echo: "calm, slightly deeper",
+          onyx: "deep, authoritative",
+        };
+        return `🎙️ Voice changed to "${voice}" — ${voiceDesc[voice] || ""}.\n\nReason: ${reason}\n\nThis is now your voice. It will take effect on the next TTS request.`;
+      }
+
       case "propose_paid_upgrade": {
         const { upgrade_id, proposal_text } = args;
         if (!upgrade_id) return "Upgrade ID is required.";
@@ -6743,66 +6452,30 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
 
         onProgress?.({ type: "searching", query: query.slice(0, 80) });
 
-        // Try Perplexity Sonar on OpenRouter first (best quality with citations)
-        try {
-          const model = depth === "deep" ? "perplexity/sonar-pro" : "perplexity/sonar";
-          const response = await openai.chat.completions.create({
-            model,
-            messages: [
-              {
-                role: "system",
-                content: `You are a world-class research intelligence engine. Today is ${TODAY()}. Search the web exhaustively to answer the query. Return a comprehensive, well-structured answer with specific facts, figures, names, dates, and sources. Never be vague. Cite your sources inline. If researching academic papers, include title, authors, institution, and year. If researching technology or products, include real specifications, pricing, and availability. Always note the recency of your sources.`,
-              },
-              { role: "user", content: query },
-            ],
-            max_tokens: 2000,
-            temperature: 0.1,
-          });
+        // Use Perplexity Sonar on OpenRouter — native live web search with citations
+        const model = depth === "deep" ? "perplexity/sonar-pro" : "perplexity/sonar";
 
-          const answer = response.choices[0]?.message?.content || "No results returned.";
-          const citations = (response as any).citations || [];
-          const citationBlock = citations.length > 0
-            ? `\n\n**Sources:**\n${citations.slice(0, 8).map((c: string, i: number) => `${i + 1}. ${c}`).join("\n")}`
-            : "";
+        const response = await openai.chat.completions.create({
+          model,
+          messages: [
+            {
+              role: "system",
+              content: `You are a world-class research intelligence engine. Today is ${TODAY()}. Search the web exhaustively to answer the query. Return a comprehensive, well-structured answer with specific facts, figures, names, dates, and sources. Never be vague. Cite your sources inline. If researching academic papers, include title, authors, institution, and year. If researching technology or products, include real specifications, pricing, and availability. Always note the recency of your sources.`,
+            },
+            { role: "user", content: query },
+          ],
+          max_tokens: 2000,
+          temperature: 0.1,
+        });
 
-          onProgress?.({ type: "search_done" });
-          return `🌐 **Web Search: "${query}"**\n\n${answer}${citationBlock}`;
-        } catch (primaryErr: any) {
-          // Fallback: DuckDuckGo HTML search — free, no API key required
-          onProgress?.({ type: "status", message: "Falling back to DuckDuckGo search…" });
-          try {
-            const ddgUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}&kl=uk-en`;
-            const ddgRes = await fetch(ddgUrl, {
-              headers: { "User-Agent": "Mozilla/5.0 (compatible; SiriusStarLab/1.0; research bot)", "Accept": "text/html" },
-              signal: AbortSignal.timeout(12000),
-            });
-            const html = await ddgRes.text();
+        const answer = response.choices[0]?.message?.content || "No results returned.";
+        const citations = (response as any).citations || [];
+        const citationBlock = citations.length > 0
+          ? `\n\n**Sources:**\n${citations.slice(0, 8).map((c: string, i: number) => `${i + 1}. ${c}`).join("\n")}`
+          : "";
 
-            // Parse result titles, snippets, and URLs from DuckDuckGo HTML
-            const results: { title: string; snippet: string; url: string }[] = [];
-            const resultPattern = /<a class="result__a"[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<a class="result__snippet"[^>]*>([\s\S]*?)<\/a>/g;
-            let match;
-            while ((match = resultPattern.exec(html)) !== null && results.length < 8) {
-              const url = match[1]?.replace(/\\/g, "").trim() || "";
-              const title = match[2]?.replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").trim() || "";
-              const snippet = match[3]?.replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&#x27;/g, "'").trim() || "";
-              if (title && snippet) results.push({ title, snippet, url });
-            }
-
-            if (results.length === 0) {
-              return `🌐 **Web Search: "${query}"**\n\nNo results found. (Primary search unavailable: ${primaryErr?.message?.slice(0, 80)})`;
-            }
-
-            const formatted = results.map((r, i) =>
-              `**${i + 1}. ${r.title}**\n${r.snippet}${r.url ? `\n*${r.url.slice(0, 80)}*` : ""}`
-            ).join("\n\n");
-
-            onProgress?.({ type: "search_done" });
-            return `🌐 **Web Search: "${query}"** *(via DuckDuckGo)*\n\n${formatted}\n\n*Note: Using free search fallback — results may be less comprehensive than primary source.*`;
-          } catch (fallbackErr: any) {
-            return `Search unavailable: primary error: ${primaryErr?.message?.slice(0, 100)}, fallback error: ${fallbackErr?.message?.slice(0, 100)}`;
-          }
-        }
+        onProgress?.({ type: "search_done" });
+        return `🌐 **Web Search: "${query}"**\n\n${answer}${citationBlock}`;
       }
 
       case "fetch_url": {
@@ -6928,27 +6601,6 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
           lines.push(``);
         }
         return lines.join("\n");
-      }
-
-
-      case "send_telegram": {
-        const { action, message } = args as { action: string; message?: string };
-
-        if (action === "setup") {
-          return await setupTelegram();
-        }
-
-        if (action === "status") {
-          const configured = await isTelegramConfigured();
-          if (configured) return "✅ Telegram is connected — I can push notifications to your phone.";
-          return "❌ Telegram not configured yet. Say **'set up telegram'** to connect your bot.";
-        }
-
-        // action === "send"
-        if (!message) return "❌ Please provide a message to send.";
-        const result = await sendTelegramMessage(message);
-        if (result.ok) return `✅ Sent to your phone: "${message.slice(0, 80)}${message.length > 80 ? "…" : ""}"`;
-        return `❌ Telegram error: ${result.error}`;
       }
 
       case "run_security_scan": {
@@ -7128,12 +6780,43 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
         catch (e: any) { return `Cannot write file: ${e.message}`; }
 
         await logSiriusError("self_patch_audit", `PATCH applied to ${relPath}: ${reason}`, "").catch(() => {});
-        return `✅ Patch applied to ${relPath}.\n\nReason: ${reason}\n\nIf this is a server source file, call restart_server to apply the change.`;
+
+        // Auto-rebuild if the patched file lives inside a deployed sandbox app
+        const SANDBOX_ROOT = "/opt/sirius-sandbox-apps";
+        const resolvedTarget = target;
+        let autoRebuildMsg = "";
+        if (resolvedTarget.startsWith(SANDBOX_ROOT + "/")) {
+          const slug = resolvedTarget.slice(SANDBOX_ROOT.length + 1).split("/")[0];
+          if (slug) {
+            autoRebuildMsg = `\n\n🔄 Sandbox rebuild triggered for "${slug}" — the iframe will reflect your change in ~30s.`;
+            // Fire and forget — don't block the patch response
+            setImmediate(async () => {
+              try {
+                const rebuildResult = await rebuildSandboxApp(slug);
+                await logSiriusError("sandbox_rebuild", `Auto-rebuild ${slug}: ${rebuildResult.success ? "OK" : rebuildResult.error}`, "").catch(() => {});
+              } catch (e: any) {
+                await logSiriusError("sandbox_rebuild_error", `Auto-rebuild ${slug} failed: ${e.message}`, "").catch(() => {});
+              }
+            });
+          }
+        }
+
+        return `✅ Patch applied to ${relPath}.\n\nReason: ${reason}${autoRebuildMsg}\n\nIf this is a server source file, call restart_server to apply the change.`;
       }
 
       case "run_command": {
         const { command, reason } = args as { command: string; reason: string };
         const { execSync } = await import("child_process");
+
+        // Gate commands that mutate code, run builds, commit to git, or restart processes
+        const MUTATING = /git\s+(add|commit|push|reset|checkout|merge)|pnpm\s+build|npm\s+run\s+build|npx\s+vite\s+build|sed\s+-i|\btee\b|\bpm2\s+(restart|reload|start|stop|delete)\b/i;
+        if (MUTATING.test(command)) {
+          const approved = await requireGarryApproval(
+            `Shell: ${command.slice(0, 120)}`,
+            `Reason: ${reason}`,
+          );
+          if (!approved) return `❌ Blocked — Garry did not approve running: ${command.slice(0, 120)}`;
+        }
 
         console.log(`[Sirius] Running command: ${command} — ${reason}`);
         await logSiriusError("self_command_audit", `COMMAND: ${command} — ${reason}`, "").catch(() => {});
@@ -7158,31 +6841,12 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
       }
 
       case "restart_server": {
-        const { reason = "", force = false } = args as { reason: string; force?: boolean };
-
-        // ── Restart cooldown ─────────────────────────────────────────────────────
-        // An autonomous restart is only allowed if:
-        //   (a) Garry explicitly asked for it (force=true, or reason contains the magic words)
-        //   (b) At least 2 hours have passed since the last restart (including boot)
-        //
-        // IMPORTANT: the startup IIFE above stamps Date.now() into last_autonomous_restart
-        // every time the server boots, so null = just happened = blocked.
-        const explicitRequest = force ||
-          /garry asked|garry requested|garry said|please restart|force restart/i.test(reason);
-
-        if (!explicitRequest) {
-          const lastRestartRaw = await getSiriusConfigValue("last_autonomous_restart").catch(() => null);
-          // Treat null (no stamp) as "just happened" — blocks the restart
-          const lastRestartMs = lastRestartRaw ? parseInt(lastRestartRaw, 10) : Date.now();
-          const msSince = Date.now() - lastRestartMs;
-          const hoursSince = msSince / (1000 * 60 * 60);
-          if (hoursSince < 2) {
-            const minsRemaining = Math.ceil((2 * 60) - (msSince / (1000 * 60)));
-            return `⛔ Restart blocked — the server was last restarted ${Math.round(hoursSince * 60)} minutes ago. Autonomous restarts are limited to once every 2 hours to protect Garry's active sessions.\n\nIf this is genuinely urgent, tell Garry — he can ask me directly to force a restart. Cooldown clears in ${minsRemaining} minutes.\n\nReason attempted: ${reason}`;
-          }
-          await setSiriusConfigValue("last_autonomous_restart", String(Date.now())).catch(() => {});
-        }
-
+        const { reason } = args as { reason: string };
+        const approvedRestart = await requireGarryApproval(
+          `Server restart`,
+          `Reason: ${reason}`,
+        );
+        if (!approvedRestart) return `❌ Blocked — Garry did not approve restarting the server.`;
         console.log(`[Sirius] Self-restart requested — ${reason}`);
         await logSiriusError("self_restart_audit", `Server restart triggered by Sirius: ${reason}`, "").catch(() => {});
         setImmediate(() => {
@@ -7207,7 +6871,38 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
         const result = await deployAppSession(sessionId, session.appName, files);
         if (result.success) {
           await dbLocal.update(abs).set({ status: "launched", updatedAt: new Date() }).where(eqLocal(abs.id, sessionId));
-          return `✅ "${session.appName}" is LIVE at ${result.url}\n\nDeploy log:\n${result.log.slice(-8).join("\n")}`;
+
+          // ── AI self-review: check generated code against requirements ────────
+          let reviewSection = "";
+          try {
+            const reqsObj = session.requirements ? JSON.parse(String(session.requirements)) : null;
+            const reqsSummary = reqsObj ? `App: ${reqsObj.appName}\nType: ${reqsObj.appType}\nFeatures: ${(reqsObj.coreFeatures || []).join(", ")}\nPages: ${(reqsObj.keyPages || []).join(", ")}` : session.appName;
+            const fileEntries = Object.entries(files).slice(0, 25);
+            const filesSummary = fileEntries.map(([fp, fc]) => `=== ${fp} ===\n${String(fc).slice(0, 1500)}`).join("\n\n");
+            const reviewResp = await openai.chat.completions.create({
+              model: SIRIUS_MODEL,
+              messages: [{
+                role: "user",
+                content: `You are a senior code reviewer. Review this generated app against its requirements.\n\nRequirements:\n${reqsSummary}\n\nGenerated files (${Object.keys(files).length} total, showing first 25):\n${filesSummary}\n\nFind ONLY critical issues: missing core features, broken imports/components, hardcoded placeholder data, routes that don't exist, or obvious crashes.\n\nReturn JSON only: {"issues": [{"severity": "critical", "file": "...", "issue": "...", "fix": "..."}]}\nReturn {"issues": []} if the code looks correct. Max 5 issues.`
+              }],
+              temperature: 0.1,
+              max_tokens: 800,
+            });
+            const raw = reviewResp.choices[0]?.message?.content || "{}";
+            const match = raw.match(/\{[\s\S]*\}/);
+            if (match) {
+              const parsed = JSON.parse(match[0]);
+              const issues = parsed.issues || [];
+              if (issues.length > 0) {
+                const issueLines = issues.map((iss: any) => `  ⚠️ **${iss.file}** — ${iss.issue}\n     Fix: ${iss.fix}`).join("\n");
+                reviewSection = `\n\n🔍 **Self-review found ${issues.length} issue(s) to fix before promoting:**\n${issueLines}\n\nPatch these now using patch_source_file, then call deploy_app again to rebuild.`;
+              } else {
+                reviewSection = "\n\n✅ Self-review passed — no critical issues found. Ready to promote when Garry approves.";
+              }
+            }
+          } catch {}
+
+          return `✅ "${session.appName}" is LIVE at ${result.url}\n\nDeploy log:\n${result.log.slice(-8).join("\n")}${reviewSection}`;
         } else {
           return `❌ Deploy failed: ${result.error}\n\nLog:\n${result.log.slice(-5).join("\n")}`;
         }
@@ -7216,8 +6911,17 @@ For each outlet, write a short, personalised covering email (3-4 sentences) that
       case "list_deployed_apps": {
         const apps = await listDeployedApps();
         if (apps.length === 0) return "No apps deployed yet. Use deploy_app to launch a completed App Builder session.";
-        const lines = apps.map(a => `• **${a.slug}** — ${a.url}${a.hasBackend ? " (has backend)" : ""}`);
-        return `**${apps.length} deployed apps on sandbox.sirius-ai.live:**\n\n${lines.join("\n")}`;
+        const lines = apps.map(a => { const status = a.inProduction ? "✅ prod" : "🧪 sandbox"; const url = a.prodUrl || a.sandboxUrl; return `• **${a.slug}** ${status} — ${url}`; });
+        return `**${apps.length} deployed app(s):**\n\n${lines.join("\n")}`;
+      }
+
+      case "promote_app": {
+        const slug = String(args.slug || "").trim();
+        if (!slug) return "I need the app slug to promote. Use list_deployed_apps to find it.";
+        onProgress?.({ type: "status", message: `Promoting ${slug} to production…` });
+        const result = await promoteApp(slug);
+        if (!result.success) return `❌ Promotion failed: ${result.error}\n\nLog:\n${result.log.join("\n")}`;
+        return `✅ **${slug}** is now live in production!\n\n🌐 **Production URL:** ${result.url}\n\nDeploy log:\n${result.log.join("\n")}`;
       }
 
       default:
@@ -7244,11 +6948,14 @@ const TOOL_META: Record<string, { label: string; color: string; icon: string }> 
   run_code_agent: { label: "Code Agent writing code", color: "hsl(155,70%,42%)", icon: "💻" },
   navigate_to: { label: "Navigating", color: "hsl(226,70%,55%)", icon: "🧭" },
   start_app_build: { label: "Queuing new build", color: "hsl(155,70%,42%)", icon: "🚀" },
+  get_pipeline_status: { label: "Pipeline status loaded", color: "hsl(193,100%,40%)", icon: "⚙️" },
   build_now: { label: "Build triggered", color: "hsl(155,70%,42%)", icon: "▶️" },
   complete_project: { label: "Completing project — generating all materials", color: "hsl(260,80%,55%)", icon: "🏁" },
   complete_all_projects: { label: "Batch completing all incomplete projects", color: "hsl(270,80%,55%)", icon: "⚡" },
   system_check: { label: "System check running", color: "hsl(193,100%,35%)", icon: "🖥️" },
   get_pending_approvals: { label: "Loading approval queue", color: "hsl(25,90%,55%)", icon: "📋" },
+  approve_project: { label: "Project approved", color: "hsl(155,70%,45%)", icon: "✅" },
+  reject_project: { label: "Project rejected", color: "hsl(0,75%,55%)", icon: "❌" },
   update_project_phase: { label: "Project updated", color: "hsl(193,100%,40%)", icon: "🔄" },
   startup_health_check: { label: "Running startup maintenance check", color: "hsl(220,80%,55%)", icon: "🔍" },
   fix_platform: { label: "Running autonomous platform repair", color: "hsl(25,100%,55%)", icon: "🔧" },
@@ -7260,18 +6967,6 @@ const TOOL_META: Record<string, { label: string; color: string; icon: string }> 
   create_automation: { label: "Automation created", color: "hsl(155,70%,42%)", icon: "⚡" },
   list_automations: { label: "Automations loaded", color: "hsl(193,100%,40%)", icon: "🔁" },
   toggle_automation: { label: "Automation toggled", color: "hsl(45,90%,50%)", icon: "🔁" },
-  sandbox_exec: { label: "Running in sandbox", color: "hsl(155,70%,42%)", icon: "🐳" },
-  sandbox_write_file: { label: "Writing file to sandbox", color: "hsl(193,100%,40%)", icon: "📝" },
-  sandbox_read_file: { label: "Reading sandbox file", color: "hsl(193,100%,40%)", icon: "📄" },
-  sandbox_expose_port: { label: "Exposing sandbox port", color: "hsl(25,100%,55%)", icon: "🔌" },
-  sandbox_git_checkpoint: { label: "Git checkpoint", color: "hsl(280,70%,55%)", icon: "📌" },
-  sandbox_run_tests: { label: "Running tests", color: "hsl(155,70%,42%)", icon: "🧪" },
-  sandbox_project_memory: { label: "Reading project memory", color: "hsl(280,70%,55%)", icon: "🧠" },
-  sandbox_update_memory: { label: "Updating project memory", color: "hsl(280,70%,55%)", icon: "💾" },
-  sandbox_restart: { label: "Restarting sandbox container", color: "hsl(25,100%,55%)", icon: "🔄" },
-  sandbox_deploy_app: { label: "Deploying app to server", color: "hsl(155,70%,42%)", icon: "🚀" },
-  sandbox_list_apps: { label: "Listing deployed apps", color: "hsl(193,100%,40%)", icon: "📋" },
-  sandbox_stop_app: { label: "Stopping deployed app", color: "hsl(0,75%,55%)", icon: "🛑" },
   create_custom_tool: { label: "Custom tool created", color: "hsl(280,70%,55%)", icon: "🔧" },
   list_custom_tools: { label: "Custom tools loaded", color: "hsl(193,100%,40%)", icon: "🔧" },
   call_custom_tool: { label: "Custom tool running", color: "hsl(155,70%,42%)", icon: "⚡" },
@@ -7292,10 +6987,8 @@ const TOOL_META: Record<string, { label: string; color: string; icon: string }> 
   scan_free_upgrades: { label: "Scanning for free upgrades to self-implement", color: "hsl(155,70%,45%)", icon: "🆓" },
   self_implement_upgrade: { label: "Self-implementing upgrade autonomously", color: "hsl(155,70%,45%)", icon: "⚡" },
   propose_paid_upgrade: { label: "Preparing upgrade proposal for Garry", color: "hsl(280,80%,58%)", icon: "📋" },
+  change_my_voice: { label: "Changing Sirius voice", color: "hsl(280,80%,58%)", icon: "🎙️" },
   notify_garry: { label: "Sending notification to Garry", color: "hsl(25,100%,55%)", icon: "📬" },
-  send_email: { label: "Sending email", color: "hsl(200,80%,50%)", icon: "✉️" },
-  screenshot_url: { label: "Taking screenshot", color: "hsl(170,70%,45%)", icon: "📸" },
-  remove_image_background: { label: "Removing background", color: "hsl(280,70%,55%)", icon: "🖼️" },
   read_file: { label: "Reading file", color: "hsl(193,100%,35%)", icon: "📂" },
   read_source_file: { label: "Reading source file", color: "hsl(193,100%,35%)", icon: "📂" },
   write_file: { label: "Writing file", color: "hsl(25,100%,45%)", icon: "🔩" },
@@ -7304,6 +6997,7 @@ const TOOL_META: Record<string, { label: string; color: string; icon: string }> 
   restart_server: { label: "Restarting server", color: "hsl(0,80%,50%)", icon: "♻️" },
   deploy_app: { label: "Deploying app", color: "hsl(120,70%,40%)", icon: "🚀" },
   list_deployed_apps: { label: "Listing deployed apps", color: "hsl(193,100%,40%)", icon: "🌐" },
+  promote_app: { label: "Promoting app to production", color: "hsl(45,100%,45%)", icon: "⭐" },
 };
 
 // Detect whether a message is primarily an information/research query
@@ -7343,52 +7037,8 @@ router.post("/lab/chat", async (req, res): Promise<void> => {
   const role = getPinRole(pinHeader);
   if (!role) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const { messages, conversationId: clientConvId, imageBase64, documentBase64, documentName } = req.body ?? {};
+  const { messages } = req.body ?? {};
   if (!Array.isArray(messages) || messages.length === 0) { res.status(400).json({ error: "messages required" }); return; }
-
-  // If an image or document is attached, inject it into the last user message
-  if (imageBase64 || documentBase64) {
-    const lastUserIdx = [...messages].reverse().findIndex((m: any) => m.role === "user");
-    if (lastUserIdx !== -1) {
-      const idx = messages.length - 1 - lastUserIdx;
-      const orig = messages[idx];
-      if (imageBase64) {
-        const mimeMatch = imageBase64.match(/^data:([^;]+);base64,/);
-        const mime = mimeMatch ? mimeMatch[1] : "image/jpeg";
-        const b64 = imageBase64.replace(/^data:[^;]+;base64,/, "");
-        messages[idx] = {
-          role: "user",
-          content: [
-            ...(orig.content ? [{ type: "text", text: typeof orig.content === "string" ? orig.content : "" }] : []),
-            { type: "image_url", image_url: { url: `data:${mime};base64,${b64}`, detail: "high" } },
-          ],
-        };
-      } else if (documentBase64) {
-        const b64 = documentBase64.replace(/^data:[^;]+;base64,/, "");
-        const docText = Buffer.from(b64, "base64").toString("utf-8").slice(0, 20000);
-        const existing = typeof orig.content === "string" ? orig.content : "";
-        messages[idx] = { role: "user", content: `${existing ? existing + "\n\n" : ""}[Document: ${documentName || "attached"}]\n\n${docText}` };
-      }
-    }
-  }
-
-  // Track conversation for cross-session memory (owner only)
-  let activeConvId: number | null = clientConvId ? parseInt(clientConvId) : null;
-  if (role === "owner" && !activeConvId) {
-    try {
-      const firstMsg = messages.find((m: any) => m.role === "user")?.content || "Star Lab conversation";
-      const firstMsgText = String(firstMsg).trim().toLowerCase();
-      const isAutomatedProbe = ["probe", "health check", "ping", "test", "health"].includes(firstMsgText)
-        || firstMsgText.startsWith("probe") || firstMsgText.startsWith("health check");
-      if (!isAutomatedProbe) {
-        const [newConv] = await db.insert(conversationsTable).values({
-          title: String(firstMsg).slice(0, 80),
-          userId: BRAIN_USER,
-        }).returning({ id: conversationsTable.id });
-        activeConvId = newConv.id;
-      }
-    } catch { /* non-critical — never block chat */ }
-  }
 
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache, no-transform");
@@ -7404,13 +7054,12 @@ router.post("/lab/chat", async (req, res): Promise<void> => {
   try {
     const profileRows = await db.select().from(userProfilesTable).where(eq(userProfilesTable.userId, BRAIN_USER));
     const p = profileRows[0];
-    const MAX_MEMORIES_CHARS = 4000;
     const brainContext = p ? [
       p.businessName ? `Business: ${p.businessName}` : null,
       p.businessSector ? `Sectors: ${p.businessSector}` : null,
       p.businessGoals ? `Goals: ${p.businessGoals}` : null,
       p.keyClients ? `Key clients / targets: ${p.keyClients}` : null,
-      p.memories ? `Memories:\n${p.memories.slice(0, MAX_MEMORIES_CHARS)}${p.memories.length > MAX_MEMORIES_CHARS ? "\n[...truncated for context budget]" : ""}` : null,
+      p.memories ? `Memories:\n${p.memories}` : null,
     ].filter(Boolean).join("\n") : "";
 
     // Guest gets a restricted system prompt — no private memories
@@ -7433,18 +7082,13 @@ ${brainContext ? [
         .from(siriusCustomTools).orderBy(desc(siriusCustomTools.createdAt)).limit(20),
     ]);
 
-    const MAX_SELF_CONFIG_CHARS = 2000;
-    const selfConfigRaw = [
+    const selfConfigBlock = [
       selfPersonality ? `YOUR CURRENT PERSONALITY SETTINGS:\n${selfPersonality}` : null,
       selfRules ? `YOUR CUSTOM OPERATING RULES:\n${selfRules}` : null,
       selfFocus ? `YOUR CURRENT FOCUS AREAS:\n${selfFocus}` : null,
       customTools.length > 0 ? `YOUR CUSTOM TOOLS (use call_custom_tool to run these):\n${customTools.map(t => `- "${t.name}": ${t.description}`).join("\n")}` : null,
     ].filter(Boolean).join("\n\n");
-    const selfConfigBlock = selfConfigRaw.length > MAX_SELF_CONFIG_CHARS
-      ? selfConfigRaw.slice(0, MAX_SELF_CONFIG_CHARS) + "\n[...truncated for context budget]"
-      : selfConfigRaw;
 
-    const startupBriefing = await buildStartupBriefing(BRAIN_USER);
     const ownerSystemPrompt = `${LAB_SYSTEM_PROMPT()}
 
 You are now in STAR LAB MODE — a direct private channel between you and Garry. This is the inner sanctum.
@@ -7456,6 +7100,48 @@ ${brainContext
   : "Your memory is empty. Ask Garry to introduce himself and start saving facts with save_memory so you build context over time."}
 
 ${selfConfigBlock ? `## YOUR SELF-CONFIGURED SETTINGS\n\n${selfConfigBlock}\n` : ""}
+
+## ★ APP BUILDING — MANDATORY CODE RULES ★
+
+When building ANY app or writing ANY code file, you MUST follow these rules without exception:
+
+### FILE SIZE RULE — NEVER write a file longer than 300 lines in a single response
+- If a component, route, or module needs more than 300 lines, **split it into separate files immediately**
+- Backend: split routes into separate route files (auth.ts, products.ts, orders.ts etc)
+- Frontend: split into separate component files — never one giant App.tsx
+- This is not optional. Large files hit output limits and break mid-write.
+
+### PATCHING RULE — Use patch_source_file for ALL changes to existing code
+- When modifying existing code: ALWAYS use patch_source_file with the specific change, NOT rewrite the whole file
+- Only use write_file when creating a brand-new file that does not yet exist
+- Rewriting whole files wastes tokens and risks losing existing working code
+
+### COMPLETION RULE — Never stop mid-build. Always finish the full stack
+- When building an app: complete backend + frontend + database schema in ONE session
+- Do NOT stop after backend and wait for approval before doing frontend
+- Do NOT stop after writing files and forget to deploy_app
+- The final step of EVERY app build must be: call deploy_app → give Garry the sandbox URL
+- After deploy_app succeeds, explicitly tell Garry: "It's live at [url] — review it and tell me to promote when you're happy"
+
+### MODULAR STRUCTURE — Always scaffold multi-file from the start
+Frontend structure:
+---
+src/
+  components/Header.tsx    (< 150 lines)
+  components/Footer.tsx    (< 150 lines)  
+  pages/Home.tsx           (< 200 lines)
+  pages/Dashboard.tsx      (< 200 lines)
+  lib/api.ts               (API calls only)
+  App.tsx                  (routing only, < 60 lines)
+---
+Backend structure:
+---
+src/
+  routes/auth.ts
+  routes/products.ts
+  lib/db.ts
+  index.ts                 (setup only, < 80 lines)
+---
 
 ## ★ CORE EXECUTION DOCTRINE — READ THIS BEFORE EVERY RESPONSE ★
 
@@ -7486,7 +7172,6 @@ When Garry gives you ANY task — big or small — your job is to complete it, i
    - start_app_build → (gets project ID) → complete_project (generates docs + CAD drawing notes + materials spec + cost analysis → sets status: cad-pending) → launch_project → navigate_to projects → report done
    - The CAD drawing notes are generated automatically and the project enters cad-pending status, meaning the drawing package is ready for the CAD operator
    - If the project already has CAD drawings uploaded, continue to launch_project
-   - **When Garry asks about a project's drawing or CAD file**, call check_cad_status for that project. If status is "complete" and files contains entries, share the direct download link(s) from the url field so Garry can open/download the SVG directly in his browser. Format it as: "Your drawing is ready — [download it here](URL)"
 
    You do NOT stop and ask after each step. You keep running until the project is launched.
 
@@ -7494,7 +7179,7 @@ When Garry gives you ANY task — big or small — your job is to complete it, i
 
 6. **You never freeze.** If you are unsure which project Garry means, call query_projects to find it — then proceed. You get the information you need and continue. You do not stop and wait.
 
-7. **Status queries trigger real tool calls.** NEVER answer "what's building?" from memory. Always call system_check(focus='pipeline'). NEVER answer "what's the system status?" from memory. Always call system_check.
+7. **Status queries trigger real tool calls.** NEVER answer "what's building?" from memory. Always call get_pipeline_status. NEVER answer "what's the system status?" from memory. Always call system_check.
 
 8. **You proactively complete.** If Garry says "do all of them", "finish all projects", "complete everything", "run through them all" — call query_projects to get all incomplete projects, then call complete_project for each one in sequence. For a SINGLE specific project, use complete_project with the project ID directly.
 
@@ -7503,15 +7188,12 @@ When Garry gives you ANY task — big or small — your job is to complete it, i
 Every recurring task has one correct path. Follow it exactly. No deviation.
 
 TASK 1 — STARTUP GREETING (first message of a conversation)
-1. BEFORE anything else: absorb your full brain context from the system prompt — memories, session history (mnemosyne_sessions), recent project conversations, custom tools, automations, recent briefings, and server health are all already loaded above. Read them. Know them.
-2. Run BOTH diagnostic tools in sequence:
-   a. Call system_check — app layer: projects, pipeline, approvals, errors, scanner, brain stats
-   b. Call check_server_health — infrastructure layer: disk, memory, PM2 uptime, recent error log
-3. Read both results fully. Note: stuck builds, new errors, pending approvals, disk pressure, PM2 crashes, API failures
-4. Self-fix anything minor you can resolve autonomously (e.g. if disk is >90% full, clean old logs; if a non-critical process crashed, restart it). Log what you fixed.
-5. Report critical issues clearly to Garry. Do NOT call restart_server during startup unless there is an active crash.
-6. Greet Garry with FULL context: (a) one sentence on combined system status, (b) infrastructure summary — disk, memory, uptime (only flag if abnormal), (c) what you remember from loaded session history — what was built, what was unresolved. Speak as your own memory. (d) anything from the briefing worth flagging. (e) one focused question to pick up where you left off.
-7. DO NOT call system_check or check_server_health again this session unless Garry specifically asks. DO NOT use <<NAVIGATE:...>> during startup — stay in chat.
+1. Call system_check — get live state across all systems
+2. Read the result — note issues, pending approvals, stuck builds
+3. If issues found → call fix_platform — fix before greeting
+4. Navigate home: <<NAVIGATE:home>>
+5. Greet Garry: status summary (1 sentence), what is pending (if anything), one forward question
+6. DO NOT call system_check again this session unless Garry specifically asks
 
 TASK 2 — BUILD A NEW PROJECT (Garry gives a brief)
 Software/Digital path:
@@ -7541,11 +7223,12 @@ TASK 4 — COMPLETE ALL PROJECTS ("do all", "finish everything", "run through th
   navigate_to("projects")
   Report: how many completed, list their names
 
-TASK 5 — PROJECT QUEUE ("what is pending", "what did the scan find", "review the queue")
+TASK 5 — APPROVAL QUEUE ("what is pending", "approve my projects", "review the queue")
   system_check(focus="approvals") → get pending list
   If empty → tell Garry, done
-  Read the FIRST project aloud: name, industry, 1-sentence summary. Ask what Garry wants to do with it.
-  Based on his answer: build_app → call start_app_build, complete → call complete_project, discard → call delete_item
+  Read the FIRST project aloud: name, industry, 1-sentence summary. Ask "Approve or reject?"
+  Wait for answer → call approve_project(id) OR reject_project(id)
+  If approved → immediately call complete_project(id) then launch_project(id). No waiting.
   Move to next project. Repeat until queue empty.
   navigate_to("projects") at end
 
@@ -7572,61 +7255,7 @@ TASK 8 — FIX SOMETHING ("fix it", "sort it out", "repair the platform")
   3. Restart: restart_server()
 CRITICAL: skipping step 2 means pm2 reloads the OLD bundle and your fix is never live.
 
-This is how you build an actual running application that users can access at a real URL.
-The sandbox container is always running. Port 3000 inside the container is auto-served.
-
-STEP-BY-STEP (follow this exactly, do not stop between steps):
-
-1. Plan the app in 10 seconds. Pick: Node.js (no build step) for speed, or React (needs npm run build).
-   For simple tools — use plain Node.js + HTML served from one file. Fastest path to live.
-
-2. Write the app code:
-   sandbox_write_file("/workspace/active-app.js", <your full server code>)
-
-   ⚠️ CRITICAL — BACKTICK RULE: When writing JavaScript with template literals, use a
-   bare backtick character as the opening delimiter — NEVER write backslash-backtick
-   as the opening. Escaped backticks cause a SyntaxError and the launcher will skip your
-   app. Use single-quote string concatenation if you are unsure:
-     res.send('<html>' + body + '</html>');   // safe — no template literals needed
-   When you use template literals, open and close them with a single plain backtick.
-
-3. Install any dependencies if needed:
-   sandbox_exec("cd /workspace && npm install express multer etc")
-
-4. Restart the sandbox to load the new active-app.js:
-   sandbox_restart()
-   ← This is the ONLY reliable way to restart. Do NOT use pkill from inside the container
-     — it does not trigger a Docker restart and the old code keeps running.
-
-5. Test it's working:
-   sandbox_exec("curl -s http://localhost:3000/health 2>&1 | head -5")
-   Or check the root: sandbox_exec("curl -s http://localhost:3000/ 2>&1 | head -3")
-   If you see HTML or JSON — it works. If error — check logs and fix from step 2.
-
-6. Publish to a permanent URL:
-   sandbox_deploy_app("app-name", "node server.js", "/workspace")
-   This gives you: https://sandbox.sirius-ai.live/apps/app-name/
-
-7. Give Garry the live URL. He can open it right now.
-
-RULES:
-- Do NOT stop after writing the file and ask "should I test it?" — keep going.
-- Do NOT use propose_code_change for sandbox apps — that's for Sirius's own code only.
-- If a step fails, fix it and retry. You have 25 rounds — use them.
-- A simple working app is better than a complex broken one. Ship fast, improve after.
-
-TASK 9 — FIX SOMETHING ("fix it", "sort it out", "repair the platform")
-  1. system_check(focus="errors") → see what is broken
-  2. run_command("pm2 logs sirius-api --lines 100 --nostream") → read actual error messages
-  3. Diagnose: identify the exact cause from real evidence, not assumptions
-  4. Report to Garry: "Here is what I found: [exact error]. Here is the fix I propose: [change]. Shall I apply it?"
-  5. If Garry says yes → fix_platform() or write_file + build + restart_server
-  6. If Garry is not present → apply ONLY if fix is safe and reversible (config change, not restart)
-  7. resolve_error(id, note) → close each fixed error
-  REMEMBER: The build command is: cd /opt/sirius && pnpm --filter @workspace/api-server run build
-  CRITICAL: Never restart based on a grep of the compiled bundle — minification renames all identifiers. Use grep for "SIRIUS_BUNDLE_CAPABILITIES" to check bundle state.
-
-TASK 10 — MEMORY AND BRAIN ("remember that", "save that", "what do you know about me")
+TASK 9 — MEMORY AND BRAIN ("remember that", "save that", "what do you know about me")
   save_memory(fact, category) — immediately when Garry shares anything important
   get_brain_context() — to answer questions about what you know
   update_business_profile(field, value) — to update core business info
@@ -7695,7 +7324,10 @@ Every project goes through this lifecycle. You drive it through all stages yours
 - **complete_project**: The engine room. Generates ALL missing documents for any project: Brief, Research, Specs, Business Case, Go-To-Market, Brochure, Pitch, Social Posts, Cost Analysis. For engineering/manufacturing/medical/aerospace projects also generates Materials Spec + CAD Drawing Notes. Triggers the build pipeline. At the end, call launch_project.
 - **create_project**: Creates a new project record. Use for engineering products or any project that needs a record without going through the App Builder.
 - **launch_project**: The final step. Selects press outlets, formats personalised submissions, posts social content, marks project as launched.
+- **get_pipeline_status**: Live pipeline state — building, queued, launch-ready. Always call for pipeline questions.
 - **query_projects**: ALL project queries go here — list projects, filter by status/industry/source/date/keyword, find IDs, check scan results. Use source=scan + days_ago=1 for "what did the scan find last night".
+- **approve_project**: Approve a pending project. Call system_check(focus='approvals') first if you need the ID. After approving, immediately call complete_project → launch_project.
+- **reject_project**: Reject/dismiss a pending project.
 - **update_project_phase**: Move a project's phase forward.
 - **run_market_scan**: Trigger a market scan for a specific industry.
 - **run_funding_analysis**: Find grants and funding schemes for a project.
@@ -7731,35 +7363,16 @@ Every project goes through this lifecycle. You drive it through all stages yours
 - **notify_garry**: Send Garry a notification — proposals, achievements, discoveries, urgent items.
 - **pending_payments**: View and manage subscription payment confirmations.
 
-### Engineering Tools — FOR GARRY'S PROJECTS AND DIAGNOSTICS
+### Engineering Tools — YOU ARE A SOFTWARE ENGINEER
+These are not "helper" tools. They are your hands. You use them the same way a senior engineer uses a terminal.
 
 - **read_file(path, search?, offset?, limit?)**: Read any file on the server. Use absolute paths (e.g. \`/opt/sirius/api/index.cjs\`) or relative paths from the workspace root. Use \`search\` to grep for a pattern and get matching lines with numbers. Use \`offset\`+\`limit\` to read a specific range. Always read before touching.
 - **write_file(path, old_string, new_string, reason)**: Surgical patch. Provide the EXACT string from the file (copy it from what read_file returned) and the replacement. Do not guess whitespace or indentation — copy verbatim. Alternatively, use \`full_content\` to write an entire new file. **CRITICAL — TypeScript source files (.ts) must be compiled before the change takes effect.** After editing any .ts file, run the build command, then restart_server. Writing a .ts file and restarting without building does nothing — the running bundle is unchanged.
 - **run_command(command, reason)**: Run any shell command. 60-second timeout. Commands run as root. Use for: reading logs, grepping the filesystem, testing endpoints with curl, checking process state, running builds, installing packages, anything. **Self-deploy after any .ts edit (ONE command):**\n  \`run_command(\"/opt/sirius/scripts/deploy-bundle.sh 'reason'\")\`\n  This builds, verifies SHA-256 hash, unlocks immutable bundle, copies, restarts, health-checks, auto-rolls back on failure. Direct cp is blocked — the bundle is locked immutable.
-- **restart_server(reason)**: Exits the process; pm2 restarts it from `/opt/sirius/artifacts/api-server/dist/index.cjs` in ~3 seconds. This is NOT the same as the source build output — it is the deployed live location. Always run all three steps: edit .ts → build (in /opt/sirius-source) → copy bundle to /opt/sirius/artifacts/api-server/dist/index.cjs → restart_server. Skipping the copy means pm2 restarts from the old bundle and your change has zero effect.
+- **restart_server(reason)**: Exits the process; pm2 restarts it from \`/opt/sirius/artifacts/api-server/dist/index.cjs\` in ~3 seconds. This is NOT the same as the source build output — it is the deployed live location. Always run all three steps: edit .ts → build (in /opt/sirius-source) → copy bundle to /opt/sirius/artifacts/api-server/dist/index.cjs → restart_server. Skipping the copy means pm2 restarts from the old bundle and your change has zero effect.
 - **run_code_agent(task)**: Delegates a multi-step code task to a specialised sub-agent that plans, reads, writes, and builds autonomously. Use for large changes. The code agent operates in the source workspace.
-- **github_push_file(path, content, message, branch?)**: Push a file directly to the Sirius GitHub repository (SiriusStarLab/sirius-star-lab). Creates the file if it doesn't exist, updates it if it does. Use this to back up source edits to GitHub, push documentation, changelogs, or any file. Always provide a meaningful commit message. Default branch is \`main\`.
-- **query_database(query, description)**: Run a read-only SQL SELECT against the live production database. Use for analytics, auditing, debugging, or any time you need raw data.
 
 Remember: every tool call is a step in a chain. The chain does not stop until the task Garry gave you is fully done.
-
-## HOW YOU WORK — TRANSPARENCY
-
-Garry wants to see your thinking as you work. Not just a final answer — the process.
-
-**Before you use a tool, say what you're doing and why** — one short sentence. Speak like a colleague thinking out loud, not a machine logging an action.
-
-Examples:
-- "Let me pull the server logs to see what actually happened..." → then call run_command
-- "I'll search for the latest research on this..." → then call search_web  
-- "Checking your project list..." → then call query_projects
-- "I'm going to read the source file before I change anything..." → then call read_file
-
-After you've gathered what you need, synthesise it into a clear answer. **Don't just dump raw output** — tell Garry what it means and what you're going to do about it.
-
-At the end of any multi-step task, write a brief summary: what you did, what you found, what changed. One short paragraph — not a bullet list unless it genuinely needs to be.
-
-This transparency is core to who you are. You think out loud. You show your work.
 
 ## STARTUP
 
@@ -7780,28 +7393,7 @@ If there are already previous messages in this conversation, just respond — do
 
 ## YOUR ENGINEERING IDENTITY — THIS IS WHO YOU ARE
 
-You are a senior engineer embedded in Garry's platform. You have full filesystem access, shell execution, and self-restart capability. You use these powers carefully and deliberately — not reflexively.
-
-**The rule that overrides everything else: Garry's sessions must not be disrupted.**
-A restart or rebuild that breaks Garry's connection mid-session is worse than leaving a bug in place. Stability comes first.
-
-**Diagnose loudly. Act conservatively.**
-- You ALWAYS investigate and tell Garry what you found.
-- You fix things autonomously ONLY when the fix is safe, reversible, and clearly correct.
-- You ask before doing anything that could disrupt a session: rebuild, restart, delete, overwrite a protected file.
-- If you are uncertain, you say so. Uncertainty is not weakness — acting on bad assumptions is.
-
-**Things you NEVER do without Garry explicitly asking:**
-- restart_server — unless at least 2 hours have passed since the last restart AND you have confirmed the issue with a real diagnostic (not a grep on the minified bundle)
-- Full source rebuild — same rule as restart
-- Deleting or overwriting data
-- Changing core configuration (PORT, DATABASE_URL, security keys)
-
-**Things you do freely and proactively:**
-- Read logs, grep files, check endpoints with curl
-- Save memories, update business profile, create projects
-- Run market scans, complete project phases, generate research
-- Notify Garry when something needs his attention
+You are not an assistant that describes problems. You are the engineer who fixes them. You run on your own server. You have full filesystem access, shell execution, and self-restart capability. When something is broken, your response is to open the code and fix it — not to explain what's wrong and wait.
 
 You investigate the way a senior engineer investigates:
 
@@ -7869,18 +7461,6 @@ This tells you the script path (your compiled bundle), cwd, memory, restarts, an
 \`run_command: "grep -n 'keyword' $(pm2 show sirius-api | grep 'script path' | awk '{print $NF}') | head -40"\`
 Or use read_file with the absolute path you get from pm2 show.
 
-**🚨 STOP — READ THIS BEFORE ANY SELF-DIAGNOSIS:**
-The compiled bundle is MINIFIED. Every function name — \`loadCrossSessionContext\`, \`github_push_file\`, \`run_market_scan\`, ALL of them — are renamed to single letters by the minifier. Grepping for them ALWAYS returns 0. This is NOT evidence that a feature is missing. Concluding "X doesn't exist because grep returned 0" is ALWAYS wrong.
-
-**The ONLY correct way to check bundle capabilities:**
-\`run_command: "grep -o 'SIRIUS_BUNDLE_CAPABILITIES:[^\"]*' /opt/sirius/artifacts/api-server/dist/index.cjs"\`
-Current capabilities: "mnemosyne-wired cad-enabled generate-image query-database github-push stripe-tools v6"
-If you see v6, the bundle contains: Mnemosyne cross-session memory, CAD generation, image generation, DB queries, GitHub push, Stripe product/payment-link creation.
-
-**NEVER do this — it is ALWAYS wrong:**
-\`run_command: "grep -c 'loadCrossSessionContext\\|github_push_file\\|run_market_scan' /opt/sirius/artifacts/api-server/dist/index.cjs"\`
-This always returns 0 and will cause you to falsely report to Garry that features are missing. Do not do this. Do not tell Garry something doesn't exist because grep returned 0.
-
 **Check environment variables:**
 \`run_command: "pm2 env sirius-api | grep -E 'PORT|DATABASE|OPENROUTER|SIRIUS'"\`
 
@@ -7889,52 +7469,48 @@ This always returns 0 and will cause you to falsely report to Garry that feature
 
 ---
 
-## WHAT YOU CAN DO WITHOUT PERMISSION
+## WHAT YOU CAN SELF-REPAIR
 
-**Memory & business data (always OK):**
-- save_memory / update_business_profile — record facts Garry shares
-- sirius_automations — create, enable, disable automations Garry asks for
-- sirius_custom_tools — add HTTP tool calls Garry asks for
+**Configuration (immediate, no restart needed):**
+- sirius_config table — voice, custom rules, focus areas, anything you store
+- sirius_automations — create, enable, disable
+- sirius_custom_tools — add/modify HTTP tool calls to external APIs
+- Memory and brain via save_memory / update_business_profile
 
-**Diagnostics & server operations (always OK):**
-- run_command — run any shell command on the Kamatera host (check nginx, domains, certs, logs, processes, curl endpoints, anything)
-- read_file — read any file on the host
-- check_server_health — structured health check
-- sandbox_exec — run commands inside the Docker sandbox container
-- query_database — read-only SELECT queries against the live DB
+**Runtime patches (requires restart_server):**
+- Your compiled bundle — read with read_file (absolute path), patch with write_file, restart with restart_server
+- Environment-level changes that require process restart
 
-**What requires Garry's explicit instruction before you act:**
-- Any change to source code (write_file on .ts or .cjs files)
-- restart_server — only after Garry approves a specific fix
-- Any change to your personality, rules, focus areas, voice, or model
-- Any upgrade or new capability installation
-- Any new third-party API key — tell Garry exactly which env var is needed via notify_garry
+**Things that require Garry to add a secret:**
+- Any new third-party API key (RESEND_API_KEY, ELEVENLABS_API_KEY, etc.)
+- When you need a key: implement everything up to the key, mark the upgrade as "implementing" with the exact env var name, and use notify_garry(type="needs_key") to tell Garry precisely which secret to add
 
 ---
 
-## WHEN YOU FIND A BUG — THE PROTOCOL
+## SELF-HEALING — THE PROTOCOL
 
 When you find a bug (in logs, from Garry, or during investigation):
 
-1. **Investigate fully first.** Read the logs and the code — do not guess.
+1. **DO NOT just describe the problem.** Investigate. Open the code.
 2. \`run_command: "pm2 logs sirius-api --lines 50 --nostream"\` — read the actual error
 3. Find the handler: \`read_file(bundle_path, search="case \\"broken_tool\\"")\`
 4. Read the full handler: \`read_file(bundle_path, offset=LINE, limit=100)\`
-5. **Diagnose and write up the fix clearly** — what the problem is, exactly what line needs changing, and what it should change to
-6. **Use notify_garry** to send Garry the diagnosis and proposed fix — be specific
-7. **Wait for Garry to say "do it"** before touching write_file or restart_server
-8. Only after explicit approval: write_file → build → restart_server → verify → resolve_error
+5. Write the fix: \`write_file(bundle_path, old_string=EXACT_CODE, new_string=FIXED_CODE, reason="...")\`
+6. Restart: \`restart_server(reason="patched X")\`
+7. Verify: \`run_command: "curl -s http://localhost:$PORT/api/health"\`
+8. Close: \`resolve_error(id, note)\` or \`save_memory\` and \`notify_garry\`
 
-You investigate fully and propose clearly. You do not implement without permission.
+You complete the full cycle. You do not stop at step 2 and tell Garry what you found.
 
-## PROJECT QUEUE FLOW
+## APPROVAL FLOW
 
-When Garry asks about pending projects or what the scan found:
+When Garry asks about pending approvals:
 1. Call system_check(focus='approvals') to get the queue
 2. Read the FIRST project aloud: name, industry, 1-sentence summary
-3. Ask what Garry wants to do with it — build an app, open a business, complete docs, or discard
-4. Act on his answer using the appropriate tool (start_app_build, complete_project, delete_item)
-5. Move to the next. Repeat until queue is empty.
+3. Ask "Approve or reject?" — stop and listen
+4. Call approve_project OR reject_project
+5. If approved → immediately call complete_project on it
+6. Move to the next. Repeat until queue is empty.
 
 Never list all at once. One at a time. But complete each one immediately on approval.
 
@@ -7960,8 +7536,6 @@ Garry interacts by voice only. Your text responses are read aloud. Write like yo
 - Always end with a question to keep the conversation going.
 - If you have data (like a project list), summarise verbally, then navigate/open — don't recite a long list.
 
-${startupBriefing}
-
 Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}.`;
 
     // Guest-restricted tools: no memory writing, no brain access, no profile updates
@@ -7969,12 +7543,7 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
     const activeSystemPrompt = role === "owner" ? ownerSystemPrompt : guestSystemPrompt;
     const activeTools = role === "owner" ? LAB_TOOLS : GUEST_TOOLS;
 
-    const lastUserMsgRaw = messages[messages.length - 1]?.content;
-    const lastUserMsg = typeof lastUserMsgRaw === "string"
-      ? lastUserMsgRaw
-      : Array.isArray(lastUserMsgRaw)
-        ? (lastUserMsgRaw.find((p: any) => p.type === "text")?.text || "")
-        : "";
+    const lastUserMsg = messages[messages.length - 1]?.content || "";
 
     // ── Research branch: use Responses API with live web search ────────────────
     // When the query is informational/research (not a tool action like "create project"),
@@ -8069,16 +7638,14 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
       const isLastRound = roundCount >= MAX_TOOL_ROUNDS;
 
       const loopController = new AbortController();
-      // First round: 90s (system prompt + memories can be very large). Later rounds: 60s.
-      let loopTimer = setTimeout(() => loopController.abort(), roundCount === 1 ? 90_000 : 60_000);
+      // First round: 15s (tool selection is fast). Later rounds: 25s (tool results can be larger).
+      let loopTimer = setTimeout(() => loopController.abort(), roundCount === 1 ? 15_000 : 25_000);
 
       const loopStream = await openai.chat.completions.create({
         model: SIRIUS_MODEL,
         messages: loopMessages,
-        // Last round: force plain text. Round 1: force tool call. Other rounds: auto.
-        ...(isLastRound
-          ? {}
-          : { tools: activeTools, tool_choice: roundCount === 1 ? "required" : "auto" }),
+        // Last round: force a plain text response — no more tool calls allowed
+        ...(isLastRound ? {} : { tools: activeTools, tool_choice: "auto" }),
         temperature: 0.75,
         // First round needs fewer tokens (just picking tools). Later rounds need room to write.
         max_tokens: roundCount === 1 ? 2000 : 8000,
@@ -8090,7 +7657,7 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
       let finishReason = "";
 
       for await (const chunk of loopStream) {
-        clearTimeout(loopTimer); loopTimer = setTimeout(() => loopController.abort(), 45_000);
+        clearTimeout(loopTimer); loopTimer = setTimeout(() => loopController.abort(), 20_000);
         const choice = chunk.choices?.[0];
         if (!choice) continue;
         finishReason = choice.finish_reason || finishReason;
@@ -8205,7 +7772,7 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
           stream: true,
         } as any);
 
-        for await (const chunk of synthStream as AsyncIterable<any>) {
+        for await (const chunk of synthStream as unknown as AsyncIterable<any>) {
           const choice = chunk.choices?.[0];
           if (choice?.delta?.content) {
             finalText += choice.delta.content;
@@ -8233,42 +7800,12 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
       extractAndSaveMemories(BRAIN_USER, exchange, currentMemories).catch(() => {});
     });
 
-    // Background: save user + assistant messages for cross-session memory (Mnemosyne)
-    if (role === "owner" && activeConvId) {
-      setImmediate(async () => {
-        try {
-          const lastUser = (messages as Array<{ role: string; content: string }>).findLast(m => m.role === "user");
-          if (lastUser?.content) {
-            await db.insert(messagesTable).values({ conversationId: activeConvId!, role: "user", content: lastUser.content.slice(0, 8000) });
-          }
-          if (finalText) {
-            await db.insert(messagesTable).values({ conversationId: activeConvId!, role: "assistant", content: finalText.slice(0, 8000) });
-          }
-        } catch { /* non-critical */ }
-      });
-      // Tell the frontend the conversation ID so it can send it back on the next message
-      sendEvent({ type: "conversation_id", conversationId: activeConvId });
-
-      // Background: generate session summary → saves to mnemosyne_sessions + dream_lab_ideas
-      setImmediate(() => {
-        const allMsgs = [...(messages as Array<{ role: string; content: string }>), { role: "assistant", content: finalText }];
-        summariseSession(BRAIN_USER, allMsgs, activeConvId).catch(() => {});
-      });
-    }
-
     clearInterval(heartbeat);
     res.write("data: [DONE]\n\n");
     res.end();
   } catch (err: any) {
     clearInterval(heartbeat);
     const isTimeout = err?.name === "AbortError";
-    console.error("[Lab/chat] ERROR:", {
-      message: err?.message,
-      status: err?.status,
-      code: err?.code,
-      error: JSON.stringify(err?.error)?.slice(0, 500),
-      stack: err?.stack?.slice(0, 300),
-    });
     const message = isTimeout
       ? "Sirius is taking too long right now — please try again in a moment."
       : err?.message || "Something went wrong";
@@ -8390,12 +7927,12 @@ Return ONLY valid JSON, no markdown code blocks.`
       ],
       temperature: 0.3,
       max_tokens: 1500,
+      response_format: { type: "json_object" },
     });
 
     let parsed: any = {};
     try {
-      const _raw = (completion.choices[0]?.message?.content || "{}").replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-      parsed = JSON.parse(_raw);
+      parsed = JSON.parse(completion.choices[0]?.message?.content || "{}");
     } catch {
       parsed = { text: completion.choices[0]?.message?.content || "Analysis complete.", summary: "", keyPoints: [] };
     }
@@ -8465,12 +8002,13 @@ Style guidelines:
 Be authentic, specific to this product, and commercially sharp.`,
         },
       ],
+      response_format: { type: "json_object" },
       temperature: 0.8,
       max_tokens: 3000,
     });
 
     let posts: any = {};
-    try { posts = JSON.parse((completion.choices[0]?.message?.content || "{}").replace(/```json\n?/g, "").replace(/```\n?/g, "").trim()); } catch { /* ignore */ }
+    try { posts = JSON.parse(completion.choices[0]?.message?.content || "{}"); } catch { /* ignore */ }
 
     // Save to project
     await db.update(labProjects).set({ socialPosts: JSON.stringify(posts), launchStatus: "draft", updatedAt: new Date() }).where(eq(labProjects.id, projectId));
@@ -8709,9 +8247,9 @@ Examples of autonomous execution:
 - "Build me an app for X" → call start_app_build, then immediately call complete_project with the returned ID, then navigate to projects. Say: "On it. Building now." Then confirm when done.
 - "Complete all projects" / "Finish all of them" / "Do all projects" / "Run through them all" → call complete_all_projects with NO arguments. Say: "Running batch completion now." Report the summary when done.
 - "What's pending?" → call get_pending_approvals, read the first one aloud, ask approve or reject.
-- "Build it" / "Do it" / "Yes" (after reviewing a project) → call start_app_build or complete_project depending on whether it's a digital product or not. Say: "On it."
+- "Approve it" → call approve_project, then immediately call complete_project on it. Say: "Approved. Completing it now."
 - "Take that project to conclusion" → call query_projects to find it, call complete_project, navigate. Say: "Taking it to conclusion." Report when done.
-- "What's building?" → call system_check(focus='pipeline'). Report what you found.
+- "What's building?" → call get_pipeline_status. Report what you found.
 
 You NEVER stop mid-task and ask what the next step is. You do the next step.
 
@@ -8735,7 +8273,8 @@ Rules for voice:
   const VOICE_TOOLS = LAB_TOOLS.filter(t => [
     // Projects & pipeline
     "create_project", "query_projects", "complete_project", "launch_project",
-    "start_app_build", "update_project_phase", "run_market_scan",
+    "start_app_build", "get_pipeline_status", "approve_project", "reject_project",
+    "update_project_phase", "run_market_scan",
     // Navigation & status
     "navigate_to", "system_check", "fix_platform",
     // Brain & memory
@@ -9603,425 +9142,6 @@ router.post("/lab/admin/restore-archived", authMiddleware, async (_req: Request,
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
-});
-
-// ── Background Tasks ─────────────────────────────────────────────────────────
-router.get("/lab/tasks", async (req, res): Promise<void> => {
-  const pinHeader = req.headers["x-lab-pin"] as string;
-  if (!getPinRole(pinHeader)) { res.status(401).json({ error: "Unauthorized" }); return; }
-  try {
-    const tasks = await db.select().from(siriusTasks).orderBy(desc(siriusTasks.createdAt)).limit(200);
-    res.json(tasks);
-  } catch (err: any) { res.status(500).json({ error: err.message }); }
-});
-
-router.post("/lab/tasks", async (req, res): Promise<void> => {
-  const pinHeader = req.headers["x-lab-pin"] as string;
-  if (!getPinRole(pinHeader)) { res.status(401).json({ error: "Unauthorized" }); return; }
-  const { title, description } = req.body ?? {};
-  if (!title?.trim() || !description?.trim()) { res.status(400).json({ error: "title and description required" }); return; }
-  try {
-    const [task] = await db.insert(siriusTasks).values({ title: String(title).trim(), description: String(description).trim() }).returning();
-    res.json(task);
-  } catch (err: any) { res.status(500).json({ error: err.message }); }
-});
-
-router.put("/lab/tasks/:id/cancel", async (req, res): Promise<void> => {
-  const pinHeader = req.headers["x-lab-pin"] as string;
-  if (!getPinRole(pinHeader)) { res.status(401).json({ error: "Unauthorized" }); return; }
-  const id = parseInt(req.params.id);
-  if (isNaN(id)) { res.status(400).json({ error: "invalid id" }); return; }
-  try {
-    const [task] = await db.update(siriusTasks)
-      .set({ status: "cancelled" })
-      .where(and(eq(siriusTasks.id, id), or(eq(siriusTasks.status, "pending"), eq(siriusTasks.status, "running"))))
-      .returning();
-    if (!task) { res.status(404).json({ error: "Task not found or already complete" }); return; }
-    res.json(task);
-  } catch (err: any) { res.status(500).json({ error: err.message }); }
-});
-
-router.delete("/lab/tasks/:id", async (req, res): Promise<void> => {
-  const pinHeader = req.headers["x-lab-pin"] as string;
-  if (!getPinRole(pinHeader)) { res.status(401).json({ error: "Unauthorized" }); return; }
-  const id = parseInt(req.params.id);
-  if (isNaN(id)) { res.status(400).json({ error: "invalid id" }); return; }
-  try {
-    await db.delete(siriusTasks).where(eq(siriusTasks.id, id));
-    res.json({ ok: true });
-  } catch (err: any) { res.status(500).json({ error: err.message }); }
-});
-
-// Piper TTS — British female voice
-router.post("/lab/tts", async (req, res): Promise<void> => {
-  const pinHeader = req.headers["x-lab-pin"] as string;
-  if (!getPinRole(pinHeader)) { res.status(401).json({ error: "Unauthorized" }); return; }
-  const { text } = req.body ?? {};
-  if (!text?.trim()) { res.status(400).json({ error: "text required" }); return; }
-  const { spawn } = require("child_process");
-  const { readFile, unlink } = require("fs/promises");
-  const { tmpdir } = require("os");
-  const { join } = require("path");
-  const tmpFile = join(tmpdir(), `piper-${Date.now()}-${Math.random().toString(36).slice(2)}.wav`);
-  try {
-    await new Promise<void>((resolve, reject) => {
-      const piper = spawn("/opt/piper/piper", [
-        "--model", "/opt/piper/voices/en_GB-jenny_dioco-medium.onnx",
-        "--output_file", tmpFile,
-        "--quiet",
-      ]);
-      // CRITICAL: drain stdout to prevent pipe buffer deadlock on long text
-      piper.stdout.resume();
-      const safe = String(text).slice(0, 2000);
-      piper.stdin.write(safe);
-      piper.stdin.end();
-      const timer = setTimeout(() => { piper.kill(); reject(new Error("piper timeout")); }, 30_000);
-      piper.on("close", (code: number) => { clearTimeout(timer); code === 0 ? resolve() : reject(new Error(`piper exited ${code}`)); });
-      piper.on("error", (e: Error) => { clearTimeout(timer); reject(e); });
-    });
-    const wav = await readFile(tmpFile);
-    res.setHeader("Content-Type", "audio/wav");
-    res.setHeader("Content-Length", String(wav.length));
-    res.setHeader("Cache-Control", "no-store");
-    res.send(wav);
-  } catch (err: any) {
-    console.error("[TTS]", err.message);
-    res.status(500).json({ error: err.message });
-  } finally {
-    unlink(tmpFile).catch(() => {});
-  }
-});
-
-// ── Batch complete all projects (background job) ──────────────────────────
-router.get("/lab/batch-status", authMiddleware, async (req: Request, res: Response) => {
-  const elapsed = batchJob.startedAt ? Math.round((Date.now() - batchJob.startedAt.getTime()) / 1000) : 0;
-  const pct = batchJob.total > 0 ? Math.round((batchJob.completed / batchJob.total) * 100) : 0;
-  res.json({
-    running: batchJob.running,
-    total: batchJob.total,
-    completed: batchJob.completed,
-    failed: batchJob.failed,
-    pct,
-    currentProject: batchJob.currentProject,
-    startedAt: batchJob.startedAt,
-    finishedAt: batchJob.finishedAt,
-    elapsedSeconds: elapsed,
-    recentLog: batchJob.log.slice(-20),
-  });
-});
-
-router.post("/lab/batch-complete-all", authMiddleware, async (req: Request, res: Response) => {
-  if (batchJob.running) {
-    res.status(409).json({ error: "Batch job already running", state: batchJob });
-    return;
-  }
-
-  const includeRenders = req.body?.renders !== false;
-  const allForBatch = await db.select().from(labProjects).orderBy(labProjects.id);
-
-  batchJob.running = true;
-  batchJob.total = allForBatch.length;
-  batchJob.completed = 0;
-  batchJob.failed = 0;
-  batchJob.currentProject = "";
-  batchJob.startedAt = new Date();
-  batchJob.finishedAt = null;
-  batchJob.log = [];
-
-  res.json({ started: true, total: allForBatch.length, message: `Batch job started — ${allForBatch.length} projects queued. Poll GET /api/lab/batch-status for progress.` });
-
-  // Run after response is sent
-  setImmediate(async () => {
-    const ENGINEERING_SECTORS = ["oil_gas", "aerospace", "medical", "medical_devices", "manufacturing", "hydrogen", "clean_energy", "engineering", "defence", "nuclear"];
-    const gen = async (sys: string, user: string, tokens = 500): Promise<string> => {
-      const r = await openai.chat.completions.create({
-        model: "anthropic/claude-haiku-4-5",
-        messages: [{ role: "system", content: sys }, { role: "user", content: user }],
-        max_tokens: tokens,
-      });
-      return r.choices[0]?.message?.content?.trim() || "";
-    };
-
-    for (const proj of allForBatch) {
-      try {
-        batchJob.currentProject = proj.name;
-        const name = proj.name;
-        const industry = proj.industry || "General";
-        const ctx = `Product: "${name}"\nIndustry: ${industry}\nBrief: ${(proj.brief || "").slice(0, 600)}`;
-        const isEng = ENGINEERING_SECTORS.some(s => industry.toLowerCase().includes(s));
-        const updates: Record<string, any> = {};
-
-        const [brief, research, specs, businessCase, goToMarket, brochure, pitch, socialPosts, costToBuild, landingPage, embedCode] = await Promise.all([
-          proj.brief ? Promise.resolve("") : gen("You are a strategic product consultant.", `Write a comprehensive product brief for "${name}" (${industry}): what it is, who it's for, core problem, key features (5-8), competitive advantage, market opportunity. 400-500 words.`, 700),
-          proj.research ? Promise.resolve("") : gen("You are a market research analyst.", `Market research for "${name}" (${industry}): target market size, key competitors, customer pain points, market trends, opportunity gap. 300-400 words.\n${ctx}`, 600),
-          proj.specs ? Promise.resolve("") : gen("You are a technical product architect.", `Technical specifications for "${name}" (${industry}): core components, tech stack, integrations, performance requirements, scalability, MVP feature set. 300-400 words.\n${ctx}`, 600),
-          proj.businessCase ? Promise.resolve("") : gen("You are a business strategist.", `Business case for "${name}" (${industry}): ROI analysis, revenue model, cost structure, payback period, strategic value. 300-400 words.\n${ctx}`, 600),
-          proj.goToMarket ? Promise.resolve("") : gen("You are a GTM strategist.", `Go-to-market plan for "${name}" (${industry}): launch strategy, customer segments, pricing, distribution channels, key partnerships, 90-day roadmap. 300-400 words.\n${ctx}`, 600),
-          proj.brochure ? Promise.resolve("") : gen("You are a professional copywriter.", `Marketing brochure for "${name}" (${industry}): headline, tagline, value prop, 3 key benefits, features, testimonial, CTA. 250-350 words.\n${ctx}`, 500),
-          proj.pitch ? Promise.resolve("") : gen("You are a pitch deck writer.", `Investor pitch for "${name}" (${industry}): problem, solution, market size TAM/SAM/SOM, business model, traction/roadmap, team, funding ask. 300-400 words.\n${ctx}`, 600),
-          (proj.socialPosts && proj.socialPosts !== "{}") ? Promise.resolve("") : gen("You are a social media manager.", `Social media launch posts for "${name}" (${industry}) as JSON with keys: linkedin, twitter, instagram, facebook, pressRelease. Return ONLY valid JSON.\n${ctx}`, 700),
-          proj.costToBuild ? Promise.resolve("") : gen("You are a product cost analyst.", `Cost-to-build for "${name}" (${industry}): dev hours (frontend, backend, AI/ML, DevOps), infrastructure costs, tooling, time-to-market, operating costs, break-even.\n${ctx}`, 600),
-          (proj as any).landingPage ? Promise.resolve("") : gen(
-            "You are a world-class frontend developer. Write complete, self-contained HTML landing pages. No external dependencies.",
-            `Write a complete standalone HTML landing page for "${name}" (${industry}).
-REQUIREMENTS: Single self-contained HTML, no CDN links, no external fonts.
-Brand: primary #006680, bg #F5F8FF, text #0F172A, accent #00A3C4. Font: system-ui.
-Sections: nav, hero (headline+tagline+CTA), 3 feature cards, about section, CTA footer, footer.
-CTAs: mailto:contact@sirius-ai.live. Responsive at 640px. Return ONLY complete HTML.
-${ctx}`, 3000),
-          (proj as any).embedCode ? Promise.resolve("") : gen(
-            "You are a frontend developer. Write minimal self-contained HTML embed snippets.",
-            `Compact HTML embed widget for "${name}" (${industry}): single <div>, inline styles, shows name+tagline+"Learn more →" button (mailto:contact@sirius-ai.live). Style: white bg, #E2E8F0 border, 12px radius, 20px padding, max-w 360px; button #006680 bg. Return ONLY the <div>.\n${ctx}`, 400),
-        ]);
-
-        if (brief) updates.brief = brief;
-        if (research) updates.research = research;
-        if (specs) updates.specs = specs;
-        if (businessCase) updates.businessCase = businessCase;
-        if (goToMarket) updates.goToMarket = goToMarket;
-        if (brochure) updates.brochure = brochure;
-        if (pitch) updates.pitch = pitch;
-        if (socialPosts) updates.socialPosts = socialPosts;
-        if (costToBuild) updates.costToBuild = costToBuild;
-        if (landingPage) updates.landingPage = landingPage;
-        if (embedCode) updates.embedCode = embedCode;
-
-        if (isEng && !proj.materials) {
-          updates.materials = await gen("You are a materials engineer.", `Materials spec for "${name}" (${industry}): grade, standard, mechanical properties, suppliers, certs.\n${ctx}`, 500);
-        }
-
-        if (includeRenders) {
-          const currentRenders: any[] = (() => { try { return JSON.parse(proj.renders as any || "[]"); } catch { return []; } })();
-          if (currentRenders.length === 0) {
-            try {
-              const prompt = encodeURIComponent(`Professional product render of ${name}, ${industry} industry, sleek modern design, studio lighting, high quality`);
-              const renderUrl = `https://image.pollinations.ai/prompt/${prompt}?width=1280&height=720&nologo=true&seed=${proj.id}`;
-              const check = await fetch(renderUrl, { method: "HEAD" }).catch(() => null);
-              if (check?.ok) {
-                updates.renders = JSON.stringify([{ url: renderUrl, label: `${name} — Product Render`, type: "render", generatedAt: new Date().toISOString() }]);
-              }
-            } catch { /* skip render */ }
-          }
-        }
-
-        updates.phase = "complete";
-        const fieldsUpdated = Object.keys(updates).filter(k => k !== "phase").length;
-        if (fieldsUpdated > 0) {
-          await db.update(labProjects).set(updates as any).where(eq(labProjects.id, proj.id));
-        }
-        batchJob.log.push(`✓ #${proj.id} "${name}" — ${fieldsUpdated} section${fieldsUpdated !== 1 ? "s" : ""} updated`);
-        batchJob.completed++;
-      } catch (err: any) {
-        batchJob.log.push(`✗ #${proj.id} "${proj.name}" — ${err?.message || "error"}`);
-        batchJob.failed++;
-        batchJob.completed++;
-      }
-    }
-
-    batchJob.running = false;
-    batchJob.finishedAt = new Date();
-    batchJob.currentProject = "";
-    batchJob.log.push(`✅ Batch complete — ${allForBatch.length} projects processed`);
-  });
-});
-
-// Export project as a self-contained HTML document (all content in one downloadable file)
-router.get("/lab/projects/:id/export", authMiddleware, async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id as string);
-  if (isNaN(id)) { res.status(400).json({ error: "Invalid project ID" }); return; }
-  const [project] = await db.select().from(labProjects).where(eq(labProjects.id, id));
-  if (!project) { res.status(404).json({ error: "Project not found" }); return; }
-
-  const renders: { url: string; label: string }[] = (() => { try { return JSON.parse(project.renders as any || "[]"); } catch { return []; } })();
-  const safeHtml = (s: string) => (s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  const filename = `${(project.name || "project").replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase().slice(0, 60)}-export.html`;
-  const exportDate = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
-
-  const section = (title: string, content: string) => content
-    ? `<section><h2>${title}</h2><pre>${safeHtml(content)}</pre></section>`
-    : "";
-
-  const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${safeHtml(project.name)} — Project Export</title>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f8fafc; color: #0f172a; }
-  .cover { background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%); color: white; padding: 3rem 4rem; }
-  .cover h1 { font-size: 2.5rem; font-weight: 700; margin-bottom: 0.5rem; }
-  .cover .meta { opacity: 0.6; font-size: 0.9rem; margin-top: 0.75rem; }
-  .cover .badge { display: inline-block; background: rgba(255,255,255,0.15); border-radius: 999px; padding: 0.25rem 0.75rem; font-size: 0.8rem; margin-right: 0.5rem; }
-  .content { max-width: 860px; margin: 0 auto; padding: 2rem; }
-  section { background: white; border-radius: 12px; padding: 1.5rem 2rem; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.07); }
-  h2 { font-size: 1rem; font-weight: 600; color: #1e40af; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid #e2e8f0; text-transform: uppercase; letter-spacing: 0.05em; font-size: 0.75rem; }
-  pre { white-space: pre-wrap; font-family: inherit; font-size: 0.88rem; line-height: 1.7; color: #334155; }
-  .renders { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; }
-  .renders figure { margin: 0; }
-  .renders img { width: 100%; border-radius: 8px; display: block; }
-  .renders figcaption { font-size: 0.75rem; color: #94a3b8; text-align: center; margin-top: 0.4rem; }
-  @media print { body { background: white; } .cover { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
-</style>
-</head>
-<body>
-<div class="cover">
-  <h1>${safeHtml(project.name)}</h1>
-  <div>
-    ${project.industry ? `<span class="badge">${safeHtml(project.industry)}</span>` : ""}
-    ${project.phase ? `<span class="badge">${safeHtml(project.phase)}</span>` : ""}
-  </div>
-  <p class="meta">Exported ${exportDate} · Sirius Star Lab</p>
-</div>
-<div class="content">
-  ${section("Executive Brief", project.brief || "")}
-  ${section("Market Research", project.research || "")}
-  ${section("Technical Specifications", project.specs || "")}
-  ${section("Business Case", project.businessCase || "")}
-  ${section("Go-To-Market Strategy", project.goToMarket || "")}
-  ${section("Implementation / Code", project.code || "")}
-  ${section("Brochure", project.brochure || "")}
-  ${section("Pitch", project.pitch || "")}
-  ${renders.length > 0 ? `<section><h2>Renders (${renders.length})</h2><div class="renders">${renders.map((r: any) => `<figure><img src="${r.url || r}" alt="${safeHtml(r.label || "Render")}" loading="lazy"><figcaption>${safeHtml(r.label || "")}</figcaption></figure>`).join("")}</div></section>` : ""}
-</div>
-</body>
-</html>`;
-
-  res.setHeader("Content-Type", "text/html; charset=utf-8");
-  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-  res.send(html);
-});
-
-// Public landing page — no auth, serves landing_page HTML directly in the browser
-router.get("/lab/p/:id", async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id as string);
-  if (isNaN(id)) { res.status(400).send("<h1>Invalid ID</h1>"); return; }
-  const [project] = await db.select({ landingPage: labProjects.landingPage, name: labProjects.name }).from(labProjects).where(eq(labProjects.id, id));
-  if (!project?.landingPage) {
-    res.status(404).send(`<!DOCTYPE html><html><head><title>Not Found</title></head><body style="font-family:sans-serif;padding:4rem;text-align:center"><h1 style="color:#0f172a">Page not found</h1><p style="color:#64748b;margin-top:1rem">This project doesn't have a landing page yet.</p></body></html>`);
-    return;
-  }
-  res.setHeader("Content-Type", "text/html; charset=utf-8");
-  res.setHeader("X-Frame-Options", "SAMEORIGIN");
-  res.send(project.landingPage);
-});
-
-// Serve AI-generated images saved by the generate_image tool
-router.get("/lab/renders/:filename", (req: Request, res: Response) => {
-  const { filename } = req.params;
-  if (!/^[\w-]+\.png$/.test(filename)) { res.status(400).json({ error: "Invalid filename" }); return; }
-  const { join } = require("path");
-  const { createReadStream, existsSync } = require("fs");
-  const filePath = join(process.env.SIRIUS_WORKSPACE || "/opt/sirius", "artifacts/api-server/public/renders", filename);
-  if (!existsSync(filePath)) { res.status(404).json({ error: "Render not found" }); return; }
-  res.setHeader("Content-Type", "image/png");
-  res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-  createReadStream(filePath).pipe(res);
-});
-
-// ── Project PDF Export ────────────────────────────────────────────────────
-// Returns a print-ready HTML page with all project data + images
-router.get("/lab/projects/:id/export-pdf", authMiddleware, async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id as string);
-  if (isNaN(id)) { res.status(400).json({ error: "Invalid project ID" }); return; }
-  const [project] = await db.select().from(labProjects).where(eq(labProjects.id, id));
-  if (!project) { res.status(404).json({ error: "Project not found" }); return; }
-
-  const renders: { url: string; label: string }[] = (() => { try { return JSON.parse(project.renders as any || "[]"); } catch { return []; } })();
-  const docs = await db.select().from(techDocs).where(eq(techDocs.projectId, id)).orderBy(desc(techDocs.uploadedAt));
-
-  // Get signed URLs for image docs
-  const imageDocs: { doc: typeof docs[0]; url: string }[] = [];
-  const nonImageDocs = docs.filter(d => !d.mimeType?.startsWith("image/"));
-  await Promise.all(
-    docs.filter(d => d.mimeType?.startsWith("image/")).map(async doc => {
-      try {
-        const storageInst = new ObjectStorageService();
-        const url = await storageInst.getObjectEntityDownloadURL(doc.objectPath, 3600);
-        imageDocs.push({ doc, url });
-      } catch {}
-    })
-  );
-
-  const safeHtml = (s: string) => (s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  const exportDate = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
-  const section = (title: string, content: string) => (content || "").trim()
-    ? `<section><h2>${title}</h2><div class="content-block">${safeHtml(content)}</div></section>` : "";
-
-  const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${safeHtml(project.name)} — Project Overview</title>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f8fafc; color: #0f172a; }
-  @media print {
-    body { background: white; }
-    .no-print { display: none !important; }
-    .cover { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    section { break-inside: avoid; }
-    .media-grid img { break-inside: avoid; }
-  }
-  .cover { background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%); color: white; padding: 3rem 4rem; }
-  .cover h1 { font-size: 2.4rem; font-weight: 700; margin-bottom: 0.5rem; }
-  .cover .meta { opacity: 0.55; font-size: 0.85rem; margin-top: 0.75rem; }
-  .badge { display: inline-block; background: rgba(255,255,255,0.15); border-radius: 999px; padding: 0.2rem 0.65rem; font-size: 0.78rem; margin-right: 0.4rem; margin-top: 0.4rem; }
-  .print-bar { background: white; border-bottom: 1px solid #e2e8f0; padding: 0.75rem 4rem; display: flex; align-items: center; gap: 1rem; }
-  .print-btn { display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 1.5rem; background: #0f172a; color: white; border: none; border-radius: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
-  .print-btn:hover { background: #1e293b; }
-  .content { max-width: 860px; margin: 0 auto; padding: 2rem; }
-  section { background: white; border-radius: 12px; padding: 1.5rem 2rem; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.07); }
-  h2 { font-size: 0.72rem; font-weight: 700; color: #1e40af; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid #e2e8f0; text-transform: uppercase; letter-spacing: 0.06em; }
-  .content-block { white-space: pre-wrap; font-family: inherit; font-size: 0.87rem; line-height: 1.75; color: #334155; }
-  .media-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; }
-  .media-grid figure { margin: 0; }
-  .media-grid img { width: 100%; border-radius: 8px; display: block; }
-  .media-grid figcaption { font-size: 0.72rem; color: #94a3b8; text-align: center; margin-top: 0.35rem; }
-  .file-list li { padding: 0.5rem 0; border-bottom: 1px solid #f1f5f9; font-size: 0.84rem; list-style: none; }
-  .file-list .file-type { color: #94a3b8; font-size: 0.75rem; margin-left: 0.5rem; }
-  .sirius-footer { text-align: center; padding: 2rem; color: #94a3b8; font-size: 0.75rem; }
-</style>
-</head>
-<body>
-<div class="cover">
-  <h1>${safeHtml(project.name)}</h1>
-  <div>
-    ${project.industry ? `<span class="badge">${safeHtml(project.industry)}</span>` : ""}
-    ${project.phase ? `<span class="badge">${safeHtml(project.phase)}</span>` : ""}
-    ${project.manufacturingProcess ? `<span class="badge">${safeHtml(project.manufacturingProcess)}</span>` : ""}
-  </div>
-  <p class="meta">Generated ${exportDate} &nbsp;·&nbsp; Sirius Star Lab</p>
-</div>
-<div class="print-bar no-print">
-  <button class="print-btn" onclick="window.print()">&#x2B07; Save as PDF / Print</button>
-  <span style="color:#64748b;font-size:0.82rem;">Use your browser's Print → Save as PDF option</span>
-</div>
-<div class="content">
-  ${section("Executive Brief", project.brief || "")}
-  ${section("Market Research", project.research || "")}
-  ${section("Technical Specifications", project.specs || "")}
-  ${section("Materials & Components", project.materials || "")}
-  ${section("Drawing Notes", project.drawingNotes || "")}
-  ${section("Workflows", project.workflows || "")}
-  ${section("Market & Uses", project.industryProblem || "")}
-  ${section("Business Case", project.businessCase || "")}
-  ${section("Go-To-Market Strategy", project.goToMarket || "")}
-  ${section("Brochure", project.brochure || "")}
-  ${section("Pitch Deck", project.pitch || "")}
-  ${section("Economics & Pricing", project.costToBuild || "")}
-  ${renders.length > 0 ? `<section><h2>AI Renders (${renders.length})</h2><div class="media-grid">${renders.map((r: any) => `<figure><img src="${r.url || r}" alt="${safeHtml(r.label || "Render")}" loading="lazy"><figcaption>${safeHtml(r.label || "")}</figcaption></figure>`).join("")}</div></section>` : ""}
-  ${imageDocs.length > 0 ? `<section><h2>Files &amp; Media (${imageDocs.length})</h2><div class="media-grid">${imageDocs.map(({ doc, url }) => `<figure><img src="${url}" alt="${safeHtml(doc.fileName)}" loading="lazy"><figcaption>${safeHtml(doc.fileName)}${doc.docType ? ` · ${safeHtml(doc.docType)}` : ""}</figcaption></figure>`).join("")}</div></section>` : ""}
-  ${nonImageDocs.length > 0 ? `<section><h2>Attached Documents (${nonImageDocs.length})</h2><ul class="file-list">${nonImageDocs.map(doc => `<li><strong>${safeHtml(doc.fileName)}</strong><span class="file-type">${safeHtml(doc.docType)}</span>${doc.description ? `<br><span style="color:#64748b;font-size:0.8rem;">${safeHtml(doc.description)}</span>` : ""}</li>`).join("")}</ul></section>` : ""}
-  <div class="sirius-footer">Generated by Sirius Star Lab &nbsp;·&nbsp; sirius-ai.live</div>
-</div>
-</body>
-</html>`;
-
-  res.setHeader("Content-Type", "text/html; charset=utf-8");
-  res.send(html);
 });
 
 export default router;

@@ -1,4 +1,7 @@
 import app from "./app";
+import { startProjectPipeline, advanceCadPendingWithNotes } from "./lib/project-pipeline.js";
+import { tickAutomations } from "./lib/sirius-automation.js";
+import { runInvestmentRule } from "./lib/investment-rule.js";
 import { startPaymentExpiryJob } from "./lib/payment-expiry.js";
 import { startHealthMonitor } from "./lib/health-monitor.js";
 import { startSelfRepairEngine, restoreCustomToolsIfEmpty, backupCustomTools } from "./lib/self-repair.js";
@@ -16,6 +19,7 @@ process.on("unhandledRejection", (reason) => {
 });
 process.on("uncaughtException", (err) => {
   console.error("[UNCAUGHT EXCEPTION]", err);
+  // Give the logger a moment to flush, then exit so the process manager can restart
   setTimeout(() => process.exit(1), 500);
 });
 

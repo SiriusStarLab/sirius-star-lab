@@ -1,10 +1,8 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,200;0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300;1,9..40,400&display=swap');
-
 @import "tailwindcss";
 
 :root {
-  --font-display: 'DM Sans', sans-serif;
-  --font-body: 'DM Sans', sans-serif;
+  --font-display: 'Cormorant Garamond', serif;
+  --font-body: 'Plus Jakarta Sans', sans-serif;
 }
 
 @theme inline {
@@ -14,8 +12,8 @@
 
 body {
   font-family: var(--font-body);
-  background-color: #0D1E3A;
-  color: #EDF4FF;
+  background-color: #0A0514;
+  color: #f8faff;
   margin: 0;
   padding: 0;
   overflow: hidden;
@@ -23,48 +21,6 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-.text-glow-cyan {
-  text-shadow: 0 0 20px rgba(0, 196, 255, 0.6);
-}
-
-.text-glow-green {
-  text-shadow: 0 0 20px rgba(0, 229, 160, 0.6);
-}
-
-/* Shimmer sweep on the SIRIUS heading */
-@keyframes shimmer-sweep {
-  0%   { background-position: -250% center; }
-  100% { background-position: 250% center; }
-}
-.shimmer-heading {
-  background: linear-gradient(
-    90deg,
-    rgba(237,244,255,0.9) 0%,
-    rgba(237,244,255,0.9) 35%,
-    rgba(0,196,255,1) 48%,
-    rgba(255,255,255,1) 52%,
-    rgba(237,244,255,0.9) 65%,
-    rgba(237,244,255,0.9) 100%
-  );
-  background-size: 250% auto;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  animation: shimmer-sweep 2.8s linear infinite;
-}
-
-/* Sparkle particle twinkle */
-@keyframes sparkle-twinkle {
-  0%, 100% { opacity: 0; transform: scale(0) rotate(0deg); }
-  45%, 55% { opacity: 1; transform: scale(1) rotate(180deg); }
-}
-
-/* Scene flash on transition */
-@keyframes scene-flash {
-  0%   { opacity: 0.55; }
-  100% { opacity: 0; }
-}
-.scene-flash {
-  animation: scene-flash 0.35s ease-out forwards;
-  pointer-events: none;
+.text-glow {
+  text-shadow: 0 0 20px rgba(180, 150, 255, 0.4);
 }

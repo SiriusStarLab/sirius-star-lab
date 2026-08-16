@@ -1,6 +1,8 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { eq, desc, and, asc } from "drizzle-orm";
-import { db, dreamLabProfiles, dreamLabIdeas, dreamLabManifestations, dreamLabJournal, userProfilesTable, labMessages as dreamLabMessages } from "@workspace/db";
+import { db, dreamLabProfiles, dreamLabIdeas, dreamLabManifestations, dreamLabJournal, userProfilesTable, labMessages as _dreamLabMessages } from "@workspace/db";
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const dreamLabMessages = _dreamLabMessages as any;
 import { openai } from "@workspace/ai-client";
 
 const router: IRouter = Router();

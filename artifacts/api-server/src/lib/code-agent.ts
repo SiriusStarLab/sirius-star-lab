@@ -12,6 +12,7 @@ import { fileURLToPath } from "url";
 import { exec } from "child_process";
 import { promisify } from "util";
 import { openai } from "@workspace/ai-client";
+import { requireGarryApproval } from "./approval-gate.js";
 
 const execAsync = promisify(exec);
 
@@ -95,6 +96,11 @@ async function readFile(filePath: string, maxLines = 300): Promise<string> {
 
 async function writeFile(filePath: string, content: string): Promise<string> {
   if (!isPathAllowed(filePath)) throw new Error(`Path not allowed: ${filePath}`);
+  const approved = await requireGarryApproval(
+    `Write file: ${filePath}`,
+    `Content length: ${content.length} chars`,
+  );
+  if (!approved) throw new Error(`Code modification blocked — Garry did not approve writing ${filePath}`);
   const abs = path.resolve(WORKSPACE, filePath);
   await fs.mkdir(path.dirname(abs), { recursive: true });
   await fs.writeFile(abs, content, "utf-8");
@@ -103,6 +109,11 @@ async function writeFile(filePath: string, content: string): Promise<string> {
 
 async function editFile(filePath: string, oldStr: string, newStr: string): Promise<string> {
   if (!isPathAllowed(filePath)) throw new Error(`Path not allowed: ${filePath}`);
+  const approved = await requireGarryApproval(
+    `Edit file: ${filePath}`,
+    "Replacing " + oldStr.slice(0, 80).split("\n").join(" ") + "...",
+  );
+  if (!approved) throw new Error(`Code modification blocked — Garry did not approve editing ${filePath}`);
   const abs = path.resolve(WORKSPACE, filePath);
   const content = await fs.readFile(abs, "utf-8");
   if (!content.includes(oldStr)) throw new Error(`String not found in ${filePath}: "${oldStr.slice(0, 60)}..."`);
@@ -272,7 +283,7 @@ When you are done, call no more tools and write a final summary of exactly what 
 
   for (let i = 0; i < maxIterations; i++) {
     const response = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4.5",
+      model: "anthropic/claude-sonnet-4-5",
       messages,
       tools: CODE_TOOLS,
       tool_choice: "auto",

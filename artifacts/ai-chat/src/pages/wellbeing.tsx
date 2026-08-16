@@ -191,27 +191,10 @@ function WellbeingChat({ topic, onBack }: { topic: typeof TOPICS[0] & { welcomeQ
   const [voiceActive, setVoiceActive] = useState(false);
   const voiceRecRef = useRef<any>(null);
   const endRef = useRef<HTMLDivElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const msgCountRef = useRef(0);
   const base = getApiBase();
   const userId = getUserId();
 
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    const isNew = messages.length !== msgCountRef.current;
-    msgCountRef.current = messages.length;
-    if (isNew) {
-      setTimeout(() => {
-        const c = containerRef.current;
-        if (!c) return;
-        c.scrollTo({ top: Math.max(0, c.scrollHeight - c.clientHeight * 1.15), behavior: "smooth" });
-      }, 40);
-      return;
-    }
-    const dist = container.scrollHeight - container.scrollTop - container.clientHeight;
-    if (dist < 120) container.scrollTop = container.scrollHeight;
-  }, [messages, streaming]);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, streaming]);
   useEffect(() => {
     try { localStorage.setItem(storageKey, JSON.stringify(messages.slice(-40))); } catch {}
   }, [messages]);
@@ -293,7 +276,7 @@ Be genuinely illuminating. Draw on real science, ancient wisdom, and cutting-edg
       </div>
 
       {/* Messages */}
-      <div ref={containerRef} className="flex-1 overflow-y-auto px-4 py-5 space-y-4">
+      <div className="flex-1 overflow-y-auto px-4 py-5 space-y-4">
         {messages.map((msg, i) => (
           <motion.div key={i} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
             className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"} gap-3`}>
@@ -379,19 +362,10 @@ Be genuinely illuminating. Draw on real science, ancient wisdom, and cutting-edg
             className="flex-1 bg-transparent outline-none resize-none text-sm py-1"
             style={{ color: "#1e293b", lineHeight: 1.5, maxHeight: 120 }}
           />
-          <button
-            onClick={voiceActive ? () => { try { voiceRecRef.current?.stop(); } catch {} setVoiceActive(false); } : startVoice}
-            className="relative p-1.5 rounded-lg transition-all flex-shrink-0"
-            style={{ color: voiceActive ? topic.color : "rgba(15,23,42,0.35)" }}
-            title={voiceActive ? "Stop listening" : "Speak your message"}
-          >
-            {voiceActive && (
-              <span
-                className="absolute inset-0 rounded-lg animate-ping"
-                style={{ background: topic.color, opacity: 0.18 }}
-              />
-            )}
-            {voiceActive ? <MicOff className="w-4 h-4 relative" /> : <Mic className="w-4 h-4 relative" />}
+          <button onClick={voiceActive ? () => { try { voiceRecRef.current?.stop(); } catch {} setVoiceActive(false); } : startVoice}
+            className="p-1.5 rounded-lg transition-all flex-shrink-0"
+            style={{ color: voiceActive ? topic.color : "rgba(15,23,42,0.35)" }}>
+            {voiceActive ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
           </button>
           <button onClick={() => send()} disabled={!input.trim() || streaming}
             className="p-1.5 rounded-lg transition-all flex-shrink-0"

@@ -10,16 +10,22 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { router, Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useRef } from "react";
+import { Alert } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider } from "@/context/AppContext";
 import Colors from "@/constants/colors";
-import { SubscriptionProvider } from "@/lib/revenuecat";
-import { USER_ID_KEY } from "@/lib/api";
+import { initializeRevenueCat, SubscriptionProvider } from "@/lib/revenuecat";
 
 SplashScreen.preventAutoHideAsync();
+
+try {
+  initializeRevenueCat();
+} catch (err: any) {
+  Alert.alert("RevenueCat Unavailable", err?.message ?? "Unknown error");
+}
 
 const queryClient = new QueryClient();
 const ONBOARDING_KEY = "onboarding_complete";
@@ -34,14 +40,6 @@ function RootLayoutNav() {
       }}
     >
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen
-        name="login"
-        options={{
-          headerShown: false,
-          animation: "fade",
-          gestureEnabled: false,
-        }}
-      />
       <Stack.Screen
         name="onboarding"
         options={{
@@ -69,24 +67,16 @@ export default function RootLayout() {
     if (navigationReady.current) return;
     navigationReady.current = true;
 
-    (async () => {
-      try {
-        const userId = await AsyncStorage.getItem(USER_ID_KEY);
-        if (!userId) {
-          router.replace("/login");
-          return;
-        }
-        const onboardingDone = await AsyncStorage.getItem(ONBOARDING_KEY);
-        if (!onboardingDone) {
-          router.replace("/onboarding");
-        }
-        // userId exists and onboarding done — stay on (tabs) (default route)
-      } catch {
-        // AsyncStorage unavailable — proceed normally
-      } finally {
-        SplashScreen.hideAsync();
+    // Keep splash visible during the AsyncStorage check so there's no tabs flash
+    AsyncStorage.getItem(ONBOARDING_KEY).then((done) => {
+      if (!done) {
+        router.replace("/onboarding");
       }
-    })();
+    }).catch(() => {
+      // AsyncStorage unavailable — proceed to app normally
+    }).finally(() => {
+      SplashScreen.hideAsync();
+    });
   }, [fontsLoaded, fontError]);
 
   if (!fontsLoaded && !fontError) return null;

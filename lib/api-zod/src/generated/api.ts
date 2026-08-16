@@ -93,13 +93,9 @@ export const SendOpenaiMessageBody = zod.object({
   userId: zod.string().optional(),
   mode: zod.string().optional(),
   imageBase64: zod.string().optional(),
-  images: zod.array(zod.string()).optional(),
   documentBase64: zod.string().optional(),
   documentName: zod.string().optional(),
-  // Multi-document support (Gemini-style) — array of { base64, name }
-  documents: zod.array(zod.object({ base64: zod.string(), name: zod.string() })).optional(),
-  systemPrompt: zod.string().optional(),
-}).passthrough();
+});
 
 /**
  * @summary Get a user profile

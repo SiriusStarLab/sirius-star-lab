@@ -2,8 +2,8 @@ import { Router, type IRouter } from "express";
 import { eq, sql, desc, and } from "drizzle-orm";
 import { db, conversations as conversationsTable, messages as messagesTable, userProfilesTable } from "@workspace/db";
 import { openai } from "@workspace/ai-client";
-import { extractAndSaveMemories } from "../../lib/memory";
-import { loadConversationContext, loadCrossSessionContext } from "../../lib/mnemosyne";
+import { extractAndSaveMemories } from "./memory";
+import { loadConversationContext, loadCrossSessionContext } from "./mnemosyne";
 import {
   CreateOpenaiConversationBody,
   GetOpenaiConversationParams,
@@ -14,10 +14,10 @@ import {
   GenerateOpenaiImageBody,
 } from "@workspace/api-zod";
 import { generateImageBuffer } from "@workspace/ai-client/image";
-import { getUncachableSpotifyClient } from "../../lib/spotify";
-import { intelligence } from "../../lib/intelligence-client.js";
-import { executeCode } from "../../lib/code-sandbox.js";
-import { readSourceFile, deployChange, patchSourceFile, triggerReload, runServerDiagnostic } from "../../lib/self-deploy.js";
+import { getUncachableSpotifyClient } from "./spotify";
+import { intelligence } from "./intelligence-client.js";
+import { executeCode } from "./code-sandbox.js";
+import { readSourceFile, deployChange, patchSourceFile, triggerReload, runServerDiagnostic } from "./self-deploy.js";
 
 const router: IRouter = Router();
 
@@ -946,7 +946,7 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
   // Load conversation history via Mnemosyne (capped at 40 messages to stay within token limits)
   const allMessages = await loadConversationContext(conversationId, 40);
 
-  const inputMessages = allMessages.map((m, i) => {
+  const inputMessages = allMessages.map((m: any, i: any) => {
     const isLastUserMsg = i === allMessages.length - 1 && m.role === "user";
     // For the last user message, attach image if provided
     if (imageBase64 && isLastUserMsg) {
@@ -1033,7 +1033,7 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
   }
 
   // Build plain chat-compatible messages (no image_url for history, only for last message)
-  const chatMessages = allMessages.map((m, i) => {
+  const chatMessages = allMessages.map((m: any, i: any) => {
     const isLastUserMsg = i === allMessages.length - 1 && m.role === "user";
     if (extractedDocumentText && isLastUserMsg) {
       const docLabel = documentName ? `"${documentName}"` : "the uploaded document";

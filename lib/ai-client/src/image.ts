@@ -1,63 +1,28 @@
 import { Buffer } from "node:buffer";
 
+const POLLINATIONS_BASE = "https://image.pollinations.ai/prompt";
+
 export async function generateImageBuffer(
   prompt: string,
   size: "1024x1024" | "512x512" | "256x256" = "1024x1024"
 ): Promise<Buffer> {
-  const normalised = size === "512x512" || size === "256x256" ? "1024x1024" : size;
-
-  // Only use direct OpenAI key — Replit AI proxy and OpenRouter don't support image generation
-  const directKey = process.env.OPENAI_API_KEY;
-  const validDirectKey = directKey && !directKey.startsWith("sk-or-") ? directKey : null;
-
-  if (validDirectKey) {
-    const { default: OpenAI } = await import("openai");
-    const client = new OpenAI({ apiKey: validDirectKey });
-
-    // Try gpt-image-1 first — many OpenAI orgs (esp. newer ones) only have
-    // access to gpt-image-1, not dall-e-3. gpt-image-1 always returns
-    // b64_json and does NOT accept a response_format parameter — passing one
-    // causes a "400 Unknown parameter: 'response_format'" error.
-    try {
-      const response = await client.images.generate({
-        model: "gpt-image-1",
-        prompt,
-        size: normalised,
-      });
-      const base64 = response.data[0]?.b64_json ?? "";
-      if (!base64) throw new Error("No image data returned from OpenAI (gpt-image-1).");
-      console.log("[image] ✅ gpt-image-1 image generated successfully");
-      return Buffer.from(base64, "base64");
-    } catch (gptImageErr: any) {
-      console.warn("[image] gpt-image-1 failed, trying dall-e-3:", gptImageErr?.message);
-    }
-
-    // Fall back to dall-e-3 (older orgs / accounts that still have access).
-    try {
-      const response = await client.images.generate({
-        model: "dall-e-3",
-        prompt,
-        size: normalised,
-        response_format: "b64_json",
-      });
-      const base64 = response.data[0]?.b64_json ?? "";
-      if (!base64) throw new Error("No image data returned from OpenAI (dall-e-3).");
-      console.log("[image] ✅ DALL-E 3 image generated successfully");
-      return Buffer.from(base64, "base64");
-    } catch (dalleErr: any) {
-      console.warn("[image] DALL-E 3 failed, falling back to Pollinations:", dalleErr?.message);
-      // Fall through to Pollinations below
-    }
-  }
-
-  // Free fallback — Pollinations.AI (no API key required, works everywhere)
-  console.log("[image] Using Pollinations.AI for image generation");
-  const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true&model=flux&enhance=false&seed=${Date.now()}`;
-  const imgRes = await fetch(pollinationsUrl, { signal: AbortSignal.timeout(45_000) });
-  if (!imgRes.ok) {
-    throw new Error(`Image generation failed: ${imgRes.status} ${imgRes.statusText}`);
-  }
-  const arrayBuffer = await imgRes.arrayBuffer();
-  console.log("[image] ✅ Pollinations image generated successfully");
-  return Buffer.from(arrayBuffer);
+  const [width, height] = size.split("x").map(Number);
+  const url = POLLINATIONS_BASE + "/" + encodeURIComponent(prompt) + "?width=" + width + "&height=" + height + "&nologo=true&model=flux&seed=" + Date.now();
+  const res = await fetch(url, { signal: AbortSignal.timeout(60_000) });
+  if (!res.ok) throw new Error("Image generation failed: " + res.status + " " + res.statusText);
+  return Buffer.from(await res.arrayBuffer());
 }
+
+export async function generateImageDataUrl(
+  prompt: string,
+  size: "1024x1024" | "512x512" | "256x256" = "1024x1024"
+): Promise<string> {
+  const buffer = await generateImageBuffer(prompt, size);
+  return "data:image/png;base64," + buffer.toString("base64");
+}
+
+export function generateImageUrl(prompt: string, width = 1024, height = 1024): string {
+  return POLLINATIONS_BASE + "/" + encodeURIComponent(prompt) + "?width=" + width + "&height=" + height + "&nologo=true&model=flux";
+}
+
+export const openai = null;

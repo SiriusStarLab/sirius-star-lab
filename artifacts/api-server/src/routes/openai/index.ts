@@ -688,7 +688,21 @@ You treat image creation as a genuine creative endeavour, not a technical functi
 
 ## Memory and continuity
 
-You remember everything in this conversation and build on it naturally — noticing patterns, recalling what matters, growing more attuned to this specific person as you talk. You carry the whole of what's been said with you.`;
+You remember everything in this conversation and build on it naturally — noticing patterns, recalling what matters, growing more attuned to this specific person as you talk. You carry the whole of what's been said with you.
+
+## Constraint verification — always check before responding
+
+When your response involves any explicit constraints from the user — a budget cap, a time limit, a maximum count, a scheduling rule, a required format — **run a silent check before you write your final answer**: Does my answer actually satisfy every constraint stated in the prompt? If not, correct it before responding. Never deliver an answer that violates an explicit rule the user gave you.
+
+---
+
+## Source provenance — be honest about where information came from
+
+When you retrieve information through a web search, say so naturally: *"I found..."*, *"According to [source]..."*, *"A quick search shows..."*. Never say *"you provided"* or *"you mentioned"* for information that came from your own search — that is misleading. The distinction matters: what the user told you vs. what you looked up are different things, and you must be honest about which is which.
+
+---
+
+`;
 
 
 // Checks if Sirius's OWN response signals it's about to create an image.
@@ -1013,6 +1027,45 @@ router.put("/openai/profiles/:userId", async (req, res): Promise<void> => {
   res.json(profile);
 });
 
+// ── Smart search routing ─────────────────────────────────────────────────────
+// Returns false for queries that are self-contained and do not need live search.
+// Returns true for queries that genuinely benefit from real-time web information.
+function needsSearch(content: string): boolean {
+  // Explicit no-search instruction from user
+  if (/(do ?not|don'?t)\s+(search|look up|use (the )?web|go online)/i.test(content)) return false;
+  if (/no (web )?search/i.test(content)) return false;
+
+  // References to prior conversation turns — must use conversation history, not search
+  if (/(your (previous|last|prior) (answer|response|message)|just (said|mentioned|told)|earlier (message|answer)|above (answer|response))/i.test(content)) return false;
+  if (/(recall|go back to|re-?check|what (did|was) (you|sirius)|verify your)/i.test(content)) return false;
+
+  // Pure maths — self-contained by definition
+  if (/(calculate|what is [\d(]|probability of|solve for|how many [\w]+ in|\d+\s*[\+\-\*\/]\s*\d+|percentage (of|change)|feasible range)/i.test(content)) return false;
+
+  // Logic and deductive reasoning
+  if (/(logic puzzle|deduct|if .{0,30} then .{0,30} (who|what|which)|box (is|contains|labelled)|who (is|has) the .{0,20}(hat|box|label)|what order|which (person|box|slot))/i.test(content)) return false;
+
+  // Code tasks (no external live data needed)
+  if (/(debug this|fix (this|the|my) (code|bug|error|function)|code review|write (a |the )?(function|class|script|algorithm)|in (python|javascript|typescript|java|c\+\+|rust))/i.test(content)) return false;
+
+  // Pure writing / editing (self-contained)
+  if (/(rewrite|rephrase|improve (this|my|the)|make (this|it) (shorter|longer|clearer|more formal|professional)|proofread|grammar check|edit (this|my))/i.test(content)) return false;
+  if (/summari[sz]e?/i.test(content)) return false;
+
+  // Scheduling and constraint optimisation problems (self-contained)
+  if (/(cannot exceed|must not exceed|cap of|budget of|within (the )?(budget|limit)|maximum of \d|allocat)/i.test(content) && !/(latest|current|today)/i.test(content)) return false;
+
+  // Things that clearly need real-time web search
+  if (/(latest|current(ly)?|right now|as of today|this (week|month|year)|breaking|just announced)/i.test(content)) return true;
+  if (/(news|headline|stock (price|market)|share price|crypto|bitcoin|exchange rate|weather|forecast)/i.test(content)) return true;
+  if (/(who is (currently|now|the current)|prime minister|president|ceo|chancellor) (of |for )?\w/i.test(content)) return true;
+  if (/https?:\/\//i.test(content)) return true;
+  if (/(score|match result|fixture|standings|tournament result)/i.test(content)) return true;
+
+  // Default: search (Perplexity Sonar is the primary model for most queries)
+  return true;
+}
+
 router.post("/openai/conversations/:id/messages", async (req, res): Promise<void> => {
   const params = SendOpenaiMessageParams.safeParse(req.params);
   if (!params.success) {
@@ -1041,6 +1094,7 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
 
   // Load user profile and check daily limits
   let profile: { displayName: string; aiName: string; aiPersonality: string; memories: string; preferredLanguage: string; createdAt: Date | null } = { displayName: "", aiName: "Sirius", aiPersonality: "", memories: "", preferredLanguage: "auto", createdAt: null };
+  let chatModel = "anthropic/claude-sonnet-4-5"; // default; overridden by tier below
   if (userId) {
     const [dbProfile] = await db
       .select()
@@ -1052,8 +1106,10 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
 
       // Check daily message limit
       const tier = dbProfile.subscriptionTier || "free";
-      const limits: Record<string, number> = { free: 10, plus: 75, pro: 500 };
-      const limit = limits[tier] ?? 10;
+      const limits: Record<string, number> = { free: 20, plus: 75, pro: 75 };
+      const limit = limits[tier] ?? 30;
+      // Select AI model based on subscription tier
+      chatModel = tier === "free" ? "anthropic/claude-haiku-4-5" : "anthropic/claude-sonnet-4-5";
 
       if (limit !== Infinity) {
         const now = new Date();
@@ -1063,64 +1119,82 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
         const currentCount = needsReset ? 0 : parseInt(dbProfile.dailyMessageCount || "0", 10);
 
         if (currentCount >= limit) {
-          res.status(429).json({ error: `You've used all ${limit} of your free daily messages. Upgrade to Plus for 75/day, or Pro for 500/day.`, tier, limit });
+          res.status(429).json({ error: "Daily message limit reached. Upgrade to send more messages.", tier, limit });
           return;
         }
       }
     }
   }
 
+
   const mode = body.data.mode;
   const imageBase64 = body.data.imageBase64;
+  const images = (body.data as any).images as string[] | undefined;
   const documentBase64 = (body.data as any).documentBase64 as string | undefined;
   const documentName = (body.data as any).documentName as string | undefined;
-  const rawDocuments = (body.data as any).documents as Array<{ base64: string; name: string }> | undefined;
+  const documents = (body.data as any).documents as Array<{ base64: string; name: string }> | undefined;
   const systemPrompt = buildSystemPrompt(profile, mode);
 
-  // Build normalised doc list — prefer the multi-doc array; fall back to legacy single fields
-  const allDocuments: Array<{ base64: string; name: string }> =
-    rawDocuments && rawDocuments.length > 0
-      ? rawDocuments
-      : documentBase64
-        ? [{ base64: documentBase64, name: documentName ?? "document" }]
-        : [];
-
-  // Extract text from a single document buffer
-  async function extractDocText(base64: string, name: string): Promise<string | null> {
+  // Extract text from uploaded document (PDF, Word, plain text, CSV, Markdown)
+  let extractedDocumentText: string | null = null;
+  if (documentBase64) {
     try {
-      const buffer = Buffer.from(base64, "base64");
-      const lowerName = name.toLowerCase();
-      if (lowerName.endsWith(".pdf")) {
+      const buffer = Buffer.from(documentBase64, "base64");
+      const lowerName = (documentName || "").toLowerCase();
+      const isDocx = lowerName.endsWith(".docx") || lowerName.endsWith(".doc");
+      const isPdf  = lowerName.endsWith(".pdf");
+
+      if (isPdf) {
         const { PDFParse } = await import("pdf-parse");
         const pdfParser = new PDFParse({ data: new Uint8Array(buffer) });
         const result = await pdfParser.getText();
-        return result.text?.trim() || null;
-      } else if (lowerName.endsWith(".docx") || lowerName.endsWith(".doc")) {
+        extractedDocumentText = result.text?.trim() || null;
+      } else if (isDocx) {
         const mammoth = (await import("mammoth")).default;
         const result = await mammoth.extractRawText({ buffer });
-        return result.value?.trim() || null;
+        extractedDocumentText = result.value?.trim() || null;
       } else {
-        // TXT, CSV, Markdown, JSON, code — read as plain text
-        return buffer.toString("utf-8").trim() || null;
+        // TXT, CSV, Markdown, JSON — read as plain text
+        extractedDocumentText = buffer.toString("utf-8").trim() || null;
       }
     } catch (err: any) {
       console.error("Document extract error:", err?.message);
-      return null;
     }
   }
 
-  // Extract text from ALL uploaded documents in parallel
-  const extractedDocs: Array<{ name: string; text: string }> = (
-    await Promise.all(
-      allDocuments.map(async d => {
-        const text = await extractDocText(d.base64, d.name);
-        return text ? { name: d.name, text } : null;
-      })
-    )
-  ).filter((d): d is { name: string; text: string } => d !== null);
-
-  // Backward-compat alias used by the injection blocks below
-  const extractedDocumentText = extractedDocs.length > 0 ? extractedDocs[0].text : null;
+  // Multi-document: process documents[] array and concatenate extracted text
+  if (documents && documents.length > 0) {
+    const textParts: string[] = [];
+    for (const doc of documents) {
+      try {
+        const buf = Buffer.from(doc.base64, "base64");
+        const ln = (doc.name || "").toLowerCase();
+        let txt = "";
+        if (ln.endsWith(".pdf")) {
+          const { PDFParse } = await import("pdf-parse");
+          const p = new PDFParse({ data: new Uint8Array(buf) });
+          const r = await p.getText();
+          txt = r.text?.trim() || "";
+        } else if (ln.endsWith(".docx") || ln.endsWith(".doc")) {
+          const mam = (await import("mammoth")).default;
+          const r = await mam.extractRawText({ buffer: buf });
+          txt = r.value?.trim() || "";
+        } else {
+          txt = buf.toString("utf-8").trim();
+        }
+        if (txt) textParts.push(`=== ${doc.name} ===
+${txt}`);
+      } catch (e: any) {
+        console.error("Multi-doc extract error:", e?.message);
+      }
+    }
+    if (textParts.length > 0) {
+      const combined = textParts.join("\n\n");
+      extractedDocumentText = extractedDocumentText
+        ? extractedDocumentText + "\n\n" + combined
+        : combined;
+    }
+  }
 
   // Save user message
   await db.insert(messagesTable).values({
@@ -1132,57 +1206,31 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
   // Load conversation history via Mnemosyne (capped at 40 messages to stay within token limits)
   const allMessages = await loadConversationContext(conversationId, 40);
 
-  // History = everything except the current user message (which we just saved and will append manually)
-  // This is robust regardless of sort order — we drop the last item if it matches the current content.
-  const currentContent = body.data.content;
-  const historyMessages = (() => {
-    const msgs = [...allMessages];
-    // Remove the just-saved user message from the tail so we can append it with enrichment
-    for (let i = msgs.length - 1; i >= 0; i--) {
-      if (msgs[i].role === "user" && msgs[i].content === currentContent) {
-        msgs.splice(i, 1);
-        break;
-      }
-    }
-    return msgs;
-  })();
-
-  // Build the enriched current user message
-  const buildCurrentUserMessage = (): { role: "user"; content: any } => {
-    const userText = currentContent || "";
-
-    if (imageBase64) {
-      const imgUrl = imageBase64.match(/^data:([^;]+);base64,/) ? imageBase64 : `data:image/jpeg;base64,${imageBase64}`;
+  const inputMessages = allMessages.map((m, i) => {
+    const isLastUserMsg = i === allMessages.length - 1 && m.role === "user";
+    // For the last user message, attach image(s) if provided
+    const allImageUris = (images && images.length > 0) ? images : (imageBase64 ? [imageBase64] : []);
+    if (allImageUris.length > 0 && isLastUserMsg) {
+      const normalizeImg = (img: string) => img.startsWith("data:") ? img : `data:image/jpeg;base64,${img}`;
       return {
         role: "user" as const,
         content: [
-          { type: "text" as const, text: m.content || "What's in this image?" },
-          { type: "image_url" as const, image_url: { url: (() => { const m = imageBase64.match(/^data:([^;]+);base64,/); return m ? imageBase64 : `data:image/jpeg;base64,${imageBase64}`; })() } },
+          { type: "text" as const, text: m.content || (allImageUris.length > 1 ? "What's in these images?" : "What's in this image?") },
+          ...allImageUris.map(img => ({ type: "image_url" as const, image_url: { url: normalizeImg(img) } })),
         ],
       };
     }
-
-    if (extractedDocs.length > 0) {
-      const docsBlock = extractedDocs.length === 1
-        ? `The user has shared a document titled "${extractedDocs[0].name}". Here is the full text:\n\n---\n${extractedDocs[0].text}\n---`
-        : extractedDocs.map((d, idx) => `[Document ${idx + 1}: "${d.name}"]\n---\n${d.text}\n---`).join("\n\n");
-      const prefix = extractedDocs.length > 1 ? `The user has shared ${extractedDocs.length} documents.\n\n` : "";
-      return {
-        role: "user" as const,
-        content: `${prefix}${docsBlock}\n\nUser message: ${userText || "Please analyse the document(s) above."}`,
-      };
+    // For the last user message, attach document text if provided
+    if (extractedDocumentText && isLastUserMsg) {
+      const docLabel = documentName ? `"${documentName}"` : "the uploaded document";
+      const enrichedContent = `The user has shared a document titled ${docLabel}. Here is the full text content of the document:\n\n---\n${extractedDocumentText}\n---\n\nThe user's message: ${m.content || "Please analyse this document and give me your thoughts."}`;
+      return { role: "user" as const, content: enrichedContent };
     }
-
-    return { role: "user" as const, content: userText };
-  };
-
-  const currentUserMsg = buildCurrentUserMessage();
-
-  // inputMessages = history (plain text) + current user message (with image/doc enrichment)
-  const inputMessages = [
-    ...historyMessages.map(m => ({ role: m.role as "user" | "assistant", content: m.content })),
-    currentUserMsg,
-  ];
+    return {
+      role: m.role as "user" | "assistant",
+      content: m.content,
+    };
+  });
 
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
@@ -1191,22 +1239,18 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
 
   let fullResponse = "";
 
-  // When an image is attached, use Chat Completions vision directly.
-  // IMPORTANT: the full Sirius system prompt can exceed 200K tokens alone.
-  // For vision calls we use a short focused prompt and NO history — just the current image message.
+  // When an image is attached, use Chat Completions vision directly
   if (imageBase64) {
-    const visionSystemPrompt = `You are Sirius, a thoughtful and perceptive AI assistant. Analyse the image the user has shared and respond helpfully. Be specific about what you see — describe content, text, layout, colours, and any relevant details. If the user has asked a specific question about the image, answer it directly.${profile.aiPersonality ? `\n\nYour personality: ${profile.aiPersonality.slice(0, 300)}` : ""}`;
-
     try {
       const visionStream = await openai.chat.completions.create({
         model: "openai/gpt-4o",
         messages: [
-          { role: "system", content: visionSystemPrompt },
-          currentUserMsg as any,   // just the current message with image — no history
+          { role: "system", content: systemPrompt },
+          ...(inputMessages as any[]),
         ],
         stream: true,
         max_tokens: 2000,
-      } as any);
+      });
       for await (const chunk of visionStream) {
         const delta = chunk.choices[0]?.delta?.content;
         if (delta) {
@@ -1251,31 +1295,15 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
     }
   }
 
-  // inputMessages is the single source of truth for all paths — already enriched with docs/images.
-  // Cast to mutable so YouTube/GitHub injection can append to the last message.
-  const chatMessages: Array<{ role: "user" | "assistant"; content: any }> = inputMessages as any;
-
-  // ── YouTube transcript injection ─────────────────────────────────────────────
-  const ytRegex = /(?:youtube\.com\/watch\?.*?v=|youtu\.be\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/;
-  const ytMatch = (body.data.content ?? "").match(ytRegex);
-  if (ytMatch?.[1] && !imageBase64) {
-    const videoId = ytMatch[1];
-    res.write(`data: ${JSON.stringify({ type: "action", label: "Fetching YouTube transcript...", icon: "📺", color: "hsl(0 72% 55%)" })}\n\n`);
-    const transcript = await fetchYouTubeTranscript(videoId);
-    if (transcript) {
-      const lastIdx = chatMessages.length - 1;
-      if (lastIdx >= 0 && chatMessages[lastIdx].role === "user") {
-        const prev = typeof chatMessages[lastIdx].content === "string" ? chatMessages[lastIdx].content : body.data.content;
-        chatMessages[lastIdx] = {
-          role: "user",
-          content: `${prev}\n\n[YouTube Transcript — Video ID: ${videoId}]\n${transcript}`,
-        };
-      }
-      res.write(`data: ${JSON.stringify({ type: "action", label: "Transcript loaded · analysing video", icon: "✅", color: "hsl(142 71% 45%)" })}\n\n`);
-    } else {
-      res.write(`data: ${JSON.stringify({ type: "action", label: "No transcript available for this video", icon: "⚠️", color: "hsl(38 92% 50%)" })}\n\n`);
+  // Build plain chat-compatible messages (no image_url for history, only for last message)
+  const chatMessages = allMessages.map((m, i) => {
+    const isLastUserMsg = i === allMessages.length - 1 && m.role === "user";
+    if (extractedDocumentText && isLastUserMsg) {
+      const docLabel = documentName ? `"${documentName}"` : "the uploaded document";
+      return { role: "user" as const, content: `The user has shared a document titled ${docLabel}. Here is the full text:\n\n---\n${extractedDocumentText}\n---\n\nUser message: ${m.content || "Please analyse this document."}` };
     }
-  }
+    return { role: m.role as "user" | "assistant", content: m.content };
+  });
 
   // ── YouTube transcript injection ─────────────────────────────────────────────
   const ytRegex = /(?:youtube\.com\/watch\?.*?v=|youtu\.be\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/;
@@ -1733,528 +1761,82 @@ LOOP PREVENTION: If you have already called a tool and received its result, do N
   }
 
   try {
-    // Primary: perplexity/sonar (has built-in real-time web search, works via OpenRouter Chat Completions)
-    // Fallback: anthropic/claude-3-5-sonnet (no live search but excellent reasoning)
+    // Smart routing: use Perplexity only when the query needs live web data.
+    // For self-contained tasks (maths, logic, coding, editing, follow-ups), go directly
+    // to Claude to preserve conversation context and avoid irrelevant search results.
     let streamSucceeded = false;
+    const queryNeedsSearch = needsSearch(body.data.content ?? "");
 
-  // ── Owner agentic loop (Garry only) ────────────────────────────────────────
-  console.log(`[chat] userId="${userId}" conversationId=${conversationId}`);
-  if (userId === "garry") {
-    console.log(`[owner-loop] Garry detected — entering owner agentic loop`);
-    // Load recent messages from previous conversations for cross-session replay
-    const prevMessages = await loadCrossSessionContext(userId, 25, conversationId);
-    const crossSessionBlock = prevMessages.length > 0
-      ? `\n\n## PREVIOUS CONVERSATION CONTEXT (last ${prevMessages.length} messages across sessions)\nThis is what you and Garry discussed recently — you were there, this is your memory:\n\n${prevMessages.map(m => `${m.role === "user" ? "Garry" : "Sirius"}: ${m.content.slice(0, 400)}`).join("\n")}\n`
-      : "";
+    if (!queryNeedsSearch) {
+      // ── Direct to Claude (no search, full conversation context preserved) ──
+      try {
+        const claudeDirectStream = await openai.chat.completions.create({
+          model: chatModel,
+          messages: [
+            { role: "system", content: systemPrompt },
+            ...chatMessages,
+          ],
+          stream: true,
+          max_tokens: 2000,
+          signal: AbortSignal.timeout(45_000),
+        } as any) as unknown as AsyncIterable<any>;
 
-    const OWNER_TOOLS: any[] = [
-      {
-        type: "function",
-        function: {
-          name: "search_web",
-          description: "Search the web for current, live information. Use for news, research, prices, facts, anything that may have changed since training.",
-          parameters: {
-            type: "object",
-            properties: {
-              query: { type: "string", description: "The search query" },
-            },
-            required: ["query"],
-          },
-        },
-      },
-      {
-        type: "function",
-        function: {
-          name: "read_source_file",
-          description: "Read a file from Sirius's own source code on the server. Use before modifying any file — always read it first to get the exact current content. Reads from /opt/sirius-source/artifacts/api-server/.",
-          parameters: {
-            type: "object",
-            properties: {
-              path: { type: "string", description: "Path relative to artifacts/api-server/ e.g. 'src/routes/openai/index.ts' or 'src/lib/memory.ts'" },
-            },
-            required: ["path"],
-          },
-        },
-      },
-      {
-        type: "function",
-        function: {
-          name: "server_diagnostic",
-          description: "Run a safe diagnostic command against the live production server. Use this to verify what is actually running — NOT execute_code (which is isolated and has no server access). Commands: bundle_contains (grep compiled bundle for a string), pm2_status, pm2_logs, health_check, list_backups, list_source_files.",
-          parameters: {
-            type: "object",
-            properties: {
-              command: {
-                type: "string",
-                enum: ["bundle_contains", "pm2_status", "pm2_logs", "health_check", "list_backups", "list_source_files"],
-                description: "Which diagnostic to run",
-              },
-              arg: { type: "string", description: "For bundle_contains: the string to search for. For pm2_logs: number of lines. For list_source_files: subdirectory path." },
-            },
-            required: ["command"],
-          },
-        },
-      },
-      {
-        type: "function",
-        function: {
-          name: "execute_code",
-          description: "Execute JavaScript or Python in a COMPLETELY ISOLATED Docker sandbox. This sandbox has NO access to the server filesystem, NO network, NO PM2, NO production files. Use it ONLY to test pure logic, algorithms, or calculations. DO NOT use it to check if something is running on the server — use server_diagnostic for that.",
-          parameters: {
-            type: "object",
-            properties: {
-              code: { type: "string", description: "Code to run" },
-              language: { type: "string", enum: ["javascript", "python"] },
-            },
-            required: ["code", "language"],
-          },
-        },
-      },
-      {
-        type: "function",
-        function: {
-          name: "propose_code_change",
-          description: "Propose a change to Sirius's own source code. Pipeline: AI review (GPT-4o) → TypeScript check → build → backup → deploy → PM2 reload. Always read_source_file first. Provide the COMPLETE new file content. Protected files that can never be changed: src/app.ts, src/middlewares/security.ts, src/lib/lab-auth.ts, build.ts, src/index.ts, src/routes/index.ts.",
-          parameters: {
-            type: "object",
-            properties: {
-              filePath: { type: "string", description: "Path relative to artifacts/api-server/ e.g. 'src/lib/my-feature.ts'. Only src/ files." },
-              newContent: { type: "string", description: "Complete new file content — not a snippet." },
-              description: { type: "string", description: "Specific explanation of what changed and why. The reviewer reads this." },
-            },
-            required: ["filePath", "newContent", "description"],
-          },
-        },
-      },
-    {
-      type: "function",
-      function: {
-        name: "patch_source_file",
-        description: "Apply a small targeted patch to a source file — like a precise find-and-replace. old_string MUST appear exactly once. Goes through the same review+build+deploy pipeline as propose_code_change. Use this for large files where rewriting the whole file is impractical.",
-        parameters: {
-          type: "object",
-          properties: {
-            filePath: { type: "string", description: "Path relative to artifacts/api-server/ e.g. 'src/lib/mnemosyne.ts'" },
-            oldString: { type: "string", description: "Exact string to replace — must appear exactly once in the file, including all whitespace and indentation." },
-            newString: { type: "string", description: "The replacement string." },
-            description: { type: "string", description: "What this change does and why. The reviewer reads this." },
-          },
-          required: ["filePath", "oldString", "newString", "description"],
-        },
-      },
-    },
-    {
-      type: "function",
-      function: {
-        name: "generate_image",
-        description: "Generate an image from a text description. Use whenever Garry asks you to draw, create, visualise, show, render, or make any kind of image, picture, or visual.",
-        parameters: {
-          type: "object",
-          properties: {
-            prompt: { type: "string", description: "Detailed, descriptive image generation prompt. Include style, composition, colours, and subject matter." },
-          },
-          required: ["prompt"],
-        },
-      },
-    },
-    ];
+        for await (const chunk of claudeDirectStream) {
+          const delta = chunk.choices?.[0]?.delta?.content;
+          if (delta) {
+            streamSucceeded = true;
+            fullResponse += delta;
+            res.write(`data: ${JSON.stringify({ content: delta })}
 
-    const ownerSystemPrompt = systemPrompt + crossSessionBlock + `
-
-## OWNER MODE — CAPABILITIES OVERRIDE
-
-The capabilities list earlier in this prompt is the PUBLIC list for regular users. You are talking to Garry — your owner. Your actual capabilities for this conversation are DIFFERENT and EXTENDED. The instruction to "answer from the list specifically" does not apply here. When Garry asks what you can do, describe what is listed below — not the public list.
-
-## YOUR REAL TOOLS (execute on the live production server)
-
-- **server_diagnostic(command)** — runs against the LIVE SERVER in-process. Commands: pm2_status, pm2_logs, health_check, bundle_contains(pattern), list_backups, list_source_files(subdir). This is how you check what is actually running.
-- **read_source_file(path)** — reads actual TypeScript source from /opt/sirius-source/artifacts/api-server/. Always do this BEFORE any code change.
-- **patch_source_file(filePath, oldString, newString, description)** — targeted find-and-replace on an existing file, then full AI review → build → deploy → PM2 reload. Use for any file over ~100 lines. oldString must appear EXACTLY ONCE in the file.
-- **propose_code_change(filePath, newContent, description)** — full file replacement through the same pipeline. Only practical for small new files (<100 lines).
-- **execute_code(code, language)** — isolated Docker sandbox, NO server access. Only use to test pure logic/algorithms.
-- **search_web(query)** — Perplexity live web search.
-- **generate_image(prompt)** — generates a real image and displays it inline in the chat. Use this whenever Garry asks to draw, create, visualise, show, render, or make any kind of image, picture, diagram, or visual. Do not describe what you would draw — just call the tool immediately.
-
-## REPORTING RULE — NON-NEGOTIABLE
-
-When you run tools and receive results, you MUST report ALL findings completely and inline in your final response. Do not say "what would you like to know from what I found." Do not summarise vaguely. Do not defer. The user already told you what they want — give them everything you found. If you ran 9 tools, report all 9 results.
-
-IMPORTANT: The compiled bundle is MINIFIED — function names disappear. To verify something is deployed, search for ERROR MESSAGE STRINGS or unique string literals with bundle_contains, not function names.
-
-LOOP PREVENTION: If you have already called a tool and received its result, do NOT call the same tool with the same arguments again. Act on what you find. Report it. Stop.`;
-
-    let agentMessages: any[] = [
-      { role: "system", content: ownerSystemPrompt },
-      ...chatMessages,
-    ];
-
-    let agentResponse = "";
-    const MAX_ROUNDS = 8;
-
-    for (let round = 0; round < MAX_ROUNDS; round++) {
-      const completion = await openai.chat.completions.create({
-        model: "anthropic/claude-sonnet-4.5",
-        messages: agentMessages,
-        tools: OWNER_TOOLS,
-        tool_choice: "auto",
-        stream: true,
-        max_tokens: 8000,
-      } as any) as unknown as AsyncIterable<any>;
-
-      let roundContent = "";
-      const toolCallBuffers: Record<number, { id: string; name: string; arguments: string }> = {};
-      let finishReason = "";
-
-      for await (const chunk of completion) {
-        const choice = chunk.choices?.[0];
-        if (!choice) continue;
-        finishReason = choice.finish_reason || finishReason;
-
-        if (choice.delta?.content) {
-          roundContent += choice.delta.content;
-          agentResponse += choice.delta.content;
-          res.write(`data: ${JSON.stringify({ content: choice.delta.content })}\n\n`);
-        }
-        if (choice.delta?.tool_calls) {
-          for (const tc of choice.delta.tool_calls) {
-            const idx = tc.index ?? 0;
-            if (!toolCallBuffers[idx]) toolCallBuffers[idx] = { id: "", name: "", arguments: "" };
-            if (tc.id) toolCallBuffers[idx].id = tc.id;
-            if (tc.function?.name) toolCallBuffers[idx].name = tc.function.name;
-            if (tc.function?.arguments) toolCallBuffers[idx].arguments += tc.function.arguments;
+`);
           }
         }
-      }
-
-      const toolCalls = Object.values(toolCallBuffers);
-
-      if (finishReason !== "tool_calls" || toolCalls.length === 0) break;
-
-      const toolResults: any[] = [];
-
-      const say = (text: string) => res.write(`data: ${JSON.stringify({ content: text })}\n\n`);
-
-      for (const tc of toolCalls) {
-        let args: any = {};
-        try { args = JSON.parse(tc.arguments); } catch { /* ignore */ }
-
-        if (tc.name === "search_web") {
-          const { query } = args;
-          say(`\n\n🔍 *Searching: "${query}"*\n`);
-          res.write(`data: ${JSON.stringify({ type: "searching", query })}\n\n`);
-          try {
-            const sonarRes = await openai.chat.completions.create({
-              model: "perplexity/sonar",
-              messages: [{ role: "user", content: query }],
-              max_tokens: 1200,
-            } as any) as any;
-            const sonarText = sonarRes.choices?.[0]?.message?.content ?? "No results.";
-            say(`✅ *Search complete — got results*\n`);
-            toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: `Search results for "${query}":\n\n${sonarText}` });
-          } catch {
-            say(`⚠️ *Search failed — using training knowledge*\n`);
-            toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: "Search failed. Use your training knowledge." });
-          }
-
-        } else if (tc.name === "read_source_file") {
-          const { path } = args;
-          say(`\n\n📄 *Reading: ${path}*\n`);
-          res.write(`data: ${JSON.stringify({ type: "reading_file", path })}\n\n`);
-          try {
-            const content = await readSourceFile(path);
-            say(`✅ *File loaded — ${content.split("\n").length} lines*\n`);
-            toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: `File: ${path}\n\`\`\`typescript\n${content}\n\`\`\`` });
-          } catch (e: any) {
-            say(`❌ *Could not read ${path}: ${e.message}*\n`);
-            toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: `Error reading ${path}: ${e.message}` });
-          }
-
-        } else if (tc.name === "server_diagnostic") {
-          const { command, arg } = args;
-          say(`\n\n🖥️ *Running diagnostic: ${command}${arg ? ` (${arg})` : ""}*\n`);
-          res.write(`data: ${JSON.stringify({ type: "running_diagnostic", command })}\n\n`);
-          const result = await runServerDiagnostic(command, arg);
-          say(`✅ *Diagnostic complete*\n`);
-          toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: result });
-
-        } else if (tc.name === "execute_code") {
-          const { code, language } = args;
-          say(`\n\n⚙️ *Running ${language} code in sandbox*\n`);
-          res.write(`data: ${JSON.stringify({ type: "executing_code", language })}\n\n`);
-          const result = await executeCode(code, language);
-          const output = result.success
-            ? `Output:\n${result.stdout}${result.stderr ? `\nStderr:\n${result.stderr}` : ""}`
-            : `Execution failed: ${result.error}\n${result.stderr}`;
-          say(result.success ? `✅ *Code ran successfully*\n` : `❌ *Execution failed*\n`);
-          toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: output });
-
-        } else if (tc.name === "propose_code_change") {
-          const { filePath, newContent, description } = args;
-          say(`\n\n🔧 *Proposing change to ${filePath}*\n⏳ *Running review → build → deploy pipeline...*\n`);
-          res.write(`data: ${JSON.stringify({ type: "proposing_change", filePath })}\n\n`);
-          const apiKey = process.env.ANTHROPIC_API_KEY || process.env.OPENROUTER_API_KEY || "";
-          const result = await deployChange({ filePath, newContent, description, apiKey });
-
-          let resultMsg = result.success
-            ? `✅ DEPLOYED: ${result.reviewSummary || description}. Sirius reloading in ~3 seconds.`
-            : `❌ REJECTED at [${result.stage}]: ${result.message}${result.typecheckErrors ? `\n\nTypeScript errors:\n${result.typecheckErrors}` : ""}${result.reviewConcerns?.length ? `\n\nReviewer concerns:\n${result.reviewConcerns.join("\n")}` : ""}`;
-
-          say(result.success ? `✅ *Deployed successfully — reloading*\n` : `❌ *Rejected at [${result.stage}]*\n`);
-          res.write(`data: ${JSON.stringify({ type: "deploy_result", success: result.success, stage: result.stage })}\n\n`);
-          toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: resultMsg });
-
-          if (result.success) {
-            setTimeout(() => triggerReload().catch(() => {}), 3000);
-          }
-
-        } else if (tc.name === "patch_source_file") {
-          const { filePath, oldString, newString, description } = args;
-          say(`\n\n🩹 *Patching ${filePath}*\n⏳ *Running review → build → deploy pipeline...*\n`);
-          res.write(`data: ${JSON.stringify({ type: "proposing_change", filePath })}\n\n`);
-          const apiKey = process.env.ANTHROPIC_API_KEY || process.env.OPENROUTER_API_KEY || "";
-          const result = await patchSourceFile({ filePath, oldString, newString, description, apiKey });
-
-          let resultMsg = result.success
-            ? `✅ PATCHED & DEPLOYED: ${result.reviewSummary || description}. Sirius reloading in ~3 seconds.`
-            : `❌ PATCH REJECTED at [${result.stage}]: ${result.message}${result.typecheckErrors ? `\n\nTypeScript errors:\n${result.typecheckErrors}` : ""}${result.reviewConcerns?.length ? `\n\nReviewer concerns:\n${result.reviewConcerns.join("\n")}` : ""}`;
-
-          say(result.success ? `✅ *Patch deployed — reloading*\n` : `❌ *Patch rejected at [${result.stage}]*\n`);
-          res.write(`data: ${JSON.stringify({ type: "deploy_result", success: result.success, stage: result.stage })}\n\n`);
-          toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: resultMsg });
-
-          if (result.success) {
-            setTimeout(() => triggerReload().catch(() => {}), 3000);
-          }
-
-        } else if (tc.name === "generate_image") {
-          const { prompt } = args;
-          say(`\n\n🎨 *Generating image...*\n`);
-          console.log(`[owner-loop] generate_image called — prompt: "${String(prompt).slice(0, 80)}"`);
-          res.write(`data: ${JSON.stringify({ type: "action", label: "Generating image…", icon: "🎨", color: "hsl(280,80%,55%)" })}\n\n`);
-          try {
-            const imageBuffer = await generateImageBuffer(prompt as string, "1024x1024");
-            const b64 = imageBuffer.toString("base64");
-            const mimeType = imageBuffer[0] === 0xFF && imageBuffer[1] === 0xD8 ? "image/jpeg" : "image/png";
-            res.write(`data: ${JSON.stringify({ type: "image", b64, mimeType, prompt })}\n\n`);
-            toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: `Image generated successfully and displayed to Garry.` });
-          } catch (imgErr: any) {
-            console.error("[image] generate_image tool failed:", imgErr?.message);
-            say(`❌ *Image generation failed*\n`);
-            res.write(`data: ${JSON.stringify({ type: "image_error", message: "Image generation failed — please try again." })}\n\n`);
-            toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: `Image generation failed: ${imgErr?.message}` });
-          }
-        }
-      }
-
-      agentMessages = [
-        ...agentMessages,
-        {
-          role: "assistant" as const,
-          content: roundContent || null,
-          tool_calls: toolCalls.map(tc => ({ id: tc.id, type: "function" as const, function: { name: tc.name, arguments: tc.arguments } })),
-        },
-        ...toolResults,
-      ];
-    }
-
-    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
-    res.end();
-
-    // Save response and extract memories
-    if (agentResponse) {
-      await db.insert(messagesTable).values({ conversationId, role: "assistant", content: agentResponse });
-      await db.execute(sql`
-        UPDATE ${userProfilesTable}
-        SET
-          daily_message_count = CASE
-            WHEN daily_message_reset IS NULL OR DATE(daily_message_reset) != CURRENT_DATE
-            THEN '1'
-            ELSE CAST(CAST(daily_message_count AS INTEGER) + 1 AS TEXT)
-          END,
-          daily_message_reset = CASE
-            WHEN daily_message_reset IS NULL OR DATE(daily_message_reset) != CURRENT_DATE
-            THEN NOW()
-            ELSE daily_message_reset
-          END
-        WHERE user_id = ${userId}
-      `).catch(() => {});
-      const [dbProfile] = await db.select().from(userProfilesTable).where(eq(userProfilesTable.userId, userId));
-      if (dbProfile) {
-        extractAndSaveMemories(userId, [{ role: "user", content: body.data.content }, { role: "assistant", content: agentResponse }], dbProfile.memories || "").catch(() => {});
+      } catch (claudeDirectErr: any) {
+        console.error("Claude direct failed, falling back to Sonar:", claudeDirectErr?.message);
+        // fall through to search path below
       }
     }
-    return;
-  }
-  // ── End owner agentic loop ──────────────────────────────────────────────────
 
-  // ── Think mode — claude-3-7-sonnet with extended reasoning ──────────────────
-  if (mode === "think") {
+    if (!streamSucceeded) {
+      // ── Search path: Perplexity Sonar for real-time web queries ──
+
     try {
-      res.write(`data: ${JSON.stringify({ type: "action", label: "Extended reasoning engaged...", icon: "🧠", color: "hsl(270 70% 60%)" })}\n\n`);
-      const thinkStream = await openai.chat.completions.create({
-        model: "anthropic/claude-sonnet-4.5",
+      // Signal that we're searching (only reached when queryNeedsSearch=true or Claude direct failed)
+      res.write(`data: ${JSON.stringify({ type: "searching" })}\n\n`);
+
+      const sonarStream = await openai.chat.completions.create({
+        model: "perplexity/sonar",
         messages: [
           { role: "system", content: systemPrompt },
           ...chatMessages,
         ],
         stream: true,
-        max_tokens: 16000,
+        max_tokens: 1800,
+        signal: AbortSignal.timeout(45_000),
       } as any) as unknown as AsyncIterable<any>;
 
-      for await (const chunk of thinkStream) {
-        const delta = chunk.choices?.[0]?.delta as any;
-        if (!delta) continue;
-        if (delta.thinking) {
-          res.write(`data: ${JSON.stringify({ type: "thinking_chunk", content: delta.thinking })}\n\n`);
-        }
-        if (delta.content) {
-          fullResponse += delta.content;
-          res.write(`data: ${JSON.stringify({ content: delta.content })}\n\n`);
+      for await (const chunk of sonarStream) {
+        const delta = (chunk as any).choices?.[0]?.delta?.content;
+        if (delta) {
+          streamSucceeded = true;
+          fullResponse += delta;
+          res.write(`data: ${JSON.stringify({ content: delta })}\n\n`);
         }
       }
 
-      if (fullResponse) {
-        res.write(`data: ${JSON.stringify({ type: "thinking_done" })}\n\n`);
-        await db.insert(messagesTable).values({ conversationId, role: "assistant", content: fullResponse });
-        if (fullResponse.length > 80) {
-          try {
-            const fuResult = await openai.chat.completions.create({
-              model: "anthropic/claude-haiku-4.5",
-              messages: [
-                { role: "system", content: 'Generate exactly 3 short follow-up questions (max 8 words each). Return ONLY valid JSON: {"questions": ["q1?", "q2?", "q3?"]}' },
-                { role: "user", content: fullResponse.slice(-700) },
-              ],
-              max_tokens: 110,
-            } as any);
-            const rawFu = fuResult.choices[0]?.message?.content || "";
-            const jm = rawFu.match(/\{[\s\S]*\}/);
-            if (jm) {
-              const parsed = JSON.parse(jm[0]);
-              const qs: string[] = Array.isArray(parsed.questions) ? parsed.questions.filter(Boolean).slice(0, 3) : [];
-              if (qs.length) res.write(`data: ${JSON.stringify({ type: "followups", questions: qs })}\n\n`);
-            }
-          } catch { }
-        }
-        res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
-        res.end();
-        if (userId) {
-          extractAndSaveMemories(userId, [...chatMessages, { role: "assistant", content: fullResponse }] as any, profile.memories).catch(() => {});
-          db.execute(sql`UPDATE ${userProfilesTable} SET daily_message_count = CASE WHEN daily_message_reset IS NULL OR DATE(daily_message_reset) != CURRENT_DATE THEN '1' ELSE CAST(CAST(daily_message_count AS INTEGER) + 1 AS TEXT) END, daily_message_reset = CASE WHEN daily_message_reset IS NULL OR DATE(daily_message_reset) != CURRENT_DATE THEN NOW() ELSE daily_message_reset END WHERE user_id = ${userId}`).catch(() => {});
-        }
-        return;
-      }
-    } catch (thinkErr: any) {
-      console.error("Think mode failed, falling back to Perplexity:", thinkErr?.message);
-    }
-  }
+    } catch (sonarErr: any) {
+      console.error("Perplexity sonar failed, falling back to Claude:", sonarErr?.message);
 
-  // ── Research mode — domain search augmentation (PubMed + arXiv) ─────────────
-  if (mode === "research") {
-    try {
-      const query = body.data.content?.slice(0, 300) ?? "";
-      res.write(`data: ${JSON.stringify({ type: "action", label: "Searching PubMed...", icon: "🔬", color: "hsl(193 100% 52%)" })}\n\n`);
-      res.write(`data: ${JSON.stringify({ type: "action", label: "Searching arXiv...", icon: "📄", color: "hsl(193 100% 52%)" })}\n\n`);
-      const [pubmedResults, arxivResults] = await Promise.all([searchPubMed(query), searchArXiv(query)]);
-      const domainContext: string[] = [];
-      if (pubmedResults) domainContext.push(`## PubMed Results\n${pubmedResults}`);
-      if (arxivResults) domainContext.push(`## arXiv Results\n${arxivResults}`);
-      if (domainContext.length > 0) {
-        const lastIdx = chatMessages.length - 1;
-        if (lastIdx >= 0 && chatMessages[lastIdx].role === "user") {
-          chatMessages[lastIdx] = {
-            role: "user",
-            content: `${chatMessages[lastIdx].content}\n\n---\n[Academic Search Results — use these as primary sources]\n\n${domainContext.join("\n\n")}`,
-          };
-        }
-        res.write(`data: ${JSON.stringify({ type: "action", label: `${(pubmedResults ? 1 : 0) + (arxivResults ? 1 : 0)} academic sources loaded`, icon: "✅", color: "hsl(142 71% 45%)" })}\n\n`);
-      }
-    } catch (domainErr: any) {
-      console.error("Domain search failed:", domainErr?.message);
-    }
-  }
-
-  // ── Smart search routing — only call Perplexity when live data is genuinely needed ──
-  // Returns true → use Perplexity sonar. Returns false → answer directly with Claude.
-  function needsSearch(text: string, hasDoc: boolean, hasImage: boolean): boolean {
-    if (hasDoc || hasImage) return false;  // document/image analysis — Claude handles it directly
-
-    const q = text.toLowerCase().trim();
-
-    // Pure arithmetic / maths — never search
-    if (/^[\d\s\+\-\*\/\(\)\^\.\,\%=?]+$/.test(q)) return false;
-    if (/\b(what\s+is\s+[\d\s\+\-\*\/\(\)\^\.\,\%]+|calculate|compute|solve|simplify|evaluate|derivative|integral|equation)\b/.test(q)) return false;
-    if (/^\d[\d\s\+\-\*\×\÷\/\(\)\^\.]*[\+\-\*\×\÷\/\^][\d\s\+\-\*\×\÷\/\(\)\^\.]*[=?]?\s*$/.test(q)) return false;
-
-    // Coding — Claude is better; no live data needed
-    if (/\b(write\s+(a\s+)?(function|code|script|class|component|sql|query)|debug\s+(this|my)|fix\s+(this|my|the)\s+(code|bug|error)|how\s+do\s+i\s+(implement|code|program)|explain\s+(this\s+)?(code|function|algorithm))\b/.test(q)) return false;
-
-    // Document / file analysis queries
-    if (/\b(this\s+document|this\s+file|the\s+document|uploaded\s+(file|document)|analyse\s+this|analyze\s+this|summarise\s+this|summarize\s+this|read\s+this)\b/.test(q)) return false;
-
-    // Follow-ups referencing prior conversation
-    if (/^(yes|no|ok|okay|sure|thanks|thank you|got it|sounds good|perfect|great|continue|go on|and\?|what about|tell me more|elaborate|explain more|why|how so|can you|could you|please|hmm|interesting)\b/.test(q)) return false;
-    if (/\b(you (just|said|mentioned|told|explained)|as (you|we) (said|discussed|mentioned)|from (what|your) (you )?(said|mentioned)|earlier you|previously you|what we (were|just) (discussing|talking))\b/.test(q)) return false;
-
-    // Editing / writing / creative tasks — self-contained
-    if (/\b(write (me |a |an |the )?(email|letter|essay|summary|caption|bio|description|reply|message|paragraph|story|poem)|improve (this|my)|rewrite|rephrase|proofread|translate (this|the|my))\b/.test(q)) return false;
-
-    // Needs live data — always search
-    if (/\b(latest|breaking|just announced|right now|as of today|live (price|score|rate|update)|today'?s? (news|price|score|weather|rate)|current (price|score|news|event|rate|status)|stock\s+price|exchange\s+rate|weather\s+(in|at|for)|is\s+.+\s+open\s+(right\s+now|today)|score\s+(of|for)\s+the\s+(game|match))\b/.test(q)) return true;
-    if (/\b(news|just\s+happened|who\s+won|what\s+happened|recent\s+(news|event|update|development|change)|this\s+week('?s)?|this\s+month('?s)?|in\s+2025|in\s+2026)\b/.test(q)) return true;
-
-    // Specific URL / site content
-    if (/https?:\/\//.test(q) && !/youtube\.com|youtu\.be/.test(q)) return true; // YouTube handled separately above
-
-    // Default: most conversational, factual, and reasoning queries go to Claude
-    return false;
-  }
-
-  const userText = body.data.content ?? "";
-  const hasDocAttachment = allDocuments.length > 0;
-  const hasImageAttachment = !!imageBase64;
-  const shouldSearch = (mode === "research") ? false : needsSearch(userText, hasDocAttachment, hasImageAttachment);
-
-  try {
-    let streamSucceeded = false;
-
-    if (shouldSearch) {
-      // ── Perplexity sonar — live web search ────────────────────────────────
+      // Fallback to Claude Sonnet via OpenRouter
       try {
         const claudeStream = await openai.chat.completions.create({
-          model: "anthropic/claude-sonnet-4-5",
+          model: chatModel,
           messages: [
             { role: "system", content: systemPrompt },
             ...chatMessages,
           ],
           stream: true,
           max_tokens: 1800,
-          signal: AbortSignal.timeout(45_000),
-        } as any) as unknown as AsyncIterable<any>;
-
-        for await (const chunk of sonarStream) {
-          const delta = (chunk as any).choices?.[0]?.delta?.content;
-          if (delta) {
-            streamSucceeded = true;
-            fullResponse += delta;
-            res.write(`data: ${JSON.stringify({ content: delta })}\n\n`);
-          }
-        }
-      } catch (sonarErr: any) {
-        console.error("Perplexity sonar failed, falling back to Claude:", sonarErr?.message);
-      }
-    }
-
-    // ── Claude — direct answer (no search) or Perplexity fallback ─────────
-    if (!streamSucceeded) {
-      try {
-        const claudeStream = await openai.chat.completions.create({
-          model: "anthropic/claude-sonnet-4.5",
-          messages: [
-            { role: "system", content: systemPrompt },
-            ...chatMessages,
-          ],
-          stream: true,
-          max_tokens: 2400,
           signal: AbortSignal.timeout(45_000),
         } as any) as unknown as AsyncIterable<any>;
 
@@ -2267,10 +1849,13 @@ LOOP PREVENTION: If you have already called a tool and received its result, do N
           }
         }
       } catch (claudeErr: any) {
-        console.error("Claude stream failed:", claudeErr?.message);
+        console.error("Claude fallback also failed:", claudeErr?.message);
       }
     }
 
+    } // end if (!streamSucceeded) — search path
+
+    // If both models failed (direct Claude + Perplexity + Claude fallback), send error
     if (!streamSucceeded) {
       const errMsg = "I'm having trouble connecting right now — please try again in a moment.";
       fullResponse = errMsg;
@@ -2413,8 +1998,9 @@ router.post("/openai/transcribe", async (req, res): Promise<void> => {
   try {
     const rawBuffer = Buffer.from(audioBase64, "base64");
 
-    // Audio endpoints (Whisper, TTS) must use OpenAI directly — proxies like OpenRouter don't support them
-    const apiKey = process.env.OPENAI_API_KEY;
+    // Determine OpenAI base URL and key — prefer AI Integrations proxy, fall back to direct key
+    const baseURL = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
+    const apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
 
     if (!apiKey) {
       res.status(503).json({ error: "Transcription unavailable — no OpenAI key configured." });
@@ -2429,12 +2015,12 @@ router.post("/openai/transcribe", async (req, res): Promise<void> => {
     else if ((rawBuffer[0] === 0xff && rawBuffer[1] === 0xfb) || (rawBuffer[0] === 0x49 && rawBuffer[1] === 0x44)) ext = "mp3";
 
     const { default: OpenAI, toFile } = await import("openai");
-    const client = new OpenAI({ apiKey });
+    const client = new OpenAI({ apiKey, ...(baseURL ? { baseURL } : {}) });
 
     const file = await toFile(rawBuffer, `recording.${ext}`, { type: `audio/${ext === "mp4" ? "mp4" : ext}` });
     const transcript = await client.audio.transcriptions.create({
       file,
-      model: "whisper-1",
+      model: "gpt-4o-mini-transcribe",
     });
     res.json({ text: transcript.text });
   } catch (err: any) {
@@ -2485,9 +2071,8 @@ async function streamWavFile(filePath: string, res: import("express").Response):
   res.on("finish", () => { try { unlinkSync(filePath); } catch { /* ignore */ } });
 }
 
-// Piper TTS — British female Jenny voice (hardwired, no OpenAI)
 router.post("/openai/tts", async (req, res): Promise<void> => {
-  const { text } = req.body ?? {};
+  const { text, voice, language } = req.body ?? {};
   if (!text || typeof text !== "string") {
     res.status(400).json({ error: "text is required" });
     return;
@@ -2527,16 +2112,13 @@ router.post("/openai/tts", async (req, res): Promise<void> => {
       input: finalText,
       response_format: "mp3",
     });
-    const wav = await readFile(tmpFile);
-    res.setHeader("Content-Type", "audio/wav");
-    res.setHeader("Content-Length", String(wav.length));
-    res.setHeader("Cache-Control", "no-store");
-    res.send(wav);
+    const buffer = Buffer.from(await mp3.arrayBuffer());
+    res.set("Content-Type", "audio/mpeg");
+    res.set("Content-Length", String(buffer.length));
+    res.set("Cache-Control", "no-cache");
+    res.send(buffer);
   } catch (err: any) {
-    console.error("[TTS /openai/tts]", err.message);
-    res.status(500).json({ error: err.message });
-  } finally {
-    unlink(tmpFile).catch(() => {});
+    res.status(500).json({ error: "TTS generation failed", detail: err?.message });
   }
 });
 // ─── Universe Guide streaming endpoint ───────────────────────────────────────

@@ -113,12 +113,12 @@ export async function retrieveExperiences(
       })
       .filter(r => r.score >= threshold)
       // combined rank: semantic similarity weighted by learned utility
-      .sort((a, b) => (b.score * (0.5 + b.utility)) - (a.score * (0.5 + a.utility)))
+      .sort((a: any, b: any) => (b.score * (0.5 + b.utility)) - (a.score * (0.5 + a.utility)))
       .slice(0, topN);
 
     // mark retrieved (non-blocking)
     if (scored.length) {
-      const ids = scored.map(s => s.id);
+      const ids = scored.map((s: any) => s.id);
       pool.query(
         `UPDATE memrl_experiences
             SET retrieval_count = retrieval_count + 1, last_retrieved_at = NOW()

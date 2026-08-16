@@ -399,7 +399,7 @@ export default function StarLabScreen() {
       try { account = JSON.parse(raw); } catch { setView("login"); return; }
       setLabAuth(account);
       const tier = await checkTier(account.userId);
-      if (tier === "pro") {
+      if (tier !== "free") {
         await proceedAfterPayment(account);
       } else {
         // Signed in but not paid — go to payment
@@ -413,7 +413,7 @@ export default function StarLabScreen() {
   // they should NOT have to create a separate Star Lab account or pay again.
   useEffect(() => {
     if (subscription.isLoading) return;       // wait for RC to finish loading
-    if (!subscription.isPro) return;           // only Pro unlocks Star Lab
+    if (!subscription.isSubscribed) return; // any paid tier unlocks Star Lab           // only Pro unlocks Star Lab
     if (labAutoActivatedRef.current) return;   // already ran this session
     // Only fire when stuck at a gate screen (not already inside Star Lab)
     const gateViews: LabView[] = ["loading", "login", "signup", "payment", "forgot", "forgot_sent"];
@@ -443,7 +443,7 @@ export default function StarLabScreen() {
       // Go through PIN setup / entry as normal (keeps security intact)
       await proceedAfterPayment(account);
     })();
-  }, [subscription.isLoading, subscription.isPro, view, userId]);
+  }, [subscription.isLoading, subscription.isSubscribed, view, userId]);
 
   // ── Poll for payment confirmation (Stripe / bank) ────────────────────────
   useEffect(() => {
@@ -459,7 +459,7 @@ export default function StarLabScreen() {
         return;
       }
       const tier = await checkTier(labAuth.userId);
-      if (tier === "pro") {
+      if (tier !== "free") {
         clearPoll();
         await proceedAfterPayment(labAuth);
       }
@@ -490,7 +490,7 @@ export default function StarLabScreen() {
       await saveLabAuth(account);
       // Use tier from login response if present (e.g. Garry bypass), otherwise check
       const tier = (data.tier as string | undefined) ?? await checkTier(data.userId);
-      if (tier === "pro") {
+      if (tier !== "free") {
         await proceedAfterPayment(account);
       } else {
         setView("payment");
@@ -582,11 +582,12 @@ export default function StarLabScreen() {
   // ─────────────────────────────────────────────────────────────────────────
 
   const handleAppleIAP = async () => {
-    if (!labAuth || !subscription.proPackage) return;
+    const premiumPkg = subscription.plusPackage ?? subscription.proPackage;
+    if (!labAuth || !premiumPkg) return;
     setPayLoading(true);
     setPayError("");
     try {
-      await subscription.purchase(subscription.proPackage);
+      await subscription.purchase(premiumPkg);
       // RC purchase succeeded — sync to our server
       const base = getApiBase();
       await fetch(`${base}stripe/activate-lab`, {
@@ -607,7 +608,7 @@ export default function StarLabScreen() {
   const handleCheckPayment = async () => {
     if (!labAuth) return;
     const tier = await checkTier(labAuth.userId);
-    if (tier === "pro") {
+    if (tier !== "free") {
       clearPoll();
       await proceedAfterPayment(labAuth);
     } else {
@@ -620,7 +621,7 @@ export default function StarLabScreen() {
     setPayLoading(true);
     try {
       await subscription.restore();
-      if (subscription.isPro) {
+      if (subscription.isSubscribed) {
         const base = getApiBase();
         await fetch(`${base}stripe/activate-lab`, {
           method: "POST",
@@ -864,7 +865,7 @@ export default function StarLabScreen() {
         }
 
         const body: Record<string, any> = {
-          message: displayContent,
+          content: displayContent,
           mode: "guru",
           systemPrompt: SYSTEM_PROMPTS[chatMode],
           userId: uid,
@@ -991,7 +992,7 @@ export default function StarLabScreen() {
       const res = await fetch(`${base}openai/conversations/${convoId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: summaryPrompt, mode: "guru", systemPrompt: SYSTEM_PROMPTS.appbuilder, userId: uid }),
+        body: JSON.stringify({ content: summaryPrompt, mode: "guru", systemPrompt: SYSTEM_PROMPTS.appbuilder, userId: uid }),
       });
       if (!res.ok || !res.body) throw new Error("Failed");
       const reader = (res.body as any).getReader();
@@ -1329,12 +1330,13 @@ export default function StarLabScreen() {
   // ── Payment ───────────────────────────────────────────────────────────────
   if (view === "payment") {
     const isIOS = Platform.OS === "ios";
-    const hasAppleIAP = isIOS && !!subscription.proPackage;
+    const premiumPackage = subscription.plusPackage ?? subscription.proPackage;
+    const hasAppleIAP = isIOS && !!premiumPackage;
 
     return (
       <View style={[s.root, { paddingTop: topPad }]}>
         <Header
-          title="Star Lab Pro"
+          title="Star Lab Premium"
           right={
             <Pressable onPress={handleSignOut} style={s.backBtn} hitSlop={12}>
               <Feather name="log-out" size={17} color={Colors.textDim} />
@@ -1350,7 +1352,7 @@ export default function StarLabScreen() {
                 <Feather name="award" size={24} color="#f59e0b" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={s.planName}>Sirius Pro</Text>
+                <Text style={s.planName}>Sirius Premium</Text>
                 <Text style={s.planPrice}>£19.99 <Text style={s.planPricePer}>/month</Text></Text>
               </View>
             </View>
@@ -1391,7 +1393,7 @@ export default function StarLabScreen() {
                 ? <ActivityIndicator color="#fff" />
                 : <>
                     <Feather name="shopping-bag" size={17} color="#fff" />
-                    <Text style={s.appleBtnText}>Subscribe with Apple — {subscription.proPackage?.product.priceString ?? "£19.99"}/mo</Text>
+                    <Text style={s.appleBtnText}>Subscribe with Apple — {premiumPackage?.product.priceString ?? "£19.99"}/mo</Text>
                   </>}
             </Pressable>
           )}
@@ -1407,7 +1409,7 @@ export default function StarLabScreen() {
                   // Browser closed — auto-check if payment went through
                   if (labAuth) {
                     const tier = await checkTier(labAuth.userId);
-                    if (tier === "pro") {
+                    if (tier !== "free") {
                       await proceedAfterPayment(labAuth);
                     } else {
                       setPayError("Payment not confirmed yet. If you completed checkout, tap 'Check Payment Status' below.");

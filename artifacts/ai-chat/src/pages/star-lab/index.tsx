@@ -13,13 +13,15 @@ import {
   Mail, UserPlus, Users, Settings2, AtSign, Building2, Briefcase, StickyNote, CheckCircle2, AlertCircle,
   Banknote, CreditCard, ShoppingBag, BarChart3, ArrowRight, FileSearch, Hammer, ClipboardList,
   Brain, MessageSquare, Activity, Target, Building, Mic, MicOff, ShieldAlert, Rocket,
-  LayoutDashboard, ArrowLeft, Clock, Award, Layers3, Share, Keyboard, CornerDownLeft, Search,
-  Archive, Paperclip, Image, Menu
+  LayoutDashboard, ArrowLeft, Clock, Award, Layers3, Share, Keyboard, CornerDownLeft, Search, Monitor,
+  Archive
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { getApiBase } from "@/lib/api-base";
 import { type Project, type Message, type ScoutReport, type ScanHistoryEntry, type RankResult, type NavMode, type AccessRole } from './types';
 import { AppBuilderPanel } from './AppBuilderPanel';
+import { LivePreviewPanel } from './LivePreviewPanel';
+import { CodeEditorPanel } from './CodeEditorPanel';
 import { OutreachHubPanel } from './OutreachHubPanel';
 import { AgencyHubPanel } from './AgencyHubPanel';
 import { RevenuePanel, type RevenueTab } from './RevenuePanel';
@@ -28,8 +30,6 @@ import { AutoLabPanel } from './AutoLabPanel';
 import { SystemAuditPanel } from './SystemAuditPanel';
 import { NotificationBell } from './NotificationBell';
 import { UpgradesPanel } from './UpgradesPanel';
-import { TasksPanel } from './TasksPanel';
-import { TeamPanel } from './TeamPanel';
 import { OrchestratorPanel } from './OrchestratorPanel';
 import { LabMarkdown } from "./LabMarkdown";
 
@@ -39,7 +39,8 @@ const NAV_LABELS: Record<NavMode, string> = {
   labchat:     "Chat with Sirius",
   sysaudit:    "System Audit",
   upgrades:    "Sirius Upgrades",
-  tasks:       "Background Tasks",
+  livepreview: "Live Preview",
+  codeeditor:  "Code Editor",
   mission:     "Mission",
   appbuilder:  "App Builder",
   projects:    "Projects",
@@ -57,11 +58,9 @@ const NAV_LABELS: Record<NavMode, string> = {
   agency:      "Agency Hub",
   growth:      "Growth Engine",
   outreach:    "Outreach Hub",
-  team:        "Team Access",
 };
 import { speakText, parseSpokenPin } from "./voice-utils";
 import { SiriusLabChatPanel } from "./SiriusLabChatPanel";
-import { IOSInstallGuide } from "@/components/pwa-install-prompt";
 
 const INDUSTRIES = [
   "Aerospace", "Agriculture", "AI & ML", "Automotive", "Construction",
@@ -177,7 +176,7 @@ function StarLabGreeting({ userName, onComplete }: { userName?: string; onComple
             style={{ background: "radial-gradient(circle, hsla(193,100%,52%,0.22) 0%, transparent 68%)", filter: "blur(12px)" }} />
           <div className="relative z-10 rounded-full overflow-hidden"
             style={{ width: 118, height: 118, border: "2px solid hsla(193,100%,52%,0.5)", boxShadow: "0 0 36px hsla(193,100%,52%,0.45), 0 0 90px hsla(193,100%,52%,0.18)" }}>
-            <img src="/logo-v2.png" alt="Sirius Star Lab" className="w-full h-full object-cover"
+            <img src="/twins.jpg" alt="Sirius Star Lab" className="w-full h-full object-cover"
               style={{ filter: "brightness(1.15) contrast(1.08) saturate(1.2)" }} />
           </div>
         </motion.div>
@@ -345,7 +344,6 @@ function PinGate({ onUnlock, userName }: { onUnlock: (pin: string, role: AccessR
 
   const press = (d: string) => {
     if (digits.length >= MAX_PIN_DIGITS || status === "loading" || status === "locked") return;
-    unlockAudio(); // prime browser audio during real user gesture so audio.play() works later
     setDigits(prev => [...prev, d]);
     setStatus("idle");
   };
@@ -638,8 +636,6 @@ const ALL_TABS = [
   { id: "sales-plan", label: "Sales Plan", icon: TrendingUp, field: null, phase: "all", placeholder: "", generated: false },
   { id: "ai-arch", label: "AI Architecture", icon: Layers, field: null, phase: "all", placeholder: "", generated: false },
   { id: "launch", label: "Launch", icon: Send, field: null, phase: "all", placeholder: "", generated: false },
-  { id: "package", label: "Package", icon: Globe, field: null, phase: "all", placeholder: "", generated: false },
-  { id: "files", label: "Files & Media", icon: Paperclip, field: null, phase: "all", placeholder: "", generated: false },
 ];
 
 
@@ -755,7 +751,7 @@ function CompleteAllModal({ project, pin, onClose, onDone }: { project: Project;
 }
 
 function ChatPanel({ project, pin, mode, onUpdate }: { project: Project; pin: string; mode: "engineering" | "bot"; onUpdate?: (p: Project) => void }) {
-  const [messages, setMessages] = useState<{ role: string; content: string; attachedImageUrl?: string; copied?: boolean; savedFields?: string[] }[]>([]);
+  const [messages, setMessages] = useState<{ role: string; content: string; copied?: boolean; savedFields?: string[] }[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [searching, setSearching] = useState(false);
@@ -765,13 +761,9 @@ function ChatPanel({ project, pin, mode, onUpdate }: { project: Project; pin: st
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const [lastSaved, setLastSaved] = useState<{ field: string; label: string } | null>(null);
   const [voicePhase, setVoicePhase] = useState<"idle" | "listening">("idle");
-  const [attachedFile, setAttachedFile] = useState<string | null>(null);
-  const [attachedName, setAttachedName] = useState<string | null>(null);
-  const [attachedMime, setAttachedMime] = useState<string | null>(null);
   const voiceRecRef = useRef<any>(null);
   const projectRef = useRef(project);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const base = getApiBase();
 
   const startVoice = () => {
@@ -829,42 +821,18 @@ function ChatPanel({ project, pin, mode, onUpdate }: { project: Project; pin: st
     URL.revokeObjectURL(url);
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = ev => {
-      setAttachedFile(ev.target?.result as string);
-      setAttachedName(file.name);
-      setAttachedMime(file.type || "application/octet-stream");
-    };
-    reader.readAsDataURL(file);
-    e.target.value = "";
-  };
-
-  const clearAttachment = () => { setAttachedFile(null); setAttachedName(null); setAttachedMime(null); };
-
-  const isImageMime = (mime: string | null) => !!(mime && mime.startsWith("image/"));
-
   const send = async (override?: string) => {
     const msg = (override || input).trim();
-    if (!msg && !attachedFile || streaming) return;
-    const imgForDisplay = attachedFile && isImageMime(attachedMime) ? attachedFile : undefined;
-    const imgB64 = attachedFile && isImageMime(attachedMime) ? attachedFile : undefined;
-    const docB64 = attachedFile && !isImageMime(attachedMime) ? attachedFile : undefined;
-    const docName = attachedName && !isImageMime(attachedMime) ? attachedName : undefined;
-    setInput(""); clearAttachment(); setStreaming(true); setSearching(false);
-    setMessages(prev => [...prev, { role: "user", content: msg, attachedImageUrl: imgForDisplay }, { role: "assistant", content: "" }]);
+    if (!msg || streaming) return;
+    setInput(""); setStreaming(true); setSearching(false);
+    setMessages(prev => [...prev, { role: "user", content: msg }, { role: "assistant", content: "" }]);
     let assistant = "";
     const savedFieldLabels: string[] = [];
     try {
-      const body: any = { message: msg, tab: activeTab, mode: mode === "bot" ? "bot" : "engineering" };
-      if (imgB64) body.imageBase64 = imgB64;
-      if (docB64) { body.documentBase64 = docB64; body.documentName = docName; }
       const res = await fetch(`${base}lab/projects/${project.id}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-lab-pin": pin },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ message: msg, tab: activeTab, mode: mode === "bot" ? "bot" : "engineering" }),
       });
       const reader = res.body!.getReader(); const decoder = new TextDecoder();
       let buf = ""; let streamDone = false;
@@ -893,10 +861,6 @@ function ChatPanel({ project, pin, mode, onUpdate }: { project: Project; pin: st
             }
             if (d.type === "render_queued") {
               setMessages(prev => { const u = [...prev]; u[u.length - 1] = { role: "assistant", content: assistant + "\n\n🎨 Render queued — check the Renders tab in ~30 seconds." }; return u; });
-            }
-            if (d.type === "image" && d.url) {
-              assistant += `\n\n![Generated image](${d.url})\n\n`;
-              setMessages(prev => { const u = [...prev]; u[u.length - 1] = { role: "assistant", content: assistant }; return u; });
             }
             if (d.done) { streamDone = true; }
           } catch {}
@@ -941,13 +905,6 @@ function ChatPanel({ project, pin, mode, onUpdate }: { project: Project; pin: st
                 <Download className="w-3 h-3" style={{ color: "rgba(15,23,42,0.4)" }} />
               </button>
             )}
-            <a href={`${getApiBase()}lab/projects/${project.id}/export`}
-              download
-              title="Download project as HTML export pack"
-              className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs transition-all whitespace-nowrap"
-              style={{ background: "rgba(15,23,42,0.05)", color: "rgba(15,23,42,0.5)", border: "1px solid rgba(15,23,42,0.08)", textDecoration: "none" }}>
-              <Download className="w-3 h-3" /> Export
-            </a>
             {mode !== "bot" && !project.brief && !project.specs && (
               <button
                 onClick={() => send("Concept: " + project.name + " — " + (project.industry || "product") + ". Design this from scratch: research the market, write a full product brief, generate detailed technical specs with real materials for the application, create the bill of materials, manufacturing workflows, and business case. Start now.")}
@@ -1019,14 +976,7 @@ function ChatPanel({ project, pin, mode, onUpdate }: { project: Project; pin: st
                         </div>
                       )
                       : <LabMarkdown content={m.content} streaming={streaming && i === messages.length - 1} />
-                    : (
-                      <div>
-                        {m.attachedImageUrl && (
-                          <img src={m.attachedImageUrl} alt="Attached" className="rounded-xl mb-2 max-w-full" style={{ maxHeight: "240px", objectFit: "contain" }} />
-                        )}
-                        {m.content && <p className="text-white text-xs leading-relaxed">{m.content}</p>}
-                      </div>
-                    )}
+                    : <p className="text-slate-800 text-xs leading-relaxed">{m.content}</p>}
                 </div>
                 {m.role === "assistant" && m.content && (
                   <div className="flex items-center gap-2 mt-1 px-1">
@@ -1062,22 +1012,6 @@ function ChatPanel({ project, pin, mode, onUpdate }: { project: Project; pin: st
           </div>
         )}
         <div className="p-3 border-t flex-shrink-0" style={{ borderColor: "rgba(15,23,42,0.06)" }}>
-          {/* Attachment preview */}
-          {attachedFile && (
-            <div className="flex items-center gap-2 mb-2 px-2 py-1.5 rounded-xl" style={{ background: "rgba(0,198,255,0.08)", border: "1px solid rgba(0,198,255,0.2)" }}>
-              {isImageMime(attachedMime) ? (
-                <img src={attachedFile} alt="preview" className="w-8 h-8 rounded-lg object-cover flex-shrink-0" />
-              ) : (
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "rgba(0,198,255,0.15)" }}>
-                  <Paperclip className="w-3.5 h-3.5" style={{ color: "hsl(193,100%,40%)" }} />
-                </div>
-              )}
-              <span className="text-xs font-medium flex-1 truncate" style={{ color: "hsl(193,100%,35%)" }}>{attachedName}</span>
-              <button onClick={clearAttachment} className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: "rgba(15,23,42,0.08)" }}>
-                <X className="w-3 h-3" style={{ color: "rgba(15,23,42,0.5)" }} />
-              </button>
-            </div>
-          )}
           <div className="flex gap-2 mb-2">
             {/* Voice button */}
             <button
@@ -1094,40 +1028,20 @@ function ChatPanel({ project, pin, mode, onUpdate }: { project: Project; pin: st
                 ? <Loader2 className="w-3.5 h-3.5 text-white animate-spin" />
                 : <Mic className="w-3.5 h-3.5" style={{ color: "rgba(15,23,42,0.5)" }} />}
             </button>
-            {/* Attach button */}
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={streaming}
-              title="Attach image or document"
-              className="w-9 h-9 rounded-xl flex items-center justify-center self-end transition-all flex-shrink-0"
-              style={{
-                background: attachedFile ? "rgba(0,198,255,0.15)" : "rgba(15,23,42,0.07)",
-                border: attachedFile ? "1px solid rgba(0,198,255,0.4)" : "1px solid rgba(15,23,42,0.1)",
-                opacity: streaming ? 0.4 : 1,
-              }}>
-              <Paperclip className="w-3.5 h-3.5" style={{ color: attachedFile ? "hsl(193,100%,40%)" : "rgba(15,23,42,0.5)" }} />
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*,.pdf,.docx,.doc,.txt,.csv,.md,.json,.xls,.xlsx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/csv,text/markdown,application/json"
-              className="hidden"
-              onChange={handleFileSelect}
-            />
             <textarea value={input} onChange={e => setInput(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-              placeholder={voicePhase === "listening" ? "Listening…" : mode === "bot" ? "Ask the bot architect…" : "Type or tap mic · attach image/doc · ask anything…"}
+              placeholder={voicePhase === "listening" ? "Listening…" : mode === "bot" ? "Ask the bot architect…" : "Type or tap mic to speak · Ask anything…"}
               rows={2}
               className="flex-1 px-3 py-2 rounded-xl text-xs placeholder-slate-400 resize-none outline-none"
               style={{ background: voicePhase === "listening" ? "hsla(0,80%,55%,0.05)" : "#F8FAFC", border: `1px solid ${voicePhase === "listening" ? "hsla(0,80%,55%,0.3)" : "rgba(15,23,42,0.09)"}`, color: "#0F172A" }} />
-            <button onClick={() => send()} disabled={streaming || (!input.trim() && !attachedFile)}
+            <button onClick={() => send()} disabled={streaming || !input.trim()}
               className="w-9 h-9 rounded-xl flex items-center justify-center self-end transition-all flex-shrink-0"
-              style={{ background: "hsl(193,100%,35%)", opacity: streaming || (!input.trim() && !attachedFile) ? 0.3 : 1 }}>
+              style={{ background: "hsl(193,100%,35%)", opacity: streaming || !input.trim() ? 0.3 : 1 }}>
               {streaming ? <Loader2 className="w-3.5 h-3.5 text-slate-800 animate-spin" /> : <Send className="w-3.5 h-3.5 text-slate-800" />}
             </button>
           </div>
           <p className="text-xs text-center" style={{ color: "rgba(15,23,42,0.35)" }}>
-            🎤 Speak or type · 📎 attach images, PDFs, docs · Sirius writes &amp; saves
+            🎤 Speak or type · Sirius writes &amp; saves every section
           </p>
         </div>
       </div>
@@ -1867,14 +1781,6 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack, allProjects, onNavig
   const [expandedInsight, setExpandedInsight] = useState<number | null>(null);
   const [genVersion, setGenVersion] = useState(0);
   const [reviewFilter, setReviewFilter] = useState<"all" | "launch-ready" | "cad-pending">("all");
-  const [techDocs, setTechDocs] = useState<any[]>([]);
-  const [techDocsLoading, setTechDocsLoading] = useState(false);
-  const [techDocUrls, setTechDocUrls] = useState<Record<number, string>>({});
-  const [lightboxId, setLightboxId] = useState<number | null>(null);
-  const [uploadingFile, setUploadingFile] = useState(false);
-  const [uploadError, setUploadError] = useState("");
-  const [exportingPdf, setExportingPdf] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const base = getApiBase();
 
   const headers = useCallback(() => ({ "Content-Type": "application/json", "x-lab-pin": pin }), [pin]);
@@ -1909,76 +1815,12 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack, allProjects, onNavig
     setInsightsLoaded(true);
   }, [base, pin, project.id]);
 
-  const loadTechDocs = useCallback(async () => {
-    setTechDocsLoading(true);
-    try {
-      const res = await fetch(`${base}lab/projects/${project.id}/tech-docs`, { headers: { "x-lab-pin": pin } });
-      if (res.ok) {
-        const docs = await res.json();
-        setTechDocs(docs);
-        const urls: Record<number, string> = {};
-        await Promise.all(docs.map(async (doc: any) => {
-          if (doc.mimeType?.startsWith("image/")) {
-            try {
-              const r = await fetch(`${base}lab/projects/${project.id}/tech-docs/${doc.id}/download-url`, { headers: { "x-lab-pin": pin } });
-              if (r.ok) { const d = await r.json(); urls[doc.id] = d.url; }
-            } catch {}
-          }
-        }));
-        setTechDocUrls(urls);
-      }
-    } catch {}
-    setTechDocsLoading(false);
-  }, [base, pin, project.id]);
-
-  const uploadTechDoc = async (file: File) => {
-    setUploadingFile(true);
-    setUploadError("");
-    try {
-      const r1 = await fetch(`${base}lab/projects/${project.id}/tech-docs/upload-url`, { method: "POST", headers: { "x-lab-pin": pin } });
-      if (!r1.ok) throw new Error("Failed to get upload URL");
-      const { uploadURL, objectPath } = await r1.json();
-      const r2 = await fetch(uploadURL, { method: "PUT", body: file, headers: { "Content-Type": file.type || "application/octet-stream" } });
-      if (!r2.ok) throw new Error("Upload failed");
-      const docType = file.type.startsWith("image/") ? "photo" : /\.pdf$/i.test(file.name) ? "spec" : /\.(dwg|dxf)$/i.test(file.name) ? "drawing" : "other";
-      await fetch(`${base}lab/projects/${project.id}/tech-docs`, {
-        method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
-        body: JSON.stringify({ fileName: file.name, fileSize: file.size, mimeType: file.type || "application/octet-stream", objectPath, docType }),
-      });
-      await loadTechDocs();
-    } catch (e: any) { setUploadError(e.message || "Upload failed — please try again."); }
-    setUploadingFile(false);
-  };
-
-  const deleteTechDoc = async (docId: number) => {
-    await fetch(`${base}lab/projects/${project.id}/tech-docs/${docId}`, { method: "DELETE", headers: { "x-lab-pin": pin } });
-    setTechDocs(d => d.filter(doc => doc.id !== docId));
-    setTechDocUrls(u => { const n = { ...u }; delete n[docId]; return n; });
-  };
-
-  const exportPdf = async () => {
-    setExportingPdf(true);
-    try {
-      const res = await fetch(`${base}lab/projects/${project.id}/export-pdf`, { headers: { "x-lab-pin": pin } });
-      const html = await res.text();
-      const blob = new Blob([html], { type: "text/html" });
-      const url = URL.createObjectURL(blob);
-      window.open(url, "_blank");
-      setTimeout(() => URL.revokeObjectURL(url), 15000);
-    } catch {}
-    setExportingPdf(false);
-  };
-
   useEffect(() => {
     setInsights([]); setInsightsLoaded(false);
-    setTechDocs([]); setTechDocUrls({}); setLightboxId(null);
     loadCompleteness();
+    // Auto-load insights for any project that has at least a name
     loadInsights();
   }, [project.id]);
-
-  useEffect(() => {
-    if (activeTab === "files") loadTechDocs();
-  }, [activeTab, project.id]);
 
   const saveField = async (field: string, value: string) => {
     setSaving(true);
@@ -2207,12 +2049,6 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack, allProjects, onNavig
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs transition-all"
             style={{ background: "#E8EEF5", color: "hsl(193,100%,60%)", border: "1px solid rgba(15,23,42,0.09)" }}>
             <Cpu className="w-3 h-3" /> Drawings
-          </button>
-          <button onClick={exportPdf} disabled={exportingPdf}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs transition-all"
-            style={{ background: "#E8EEF5", color: "hsl(155,70%,40%)", border: "1px solid rgba(15,23,42,0.09)", opacity: exportingPdf ? 0.6 : 1 }}>
-            {exportingPdf ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
-            {exportingPdf ? "Generating…" : "Export PDF"}
           </button>
         </div>
       </div>
@@ -2449,154 +2285,6 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack, allProjects, onNavig
             <RendersTab project={project} pin={pin} onUpdate={onUpdate} />
           )}
 
-          {activeTab === "files" && (
-            <div className="flex-1 flex flex-col min-h-0 overflow-y-auto relative">
-              {/* Lightbox */}
-              {lightboxId !== null && (() => {
-                const doc = techDocs.find(d => d.id === lightboxId);
-                const url = techDocUrls[lightboxId];
-                return doc ? (
-                  <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center"
-                    style={{ background: "rgba(0,0,0,0.88)" }}
-                    onClick={() => setLightboxId(null)}>
-                    <button className="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center"
-                      style={{ background: "rgba(255,255,255,0.15)" }}
-                      onClick={() => setLightboxId(null)}>
-                      <X className="w-4 h-4 text-white" />
-                    </button>
-                    {url ? (
-                      <img src={url} alt={doc.fileName}
-                        className="max-h-[85vh] max-w-[85vw] rounded-xl object-contain shadow-2xl"
-                        onClick={e => e.stopPropagation()} />
-                    ) : (
-                      <Loader2 className="w-8 h-8 text-white animate-spin" />
-                    )}
-                    <p className="absolute bottom-6 text-white/50 text-xs">{doc.fileName}</p>
-                  </div>
-                ) : null;
-              })()}
-
-              <div className="p-5 space-y-4">
-                {/* Header + upload */}
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h3 className="text-slate-800 font-semibold text-sm">Files &amp; Media</h3>
-                    <p className="text-xs mt-0.5" style={{ color: "rgba(15,23,42,0.4)" }}>
-                      Photos, drawings, PDFs and any visual references for this project
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <button onClick={loadTechDocs} disabled={techDocsLoading}
-                      className="p-1.5 rounded-lg transition-all hover:bg-slate-900/5"
-                      title="Refresh">
-                      <RefreshCw className={`w-3.5 h-3.5 text-slate-300 ${techDocsLoading ? "animate-spin" : ""}`} />
-                    </button>
-                    <button onClick={() => fileInputRef.current?.click()} disabled={uploadingFile}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all"
-                      style={{ background: "hsl(193,100%,35%)", color: "white", opacity: uploadingFile ? 0.7 : 1 }}>
-                      {uploadingFile ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
-                      {uploadingFile ? "Uploading…" : "Upload File"}
-                    </button>
-                    <input ref={fileInputRef} type="file"
-                      accept="image/*,.pdf,.dwg,.dxf,.step,.stp,.iges,.stl"
-                      className="hidden"
-                      onChange={e => { const f = e.target.files?.[0]; if (f) { uploadTechDoc(f); e.target.value = ""; } }} />
-                  </div>
-                </div>
-
-                {uploadError && (
-                  <div className="rounded-xl p-3 text-xs" style={{ background: "#FEF2F2", color: "#DC2626", border: "1px solid #FECACA" }}>
-                    {uploadError}
-                  </div>
-                )}
-
-                {techDocsLoading && techDocs.length === 0 && (
-                  <div className="flex items-center justify-center py-16">
-                    <Loader2 className="w-6 h-6 animate-spin text-slate-200" />
-                  </div>
-                )}
-
-                {!techDocsLoading && techDocs.length === 0 && (
-                  <div className="flex flex-col items-center justify-center py-16 text-center">
-                    <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
-                      style={{ background: "#F1F5F9", border: "1px solid rgba(15,23,42,0.08)" }}>
-                      <Image className="w-6 h-6 text-slate-300" />
-                    </div>
-                    <p className="text-slate-500 text-sm font-medium">No files yet</p>
-                    <p className="text-xs mt-1.5 max-w-xs leading-relaxed" style={{ color: "rgba(15,23,42,0.35)" }}>
-                      Upload product photos, concept sketches, engineering drawings, PDFs — anything that helps describe what you're building
-                    </p>
-                    <button onClick={() => fileInputRef.current?.click()}
-                      className="mt-4 flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-medium transition-all"
-                      style={{ background: "#F1F5F9", color: "rgba(15,23,42,0.55)", border: "1px solid rgba(15,23,42,0.09)" }}>
-                      <Upload className="w-3 h-3" /> Upload your first file
-                    </button>
-                  </div>
-                )}
-
-                {techDocs.length > 0 && (
-                  <div className="grid grid-cols-2 gap-3">
-                    {techDocs.map(doc => {
-                      const isImage = doc.mimeType?.startsWith("image/");
-                      const url = techDocUrls[doc.id];
-                      const TYPE_STYLE: Record<string, { bg: string; text: string }> = {
-                        photo:   { bg: "hsla(193,100%,20%,0.7)", text: "hsl(193,100%,65%)" },
-                        drawing: { bg: "hsla(155,70%,15%,0.7)",  text: "hsl(155,70%,50%)"  },
-                        concept: { bg: "hsla(280,70%,20%,0.7)",  text: "hsl(280,70%,65%)"  },
-                        spec:    { bg: "hsla(45,100%,15%,0.7)",  text: "hsl(45,100%,55%)"  },
-                        other:   { bg: "rgba(15,23,42,0.08)",    text: "rgba(15,23,42,0.45)" },
-                      };
-                      const ts = TYPE_STYLE[doc.docType] || TYPE_STYLE.other;
-                      return (
-                        <div key={doc.id} className="rounded-xl overflow-hidden group relative"
-                          style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.09)", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
-                          {/* Thumbnail */}
-                          {isImage && url ? (
-                            <div className="aspect-[4/3] cursor-pointer overflow-hidden bg-slate-50"
-                              onClick={() => setLightboxId(doc.id)}>
-                              <img src={url} alt={doc.fileName}
-                                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
-                            </div>
-                          ) : (
-                            <div className="aspect-[4/3] flex flex-col items-center justify-center gap-2"
-                              style={{ background: "#F8FAFC" }}>
-                              <Paperclip className="w-7 h-7 text-slate-200" />
-                              <span className="text-xs text-slate-300 px-3 text-center truncate w-full">{doc.fileName}</span>
-                            </div>
-                          )}
-                          {/* Info */}
-                          <div className="px-3 py-2.5">
-                            <p className="text-slate-700 text-xs font-medium truncate">{doc.fileName}</p>
-                            <div className="flex items-center justify-between mt-1.5">
-                              <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold" style={{ background: ts.bg, color: ts.text }}>
-                                {doc.docType}
-                              </span>
-                              <button onClick={() => deleteTechDoc(doc.id)}
-                                className="opacity-0 group-hover:opacity-100 p-1 rounded-md transition-all"
-                                style={{ color: "#EF4444" }}
-                                title="Delete">
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                            {doc.description && (
-                              <p className="text-xs mt-1.5 leading-relaxed" style={{ color: "rgba(15,23,42,0.45)" }}>{doc.description}</p>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {techDocs.length > 0 && (
-                  <p className="text-center text-xs" style={{ color: "rgba(15,23,42,0.3)" }}>
-                    {techDocs.length} file{techDocs.length !== 1 ? "s" : ""} · These are also included when you Export PDF
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
-
           {activeTab === "funding" && (
             <FundingProjectTab project={project} pin={pin} onUpdate={onUpdate} />
           )}
@@ -2613,11 +2301,7 @@ function ProjectWorkspace({ project, pin, onUpdate, onBack, allProjects, onNavig
             <LaunchPanel project={project} pin={pin} onUpdate={onUpdate} />
           )}
 
-          {activeTab === "package" && (
-            <ProductPackageTab project={project} pin={pin} onUpdate={onUpdate} />
-          )}
-
-          {activeTab !== "overview" && activeTab !== "renders" && activeTab !== "funding" && activeTab !== "sales-plan" && activeTab !== "ai-arch" && activeTab !== "launch" && activeTab !== "package" && tab && (
+          {activeTab !== "overview" && activeTab !== "renders" && activeTab !== "funding" && activeTab !== "sales-plan" && activeTab !== "ai-arch" && activeTab !== "launch" && tab && (
             <div className="flex flex-col h-full">
               {["specs", "drawings", "workflows"].includes(activeTab) && (
                 <div className="px-4 py-2 border-b flex items-center gap-2 flex-shrink-0" style={{ borderColor: "rgba(15,23,42,0.07)", background: "#F8FAFC" }}>
@@ -2733,148 +2417,6 @@ type AiArchInsights = {
   architectureNotes: string;
   sweptAt: string;
 };
-
-function ProductPackageTab({ project, pin, onUpdate }: { project: Project; pin: string; onUpdate: (p: Project) => void }) {
-  const [copied, setCopied] = useState<"landing" | "embed" | null>(null);
-  const [generating, setGenerating] = useState(false);
-  const base = getApiBase();
-
-  const copy = async (text: string, type: "landing" | "embed") => {
-    try { await navigator.clipboard.writeText(text); setCopied(type); setTimeout(() => setCopied(null), 2500); } catch {}
-  };
-
-  const previewLanding = () => {
-    if (!project.landingPage) return;
-    const blob = new Blob([project.landingPage], { type: "text/html" });
-    window.open(URL.createObjectURL(blob), "_blank");
-  };
-
-  const generate = async () => {
-    setGenerating(true);
-    try {
-      const res = await fetch(`${base}lab/projects/${project.id}/generate-package`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-lab-pin": pin },
-      });
-      if (res.ok) {
-        const reader = res.body?.getReader(); const dec = new TextDecoder(); let buf = "";
-        if (reader) {
-          while (true) {
-            const { done, value } = await reader.read(); if (done) break;
-            buf += dec.decode(value, { stream: true });
-          }
-        }
-        const updated = await fetch(`${base}lab/projects/${project.id}`, { headers: { "x-lab-pin": pin } }).then(r => r.json());
-        if (updated && updated.id) onUpdate(updated);
-      }
-    } catch {}
-    setGenerating(false);
-  };
-
-  const hasLanding = !!project.landingPage;
-  const hasEmbed = !!project.embedCode;
-
-  return (
-    <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 min-h-0">
-      <div className="flex items-start justify-between gap-3 flex-shrink-0">
-        <div>
-          <h3 className="text-sm font-semibold" style={{ color: "rgba(15,23,42,0.8)" }}>Product Package</h3>
-          <p className="text-xs mt-0.5" style={{ color: "rgba(15,23,42,0.45)" }}>Landing page + embed widget — ready to host or drop on any site</p>
-        </div>
-        <button onClick={generate} disabled={generating}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all flex-shrink-0"
-          style={{ background: "hsl(193,100%,32%)", color: "white", opacity: generating ? 0.6 : 1 }}>
-          {generating
-            ? <><Loader2 className="w-3 h-3 animate-spin" />Generating…</>
-            : <><Sparkles className="w-3 h-3" />{hasLanding || hasEmbed ? "Regenerate" : "Generate Package"}</>}
-        </button>
-      </div>
-
-      {!hasLanding && !hasEmbed && !generating && (
-        <div className="flex flex-col items-center justify-center py-14 gap-3 text-center">
-          <Globe className="w-8 h-8" style={{ color: "hsl(193,100%,55%)", opacity: 0.4 }} />
-          <p className="text-sm font-medium" style={{ color: "rgba(15,23,42,0.45)" }}>No package yet</p>
-          <p className="text-xs max-w-52" style={{ color: "rgba(15,23,42,0.35)" }}>
-            Click <strong>Generate Package</strong> to create a landing page and embed widget for this product.
-            Works best after Brief and Go-to-Market are filled in.
-          </p>
-        </div>
-      )}
-
-      {generating && !hasLanding && (
-        <div className="flex items-center gap-2 py-6 px-4 rounded-xl" style={{ background: "hsl(193,100%,97%)", border: "1px solid hsl(193,100%,88%)" }}>
-          <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" style={{ color: "hsl(193,100%,35%)" }} />
-          <span className="text-xs" style={{ color: "hsl(193,100%,28%)" }}>Generating landing page and embed widget…</span>
-        </div>
-      )}
-
-      {hasLanding && (
-        <div className="rounded-xl border overflow-hidden flex-shrink-0" style={{ borderColor: "rgba(15,23,42,0.09)" }}>
-          <div className="flex items-center justify-between px-3 py-2.5 border-b" style={{ borderColor: "rgba(15,23,42,0.07)", background: "#F8FAFC" }}>
-            <div className="flex items-center gap-1.5">
-              <Globe className="w-3.5 h-3.5" style={{ color: "hsl(193,100%,35%)" }} />
-              <span className="text-xs font-medium" style={{ color: "rgba(15,23,42,0.65)" }}>Landing Page HTML</span>
-              <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: "hsl(155,70%,92%)", color: "hsl(155,70%,30%)" }}>
-                {Math.round(project.landingPage.length / 1024)}KB
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <a href={`${base}lab/p/${project.id}`}
-                target="_blank" rel="noopener noreferrer"
-                className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg transition-all"
-                style={{ background: "hsl(155,70%,92%)", color: "hsl(155,60%,35%)", border: "1px solid hsl(155,70%,82%)", textDecoration: "none" }}>
-                <ExternalLink className="w-3 h-3" /> Live Page
-              </a>
-              <button onClick={previewLanding}
-                className="flex items-center gap-1 text-xs px-2 py-1 rounded-md transition-all"
-                style={{ background: "rgba(15,23,42,0.05)", color: "rgba(15,23,42,0.55)" }}>
-                <ExternalLink className="w-3 h-3" /> Preview
-              </button>
-              <button onClick={() => copy(project.landingPage, "landing")}
-                className="flex items-center gap-1 text-xs px-2 py-1 rounded-md transition-all"
-                style={{ background: copied === "landing" ? "hsl(155,70%,90%)" : "rgba(15,23,42,0.05)", color: copied === "landing" ? "hsl(155,70%,32%)" : "rgba(15,23,42,0.55)" }}>
-                {copied === "landing" ? <><Check className="w-3 h-3" /> Copied!</> : <><Copy className="w-3 h-3" /> Copy HTML</>}
-              </button>
-            </div>
-          </div>
-          <pre className="p-3 text-xs overflow-x-auto" style={{
-            color: "rgba(15,23,42,0.45)", background: "#FAFBFC", maxHeight: "180px", overflowY: "auto",
-            fontFamily: "'Fira Code','Cascadia Code','Consolas',monospace", lineHeight: 1.55, whiteSpace: "pre-wrap", margin: 0
-          }}>
-            {project.landingPage.slice(0, 600)}{project.landingPage.length > 600 ? "\n…" : ""}
-          </pre>
-        </div>
-      )}
-
-      {hasEmbed && (
-        <div className="rounded-xl border overflow-hidden flex-shrink-0" style={{ borderColor: "rgba(15,23,42,0.09)" }}>
-          <div className="flex items-center justify-between px-3 py-2.5 border-b" style={{ borderColor: "rgba(15,23,42,0.07)", background: "#F8FAFC" }}>
-            <div className="flex items-center gap-1.5">
-              <Code className="w-3.5 h-3.5" style={{ color: "hsl(280,70%,55%)" }} />
-              <span className="text-xs font-medium" style={{ color: "rgba(15,23,42,0.65)" }}>Embed Widget</span>
-            </div>
-            <button onClick={() => copy(project.embedCode, "embed")}
-              className="flex items-center gap-1 text-xs px-2 py-1 rounded-md transition-all"
-              style={{ background: copied === "embed" ? "hsl(155,70%,90%)" : "rgba(15,23,42,0.05)", color: copied === "embed" ? "hsl(155,70%,32%)" : "rgba(15,23,42,0.55)" }}>
-              {copied === "embed" ? <><Check className="w-3 h-3" /> Copied!</> : <><Copy className="w-3 h-3" /> Copy Snippet</>}
-            </button>
-          </div>
-          <pre className="p-3 text-xs" style={{
-            color: "rgba(15,23,42,0.55)", background: "#FAFBFC",
-            fontFamily: "'Fira Code','Cascadia Code','Consolas',monospace", lineHeight: 1.6, whiteSpace: "pre-wrap", margin: 0
-          }}>
-            {project.embedCode}
-          </pre>
-          <div className="px-3 py-2 border-t" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
-            <p className="text-xs" style={{ color: "rgba(15,23,42,0.38)" }}>
-              Paste anywhere on a website to promote this product. Self-contained — no dependencies.
-            </p>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 
 function AiArchProjectTab({ project, pin, onUpdate }: { project: Project; pin: string; onUpdate: (p: Project) => void }) {
   const [triggering, setTriggering] = useState(false);
@@ -5148,19 +4690,8 @@ function DashboardPanel({ projects, pin, onNavigate, onOpenProject }: {
   onOpenProject: (p: Project) => void;
 }) {
   const hour = new Date().getHours();
-  const timeGreet = hour < 5 ? "Still up," : hour < 12 ? "Good morning," : hour < 18 ? "Good afternoon," : "Good evening,";
-  const today = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
-
-  // Pull last Sirius message for the "alive" card
-  const lastSiriusMsg = (() => {
-    try {
-      const msgs = JSON.parse(localStorage.getItem("lab_chat_owner") || "[]");
-      const last = [...msgs].reverse().find((m: any) => m.role === "assistant" && m.content);
-      if (!last) return null;
-      const clean = last.content.replace(/!\[.*?\]\(.*?\)/g, "").replace(/[#*`>_~]/g, "").replace(/\s+/g, " ").trim();
-      return clean.length > 10 ? clean.slice(0, 180) : null;
-    } catch { return null; }
-  })();
+  const timeGreet = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  const today = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
   // Compute stats from projects
   const activeProjects   = projects.filter(p => p.status === "active" || !p.status);
@@ -5209,265 +4740,148 @@ function DashboardPanel({ projects, pin, onNavigate, onOpenProject }: {
     return () => clearInterval(iv);
   }, []);
 
-  const QUICK_ACTIONS: { icon: React.ElementType; label: string; desc: string; color: string; mode: NavMode }[] = [
-    { icon: MessageSquare, label: "Chat with Sirius",  desc: "Your intelligence partner",       color: "hsl(193,100%,45%)", mode: "labchat"    },
-    { icon: Rocket,        label: "App Builder",       desc: "Build apps with AI agents",       color: "hsl(155,70%,45%)",  mode: "appbuilder" },
-    { icon: Telescope,     label: "Market Scout",      desc: "Scan for opportunities",           color: "hsl(45,100%,48%)",  mode: "scout"      },
-    { icon: FolderOpen,    label: "Projects",          desc: "Open your R&D workspace",         color: "hsl(226,70%,55%)",  mode: "projects"   },
-    { icon: BadgeCheck,    label: "Funding Radar",     desc: `${totalFundingOpps} open opps`,   color: "hsl(155,70%,45%)",  mode: "grants"     },
-    { icon: Cpu,           label: "Autonomous Lab",    desc: `${pendingApprovals.length} pending`, color: "hsl(280,60%,58%)", mode: "autolab"  },
-    { icon: Atom,          label: "AI Intelligence",   desc: "Live strategic feed",               color: "hsl(210,80%,58%)", mode: "feed"       },
-    { icon: BookOpen,      label: "Deep Research",     desc: "Multi-source deep dives",           color: "hsl(45,90%,48%)",  mode: "research"   },
+  const STATS = [
+    { label: "Projects",         value: projects.length,     color: "hsl(193,100%,40%)", icon: FolderOpen,       action: () => onNavigate("projects") },
+    { label: "Active",           value: activeProjects.length, color: "hsl(155,70%,45%)", icon: Activity,        action: () => onNavigate("projects") },
+    { label: "Pending Approval", value: pendingApprovals.length, color: pendingApprovals.length > 0 ? "hsl(25,90%,60%)" : "rgba(15,23,42,0.55)", icon: ClipboardList, action: () => onNavigate("autolab") },
+    { label: "Funding Opps",     value: totalFundingOpps,    color: "hsl(155,70%,45%)", icon: BadgeCheck,        action: () => onNavigate("grants") },
+    { label: "Drafted Apps",     value: totalDrafted,        color: "hsl(45,100%,50%)", icon: FileText,          action: () => onNavigate("grants") },
+  ];
+
+  const QUICK_ACTIONS: { icon: React.ElementType; label: string; desc: string; color: string; mode: NavMode; featured?: boolean }[] = [
+    { icon: Rocket,        label: "App Builder",        desc: "Build apps with AI agents",     color: "hsl(155,70%,42%)", mode: "appbuilder", featured: true },
+    { icon: MessageSquare, label: "Chat with Sirius",   desc: "Your intelligence partner",     color: "hsl(193,100%,38%)", mode: "labchat"   },
+    { icon: FolderOpen,    label: "Projects",            desc: "Open your R&D workspace",       color: "hsl(193,100%,32%)", mode: "projects"  },
+    { icon: Telescope,     label: "Market Scout",        desc: "Scan for opportunities",         color: "hsl(45,100%,42%)", mode: "scout"     },
+    { icon: BadgeCheck,    label: "Funding Radar",       desc: `${totalFundingOpps} open opps`,  color: "hsl(155,70%,45%)", mode: "grants"    },
+    { icon: Cpu,           label: "Autonomous Lab",      desc: `${pendingApprovals.length} pending`, color: "hsl(193,100%,40%)", mode: "autolab" },
+    { icon: Atom,          label: "AI Intelligence",     desc: "Live strategic feed",             color: "hsl(210,80%,55%)", mode: "feed"      },
+    { icon: Bot,           label: "Bot Lab",             desc: "Design AI automations",           color: "hsl(280,70%,55%)", mode: "botlab"    },
   ];
 
   return (
-    <div className="flex-1 overflow-y-auto" style={{ background: "#EEF2F7" }}>
-
-      {/* ── DARK HERO ── */}
-      <div className="relative overflow-hidden" style={{
-        background: "linear-gradient(160deg, #04081a 0%, #070d20 55%, #050e1b 100%)",
-      }}>
-        {/* Star field */}
-        <div className="absolute inset-0 pointer-events-none" style={{
-          backgroundImage: `radial-gradient(circle, rgba(0,212,255,0.07) 1px, transparent 1px),
-                            radial-gradient(circle, rgba(255,255,255,0.03) 1px, transparent 1px)`,
-          backgroundSize: "56px 56px, 28px 28px",
-          backgroundPosition: "0 0, 14px 14px",
-        }} />
-        {/* Ambient cyan glow top-left */}
-        <div className="absolute pointer-events-none" style={{
-          top: -80, left: -80, width: 340, height: 340,
-          background: "radial-gradient(circle, hsla(193,100%,45%,0.13) 0%, transparent 65%)",
-        }} />
-        {/* Ambient purple glow bottom-right */}
-        <div className="absolute pointer-events-none" style={{
-          bottom: -60, right: -60, width: 260, height: 260,
-          background: "radial-gradient(circle, hsla(226,70%,55%,0.1) 0%, transparent 65%)",
-        }} />
-
-        <div className="relative px-5 pt-6 pb-5 md:px-8 md:pt-8 md:pb-6">
-          {/* Status bar */}
-          <div className="flex items-center justify-between mb-5">
-            <span className="text-[10px] font-mono tracking-[0.18em] uppercase" style={{ color: "rgba(255,255,255,0.25)" }}>{today}</span>
-            <div className="flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "hsl(155,70%,55%)" }} />
-              <span className="text-[10px] font-mono tracking-wider" style={{ color: "hsl(155,65%,50%)" }}>SIRIUS ONLINE</span>
-            </div>
+    <div className="flex-1 overflow-y-auto" style={{ background: "#F8FAFC" }}>
+      {/* Header */}
+      <div className="px-8 pt-8 pb-6" style={{ borderBottom: "1px solid rgba(15,23,42,0.07)", background: "#FFFFFF" }}>
+        <div className="flex items-start justify-between">
+          <div>
+            <p className="text-xs font-mono mb-1" style={{ color: "rgba(15,23,42,0.55)", letterSpacing: "0.15em" }}>{today.toUpperCase()}</p>
+            <h1 className="text-slate-800 font-bold text-2xl mb-1">{timeGreet}, Garry.</h1>
           </div>
-
-          {/* Greeting row */}
-          <div className="flex items-start justify-between gap-4 mb-5">
-            <div>
-              <h1 style={{
-                color: "rgba(255,255,255,0.95)",
-                fontFamily: "Outfit, sans-serif", fontWeight: 700,
-                fontSize: "clamp(24px,5vw,34px)", lineHeight: 1.12, marginBottom: 8,
-              }}>
-                {timeGreet}<br />Garry.
-              </h1>
-              <p style={{ color: "rgba(255,255,255,0.32)", fontSize: 13, fontFamily: "Outfit, sans-serif" }}>
-                {activeProjects.length} active project{activeProjects.length !== 1 ? "s" : ""}
-                {totalFundingOpps > 0 ? ` · ${totalFundingOpps} funding opps` : ""}
-                {pipelineStatus?.currentlyBuilding ? " · building now" : ""}
-              </p>
-            </div>
-
-            {/* Desktop: Sirius orb */}
-            <div className="hidden md:flex flex-col items-center gap-2 flex-shrink-0">
-              <div style={{ position: "relative", width: 60, height: 60 }}>
-                <div style={{
-                  position: "absolute", inset: -10, borderRadius: "50%",
-                  background: "radial-gradient(circle, hsla(193,100%,50%,0.22) 0%, transparent 70%)",
-                  animation: "sirius-glow 2.4s ease-in-out infinite",
-                }} />
-                <div style={{
-                  width: 60, height: 60, borderRadius: "50%",
-                  background: "linear-gradient(135deg, hsl(193,100%,28%), hsl(226,70%,38%))",
-                  border: "1.5px solid rgba(0,212,255,0.35)",
-                  boxShadow: "0 0 28px hsla(193,100%,50%,0.28), inset 0 1px 0 rgba(255,255,255,0.08)",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                }}>
-                  <Star style={{ width: 24, height: 24, color: "rgba(255,255,255,0.9)" }} />
-                </div>
-              </div>
-            </div>
-
-            {/* Mobile: Tap-to-talk orb */}
-            <button
-              className="md:hidden flex flex-col items-center gap-1.5 flex-shrink-0"
-              onClick={() => onNavigate("labchat")}
-              style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}>
-              <div style={{ position: "relative" }}>
-                <div style={{
-                  position: "absolute", inset: -12, borderRadius: "50%",
-                  background: "radial-gradient(circle, hsla(193,100%,50%,0.28) 0%, transparent 70%)",
-                  animation: "sirius-glow 2.4s ease-in-out infinite",
-                }} />
-                <div style={{
-                  width: 68, height: 68, borderRadius: "50%",
-                  background: "linear-gradient(135deg, hsl(193,100%,28%), hsl(226,70%,38%))",
-                  border: "1.5px solid rgba(0,212,255,0.45)",
-                  boxShadow: "0 0 36px hsla(193,100%,50%,0.38)",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                }}>
-                  <Mic style={{ width: 26, height: 26, color: "rgba(255,255,255,0.95)" }} />
-                </div>
-              </div>
-              <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, fontFamily: "Outfit, sans-serif", fontWeight: 500, letterSpacing: "0.04em" }}>Talk to Sirius</span>
-            </button>
-          </div>
-
-          {/* Last Sirius message — ambient presence card */}
-          {lastSiriusMsg && (
-            <button
-              onClick={() => onNavigate("labchat")}
-              className="w-full text-left rounded-2xl px-4 py-3 mb-4 transition-all"
-              style={{ background: "rgba(255,255,255,0.045)", border: "1px solid rgba(0,212,255,0.13)", backdropFilter: "blur(6px)" }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.08)"; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.045)"; }}>
-              <div className="flex items-start gap-3">
-                <div style={{
-                  width: 22, height: 22, borderRadius: "50%", flexShrink: 0, marginTop: 1,
-                  background: "linear-gradient(135deg, hsl(193,100%,28%), hsl(226,70%,38%))",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                }}>
-                  <Star style={{ width: 11, height: 11, color: "white" }} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p style={{ color: "rgba(0,212,255,0.55)", fontSize: 9, fontFamily: "Outfit, sans-serif", fontWeight: 700, letterSpacing: "0.12em", marginBottom: 3, textTransform: "uppercase" }}>Sirius said recently</p>
-                  <p style={{ color: "rgba(255,255,255,0.65)", fontSize: 12.5, fontFamily: "Outfit, sans-serif", lineHeight: 1.55 }}
-                    className="line-clamp-2">
-                    {lastSiriusMsg}{lastSiriusMsg.length >= 180 ? "…" : ""}
-                  </p>
-                </div>
-                <ArrowRight style={{ width: 13, height: 13, color: "rgba(0,212,255,0.4)", flexShrink: 0, marginTop: 4 }} />
-              </div>
-            </button>
-          )}
-
-          {/* Stats strip */}
-          <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
-            {[
-              { label: "Projects",  value: projects.length,         color: "hsl(193,100%,52%)", icon: FolderOpen,    action: () => onNavigate("projects") },
-              { label: "Active",    value: activeProjects.length,   color: "hsl(155,70%,56%)",  icon: Activity,      action: () => onNavigate("projects") },
-              { label: "Funding",   value: totalFundingOpps,        color: totalFundingOpps > 0 ? "hsl(155,70%,56%)" : "rgba(255,255,255,0.3)", icon: BadgeCheck, action: () => onNavigate("grants") },
-              { label: "Drafted",   value: totalDrafted,            color: "hsl(45,100%,56%)",  icon: FileText,      action: () => onNavigate("grants") },
-              { label: "Pending",   value: pendingApprovals.length, color: pendingApprovals.length > 0 ? "hsl(25,90%,65%)" : "rgba(255,255,255,0.3)", icon: ClipboardList, action: () => onNavigate("autolab") },
-            ].map(s => {
-              const Icon = s.icon;
-              return (
-                <button key={s.label} onClick={s.action}
-                  className="flex items-center gap-2 rounded-xl px-3 py-2 flex-shrink-0 transition-all active:scale-95"
-                  style={{ background: "rgba(255,255,255,0.055)", border: "1px solid rgba(255,255,255,0.09)" }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.1)"; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.055)"; }}>
-                  <Icon style={{ width: 12, height: 12, color: s.color, flexShrink: 0 }} />
-                  <span style={{ color: s.color, fontFamily: "Outfit, sans-serif", fontWeight: 700, fontSize: 14, lineHeight: 1 }}>{s.value}</span>
-                  <span style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Outfit, sans-serif", fontWeight: 500, fontSize: 10.5 }}>{s.label}</span>
-                </button>
-              );
-            })}
+          <div className="flex items-center gap-2 text-xs" style={{ color: "rgba(15,23,42,0.6)" }}>
+            <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "hsl(155,70%,55%)" }} />
+            All systems online
           </div>
         </div>
       </div>
 
-      <div className="px-4 py-5 md:px-7 md:py-6 space-y-4">
-
-        {/* Live build alert */}
-        {pipelineStatus?.currentlyBuilding && (
-          <button onClick={() => onNavigate("autolab")}
-            className="w-full flex items-center gap-3 p-4 rounded-2xl text-left transition-all"
-            style={{ background: "linear-gradient(135deg,hsla(155,70%,42%,0.09),hsla(193,100%,40%,0.07))", border: "1px solid hsla(155,70%,42%,0.28)" }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "linear-gradient(135deg,hsla(155,70%,42%,0.15),hsla(193,100%,40%,0.12))"; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "linear-gradient(135deg,hsla(155,70%,42%,0.09),hsla(193,100%,40%,0.07))"; }}>
-            <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "hsla(155,70%,42%,0.18)" }}>
-              <Loader2 className="w-4 h-4 animate-spin" style={{ color: "hsl(155,70%,48%)" }} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-semibold text-sm text-slate-800">Sirius is building right now</p>
-              <p className="text-xs text-slate-400 truncate">{pipelineStatus.currentlyBuilding.name}{pipelineStatus.queued > 0 ? ` · ${pipelineStatus.queued} queued` : ""}</p>
-            </div>
-            <ArrowRight className="w-4 h-4 flex-shrink-0" style={{ color: "hsl(155,70%,48%)" }} />
-          </button>
-        )}
-
-        {/* Pending approvals */}
-        {pendingApprovals.length > 0 && (
-          <button onClick={() => onNavigate("autolab")}
-            className="w-full flex items-center gap-3 p-4 rounded-2xl text-left transition-all"
-            style={{ background: "hsla(25,90%,55%,0.07)", border: "1px solid hsla(25,90%,55%,0.22)" }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "hsla(25,90%,55%,0.12)"; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "hsla(25,90%,55%,0.07)"; }}>
-            <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "hsla(25,90%,55%,0.16)" }}>
-              <ClipboardList className="w-4 h-4" style={{ color: "hsl(25,90%,58%)" }} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-semibold text-sm text-slate-800">{pendingApprovals.length} project{pendingApprovals.length !== 1 ? "s" : ""} awaiting approval</p>
-              <p className="text-xs text-slate-400">Autonomous Lab has new opportunities to review</p>
-            </div>
-            <ArrowRight className="w-4 h-4 flex-shrink-0" style={{ color: "hsl(25,90%,58%)" }} />
-          </button>
-        )}
-
-        {/* Quick Access */}
-        <div>
-          <p className="text-[10px] font-mono font-bold tracking-[0.2em] mb-3" style={{ color: "rgba(15,23,42,0.28)" }}>QUICK ACCESS</p>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
-            {QUICK_ACTIONS.map(a => {
-              const Icon = a.icon;
-              return (
-                <button key={a.mode} onClick={() => onNavigate(a.mode)}
-                  className="flex items-center gap-3 p-3.5 rounded-2xl text-left transition-all hover:scale-[1.02] active:scale-[0.97]"
-                  style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.07)", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = `${a.color}55`; (e.currentTarget as HTMLElement).style.boxShadow = `0 3px 14px ${a.color}1a`; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "rgba(15,23,42,0.07)"; (e.currentTarget as HTMLElement).style.boxShadow = "0 1px 4px rgba(0,0,0,0.04)"; }}>
-                  <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${a.color}16` }}>
-                    <Icon style={{ width: 15, height: 15, color: a.color }} />
+      <div className="px-8 py-6 space-y-7">
+        {/* Stats row */}
+        <div className="grid grid-cols-5 gap-3">
+          {STATS.map(s => {
+            const Icon = s.icon;
+            return (
+              <button key={s.label} onClick={s.action}
+                className="rounded-2xl p-4 text-left transition-all hover:scale-[1.02] active:scale-[0.98]"
+                style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.07)", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: `${s.color}14` }}>
+                    <Icon className="w-4 h-4" style={{ color: s.color }} />
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-slate-800 font-semibold text-xs leading-snug">{a.label}</p>
-                    <p className="text-[11px] mt-0.5 truncate" style={{ color: "rgba(15,23,42,0.4)" }}>{a.desc}</p>
-                  </div>
-                </button>
-              );
-            })}
+                  <ArrowRight className="w-3.5 h-3.5" style={{ color: "rgba(15,23,42,0.5)" }} />
+                </div>
+                <p className="text-2xl font-bold" style={{ color: s.value > 0 ? s.color : "rgba(15,23,42,0.25)" }}>{s.value}</p>
+                <p className="text-xs mt-0.5" style={{ color: "rgba(15,23,42,0.4)" }}>{s.label}</p>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* App Builder Hero Spotlight */}
+        <div className="rounded-2xl overflow-hidden relative" style={{ background: "linear-gradient(135deg, hsl(155,70%,42%) 0%, hsl(193,100%,38%) 100%)", boxShadow: "0 4px 20px hsla(155,70%,42%,0.25)" }}>
+          <div className="absolute inset-0 opacity-10" style={{ backgroundImage: "radial-gradient(circle at 80% 50%, white 0%, transparent 60%)" }} />
+          <div className="relative px-6 py-5 flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-white text-sm font-bold opacity-90">App Builder</span>
+                <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ background: "rgba(255,255,255,0.2)", color: "white" }}>Code Intelligence</span>
+              </div>
+              <p className="text-white font-semibold text-lg leading-tight mb-1">Build any app with 9-phase AI agents</p>
+              <p className="text-sm opacity-75" style={{ color: "white" }}>Live web search · checkpoints · virtual browser testing · rollback</p>
+            </div>
+            <div className="flex items-center gap-3 flex-shrink-0 ml-6">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-white">9</div>
+                <div className="text-[10px] opacity-60 text-white">phases</div>
+              </div>
+              <div className="w-px h-8 opacity-20" style={{ background: "white" }} />
+              <div className="text-center">
+                <div className="text-2xl font-bold text-white">6</div>
+                <div className="text-[10px] opacity-60 text-white">agents</div>
+              </div>
+              <div className="w-px h-8 opacity-20" style={{ background: "white" }} />
+              <div className="text-center">
+                <div className="text-2xl font-bold text-white">∞</div>
+                <div className="text-[10px] opacity-60 text-white">stacks</div>
+              </div>
+              <button onClick={() => onNavigate("appbuilder")}
+                className="ml-4 flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-105 active:scale-95"
+                style={{ background: "rgba(255,255,255,0.95)", color: "hsl(155,70%,35%)" }}>
+                <Rocket className="w-4 h-4" /> Launch
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Recent Projects + Funding side by side */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-5">
           {/* Recent Projects */}
-          <div className="rounded-2xl overflow-hidden" style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.07)", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
-            <div className="flex items-center justify-between px-5 py-3.5" style={{ borderBottom: "1px solid rgba(15,23,42,0.06)" }}>
+          <div className="rounded-2xl overflow-hidden" style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.07)" }}>
+            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid rgba(15,23,42,0.06)" }}>
               <div className="flex items-center gap-2">
-                <Clock className="w-3.5 h-3.5" style={{ color: "hsl(193,100%,40%)" }} />
+                <Clock className="w-4 h-4" style={{ color: "hsl(193,100%,40%)" }} />
                 <span className="text-slate-800 font-semibold text-sm">Recent Projects</span>
               </div>
-              <button onClick={() => onNavigate("projects")} className="text-xs font-medium transition-opacity hover:opacity-70" style={{ color: "hsl(193,100%,40%)" }}>View all →</button>
+              <button onClick={() => onNavigate("projects")} className="text-xs transition-opacity hover:opacity-75" style={{ color: "hsl(193,100%,45%)" }}>
+                View all →
+              </button>
             </div>
-            <div className="p-2">
+            <div className="p-3">
               {recentProjects.length === 0 && (
-                <p className="text-center py-6 text-sm" style={{ color: "rgba(15,23,42,0.3)" }}>No projects yet</p>
+                <p className="text-center py-6 text-sm" style={{ color: "rgba(15,23,42,0.55)" }}>No projects yet</p>
               )}
               {recentProjects.map(p => {
-                const diff = Date.now() - new Date(p.updatedAt).getTime();
-                const mins = Math.floor(diff / 60000), hrs = Math.floor(mins / 60), days = Math.floor(hrs / 24);
-                const ago = days > 0 ? `${days}d ago` : hrs > 0 ? `${hrs}h ago` : `${Math.max(1, mins)}m ago`;
+                const updatedAgo = (() => {
+                  const diff = Date.now() - new Date(p.updatedAt).getTime();
+                  const mins = Math.floor(diff / 60000);
+                  const hrs = Math.floor(mins / 60);
+                  const days = Math.floor(hrs / 24);
+                  if (days > 0) return `${days}d ago`;
+                  if (hrs > 0) return `${hrs}h ago`;
+                  return `${Math.max(1, mins)}m ago`;
+                })();
+                const fundingCount = (() => { try { return JSON.parse(p.fundingAnalysis || "{}").opportunities?.[0]?.matches?.length ?? 0; } catch { return 0; } })();
                 return (
                   <div key={p.id} onClick={() => { onOpenProject(p); onNavigate("projects"); }}
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all"
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all mb-0.5"
                     style={{ border: "1px solid transparent" }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#F6F9FC"; (e.currentTarget as HTMLElement).style.borderColor = "rgba(15,23,42,0.07)"; }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#F8FAFC"; (e.currentTarget as HTMLElement).style.borderColor = "rgba(15,23,42,0.07)"; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.borderColor = "transparent"; }}>
-                    <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "hsla(193,100%,35%,0.09)" }}>
-                      <FolderOpen style={{ width: 13, height: 13, color: "hsl(193,100%,40%)" }} />
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "hsla(193,100%,35%,0.1)" }}>
+                      <FolderOpen className="w-4 h-4" style={{ color: "hsl(193,100%,40%)" }} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-slate-800 text-sm font-medium truncate">{p.name}</p>
-                      <p className="text-xs truncate" style={{ color: "rgba(15,23,42,0.42)" }}>{p.industry} · {ago}</p>
+                      <p className="text-xs truncate" style={{ color: "rgba(15,23,42,0.6)" }}>{p.industry} · {updatedAgo}</p>
                     </div>
                     {p.aiArchLinked === "linked" && (
-                      <span className="text-[9px] font-mono px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: "hsla(210,80%,55%,0.1)", color: "hsl(210,80%,55%)", border: "1px solid hsla(210,80%,55%,0.18)" }}>AI</span>
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: "hsla(210,80%,55%,0.1)", color: "hsl(210,80%,55%)", border: "1px solid hsla(210,80%,55%,0.2)" }}>
+                        AI ARCH
+                      </span>
+                    )}
+                    {fundingCount > 0 && (
+                      <span className="text-xs px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: "hsla(155,70%,45%,0.1)", color: "hsl(155,70%,45%)" }}>
+                        {fundingCount} funding
+                      </span>
                     )}
                   </div>
                 );
@@ -5475,34 +4889,37 @@ function DashboardPanel({ projects, pin, onNavigate, onOpenProject }: {
             </div>
           </div>
 
-          {/* Funding Radar */}
-          <div className="rounded-2xl overflow-hidden" style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.07)", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
-            <div className="flex items-center justify-between px-5 py-3.5" style={{ borderBottom: "1px solid rgba(15,23,42,0.06)" }}>
+          {/* Top Funding Opportunities */}
+          <div className="rounded-2xl overflow-hidden" style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.07)" }}>
+            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid rgba(15,23,42,0.06)" }}>
               <div className="flex items-center gap-2">
-                <BadgeCheck className="w-3.5 h-3.5" style={{ color: "hsl(155,70%,45%)" }} />
-                <span className="text-slate-800 font-semibold text-sm">Funding Radar</span>
+                <Award className="w-4 h-4" style={{ color: "hsl(155,70%,45%)" }} />
+                <span className="text-slate-800 font-semibold text-sm">Top Funding Opportunities</span>
                 {strongFunding > 0 && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: "hsla(155,70%,45%,0.1)", color: "hsl(155,70%,50%)" }}>{strongFunding} strong</span>
+                  <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: "hsla(155,70%,45%,0.1)", color: "hsl(155,70%,55%)" }}>{strongFunding} strong</span>
                 )}
               </div>
-              <button onClick={() => onNavigate("grants")} className="text-xs font-medium transition-opacity hover:opacity-70" style={{ color: "hsl(155,70%,45%)" }}>View all →</button>
+              <button onClick={() => onNavigate("grants")} className="text-xs transition-opacity hover:opacity-75" style={{ color: "hsl(155,70%,45%)" }}>
+                View all →
+              </button>
             </div>
-            <div className="p-2">
-              {allFundingMatches.length === 0 ? (
+            <div className="p-3">
+              {allFundingMatches.length === 0 && (
                 <div className="py-6 text-center">
-                  <p className="text-sm mb-2" style={{ color: "rgba(15,23,42,0.3)" }}>No funding data yet</p>
-                  <button onClick={() => onNavigate("grants")} className="text-xs font-semibold" style={{ color: "hsl(155,70%,45%)" }}>Run Funding Radar →</button>
+                  <p className="text-sm mb-1" style={{ color: "rgba(15,23,42,0.55)" }}>No funding data yet</p>
+                  <button onClick={() => onNavigate("grants")} className="text-xs transition-opacity hover:opacity-75" style={{ color: "hsl(155,70%,45%)" }}>Run Funding Radar →</button>
                 </div>
-              ) : allFundingMatches.slice(0, 5).map((m, i) => (
+              )}
+              {allFundingMatches.slice(0, 5).map((m, i) => (
                 <div key={i} onClick={() => onNavigate("grants")}
-                  className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl cursor-pointer transition-all"
+                  className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl cursor-pointer transition-all mb-0.5"
                   style={{ border: "1px solid transparent" }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#F6F9FC"; (e.currentTarget as HTMLElement).style.borderColor = "rgba(15,23,42,0.07)"; }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#F8FAFC"; (e.currentTarget as HTMLElement).style.borderColor = "rgba(15,23,42,0.07)"; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.borderColor = "transparent"; }}>
-                  <div className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-2" style={{ background: m.matchStrength === "strong" ? "hsl(155,70%,55%)" : "hsl(45,100%,55%)" }} />
+                  <div className="w-2 h-2 rounded-full flex-shrink-0 mt-1.5" style={{ background: m.matchStrength === "strong" ? "hsl(155,70%,55%)" : "hsl(45,100%,55%)" }} />
                   <div className="flex-1 min-w-0">
                     <p className="text-slate-800 text-xs font-semibold truncate">{m.scheme}</p>
-                    <p className="text-xs truncate" style={{ color: "rgba(15,23,42,0.42)" }}>{m.projectName} · {m.amount}</p>
+                    <p className="text-xs truncate" style={{ color: "rgba(15,23,42,0.6)" }}>{m.projectName} · {m.amount}</p>
                   </div>
                 </div>
               ))}
@@ -5510,46 +4927,117 @@ function DashboardPanel({ projects, pin, onNavigate, onOpenProject }: {
           </div>
         </div>
 
-        {/* Pipeline idle info — only when not building but has queued/ready */}
-        {pipelineStatus && !pipelineStatus.currentlyBuilding && (pipelineStatus.queued > 0 || (pipelineStatus.launchReady?.length ?? 0) > 0) && (
-          <div className="rounded-2xl overflow-hidden" style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.07)" }}>
-            <div className="flex items-center justify-between px-5 py-3.5" style={{ borderBottom: "1px solid rgba(15,23,42,0.06)" }}>
+        {/* Live Pipeline Status — what Sirius is building right now */}
+        {pipelineStatus && (
+          <div className="rounded-2xl overflow-hidden" style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.07)", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+            <div className="flex items-center justify-between px-5 py-3.5" style={{ borderBottom: "1px solid rgba(15,23,42,0.06)", background: "hsla(193,100%,40%,0.03)" }}>
               <div className="flex items-center gap-2">
-                <div className="w-1.5 h-1.5 rounded-full" style={{ background: "rgba(15,23,42,0.18)" }} />
-                <span className="text-slate-800 font-semibold text-sm">Build Pipeline</span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: "rgba(15,23,42,0.05)", color: "rgba(15,23,42,0.35)" }}>idle</span>
+                <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: pipelineStatus.currentlyBuilding ? "hsl(155,70%,55%)" : "rgba(15,23,42,0.2)" }} />
+                <span className="text-slate-800 font-semibold text-sm">Autonomous Build Pipeline</span>
+                {pipelineStatus.currentlyBuilding && (
+                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ background: "hsla(155,70%,42%,0.12)", color: "hsl(155,70%,38%)" }}>LIVE</span>
+                )}
               </div>
-              <button onClick={() => onNavigate("autolab")} className="text-xs font-medium" style={{ color: "hsl(193,100%,40%)" }}>View Lab →</button>
+              <button onClick={() => onNavigate("autolab")} className="text-xs transition-opacity hover:opacity-75" style={{ color: "hsl(193,100%,45%)" }}>
+                View Lab →
+              </button>
             </div>
-            <div className="px-5 py-4 flex items-center gap-6 flex-wrap">
-              <div>
-                <p className="text-lg font-bold text-slate-700">{pipelineStatus.queued.toLocaleString()}</p>
-                <p className="text-xs text-slate-400">Queued</p>
+            <div className="px-5 py-4">
+              <div className="grid grid-cols-3 gap-4 mb-4">
+                <div className="rounded-xl p-3 text-center" style={{ background: "hsla(155,70%,42%,0.06)", border: "1px solid hsla(155,70%,42%,0.15)" }}>
+                  <p className="text-lg font-bold" style={{ color: "hsl(155,70%,38%)" }}>{pipelineStatus.queued.toLocaleString()}</p>
+                  <p className="text-xs mt-0.5" style={{ color: "rgba(15,23,42,0.5)" }}>Queued to build</p>
+                </div>
+                <div className="rounded-xl p-3 text-center" style={{ background: "hsla(193,100%,40%,0.06)", border: "1px solid hsla(193,100%,40%,0.15)" }}>
+                  <p className="text-lg font-bold" style={{ color: "hsl(193,100%,38%)" }}>{pipelineStatus.currentlyBuilding ? 1 : 0}</p>
+                  <p className="text-xs mt-0.5" style={{ color: "rgba(15,23,42,0.5)" }}>Building now</p>
+                </div>
+                <div className="rounded-xl p-3 text-center" style={{ background: "hsla(155,70%,45%,0.06)", border: "1px solid hsla(155,70%,45%,0.15)" }}>
+                  <p className="text-lg font-bold" style={{ color: "hsl(155,70%,38%)" }}>{pipelineStatus.launchReady?.length ?? 0}</p>
+                  <p className="text-xs mt-0.5" style={{ color: "rgba(15,23,42,0.5)" }}>Launch-ready</p>
+                </div>
               </div>
-              <div>
-                <p className="text-lg font-bold" style={{ color: "hsl(155,70%,45%)" }}>{pipelineStatus.launchReady?.length ?? 0}</p>
-                <p className="text-xs text-slate-400">Launch-ready</p>
-              </div>
+              {pipelineStatus.currentlyBuilding ? (
+                <div className="flex items-center gap-3 p-3 rounded-xl" style={{ background: "hsla(155,70%,42%,0.06)", border: "1px solid hsla(155,70%,42%,0.12)" }}>
+                  <div className="flex-shrink-0">
+                    <Loader2 className="w-4 h-4 animate-spin" style={{ color: "hsl(155,70%,45%)" }} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-slate-500 mb-0.5">Currently building</p>
+                    <p className="text-sm font-semibold text-slate-800 truncate">{pipelineStatus.currentlyBuilding.name}</p>
+                  </div>
+                  <span className="text-xs px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: "hsla(155,70%,42%,0.15)", color: "hsl(155,70%,38%)" }}>AI Agents Active</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3 p-3 rounded-xl" style={{ background: "rgba(15,23,42,0.03)", border: "1px solid rgba(15,23,42,0.07)" }}>
+                  <Activity className="w-4 h-4 flex-shrink-0" style={{ color: "rgba(15,23,42,0.3)" }} />
+                  <p className="text-sm text-slate-400">Pipeline idle — {pipelineStatus.queued.toLocaleString()} projects queued</p>
+                </div>
+              )}
               {(pipelineStatus.launchReady?.length ?? 0) > 0 && (
-                <div className="flex flex-wrap gap-1.5 flex-1">
-                  {pipelineStatus.launchReady.slice(0, 4).map(p => (
-                    <span key={p.id} className="text-xs px-2 py-0.5 rounded-lg" style={{ background: "hsla(193,100%,40%,0.08)", color: "hsl(193,100%,35%)", border: "1px solid hsla(193,100%,40%,0.15)" }}>
-                      {p.name.length > 22 ? p.name.slice(0, 22) + "…" : p.name}
-                    </span>
-                  ))}
+                <div className="mt-3">
+                  <p className="text-xs font-medium text-slate-400 mb-2">Ready to launch</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {pipelineStatus.launchReady.slice(0, 6).map(p => (
+                      <span key={p.id} className="text-xs px-2 py-1 rounded-lg" style={{ background: "hsla(193,100%,40%,0.08)", color: "hsl(193,100%,35%)", border: "1px solid hsla(193,100%,40%,0.15)" }}>
+                        {p.name.length > 28 ? p.name.slice(0, 28) + "…" : p.name}
+                      </span>
+                    ))}
+                    {(pipelineStatus.launchReady?.length ?? 0) > 6 && (
+                      <span className="text-xs px-2 py-1 rounded-lg" style={{ background: "rgba(15,23,42,0.05)", color: "rgba(15,23,42,0.5)" }}>
+                        +{(pipelineStatus.launchReady?.length ?? 0) - 6} more
+                      </span>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
           </div>
         )}
-      </div>
 
-      <style>{`
-        @keyframes sirius-glow {
-          0%, 100% { transform: scale(1); opacity: 0.7; }
-          50%       { transform: scale(1.35); opacity: 0; }
-        }
-      `}</style>
+        {/* Quick Actions */}
+        <div>
+          <p className="text-xs font-mono mb-3" style={{ color: "rgba(15,23,42,0.55)", letterSpacing: "0.15em" }}>QUICK ACTIONS</p>
+          <div className="grid grid-cols-4 gap-3">
+            {QUICK_ACTIONS.map(a => {
+              const Icon = a.icon;
+              return (
+                <button key={a.mode} onClick={() => onNavigate(a.mode)}
+                  className="flex items-center gap-3 p-4 rounded-2xl text-left transition-all hover:scale-[1.02] active:scale-[0.98]"
+                  style={{ background: "#FFFFFF", border: "1px solid rgba(15,23,42,0.07)", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = `${a.color}40`; (e.currentTarget as HTMLElement).style.background = `${a.color}06`; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "rgba(15,23,42,0.07)"; (e.currentTarget as HTMLElement).style.background = "#FFFFFF"; }}>
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${a.color}14` }}>
+                    <Icon className="w-4.5 h-4.5" style={{ color: a.color, width: 18, height: 18 }} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-slate-800 font-semibold text-sm leading-tight">{a.label}</p>
+                    <p className="text-xs leading-tight mt-0.5 truncate" style={{ color: "rgba(15,23,42,0.6)" }}>{a.desc}</p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Pending Approvals alert */}
+        {pendingApprovals.length > 0 && (
+          <div onClick={() => onNavigate("autolab")}
+            className="flex items-center gap-4 p-4 rounded-2xl cursor-pointer transition-all"
+            style={{ background: "hsla(25,90%,55%,0.07)", border: "1px solid hsla(25,90%,55%,0.2)" }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "hsla(25,90%,55%,0.12)"; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "hsla(25,90%,55%,0.07)"; }}>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "hsla(25,90%,55%,0.15)" }}>
+              <ClipboardList className="w-5 h-5" style={{ color: "hsl(25,90%,55%)" }} />
+            </div>
+            <div className="flex-1">
+              <p className="text-slate-800 font-semibold text-sm">{pendingApprovals.length} project{pendingApprovals.length !== 1 ? "s" : ""} awaiting your approval</p>
+              <p className="text-xs" style={{ color: "rgba(15,23,42,0.45)" }}>The Autonomous Lab has identified new opportunities — review and approve to add them to your workspace</p>
+            </div>
+            <ArrowRight className="w-4 h-4 flex-shrink-0" style={{ color: "hsl(25,90%,55%)" }} />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -7233,7 +6721,7 @@ function StarLabVoiceWidget({
         setPhase("idle");
         setSiriusText("");
         if (active && inputModeRef.current === "voice") setTimeout(() => startListening(), 400);
-      }, 0.87, pin);
+      });
 
     } catch (err) {
       console.error("[Voice]", err);
@@ -7270,7 +6758,7 @@ function StarLabVoiceWidget({
           setSiriusText("");
           busyRef.current = false;
           if (inputModeRef.current === "voice") startListening();
-        }, 0.87, pin);
+        });
       }, 200);
     }
   };
@@ -7656,12 +7144,11 @@ function buildContextGreeting(name: string, timeGreet: string, projects: Project
   return parts.join(" ");
 }
 
-function LabAvatarGreeting({ userName, onNavigate, onDismiss, projects, pin }: {
+function LabAvatarGreeting({ userName, onNavigate, onDismiss, projects }: {
   userName?: string;
   onNavigate: (mode: NavMode) => void;
   onDismiss: () => void;
   projects: Project[];
-  pin?: string;
 }) {
   const [visible, setVisible]           = useState(false);
   const [leaving, setLeaving]           = useState(false);
@@ -7689,7 +7176,7 @@ function LabAvatarGreeting({ userName, onNavigate, onDismiss, projects, pin }: {
     speakText(confirmMsg, () => {
       setLeaving(true);
       setTimeout(() => { onNavigate(dest.mode); onDismiss(); }, 300);
-    }, 0.87, pin);
+    });
   };
 
   const startListening = () => {
@@ -7710,7 +7197,7 @@ function LabAvatarGreeting({ userName, onNavigate, onDismiss, projects, pin }: {
           goTo(dest);
         } else {
           setSiriusText(`I didn't quite catch that. You said: "${text}". Please try again or tap a card below.`);
-          speakText(`I didn't catch that — please say a section name or tap a card.`, undefined, 0.87, pin);
+          speakText(`I didn't catch that — please say a section name or tap a card.`);
           setListening(false);
           setTimeout(() => startListening(), 2000);
         }
@@ -7745,7 +7232,7 @@ function LabAvatarGreeting({ userName, onNavigate, onDismiss, projects, pin }: {
         setPhase("listening");
         setShowCards(true);
         startListening();
-      }, 0.87, pin);
+      });
       setShowCards(true);
     }, 600);
 
@@ -7800,7 +7287,7 @@ function LabAvatarGreeting({ userName, onNavigate, onDismiss, projects, pin }: {
           )}
           <div className="relative w-40 h-40 rounded-full overflow-hidden"
             style={{ border: `2px solid ${listening ? "rgba(0,212,255,0.7)" : "rgba(0,212,255,0.3)"}`, boxShadow: `0 0 ${listening ? "60px" : "30px"} rgba(0,212,255,${listening ? "0.35" : "0.15"})`, transition: "all 0.4s" }}>
-            <img src="/logo-v2.png" alt="Sirius" className="w-full h-full object-cover" />
+            <img src="/twins.jpg" alt="Sirius" className="w-full h-full object-cover" />
           </div>
           {/* Status badge */}
           <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold"
@@ -8075,12 +7562,6 @@ export function StarLabPage() {
   const [pin, setPin] = useState("");
   const [accessLevel, setAccessLevel] = useState<AccessRole>("owner");
   const [appBuilderPreload, setAppBuilderPreload] = useState<string | null>(null);
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [showInstallGuide, setShowInstallGuide] = useState(false);
-  const isStandaloneApp =
-    typeof window !== "undefined" &&
-    (window.matchMedia("(display-mode: standalone)").matches ||
-      (window.navigator as any).standalone === true);
 
   const userName = typeof window !== "undefined"
     ? (localStorage.getItem("sirius_display_name") || "").trim() || "Garry"
@@ -8334,7 +7815,7 @@ export function StarLabPage() {
       sysaudit:    "System Audit. Running live health checks across every Sirius subsystem now.",
     };
     const text = narrate[navMode as NavMode];
-    if (text) speakText(text, undefined, 0.87, pin);
+    if (text) speakText(text);
   }, [navMode, unlocked]);
 
   const onUnlock = (p: string, role: AccessRole) => {
@@ -8386,15 +7867,20 @@ export function StarLabPage() {
 
   const ALL_NAV_ITEMS = [
     // COMMAND
+    { id: "orchestrate" as NavMode, label: "Command Centre",  icon: Zap,             color: "hsl(193,100%,60%)", category: "command",      guestAllowed: false, badge: true },
     { id: "dashboard" as NavMode,  label: "Dashboard",        icon: LayoutDashboard, color: "hsl(193,100%,45%)", category: "command",      guestAllowed: true  },
     { id: "labchat"   as NavMode,  label: "Chat with Sirius", icon: MessageSquare,   color: "hsl(193,100%,50%)", category: "command",      guestAllowed: true  },
+    { id: "sysaudit"   as NavMode, label: "System Audit",     icon: ShieldAlert,     color: "hsl(210,80%,55%)",  category: "command",      guestAllowed: false },
+    { id: "upgrades"   as NavMode, label: "Sirius Upgrades",  icon: Package,         color: "hsl(280,80%,58%)",  category: "command",      guestAllowed: false },
+    { id: "livepreview" as NavMode, label: "Live Preview",    icon: Monitor,         color: "hsl(155,70%,42%)",  category: "build",        guestAllowed: false },
+    { id: "codeeditor"  as NavMode, label: "Code Editor",     icon: Code,            color: "hsl(45,90%,55%)",   category: "build",        guestAllowed: false },
     { id: "mission"   as NavMode,  label: "Mission",          icon: Star,            color: "hsl(193,100%,50%)", category: "command",      guestAllowed: true  },
-    { id: "tasks"     as NavMode,  label: "Background Tasks", icon: Clock,            color: "hsl(193,100%,45%)", category: "command",      guestAllowed: false },
-    { id: "sysaudit"  as NavMode,  label: "System Audit",     icon: ShieldAlert,     color: "hsl(210,80%,55%)",  category: "command",      guestAllowed: false },
-    { id: "team"      as NavMode,  label: "Team Access",      icon: Users,            color: "hsl(193,100%,50%)", category: "command",      guestAllowed: false },
     // BUILD
+    { id: "appbuilder" as NavMode, label: "App Builder",      icon: Rocket,          color: "hsl(155,70%,42%)",  category: "build",        guestAllowed: false },
     { id: "projects"   as NavMode, label: "Projects",         icon: FolderOpen,      color: "hsl(155,60%,38%)",  category: "build",        guestAllowed: true  },
+    { id: "botlab"     as NavMode, label: "Bot Lab",          icon: Bot,             color: "hsl(280,70%,55%)",  category: "build",        guestAllowed: false },
     { id: "autolab"    as NavMode, label: "Autonomous Lab",   icon: Cpu,             color: "hsl(155,50%,40%)",  category: "build",        guestAllowed: false },
+    { id: "ai-arch"  as NavMode,   label: "AI Architecture",  icon: Layers,          color: "hsl(155,60%,38%)",  category: "build",        guestAllowed: false },
     // INTELLIGENCE
     { id: "scout"    as NavMode,   label: "Scout",            icon: Telescope,       color: "hsl(45,100%,45%)",  category: "intelligence", guestAllowed: true  },
     { id: "feed"     as NavMode,   label: "AI Intelligence",  icon: Atom,            color: "hsl(210,80%,55%)",  category: "intelligence", guestAllowed: true,  badge: true },
@@ -8402,7 +7888,12 @@ export function StarLabPage() {
     { id: "docs"     as NavMode,   label: "Document Intel",   icon: FileSearch,      color: "hsl(210,90%,55%)",  category: "intelligence", guestAllowed: true  },
     { id: "brain"    as NavMode,   label: "Sirius Brain",     icon: Brain,           color: "hsl(280,70%,65%)",  category: "intelligence", guestAllowed: false },
     // REVENUE
+    { id: "revenue"  as NavMode,   label: "Revenue Hub",      icon: Banknote,        color: "hsl(155,70%,45%)",  category: "revenue",      guestAllowed: false },
+    { id: "commerce" as NavMode,   label: "Commerce Lab",     icon: TrendingUp,      color: "hsl(25,90%,55%)",   category: "revenue",      guestAllowed: false },
     { id: "grants"   as NavMode,   label: "Funding Radar",    icon: BadgeCheck,      color: "hsl(155,70%,45%)",  category: "revenue",      guestAllowed: false, pending: anyPendingFunding },
+    { id: "agency"   as NavMode,   label: "Agency Hub",       icon: Briefcase,       color: "hsl(220,80%,55%)",  category: "revenue",      guestAllowed: false },
+    { id: "growth"   as NavMode,   label: "Growth Engine",    icon: Globe,           color: "hsl(155,70%,50%)",  category: "revenue",      guestAllowed: false },
+    { id: "outreach" as NavMode,   label: "Outreach Hub",     icon: Mail,            color: "hsl(340,80%,60%)",  category: "revenue",      guestAllowed: false },
   ];
   const NAV_ITEMS = isGuest ? ALL_NAV_ITEMS.filter(n => n.guestAllowed) : ALL_NAV_ITEMS;
 
@@ -8416,7 +7907,6 @@ export function StarLabPage() {
           onNavigate={(mode) => setNavMode(mode)}
           onDismiss={() => setShowGreeting(false)}
           projects={projects}
-          pin={pin}
         />
       )}
 
@@ -8516,20 +8006,8 @@ export function StarLabPage() {
         </div>
       )}
 
-      {/* Mobile sidebar backdrop */}
-      {mobileNavOpen && (
-        <div
-          className="fixed inset-0 z-40 md:hidden"
-          style={{ background: "rgba(0,0,0,0.45)" }}
-          onClick={() => setMobileNavOpen(false)}
-        />
-      )}
-
       {/* SIDEBAR */}
-      <div
-        className={`${mobileNavOpen ? "fixed inset-y-0 left-0 z-50 flex" : "hidden md:flex"} w-64 md:w-56 flex-shrink-0 flex-col border-r`}
-        style={{ borderColor: "rgba(15,23,42,0.07)", background: "#FFFFFF" }}
-      >
+      <div className="w-56 flex-shrink-0 flex flex-col border-r" style={{ borderColor: "rgba(15,23,42,0.07)", background: "#FFFFFF" }}>
         {/* Logo */}
         <div className="p-4 border-b" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
           <div className="flex items-center gap-2.5">
@@ -8583,7 +8061,7 @@ export function StarLabPage() {
                     const Icon = item.icon;
                     const active = navMode === item.id;
                     return (
-                      <button key={item.id} onClick={() => { setNavMode(item.id); setMobileNavOpen(false); }}
+                      <button key={item.id} onClick={() => setNavMode(item.id)}
                         className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg mb-0.5 transition-all text-left"
                         style={{
                           background: active ? cat.bg : "transparent",
@@ -8773,18 +8251,7 @@ export function StarLabPage() {
                 pin={pin}
               />
             </div>
-            <div className="px-3 pb-3 space-y-0.5">
-              {!isStandaloneApp && (
-                <button
-                  onClick={() => { setShowInstallGuide(true); setMobileNavOpen(false); }}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-all"
-                  style={{ color: "hsl(193,100%,35%)", background: "transparent" }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "hsla(193,100%,40%,0.08)"; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}>
-                  <Download className="w-3 h-3 flex-shrink-0" />
-                  <span>Add to Home Screen</span>
-                </button>
-              )}
+            <div className="px-3 pb-3">
               <button
                 onClick={() => setChangePinOpen(true)}
                 className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-all"
@@ -8800,7 +8267,7 @@ export function StarLabPage() {
       </div>
 
       {/* MAIN */}
-      <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden pb-16 md:pb-0">
+      <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
 
         {/* Global breadcrumb / back bar — shown on every panel except dashboard */}
         {navMode !== "dashboard" && (
@@ -8901,8 +8368,16 @@ export function StarLabPage() {
           </div>
         )}
         {navMode === "upgrades" && <UpgradesPanel pin={pin} />}
-        {navMode === "tasks" && <TasksPanel pin={pin} />}
-        {navMode === "team" && <TeamPanel pin={pin} />}
+        {navMode === "livepreview" && (
+          <div className="flex-1 overflow-hidden" style={{ background: "#0a0a0a" }}>
+            <LivePreviewPanel pin={pin} />
+          </div>
+        )}
+        {navMode === "codeeditor" && (
+          <div className="flex-1 overflow-hidden" style={{ background: "#0a0a0a" }}>
+            <CodeEditorPanel pin={pin} />
+          </div>
+        )}
         <div style={{ display: navMode === "appbuilder" ? "flex" : "none", flex: 1, flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
           <AppBuilderPanel
             pin={pin}
@@ -9222,41 +8697,6 @@ export function StarLabPage() {
         )}
       </div>
 
-
-      {/* Mobile bottom nav bar */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-30 flex border-t"
-        style={{ background: "#FFFFFF", borderColor: "rgba(15,23,42,0.08)", paddingBottom: "env(safe-area-inset-bottom)" }}>
-        {([
-          { id: "dashboard" as NavMode, icon: LayoutDashboard, label: "Home" },
-          { id: "labchat"   as NavMode, icon: MessageSquare,   label: "Chat" },
-          { id: "scout"     as NavMode, icon: Telescope,       label: "Scout" },
-          { id: "projects"  as NavMode, icon: FolderOpen,      label: "Projects" },
-        ] as const).map(tab => {
-          const Icon = tab.icon;
-          const active = navMode === tab.id;
-          return (
-            <button key={tab.id}
-              onClick={() => setNavMode(tab.id)}
-              title={tab.label}
-              className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2"
-              style={{ color: active ? "hsl(193,100%,35%)" : "rgba(15,23,42,0.35)" }}>
-              <Icon className="w-5 h-5" />
-              <span className="text-[10px] font-medium">{tab.label}</span>
-            </button>
-          );
-        })}
-        <button
-          onClick={() => setMobileNavOpen(true)}
-          title="More navigation · Add to Home Screen"
-          className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2"
-          style={{ color: "rgba(15,23,42,0.35)" }}>
-          <Menu className="w-5 h-5" />
-          <span className="text-[10px] font-medium">More</span>
-        </button>
-      </div>
-
-      {/* Install guide */}
-      {showInstallGuide && <IOSInstallGuide onClose={() => setShowInstallGuide(false)} />}
 
       {/* Change PIN modal */}
       {changePinOpen && (
