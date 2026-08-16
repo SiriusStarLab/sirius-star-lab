@@ -477,17 +477,6 @@ VOICE STYLE: Short, natural sentences. No bullet points or markdown. Under 3 sen
     const userMsg: LabChatMsg = { role: "user", content: text };
     setMessages(prev => [...prev, userMsg]);
 
-    if (onNavigate) {
-      const navTarget = detectLabNavIntent(text);
-      if (navTarget) {
-        const navName = NAV_LABELS[navTarget] ?? navTarget;
-        setMessages(prev => [...prev, { role: "assistant", content: `Taking you to ${navName} now.` }]);
-        speakWithJenny(`Taking you to ${navName}.`);
-        setTimeout(() => onNavigate!(navTarget), 200);
-        return;
-      }
-    }
-
     const apiMessages = [...messagesRef.current, userMsg].map(m => ({ role: m.role, content: m.content }));
     const isImage = attachedMime?.startsWith("image/");
     sendWithMessages(
