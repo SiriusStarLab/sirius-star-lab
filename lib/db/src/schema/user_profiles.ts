@@ -10,6 +10,7 @@ export const userProfilesTable = pgTable("user_profiles", {
   memories: text("memories").notNull().default(""),
   subscriptionTier: text("subscription_tier").notNull().default("free"),
   stripeCustomerId: text("stripe_customer_id"),
+  exchangeCode: text("exchange_code"),
   dailyMessageCount: text("daily_message_count").notNull().default("0"),
   dailyMessageReset: timestamp("daily_message_reset", { withTimezone: true }),
   preferredLanguage: text("preferred_language").notNull().default("auto"),

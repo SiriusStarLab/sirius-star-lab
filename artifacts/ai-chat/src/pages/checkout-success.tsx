@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { CheckCircle, Sparkles, Loader2, ExternalLink } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import { CheckCircle, Copy, ExternalLink, Loader2, Sparkles } from "lucide-react";
 import { getUserId } from "@/lib/user-id";
 import { getApiBase } from "@/lib/api-base";
 
@@ -7,6 +7,9 @@ export function CheckoutSuccessPage() {
   const [activated, setActivated] = useState(false);
   const [tier, setTier] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(5);
+  const [exchangeCode, setExchangeCode] = useState<string | null>(null);
+  const [codeCopied, setCodeCopied] = useState(false);
+  const resolvedUserIdRef = useRef<string>("");
   const localUserId = getUserId();
 
   useEffect(() => {
@@ -16,6 +19,7 @@ export function CheckoutSuccessPage() {
     // userId comes from URL param (mobile → Safari flow) or localStorage (web flow)
     const urlUserId = params.get("userId") || "";
     const resolvedUserId = urlUserId || localUserId;
+    resolvedUserIdRef.current = resolvedUserId;
 
     if (tierParam && ["plus", "pro"].includes(tierParam)) {
       setTier(tierParam);
@@ -47,6 +51,34 @@ export function CheckoutSuccessPage() {
     }, 1000);
     return () => clearInterval(timer);
   }, [activated]);
+
+  // Poll for Sirius Exchange code (Pro tier only) — webhook may fire after page load
+  useEffect(() => {
+    if (!activated || tier !== "pro") return;
+    const userId = resolvedUserIdRef.current;
+    if (!userId) return;
+
+    let attempts = 0;
+    let cancelled = false;
+
+    const poll = async () => {
+      if (cancelled) return;
+      attempts++;
+      try {
+        const base = getApiBase();
+        const res = await fetch(`${base}stripe/exchange-code?userId=${encodeURIComponent(userId)}`);
+        if (res.ok) {
+          const data = await res.json() as { code: string | null };
+          if (data.code) { setExchangeCode(data.code); return; }
+        }
+      } catch { /* network error — keep polling */ }
+      // Retry up to 15 times (≈30 s) in case webhook hasn't fired yet
+      if (attempts < 15 && !cancelled) setTimeout(poll, 2000);
+    };
+
+    poll();
+    return () => { cancelled = true; };
+  }, [activated, tier]);
 
   const isAgency = tier?.startsWith("agency_");
   const agencyPkg = tier?.replace("agency_", "") || "";
@@ -140,6 +172,75 @@ export function CheckoutSuccessPage() {
                 </li>
               ))}
             </ul>
+          </div>
+        )}
+
+        {/* Sirius Exchange unlock code — Pro only */}
+        {activated && tier === "pro" && (
+          <div style={{
+            background: "rgba(15,20,37,0.8)",
+            border: "1px solid rgba(245,158,11,0.25)",
+            borderRadius: 16,
+            padding: "20px",
+            marginBottom: 20,
+            textAlign: "left",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+              <span style={{ fontSize: 14 }}>⭐</span>
+              <p style={{ margin: 0, fontSize: 10, fontFamily: "Space Mono, monospace", letterSpacing: "0.2em", textTransform: "uppercase", color: "rgba(245,158,11,0.8)" }}>
+                Sirius Exchange unlock code
+              </p>
+            </div>
+
+            {exchangeCode ? (
+              <>
+                {/* Code display + copy */}
+                <div
+                  onClick={() => {
+                    navigator.clipboard.writeText(exchangeCode).then(() => {
+                      setCodeCopied(true);
+                      setTimeout(() => setCodeCopied(false), 2000);
+                    });
+                  }}
+                  style={{
+                    background: "#080c1a",
+                    border: "1px solid rgba(245,158,11,0.3)",
+                    borderRadius: 10,
+                    padding: "14px 16px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    cursor: "pointer",
+                    marginBottom: 14,
+                    userSelect: "none",
+                  }}
+                >
+                  <span style={{ fontFamily: "Space Mono, monospace", fontSize: 15, fontWeight: 700, letterSpacing: "0.06em", color: "#f59e0b" }}>
+                    {exchangeCode}
+                  </span>
+                  <Copy size={14} style={{ color: codeCopied ? "#22c55e" : "rgba(255,255,255,0.4)", flexShrink: 0 }} />
+                </div>
+                {codeCopied && (
+                  <p style={{ margin: "0 0 10px", fontSize: 11, color: "#22c55e", fontFamily: "Space Mono, monospace" }}>✓ Copied</p>
+                )}
+                <p style={{ margin: 0, fontSize: 12, color: "rgba(255,255,255,0.5)", lineHeight: 1.6 }}>
+                  Log in at{" "}
+                  <a href="https://siriusexchange.net" target="_blank" rel="noreferrer" style={{ color: "#f59e0b" }}>
+                    siriusexchange.net
+                  </a>
+                  , open the Sirius AI chat button (bottom-right), and enter this code to unlock your assistant.
+                  <br />
+                  <span style={{ color: "rgba(255,255,255,0.3)" }}>Single-use · one account only. Also sent to your email.</span>
+                </p>
+              </>
+            ) : (
+              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0" }}>
+                <Loader2 size={14} style={{ color: "rgba(245,158,11,0.6)", animation: "spin 1s linear infinite" }} />
+                <span style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", fontFamily: "Space Mono, monospace" }}>
+                  Generating your code…
+                </span>
+              </div>
+            )}
           </div>
         )}
 
