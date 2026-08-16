@@ -1,0 +1,29 @@
+. App-specific dependencies — most likely failure point
+
+When Sirius generates code that imports axios, chart.js, lodash, framer-motion, or any library that isn't React/Vite, the build will fail unless those packages appear in the generated package.json. The deploy pipeline adds React and Vite automatically, but it can't know what else the code needs. If the build fails, the app falls back to a branded landing page rather than erroring clearly.
+
+She can fix this if she writes a complete package.json alongside the code — but historically she often doesn't. This is the number one practical reason a deploy would produce a landing page instead of the actual app.
+
+2. No iteration loop in sandbox yet
+
+Right now if she deploys and it looks wrong, the only fix is: patch the files, redeploy, wait for another full build (20–60 seconds per cycle). There's no dev server running in sandbox. This makes visual iteration slow — you'd go through 3–5 full rebuild cycles to get the UI right.
+
+3. Backend apps are harder
+
+If she builds a full-stack app with a Node.js backend, the deployer assigns it a port and proxies nginx to it. That part works. But the backend won't have access to Sirius's PostgreSQL database unless she hardcodes the connection string, and external API keys won't be available unless explicitly set. So pure frontend apps will deploy cleanly; backend apps with database needs are still fragile.
+
+4. The AppBuilder deploy button requires a saved session ID
+
+The new "Deploy to Sandbox" button in the App Builder is gated on sessionId. If the build phases completed but the session wasn't auto-saved to the database (which can happen if there's a network hiccup during the build), the button stays disabled. Not a common failure, but worth knowing.
+
+5. Logic errors ship undetected
+
+The TypeScript gate catches type errors (missing imports, wrong property names). It doesn't catch logic errors — wrong API endpoints, broken state management, layout that looks nothing like what was intended. The app can build successfully and be entirely broken functionally. This is the human review step that the sandbox → promote flow is designed for: you see it before it goes to production.
+
+What this means practically:
+
+For a clean frontend-only app (React, static data, no external APIs) — she can now build, deploy to sandbox, show you the preview in chat, and promote to production all in one session. That path is solid.
+
+For a full-stack app with a database or external APIs — she can get to sandbox, but you should expect one or two iterations before it actually works.
+
+The dependencies issue is fixable: I can update the deploy pipeline to scan generated files for import statements and auto-install missing packages before building. That would close the biggest remaining gap. Want me to do that now or continue with the current state?
