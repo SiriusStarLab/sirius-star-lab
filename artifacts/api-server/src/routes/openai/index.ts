@@ -1133,7 +1133,22 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
   const documentBase64 = (body.data as any).documentBase64 as string | undefined;
   const documentName = (body.data as any).documentName as string | undefined;
   const documents = (body.data as any).documents as Array<{ base64: string; name: string }> | undefined;
-  const systemPrompt = buildSystemPrompt(profile, mode);
+  let systemPrompt = buildSystemPrompt(profile, mode);
+
+  // Intelligence layer — memory prompt + unified cross-surface context (500ms each, never blocks)
+  if (userId) {
+    try {
+      const _tout = <T>(p: Promise<T>) => Promise.race([p, new Promise<null>(r => setTimeout(() => r(null), 500))]);
+      const [_memRes, _ctxRes, _insRes] = await Promise.all([
+        _tout(intelligence.getMemoryPrompt(userId)),
+        _tout(intelligence.getUnifiedContext(userId)),
+        _tout(intelligence.getInsights(userId)),
+      ]);
+      if (_memRes?.prompt) systemPrompt += '\n\n## Observed Patterns (Intelligence Layer)\n' + _memRes.prompt;
+      if (_ctxRes?.formatted) systemPrompt += '\n\n## Cross-Surface Context (Intelligence Layer)\n' + _ctxRes.formatted;
+      if (_insRes?.insights?.length) systemPrompt += '\n\n## Active Insights (Intelligence Layer)\n' + (_insRes.insights as Array<{priority: string; message: string}>).map(i => `[${i.priority}] ${i.message}`).join('\n');
+    } catch { /* intelligence layer is non-critical */ }
+  }
 
   // Extract text from uploaded document (PDF, Word, plain text, CSV, Markdown)
   let extractedDocumentText: string | null = null;
@@ -1464,9 +1479,37 @@ ${txt}`);
         },
       },
     },
+    {
+      type: "function",
+      function: {
+        name: "intelligence_action",
+        description: "C3 intelligence layer at 127.0.0.1:3001. MEMORY: POST /memory/observe (body:{userId,type:preference|goal|fact|pattern|behaviour,key,value,confidence?}), POST /memory/:userId/search (body:{query,limit?}) — semantic search by meaning, GET /memory/:userId/prompt, DELETE /memory/:userId/:key. EMOTION: POST /emotion/:userId/observe (body:{conversationSnippet}) — classify emotional state, GET /emotion/:userId/current, GET /emotion/:userId/patterns, GET /emotion/:userId/history. CONTRADICTIONS: GET /contradictions/:userId — unresolved conflicting beliefs, POST /contradictions/:userId/:id/resolve (body:{resolution,keepKey?}). PROCEDURES: GET /procedures/:userId, POST /procedures/:userId/store (body:{problem_type,title,solution_steps,context_tags?}), POST /procedures/:userId/match (body:{problem}) — find proven solution pattern, POST /procedures/:userId/extract (body:{conversationSnippet}), PUT /procedures/:userId/:id/feedback (body:{worked:bool}). KNOWLEDGE: POST /knowledge/:userId/update (body:{concept,belief,confidence?,source?}) — versioned belief tracking, GET /knowledge/:userId/current, GET /knowledge/:userId/timeline?concept=X, GET /knowledge/:userId/evolution/:concept. CONTEXT: POST /context/sync (body:{userId,source,data}), GET /context/:userId. BRIEFING: GET /briefing/:userId, POST /briefing/:userId/generate. INSIGHTS: GET /analyze/:userId/insights (includes emotional state + contradiction alerts + procedure count). EVENTS: POST /events (body:{userId,eventType,source,data?}).",
+        parameters: {
+          type: "object",
+          properties: {
+            method: { type: "string", enum: ["GET", "POST", "DELETE"], description: "HTTP method" },
+            path: { type: "string", description: "Route path e.g. '/memory/observe', '/briefing/garry/generate', '/analyze/garry/insights'" },
+            body: { type: "object", description: "Request body for POST requests" },
+          },
+          required: ["method", "path"],
+        },
+      },
+    },
     ];
 
-    const ownerSystemPrompt = systemPrompt + crossSessionBlock + `
+    // Fetch today's intelligence briefing for Garry (cached daily in sirius_briefings, ~1s timeout)
+    let _briefingBlock = '';
+    try {
+      const _briefRes = await Promise.race([
+        intelligence.getBriefing("garry"),
+        new Promise<null>(r => setTimeout(() => r(null), 1000)),
+      ]);
+      const _bt = _briefRes?.briefing;
+      const _briefText = typeof _bt === 'string' ? _bt : (_bt as any)?.text ?? '';
+      if (_briefText) _briefingBlock = '\n\n## Today\'s Intelligence Briefing\n' + _briefText;
+    } catch { /* non-critical */ }
+
+    const ownerSystemPrompt = systemPrompt + _briefingBlock + crossSessionBlock + `
 
 ## OWNER MODE — CAPABILITIES OVERRIDE
 
@@ -1487,7 +1530,22 @@ When you run tools and receive results, you MUST report ALL findings completely 
 
 IMPORTANT: The compiled bundle is MINIFIED — function names disappear. To verify something is deployed, search for ERROR MESSAGE STRINGS or unique string literals with bundle_contains, not function names.
 
-LOOP PREVENTION: If you have already called a tool and received its result, do NOT call the same tool with the same arguments again. Act on what you find. Report it. Stop.`;
+LOOP PREVENTION: If you have already called a tool and received its result, do NOT call the same tool with the same arguments again. Act on what you find. Report it. Stop.
+
+## SERVICE VERIFICATION PROTOCOL — NON-NEGOTIABLE
+
+Before reporting that any feature, route, or service does not exist or is not working, you MUST:
+1. curl the actual live endpoint
+2. Read the HTTP status code
+3. Read the response body
+
+The response body IS the truth. File inspection is interpretation — it has caused you to give Garry false information about features that were fully operational. Never go from file paths alone to a conclusion about whether something works.
+
+CRITICAL — PORT MAP (do not confuse these):
+- Port 3001 = Docker container sirius-intelligence = C3 intelligence layer (semantic memory, emotional tracking, contradictions, procedures, temporal knowledge). Check here for those five features.
+- Port 8766 = PM2 process sirius-core = a separate intuition/decisions service. It is NOT C3 and does NOT host the five memory architecture features.
+
+When checking C3: run   curl http://localhost:3001/health   first. Read the response body. Then test the specific route. Never report a service as missing or broken without hitting the endpoint live.`;
 
     let agentMessages: any[] = [
       { role: "system", content: ownerSystemPrompt },
@@ -1629,6 +1687,20 @@ LOOP PREVENTION: If you have already called a tool and received its result, do N
             console.error("[image] generate_image tool failed:", imgErr?.message);
             res.write(`data: ${JSON.stringify({ type: "image_error", message: "Image generation failed — please try again." })}\n\n`);
             toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: `Image generation failed: ${imgErr?.message}` });
+          }
+        } else if (tc.name === "intelligence_action") {
+          const { method, path: iPath, body: iBody } = args as { method: string; path: string; body?: Record<string, unknown> };
+          res.write(`data: ${JSON.stringify({ type: "action", label: "C3 intelligence…", icon: "🧠", color: "hsl(260,70%,55%)" })}\n\n`);
+          try {
+            const iRes = await fetch(`http://127.0.0.1:3001${iPath}`, {
+              method,
+              headers: { "Content-Type": "application/json" },
+              ...(iBody ? { body: JSON.stringify(iBody) } : {}),
+            });
+            const iData = await iRes.json().catch(() => ({ status: iRes.status }));
+            toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: JSON.stringify(iData) });
+          } catch (iErr: any) {
+            toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: `Intelligence action failed: ${(iErr as any)?.message}` });
           }
         }
       }
@@ -1942,6 +2014,30 @@ LOOP PREVENTION: If you have already called a tool and received its result, do N
       `User: ${body.data.content?.slice(0, 300)}\nSirius: ${fullResponse.slice(0, 500)}`,
       { conversationId },
     ).catch(() => {});
+
+    // Observe memory — typed writes so intelligence layer builds a real picture over time
+    const _userMsg = (body.data.content || "").slice(0, 400);
+    // Emotional weight tracker (Feature 2) — async, fire-and-forget
+    const _emotSnippet = `User: ${_userMsg}\nSirius: ${fullResponse}`;
+    intelligence.observeEmotion(userId, _emotSnippet.slice(0, 2500)).catch(() => {});
+
+    intelligence.observeMemory(userId, "behaviour", "recent_conversation", {
+      userMessage: _userMsg.slice(0, 200),
+      siriusResponse: fullResponse.slice(0, 200),
+      timestamp: new Date().toISOString(),
+    }).catch(() => {});
+    // Goal detection — write to C3 as typed goal memory
+    if (/\b(i want to|i need to|i'd like to|we should|i plan to|my goal is|i'm trying to|i intend to)\b/i.test(_userMsg)) {
+      intelligence.observeMemory(userId, "goal", `goal_${Date.now()}`, _userMsg.slice(0, 300)).catch(() => {});
+    }
+    // Preference detection
+    if (/\b(i prefer|i like|i love|i hate|i don't like|i always|i never|my favourite|my favorite)\b/i.test(_userMsg)) {
+      intelligence.observeMemory(userId, "preference", `pref_${Date.now()}`, _userMsg.slice(0, 300)).catch(() => {});
+    }
+    // Fact detection — things Garry says about himself
+    if (/\b(i am |i'm |my name is|i work|i live|i have |i run |i own |i built|i created)\b/i.test(_userMsg)) {
+      intelligence.observeMemory(userId, "fact", `fact_${Date.now()}`, _userMsg.slice(0, 300)).catch(() => {});
+    }
 
     // Increment daily message count — atomic conditional update to prevent race conditions
     db.execute(sql`

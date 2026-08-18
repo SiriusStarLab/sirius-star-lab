@@ -3,6 +3,7 @@ import Stripe from "stripe";
 import { db } from "@workspace/db";
 import { userProfilesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { issueExchangeCode, emailExchangeCode } from "../exchangeService";
 
 const router = Router();
 
@@ -159,6 +160,27 @@ router.post("/stripe/webhook", async (req, res) => {
           })
           .where(eq(userProfilesTable.userId, userId));
         console.log(`[Stripe] Activated ${tier} for userId=${userId}`);
+
+        // Pro purchase → issue a Sirius Exchange unlock code (server-side only)
+        if (tier === "pro") {
+          try {
+            const email = session.customer_details?.email || "";
+            const code = await issueExchangeCode(email, session.id);
+            if (code) {
+              await db
+                .update(userProfilesTable)
+                .set({ exchangeCode: code })
+                .where(eq(userProfilesTable.userId, userId));
+              console.log(`[Exchange] Code stored for userId=${userId}`);
+              if (email) await emailExchangeCode(email, code, session.id);
+            } else {
+              console.warn(`[Exchange] Could not obtain code for userId=${userId} — will not retry`);
+            }
+          } catch (exchangeErr) {
+            // Never fail the webhook over exchange errors
+            console.error("[Exchange] Unexpected error:", exchangeErr);
+          }
+        }
       }
     }
 
@@ -178,6 +200,34 @@ router.post("/stripe/webhook", async (req, res) => {
   }
 
   res.json({ received: true });
+});
+
+// GET /api/stripe/exchange-code?userId=... — returns the stored Exchange code for a Pro user
+// Called by the checkout success page to display the code to the customer
+router.get("/stripe/exchange-code", async (req, res) => {
+  try {
+    const { userId } = req.query as { userId?: string };
+    if (!userId?.trim()) {
+      res.status(400).json({ error: "userId required" });
+      return;
+    }
+    const rows = await db
+      .select({ exchangeCode: userProfilesTable.exchangeCode })
+      .from(userProfilesTable)
+      .where(eq(userProfilesTable.userId, userId.trim()))
+      .limit(1);
+
+    const code = rows[0]?.exchangeCode ?? null;
+    if (!code) {
+      // Webhook may not have fired yet — client should poll
+      res.status(404).json({ code: null });
+      return;
+    }
+    res.json({ code });
+  } catch (err) {
+    console.error("[Exchange] exchange-code lookup error:", err);
+    res.status(500).json({ error: "Failed to retrieve code" });
+  }
 });
 
 // POST /api/stripe/activate-lab — called from mobile after IAP purchase to upsert pro tier

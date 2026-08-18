@@ -7561,6 +7561,7 @@ export function StarLabPage() {
   const [showGreeting, setShowGreeting] = useState(false);
   const [pin, setPin] = useState("");
   const [accessLevel, setAccessLevel] = useState<AccessRole>("owner");
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [appBuilderPreload, setAppBuilderPreload] = useState<string | null>(null);
 
   const userName = typeof window !== "undefined"
@@ -8006,8 +8007,13 @@ export function StarLabPage() {
         </div>
       )}
 
+      {/* Mobile sidebar backdrop */}
+      {mobileNavOpen && (
+        <div className="fixed inset-0 z-40 md:hidden" style={{ background: "rgba(0,0,0,0.45)" }} onClick={() => setMobileNavOpen(false)} />
+      )}
+
       {/* SIDEBAR */}
-      <div className="w-56 flex-shrink-0 flex flex-col border-r" style={{ borderColor: "rgba(15,23,42,0.07)", background: "#FFFFFF" }}>
+      <div className={mobileNavOpen ? "fixed inset-y-0 left-0 z-50 flex w-full flex-col border-r" : "hidden md:flex w-56 flex-shrink-0 flex-col border-r"} style={{ borderColor: "rgba(15,23,42,0.07)", background: "#FFFFFF" }}>
         {/* Logo */}
         <div className="p-4 border-b" style={{ borderColor: "rgba(15,23,42,0.07)" }}>
           <div className="flex items-center gap-2.5">
@@ -8061,7 +8067,7 @@ export function StarLabPage() {
                     const Icon = item.icon;
                     const active = navMode === item.id;
                     return (
-                      <button key={item.id} onClick={() => setNavMode(item.id)}
+                      <button key={item.id} onClick={() => { setNavMode(item.id); setMobileNavOpen(false); }}
                         className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg mb-0.5 transition-all text-left"
                         style={{
                           background: active ? cat.bg : "transparent",
@@ -8268,6 +8274,17 @@ export function StarLabPage() {
 
       {/* MAIN */}
       <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
+
+        {/* Mobile hamburger — visible only on mobile when sidebar is hidden */}
+        <div className="md:hidden flex items-center gap-2 px-3 py-2 flex-shrink-0 border-b" style={{ borderColor: "rgba(15,23,42,0.07)", background: "#FFFFFF" }}>
+          <button onClick={() => setMobileNavOpen(true)}
+            className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium"
+            style={{ background: "rgba(15,23,42,0.05)", color: "rgba(15,23,42,0.5)" }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            Menu
+          </button>
+          <span className="text-xs font-semibold text-slate-700">{ALL_NAV_ITEMS.find(n => n.id === navMode)?.label ?? "Star Lab"}</span>
+        </div>
 
         {/* Global breadcrumb / back bar — shown on every panel except dashboard */}
         {navMode !== "dashboard" && (
