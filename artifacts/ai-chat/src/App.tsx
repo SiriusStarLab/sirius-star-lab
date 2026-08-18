@@ -10,6 +10,7 @@ import { CheckoutSuccessPage } from "@/pages/checkout-success";
 import { CheckoutCancelPage } from "@/pages/checkout-cancel";
 import { StarLabPage } from "@/pages/star-lab";
 import { MarketingPage } from "@/pages/marketing";
+import { PricingPage } from "@/pages/pricing";
 import { DreamLabPage } from "@/pages/dream-lab";
 import { WellbeingPage } from "@/pages/wellbeing";
 import { UniversePage } from "@/pages/universe";
@@ -51,7 +52,7 @@ function Router() {
       <Route path="/learn" component={LearnPage} />
       <Route path="/why-sirius" component={MarketingPage} />
       <Route path="/agency" component={MarketingPage} />
-      <Route path="/pricing" component={MarketingPage} />
+      <Route path="/pricing" component={PricingPage} />
       <Route path="/compare" component={ComparePage} />
       <Route path="/discover" component={DiscoverPage} />
       <Route path="/memories" component={MemoriesPage} />
