@@ -60,7 +60,7 @@ export function IOSInstallGuide({ onClose }: IOSGuideProps) {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       style={{
-        position: "fixed", inset: 0, zIndex: 9999,
+        position: "fixed", inset: 0, zIndex: 9999, cursor: "pointer",
         background: "rgba(0,0,0,0.65)", backdropFilter: "blur(8px)",
         display: "flex", alignItems: "flex-end", justifyContent: "center",
         padding: "0 12px 24px",

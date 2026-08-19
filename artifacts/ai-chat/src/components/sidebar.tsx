@@ -683,7 +683,8 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession, chatM
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40"
+            className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40 cursor-pointer"
+            style={{ WebkitTapHighlightColor: "transparent" }}
           />
         )}
       </AnimatePresence>
