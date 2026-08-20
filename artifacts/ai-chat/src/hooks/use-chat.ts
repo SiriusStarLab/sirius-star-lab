@@ -47,6 +47,7 @@ export type ChatMessage = {
   wasSearched?: boolean;
   isGeneratingImage?: boolean;
   imageB64?: string;
+  imageMimeType?: string;
   imagePrompt?: string;
   generatedAssets?: GeneratedAsset[];
   uploadedImageBase64?: string;
@@ -238,7 +239,7 @@ export function useChat(conversationId?: number) {
               } else if (data.type === "image") {
                 setMessages(prev => prev.map(m =>
                   m.id === assistantMsgId
-                    ? { ...m, isGeneratingImage: false, imageB64: data.b64, imagePrompt: data.prompt }
+                    ? { ...m, isGeneratingImage: false, imageB64: data.b64, imageMimeType: data.mimeType, imagePrompt: data.prompt }
                     : m
                 ));
               } else if (data.type === "asset" && data.asset) {

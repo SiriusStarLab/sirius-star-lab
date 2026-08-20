@@ -13,7 +13,7 @@ import {
   SendOpenaiMessageBody,
   GenerateOpenaiImageBody,
 } from "@workspace/api-zod";
-import { generateImageBuffer } from "@workspace/ai-client/image";
+import { generateImageBuffer, imageMimeType } from "@workspace/ai-client/image";
 import { intelligence } from "../../lib/intelligence-client.js";
 import { executeCode } from "../../lib/code-sandbox.js";
 import { readSourceFile, deployChange, patchSourceFile, triggerReload, runServerDiagnostic } from "../../lib/self-deploy.js";
@@ -1991,13 +1991,14 @@ When checking C3: run   curl http://localhost:3001/health   first. Read the resp
     try {
       res.write(`data: ${JSON.stringify({ type: "image_generating" })}\n\n`);
       const imageBuffer = await generateImageBuffer(imagePrompt, "1024x1024");
+      const mimeType = imageMimeType(imageBuffer);
       const b64 = imageBuffer.toString("base64");
-      res.write(`data: ${JSON.stringify({ type: "image", b64, prompt: imagePrompt })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: "image", b64, prompt: imagePrompt, mimeType })}\n\n`);
       try {
         const asset = await storeGeneratedAsset(imageBuffer, {
           kind: "image",
           title: imagePrompt,
-          mimeType: "image/png",
+          mimeType,
           userId,
         });
         res.write(`data: ${JSON.stringify({ type: "asset", asset })}\n\n`);

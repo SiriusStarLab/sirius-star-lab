@@ -25,8 +25,9 @@ export function ChatMessage({ message }: ChatMessageProps) {
   const handleDownload = () => {
     if (!message.imageB64) return;
     const link = document.createElement("a");
-    link.href = `data:image/png;base64,${message.imageB64}`;
-    link.download = "sirius-creation.png";
+    const extension = message.imageMimeType === "image/jpeg" ? "jpg" : "png";
+    link.href = `data:${message.imageMimeType || "image/png"};base64,${message.imageB64}`;
+    link.download = `sirius-creation.${extension}`;
     link.click();
   };
 
@@ -185,7 +186,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
                       style={{ border: "1px solid hsl(193 100% 52% / 0.25)", boxShadow: "0 0 24px hsl(193 100% 52% / 0.1)" }}
                     >
                       <img
-                        src={`data:image/png;base64,${message.imageB64}`}
+                        src={`data:${message.imageMimeType || "image/png"};base64,${message.imageB64}`}
                         alt={message.imagePrompt || "Generated image"}
                         className="w-full h-auto block"
                       />
