@@ -347,6 +347,36 @@ export default function ChatScreen() {
               continue;
             }
 
+            if (parsed.type === "asset" && parsed.asset) {
+              setMessages(prev => {
+                const updated = [...prev];
+                const last = updated[updated.length - 1];
+                if (last && last.id === assistantId) {
+                  updated[updated.length - 1] = {
+                    ...last,
+                    generatedAssets: [...(last.generatedAssets ?? []), parsed.asset],
+                  };
+                }
+                return updated;
+              });
+              continue;
+            }
+
+            if (parsed.type === "asset_error") {
+              setMessages(prev => {
+                const updated = [...prev];
+                const last = updated[updated.length - 1];
+                if (last && last.id === assistantId) {
+                  updated[updated.length - 1] = {
+                    ...last,
+                    content: `${last.content || ""}\n\n${parsed.message || "The file could not be created. Please try again."}`,
+                  };
+                }
+                return updated;
+              });
+              continue;
+            }
+
             if (parsed.type === "replace_content" && parsed.content !== undefined) {
               setMessages(prev => {
                 const updated = [...prev];
@@ -756,10 +786,12 @@ export default function ChatScreen() {
                 <View style={upgradeStyles.orb}><Text style={{ fontSize: 22 }}>⚡</Text></View>
               </View>
               <Text style={upgradeStyles.title}>
-                {"You've used your daily messages"}
+                {hitLimitTier === "plus" ? "Daily limit reached" : "You've used your 30 free messages"}
               </Text>
               <Text style={upgradeStyles.subtitle}>
-                {"Upgrade to Premium for 75 messages per day — or come back tomorrow when it resets."}
+                {hitLimitTier === "plus"
+                  ? "Upgrade to Pro for unlimited messages every day."
+                  : "Upgrade for more messages — or come back tomorrow when it resets."}
               </Text>
             </View>
 
@@ -771,30 +803,58 @@ export default function ChatScreen() {
                 </View>
               ) : (
                 <>
-                  {(subscription.proPackage ?? subscription.plusPackage) ? (
-                    <TouchableOpacity style={[upgradeStyles.ctaBtn, { backgroundColor: "hsl(45,100%,42%)" }]} activeOpacity={0.82} disabled={subscription.isPurchasing} onPress={() => handleModalIAPPurchase(subscription.proPackage ?? subscription.plusPackage)}>
-                      {subscription.isPurchasing ? <ActivityIndicator color="#ffffff" /> : <Text style={upgradeStyles.ctaText}>Go Premium — {(subscription.proPackage ?? subscription.plusPackage)!.product.priceString}/mo →</Text>}
+                  {hitLimitTier === "free" && subscription.plusPackage && (
+                    <TouchableOpacity style={upgradeStyles.ctaBtn} activeOpacity={0.82} disabled={subscription.isPurchasing} onPress={() => handleModalIAPPurchase(subscription.plusPackage)}>
+                      {subscription.isPurchasing ? <ActivityIndicator color="#ffffff" /> : <Text style={upgradeStyles.ctaText}>Get Plus — {subscription.plusPackage.product.priceString}/mo →</Text>}
                     </TouchableOpacity>
-                  ) : (
+                  )}
+                  {subscription.proPackage && (
+                    <TouchableOpacity style={[upgradeStyles.ctaBtn, { backgroundColor: "hsl(45,100%,42%)", marginTop: hitLimitTier === "free" ? 8 : 0 }]} activeOpacity={0.82} disabled={subscription.isPurchasing} onPress={() => handleModalIAPPurchase(subscription.proPackage)}>
+                      {subscription.isPurchasing ? <ActivityIndicator color="#ffffff" /> : <Text style={upgradeStyles.ctaText}>Get Pro — {subscription.proPackage.product.priceString}/mo →</Text>}
+                    </TouchableOpacity>
+                  )}
+                  {!subscription.plusPackage && !subscription.proPackage && (
                     <TouchableOpacity style={upgradeStyles.ctaBtn} activeOpacity={0.82} onPress={() => { setShowUpgradeModal(false); setTimeout(() => router.push("/(tabs)/pricing" as any), 300); }}>
-                      <Text style={upgradeStyles.ctaText}>View Premium options →</Text>
+                      <Text style={upgradeStyles.ctaText}>View subscription options →</Text>
                     </TouchableOpacity>
+                  )}
+                  {(subscription.plusPackage || subscription.proPackage) && (
+                    <View style={upgradeStyles.legalRow}>
+                      <TouchableOpacity onPress={() => Linking.openURL("https://sirius-ai.live/terms")}>
+                        <Text style={upgradeStyles.legalLink}>Terms of Use</Text>
+                      </TouchableOpacity>
+                      <Text style={upgradeStyles.legalSep}>·</Text>
+                      <TouchableOpacity onPress={() => Linking.openURL("https://sirius-ai.live/privacy")}>
+                        <Text style={upgradeStyles.legalLink}>Privacy Policy</Text>
+                      </TouchableOpacity>
+                    </View>
                   )}
                 </>
               )
             ) : (
               <>
+                {hitLimitTier === "free" && (
+                  <View style={upgradeStyles.planCard}>
+                    <View style={upgradeStyles.planRow}>
+                      <View>
+                        <Text style={upgradeStyles.planName}>Plus</Text>
+                        <Text style={upgradeStyles.planDesc}>200 messages/day · image gen · memory</Text>
+                      </View>
+                      <Text style={[upgradeStyles.planPrice, { color: "hsl(193,100%,55%)" }]}>£9.99<Text style={upgradeStyles.planPer}>/mo</Text></Text>
+                    </View>
+                  </View>
+                )}
                 <View style={upgradeStyles.planCard}>
                   <View style={upgradeStyles.planRow}>
                     <View>
-                      <Text style={upgradeStyles.planName}>Premium</Text>
-                      <Text style={upgradeStyles.planDesc}>75 messages/day · Star Lab · voice · memory</Text>
+                      <Text style={upgradeStyles.planName}>Pro</Text>
+                      <Text style={upgradeStyles.planDesc}>Unlimited messages · priority speed</Text>
                     </View>
                     <Text style={[upgradeStyles.planPrice, { color: "hsl(45,100%,55%)" }]}>£19.99<Text style={upgradeStyles.planPer}>/mo</Text></Text>
                   </View>
                 </View>
                 <TouchableOpacity style={upgradeStyles.ctaBtn} activeOpacity={0.82} onPress={() => { setShowUpgradeModal(false); setTimeout(() => router.push("/(tabs)/pricing" as any), 300); }}>
-                  <Text style={upgradeStyles.ctaText}>Go Premium →</Text>
+                  <Text style={upgradeStyles.ctaText}>See plans →</Text>
                 </TouchableOpacity>
               </>
             )}
@@ -1153,6 +1213,9 @@ const upgradeStyles = StyleSheet.create({
   ctaText: { color: "#ffffff", fontSize: 15, fontWeight: "700", fontFamily: "Inter_700Bold" },
   dismissBtn: { alignItems: "center", paddingVertical: 8 },
   dismissText: { color: Colors.textDim, fontSize: 13, fontFamily: "Inter_400Regular" },
+  legalRow: { flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6, marginBottom: 10 },
+  legalLink: { fontSize: 11, color: Colors.textDim, fontFamily: "Inter_400Regular", textDecorationLine: "underline" },
+  legalSep: { fontSize: 11, color: Colors.textMuted },
 });
 
 const histStyles = StyleSheet.create({

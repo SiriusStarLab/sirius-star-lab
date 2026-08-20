@@ -12,12 +12,8 @@ export function getApiBase(): string {
 }
 
 export async function getUserId(): Promise<string> {
-  let id = await AsyncStorage.getItem(USER_ID_KEY);
-  if (!id) {
-    id = `mobile-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    await AsyncStorage.setItem(USER_ID_KEY, id);
-  }
-  return id;
+  const id = await AsyncStorage.getItem(USER_ID_KEY);
+  return id ?? "";
 }
 
 export interface UserProfile {
@@ -83,6 +79,20 @@ export interface Message {
   role: "user" | "assistant";
   content: string;
   imageB64?: string;
+  imageMimeType?: string;
+  uploadedImageBase64?: string;
+  /** Additional images beyond the first (data: URIs) — for multi-image messages */
+  images?: string[];
+  generatedAssets?: GeneratedAsset[];
+  /** Resilient-fetch delivery status for outgoing user messages */
+  status?: "queued" | "retrying" | "sent";
+}
+
+export interface GeneratedAsset {
+  kind: "image" | "pdf";
+  name: string;
+  mimeType: string;
+  url: string;
 }
 
 let messageCounter = 0;

@@ -30,6 +30,13 @@ export type ActionStep = {
   icon?: string;
 };
 
+export type GeneratedAsset = {
+  kind: "image" | "pdf";
+  name: string;
+  mimeType: string;
+  url: string;
+};
+
 export type ChatMessage = {
   id: string | number;
   role: "user" | "assistant" | "system";
@@ -41,6 +48,7 @@ export type ChatMessage = {
   isGeneratingImage?: boolean;
   imageB64?: string;
   imagePrompt?: string;
+  generatedAssets?: GeneratedAsset[];
   uploadedImageBase64?: string;
   sources?: ChatSource[];
   actions?: ActionStep[];
@@ -231,6 +239,18 @@ export function useChat(conversationId?: number) {
                 setMessages(prev => prev.map(m =>
                   m.id === assistantMsgId
                     ? { ...m, isGeneratingImage: false, imageB64: data.b64, imagePrompt: data.prompt }
+                    : m
+                ));
+              } else if (data.type === "asset" && data.asset) {
+                setMessages(prev => prev.map(m =>
+                  m.id === assistantMsgId
+                    ? { ...m, generatedAssets: [...(m.generatedAssets || []), data.asset] }
+                    : m
+                ));
+              } else if (data.type === "asset_error") {
+                setMessages(prev => prev.map(m =>
+                  m.id === assistantMsgId
+                    ? { ...m, content: `${m.content}${m.content ? "\n\n" : ""}${data.message || "The file could not be created. Please try again."}` }
                     : m
                 ));
               } else if (data.type === "action") {

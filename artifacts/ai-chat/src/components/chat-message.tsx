@@ -4,7 +4,7 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
-import { Zap, User, Globe, ExternalLink, Download, Sparkles } from "lucide-react";
+import { Zap, User, Globe, ExternalLink, Download, Sparkles, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { type ChatMessage as ChatMessageType } from "@/hooks/use-chat";
 import { motion, AnimatePresence } from "framer-motion";
@@ -18,6 +18,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
   const isSearching = !isUser && message.isSearching && !message.content;
   const hasSources = !isUser && (message.sources?.length ?? 0) > 0;
   const hasImage = !isUser && !!message.imageB64;
+  const generatedAssets = !isUser ? message.generatedAssets || [] : [];
   const isGeneratingImage = !isUser && !!message.isGeneratingImage;
   const wasSearched = !isUser && !!message.wasSearched;
 
@@ -27,6 +28,17 @@ export function ChatMessage({ message }: ChatMessageProps) {
     link.href = `data:image/png;base64,${message.imageB64}`;
     link.download = "sirius-creation.png";
     link.click();
+  };
+
+  const downloadAsset = (asset: NonNullable<ChatMessageType["generatedAssets"]>[number]) => {
+    const link = document.createElement("a");
+    link.href = asset.url;
+    link.download = asset.name;
+    link.target = "_blank";
+    link.rel = "noopener";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
   };
 
   return (
@@ -189,6 +201,30 @@ export function ChatMessage({ message }: ChatMessageProps) {
                     </motion.div>
                   )}
                 </AnimatePresence>
+
+                {generatedAssets.map((asset, index) => (
+                  <div
+                    key={`${asset.url}-${index}`}
+                    className="mt-3 flex items-center gap-3 rounded-xl p-3 max-w-lg"
+                    style={{ background: "hsl(193 100% 52% / 0.07)", border: "1px solid hsl(193 100% 52% / 0.2)" }}
+                  >
+                    {asset.kind === "pdf"
+                      ? <FileText size={20} className="text-primary shrink-0" />
+                      : <Sparkles size={20} className="text-primary shrink-0" />}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-foreground">{asset.kind === "pdf" ? "Your PDF is ready" : "Your image is ready"}</p>
+                      <p className="text-xs text-muted-foreground truncate">{asset.name}</p>
+                    </div>
+                    <button
+                      onClick={() => downloadAsset(asset)}
+                      className="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/10"
+                      aria-label={`Download ${asset.name}`}
+                    >
+                      <Download size={14} />
+                      Download
+                    </button>
+                  </div>
+                ))}
 
                 {/* Searched-but-no-citations badge */}
                 {wasSearched && !hasSources && !message.isStreaming && message.content && (

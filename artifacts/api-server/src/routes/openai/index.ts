@@ -17,6 +17,7 @@ import { generateImageBuffer } from "@workspace/ai-client/image";
 import { intelligence } from "../../lib/intelligence-client.js";
 import { executeCode } from "../../lib/code-sandbox.js";
 import { readSourceFile, deployChange, patchSourceFile, triggerReload, runServerDiagnostic } from "../../lib/self-deploy.js";
+import { documentTitleFromRequest, pdfCreationRequested, renderPdf, storeGeneratedAsset } from "../../lib/generated-media.js";
 
 // ── YouTube transcript fetcher ───────────────────────────────────────────────
 async function fetchYouTubeTranscript(videoId: string): Promise<string | null> {
@@ -1134,6 +1135,10 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
   const documentName = (body.data as any).documentName as string | undefined;
   const documents = (body.data as any).documents as Array<{ base64: string; name: string }> | undefined;
   let systemPrompt = buildSystemPrompt(profile, mode);
+  const requestedPdf = pdfCreationRequested(body.data.content || "");
+  if (requestedPdf) {
+    systemPrompt += `\n\n## PDF CREATION REQUEST\nThe user has explicitly asked for a PDF. Write the complete, polished document content they requested, with useful headings and details. Do not say you cannot make a PDF and do not tell the user to print the chat: the server creates the actual PDF after your response is complete.`;
+  }
 
   // Intelligence layer — memory prompt + unified cross-surface context (500ms each, never blocks)
   if (userId) {
@@ -1946,6 +1951,26 @@ When checking C3: run   curl http://localhost:3001/health   first. Read the resp
     });
   }
 
+  // --- PDF generation ---
+  // A PDF request is fulfilled by rendering the completed assistant response into
+  // a real file and storing it before the client is told it is ready.
+  if (requestedPdf) {
+    try {
+      const title = documentTitleFromRequest(body.data.content || "");
+      const pdf = renderPdf(title, fullResponse || body.data.content || "Your Sirius document is ready.");
+      const asset = await storeGeneratedAsset(pdf, {
+        kind: "pdf",
+        title,
+        mimeType: "application/pdf",
+        userId,
+      });
+      res.write(`data: ${JSON.stringify({ type: "asset", asset })}\n\n`);
+    } catch (pdfErr: any) {
+      console.error("PDF generation failed:", pdfErr?.message);
+      res.write(`data: ${JSON.stringify({ type: "asset_error", kind: "pdf", message: "I could not create that PDF. Please try again." })}\n\n`);
+    }
+  }
+
   // --- Image generation ---
   // Primary: Sirius outputs [IMAGE: description] marker in its response.
   // Fallback: user's message matches image-request keywords.
@@ -1968,6 +1993,17 @@ When checking C3: run   curl http://localhost:3001/health   first. Read the resp
       const imageBuffer = await generateImageBuffer(imagePrompt, "1024x1024");
       const b64 = imageBuffer.toString("base64");
       res.write(`data: ${JSON.stringify({ type: "image", b64, prompt: imagePrompt })}\n\n`);
+      try {
+        const asset = await storeGeneratedAsset(imageBuffer, {
+          kind: "image",
+          title: imagePrompt,
+          mimeType: "image/png",
+          userId,
+        });
+        res.write(`data: ${JSON.stringify({ type: "asset", asset })}\n\n`);
+      } catch (storageErr: any) {
+        console.error("Image storage failed:", storageErr?.message);
+      }
     } catch (imgErr: any) {
       console.error("Image generation failed:", imgErr?.message);
       res.write(`data: ${JSON.stringify({ type: "image_error", message: "I wasn't able to generate that image. Please try again." })}\n\n`);
