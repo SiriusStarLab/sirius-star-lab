@@ -34,7 +34,7 @@ export async function authMiddleware(req: Request, res: Response, next: () => vo
   // Owner PIN auth
   if (pin === LAB_PIN) { next(); return; }
 
-  // Subscriber bypass: Plus or Pro users access lab routes via x-user-id
+  // Subscriber bypass: Sirius Pro users access public Star Lab routes via x-user-id
   const userId = req.headers["x-user-id"] as string;
   if (userId && userId.length >= 4) {
     try {
@@ -44,7 +44,7 @@ export async function authMiddleware(req: Request, res: Response, next: () => vo
         .where(eq(userProfilesTable.userId, userId))
         .limit(1);
       const tier = rows[0]?.tier || "free";
-      if (tier === "pro" || tier === "plus") { next(); return; }
+      if (tier === "pro") { next(); return; }
       res.status(403).json({ error: "Star Lab requires a Pro subscription." });
       return;
     } catch {

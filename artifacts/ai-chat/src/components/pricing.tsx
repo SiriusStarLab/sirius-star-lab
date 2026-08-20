@@ -1,26 +1,9 @@
 import React, { useState } from "react";
-import { Check, Zap, Star, ArrowLeft, Loader2, CreditCard } from "lucide-react";
+import { Check, Star, ArrowLeft, Loader2, CreditCard } from "lucide-react";
 import { getApiBase } from "@/lib/api-base";
 import { getUserId } from "@/lib/user-id";
 
 const PLANS = [
-  {
-    id: "plus" as const,
-    name: "Plus",
-    price: "£9.99",
-    period: "/month",
-    tagline: "For daily users who want more",
-    color: "hsl(193,100%,45%)",
-    icon: Zap,
-    features: [
-      "200 messages per day",
-      "Dream Lab — build & track your dreams",
-      "Learn — study plans, quizzes, deep learning",
-      "Sirius remembers you between sessions",
-      "Image analysis & understanding",
-      "Real-time web search",
-    ],
-  },
   {
     id: "pro" as const,
     name: "Pro",
@@ -31,7 +14,8 @@ const PLANS = [
     icon: Star,
     features: [
       "Unlimited messages",
-      "Everything in Plus",
+      "Dream Lab included",
+      "Star Lab included",
       "Voice conversations",
       "Priority response speed",
       "Telegram — Sirius messages you proactively",
@@ -41,11 +25,11 @@ const PLANS = [
 ];
 
 export function PricingPage() {
-  const [loading, setLoading] = useState<"plus" | "pro" | null>(null);
+  const [loading, setLoading] = useState<"pro" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const userId = getUserId();
 
-  const handleCheckout = async (tier: "plus" | "pro") => {
+  const handleCheckout = async (tier: "pro") => {
     setLoading(tier);
     setError(null);
     try {

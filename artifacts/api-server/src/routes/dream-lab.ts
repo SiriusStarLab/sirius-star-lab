@@ -17,7 +17,7 @@ function requireUser(req: Request, res: Response, next: () => void) {
   next();
 }
 
-// ── Middleware: require paid tier (plus or pro) ───────────────────────────────
+// ── Middleware: Dream Lab is a Sirius Pro feature ─────────────────────────────
 async function requirePaid(req: Request, res: Response, next: () => void) {
   const userId = req.headers["x-dream-user"] as string;
   if (!userId || userId.length < 4) { res.status(401).json({ error: "User ID required" }); return; }
@@ -27,8 +27,8 @@ async function requirePaid(req: Request, res: Response, next: () => void) {
     const [profile] = await db.select({ tier: userProfilesTable.subscriptionTier })
       .from(userProfilesTable).where(eq(userProfilesTable.userId, userId));
     const tier = profile?.tier || "free";
-    if (tier === "free") {
-      res.status(403).json({ error: "Dream Lab is available on Plus and Pro plans.", upgrade: true });
+    if (tier !== "pro") {
+      res.status(403).json({ error: "Dream Lab requires a Sirius Pro subscription.", upgrade: true });
       return;
     }
     next();

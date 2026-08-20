@@ -111,6 +111,12 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession, chatM
     setIsPricingOpen(true);
   };
 
+  const dismissBackdrop = (event: React.SyntheticEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onClose();
+  };
+
   const { data: conversations, isLoading } = useListOpenaiConversations();
   const { mutate: deleteConversation, isPending: isDeleting } = useDeleteOpenaiConversation();
 
@@ -525,7 +531,7 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession, chatM
               : <Zap size={14} style={{ color: "hsl(193,100%,30%)" }} fill="currentColor" />}
             <div className="flex-1 text-left">
               <p className="text-[12px] font-semibold" style={{ color: "hsl(193,100%,24%)" }}>
-                {checkingOut ? "Preparing checkout…" : "Get Plus — £9.99/month"}
+                {checkingOut ? "Preparing checkout…" : "Get Sirius Pro — £19.99/month"}
               </p>
               {!checkingOut && (
                 <p className="text-[10px]" style={{ color: "hsl(193,60%,38%)" }}>
@@ -682,9 +688,10 @@ export function Sidebar({ isOpen, onClose, forceOpenPricing, onNewSession, chatM
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={onClose}
+            onPointerUp={dismissBackdrop}
+            onClick={dismissBackdrop}
             className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40 cursor-pointer"
-            style={{ WebkitTapHighlightColor: "transparent" }}
+            style={{ WebkitTapHighlightColor: "transparent", touchAction: "none" }}
           />
         )}
       </AnimatePresence>

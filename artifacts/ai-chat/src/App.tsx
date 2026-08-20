@@ -24,6 +24,7 @@ import NotFound from "@/pages/not-found";
 import { PWAInstallPrompt } from "@/components/pwa-install-prompt";
 import { ReconnectionBanner } from "@/components/reconnection-banner";
 import { LabAuthGate } from "@/components/lab-auth-gate";
+import { ProAccessGate } from "@/components/pro-access-gate";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -45,7 +46,7 @@ function Router() {
       <Route path="/origin" component={() => <LabAuthGate><StarLabPage /></LabAuthGate>} />
       <Route path="/star-lab" component={() => { const [, nav] = useLocation(); useEffect(() => nav("/origin"), []); return null; }} />
       <Route path="/creator-lab" component={CreatorLabPage} />
-      <Route path="/dream-lab" component={DreamLabPage} />
+      <Route path="/dream-lab" component={() => <ProAccessGate featureName="Dream Lab"><DreamLabPage /></ProAccessGate>} />
       <Route path="/wellbeing" component={WellbeingPage} />
       <Route path="/universe" component={UniversePage} />
       <Route path="/admin" component={() => <LabAuthGate><StarLabPage /></LabAuthGate>} />
@@ -56,7 +57,7 @@ function Router() {
       <Route path="/compare" component={ComparePage} />
       <Route path="/discover" component={DiscoverPage} />
       <Route path="/memories" component={MemoriesPage} />
-      <Route path="/projects" component={ProjectsPage} />
+      <Route path="/projects" component={() => <ProAccessGate featureName="Star Lab"><ProjectsPage /></ProAccessGate>} />
       {/*
         ChatPage is the catch-all — it handles "/" and "/c/:id" internally
         via useRoute(). By using a single Route element for both paths, the
