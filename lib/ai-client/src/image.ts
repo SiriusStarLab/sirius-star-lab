@@ -9,9 +9,9 @@ export async function generateImageBuffer(
   const [width, height] = size.split("x").map(Number);
   const encodedPrompt = encodeURIComponent(prompt);
   const attempts = [
-    `${POLLINATIONS_BASE}/${encodedPrompt}?width=${width}&height=${height}&nologo=true&seed=${Date.now()}`,
-    `${POLLINATIONS_BASE}/${encodedPrompt}?width=${width}&height=${height}&nologo=true&model=turbo&seed=${Date.now() + 1}`,
-    `${POLLINATIONS_BASE}/${encodedPrompt}?width=768&height=768&nologo=true&seed=${Date.now() + 2}`,
+    `${POLLINATIONS_BASE}/${encodedPrompt}?width=${width}&height=${height}&nologo=true`,
+    `${POLLINATIONS_BASE}/${encodedPrompt}?width=${width}&height=${height}&nologo=true&model=turbo`,
+    `${POLLINATIONS_BASE}/${encodedPrompt}?width=768&height=768&nologo=true`,
   ];
   let lastError = "Image provider did not return an image";
   for (const url of attempts) {
