@@ -63,7 +63,9 @@ router.post("/lab/app-builder/sessions/save", authMiddleware, async (req: Reques
     const payload = {
       pin,
       appName: appName || "Untitled App",
-      status: status || "draft",
+      // Auto-promote to "complete" when files are present and caller did not specify status
+      // "complete" is required before the deploy endpoint will accept the session
+      status: status || (files && Object.keys(files).length > 0 ? "complete" : "draft"),
       phase: phase ?? 1,
       requirements: JSON.stringify(requirements || {}),
       plan: JSON.stringify(plan || []),
