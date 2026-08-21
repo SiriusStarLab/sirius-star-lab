@@ -445,23 +445,31 @@ export async function deployAppSession(
   // ── 3. Build frontend ────────────────────────────────────────────────────────
   let distDir = "";
 
-  /** Find vite binary: prefer local/hoisted, fallback to global */
+  /** Find vite binary: prefer local node_modules, never fall back to global.
+   *  Global vite cannot resolve imports in local vite.config.ts or local packages. */
   const findViteBin = (feDir: string): string => {
     const candidates = [
-      // Workspace-hoisted (most likely after npm install in a sub-package)
-      join(feDir, "../node_modules/.bin/vite"),
-      join(appDir, "node_modules/.bin/vite"),
-      // Locally installed
-      join(feDir, "node_modules/.bin/vite"),
-      // Global
-      "/usr/bin/vite",
-      "/usr/local/bin/vite",
+      join(feDir, "node_modules/.bin/vite"),       // local (most reliable)
+      join(appDir, "node_modules/.bin/vite"),       // app root
+      join(feDir, "../node_modules/.bin/vite"),     // hoisted monorepo
     ];
     for (const c of candidates) {
       if (existsSync(c)) return c;
     }
-    // Last resort: use global vite with global config (avoids local module resolution)
-    return "/usr/bin/vite";
+    // Local vite not found — install it explicitly then return the path
+    log.push("Local vite binary not found — running targeted install...");
+    try {
+      execSync("npm install vite @vitejs/plugin-react --save-dev --legacy-peer-deps 2>&1", {
+        cwd: feDir, encoding: "utf-8", timeout: 60_000, stdio: ["pipe","pipe","pipe"]
+      });
+      if (existsSync(join(feDir, "node_modules/.bin/vite"))) {
+        log.push("\u2705 vite installed via targeted install");
+        return join(feDir, "node_modules/.bin/vite");
+      }
+    } catch {}
+    // Hard fail rather than use global vite (which cannot see local packages)
+    log.push("\u26a0\ufe0f  Cannot find local vite — build will likely fail");
+    return join(feDir, "node_modules/.bin/vite");
   };
 
 
