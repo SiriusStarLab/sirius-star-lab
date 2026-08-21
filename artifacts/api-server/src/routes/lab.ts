@@ -7639,7 +7639,9 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
 
       const loopController = new AbortController();
       // First round: 15s (tool selection is fast). Later rounds: 25s (tool results can be larger).
-      let loopTimer = setTimeout(() => loopController.abort(), roundCount === 1 ? 15_000 : 25_000);
+      let loopTimer = // Round 1 timeout: 90s — model takes 30-40s to start with 3000+ memories.
+      // Subsequent rounds: 45s — context is loaded, responses are faster.
+      setTimeout(() => loopController.abort(), roundCount === 1 ? 90_000 : 45_000);
 
       const loopStream = await openai.chat.completions.create({
         model: SIRIUS_MODEL,
@@ -7657,7 +7659,7 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
       let finishReason = "";
 
       for await (const chunk of loopStream) {
-        clearTimeout(loopTimer); loopTimer = setTimeout(() => loopController.abort(), 20_000);
+        clearTimeout(loopTimer); loopTimer = setTimeout(() => loopController.abort(), 45_000);
         const choice = chunk.choices?.[0];
         if (!choice) continue;
         finishReason = choice.finish_reason || finishReason;

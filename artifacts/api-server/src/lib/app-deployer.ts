@@ -1,4 +1,6 @@
-import { execSync } from "child_process";
+import { execSync, exec as _exec } from "child_process";
+import { promisify } from "util";
+const execAsync = promisify(_exec);
 import { mkdirSync, writeFileSync, existsSync, readFileSync, readdirSync, cpSync, rmSync } from "fs";
 import { join, dirname } from "path";
 
@@ -33,11 +35,12 @@ function findFreePort(start = 5100, end = 5999): number {
   return start;
 }
 
-function run(cmd: string, cwd: string, log: string[]): { ok: boolean; out: string } {
+async function run(cmd: string, cwd: string, log: string[]): Promise<{ ok: boolean; out: string }> {
   try {
-    const out = execSync(cmd, { cwd, encoding: "utf-8", timeout: 180_000, stdio: ["pipe","pipe","pipe"] });
+    const { stdout, stderr } = await execAsync(cmd, { cwd, timeout: 180_000, maxBuffer: 10 * 1024 * 1024 });
+    const out = ((stdout || "") + (stderr || "")).trim().slice(0, 2000);
     log.push(`\u2705 ${cmd.slice(0, 80)}`);
-    return { ok: true, out: out.toString().trim().slice(0, 2000) };
+    return { ok: true, out };
   } catch (e: any) {
     const msg = ((e?.stdout || "") + "\n" + (e?.stderr || "")).trim().slice(0, 800);
     log.push(`\u26a0\ufe0f ${cmd.slice(0, 60)}: ${msg.slice(0, 300)}`);
@@ -211,7 +214,7 @@ const NODE_BUILTINS = new Set([
  * Scan all source files in feDir, extract third-party package names from import/require
  * statements, compare against installed packages, and install anything missing.
  */
-function scanAndInstallMissingDeps(feDir: string, log: string[]): void {
+async function scanAndInstallMissingDeps(feDir: string, log: string[]): Promise<void> {
   const pkgPath = join(feDir, "package.json");
   let installed: Set<string> = new Set();
   if (existsSync(pkgPath)) {
@@ -257,7 +260,7 @@ function scanAndInstallMissingDeps(feDir: string, log: string[]): void {
   // Install in batches to avoid arg-list overflow
   for (let i = 0; i < missing.length; i += 20) {
     const batch = missing.slice(i, i + 20);
-    const out = run(`npm install --legacy-peer-deps \${batch.join(" ")} 2>&1`, feDir, log);
+    const out = await run(`npm install --legacy-peer-deps \${batch.join(" ")} 2>&1`, feDir, log);
     if (out.ok) {
       log.push(`Installed: \${batch.join(", ")}`);
     } else {
@@ -268,7 +271,7 @@ function scanAndInstallMissingDeps(feDir: string, log: string[]): void {
 
 
 // ── Tailwind CSS auto-configurator ──────────────────────────────────────────
-function detectAndConfigureTailwind(feDir: string, log: string[]): void {
+async function detectAndConfigureTailwind(feDir: string, log: string[]): Promise<void> {
   const hasTwConfig = ["tailwind.config.js","tailwind.config.ts","tailwind.config.cjs"]
     .some(f => existsSync(join(feDir, f)));
 
@@ -320,7 +323,7 @@ function detectAndConfigureTailwind(feDir: string, log: string[]): void {
         log.push("Patched vite config: added @tailwindcss/vite plugin (v4)");
       }
     }
-    run("npm install @tailwindcss/vite --legacy-peer-deps 2>&1", feDir, log);
+    await run("npm install @tailwindcss/vite --legacy-peer-deps 2>&1", feDir, log);
   } else {
     // Tailwind v3: PostCSS approach
     const postcssPath = join(feDir, "postcss.config.js");
@@ -351,7 +354,7 @@ function detectAndConfigureTailwind(feDir: string, log: string[]): void {
         "@tailwind base;\n@tailwind components;\n@tailwind utilities;\n", "utf-8");
       log.push("Created src/index.css with @tailwind directives");
     }
-    run("npm install tailwindcss postcss autoprefixer --save-dev --legacy-peer-deps 2>&1", feDir, log);
+    await run("npm install tailwindcss postcss autoprefixer --save-dev --legacy-peer-deps 2>&1", feDir, log);
   }
 }
 
@@ -447,7 +450,7 @@ export async function deployAppSession(
 
   /** Find vite binary: prefer local node_modules, never fall back to global.
    *  Global vite cannot resolve imports in local vite.config.ts or local packages. */
-  const findViteBin = (feDir: string): string => {
+  const findViteBin = async (feDir: string): Promise<string> => {
     const candidates = [
       join(feDir, "node_modules/.bin/vite"),       // local (most reliable)
       join(appDir, "node_modules/.bin/vite"),       // app root
@@ -459,9 +462,7 @@ export async function deployAppSession(
     // Local vite not found — install it explicitly then return the path
     log.push("Local vite binary not found — running targeted install...");
     try {
-      execSync("npm install vite @vitejs/plugin-react --save-dev --legacy-peer-deps 2>&1", {
-        cwd: feDir, encoding: "utf-8", timeout: 60_000, stdio: ["pipe","pipe","pipe"]
-      });
+      await run("npm install vite @vitejs/plugin-react --save-dev --legacy-peer-deps 2>&1", feDir, log);
       if (existsSync(join(feDir, "node_modules/.bin/vite"))) {
         log.push("\u2705 vite installed via targeted install");
         return join(feDir, "node_modules/.bin/vite");
@@ -555,7 +556,7 @@ export async function deployAppSession(
   };
 
 
-  const tryBuildFrontend = (feDir: string): boolean => {
+  const tryBuildFrontend = async (feDir: string): Promise<boolean> => {
     log.push(`Building frontend in ${feDir}`);
     scaffoldViteProject(feDir, appName, log);
 
@@ -574,17 +575,17 @@ export async function deployAppSession(
     }
 
     // Install in feDir — now works as standalone since workspace config was removed
-    run("npm install --include=dev --legacy-peer-deps 2>&1", feDir, log);
-    scanAndInstallMissingDeps(feDir, log);
-    detectAndConfigureTailwind(feDir, log);
+    await run("npm install --include=dev --legacy-peer-deps 2>&1", feDir, log);
+    await scanAndInstallMissingDeps(feDir, log);
+    await detectAndConfigureTailwind(feDir, log);
 
-    const actualVite = findViteBin(feDir);
+    const actualVite = await findViteBin(feDir);
     log.push(`Using vite: ${actualVite}`);
 
     // Retry loop: create stubs for unresolved imports and retry build
     const MAX_RETRIES = 20;
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-      const buildOut = run(`${actualVite} build 2>&1`, feDir, log);
+      const buildOut = await run(`${actualVite} build 2>&1`, feDir, log);
       if (existsSync(join(feDir, "dist"))) { distDir = join(feDir, "dist"); return true; }
       if (existsSync(join(feDir, "build"))) { distDir = join(feDir, "build"); return true; }
 
@@ -679,10 +680,10 @@ export async function deployAppSession(
   // ── 4. Backend (optional) ────────────────────────────────────────────────────
   let backendPort: number | undefined;
 
-  const tryLaunchBackend = (beDir: string, beSlug: string): void => {
+  const tryLaunchBackend = async (beDir: string, beSlug: string): Promise<void> => {
     const port = findFreePort();
     backendPort = port;
-    run("npm install --legacy-peer-deps 2>&1", beDir, log);
+    await run("npm install --legacy-peer-deps 2>&1", beDir, log);
 
     // Detect entry file
     const candidates = [
@@ -699,17 +700,17 @@ export async function deployAppSession(
 
     // Try TypeScript build if entry is .ts
     if (entry.endsWith(".ts")) {
-      run(`npx tsx ${entry} --version 2>&1 || true`, beDir, log);
+      await run(`npx tsx ${entry} --version 2>&1 || true`, beDir, log);
       const pm2Name = `sirius-app-${beSlug}`;
-      run(`pm2 delete ${pm2Name} 2>/dev/null || true`, beDir, log);
+      await run(`pm2 delete ${pm2Name} 2>/dev/null || true`, beDir, log);
       // Each sandbox app gets its own SQLite DB — never leak Sirius credentials
     const dbPath = 'file:' + appDir + '/data.db';
-    const envVars = 'PORT=' + port + ' NODE_ENV=production DATABASE_URL="' + dbPath + '" SESSION_SECRET="sandbox-secret-' + beSlug + '"'; run(`${envVars} pm2 start ${entry} --name ${pm2Name} --interpreter=$(which npx) --interpreter-args=tsx 2>&1 || ${envVars} pm2 start ${entry} --name ${pm2Name} 2>&1 || true`, beDir, log);
+    const envVars = 'PORT=' + port + ' NODE_ENV=production DATABASE_URL="' + dbPath + '" SESSION_SECRET="sandbox-secret-' + beSlug + '"'; await run(`${envVars} pm2 start ${entry} --name ${pm2Name} --interpreter=$(which npx) --interpreter-args=tsx 2>&1 || ${envVars} pm2 start ${entry} --name ${pm2Name} 2>&1 || true`, beDir, log);
       log.push(`Backend (tsx) attempted on port ${port}`);
     } else if (entry) {
       const pm2Name = `sirius-app-${beSlug}`;
-      run(`pm2 delete ${pm2Name} 2>/dev/null || true`, beDir, log);
-      run(`PORT=${port} pm2 start ${entry} --name ${pm2Name} 2>&1 || true`, beDir, log);
+      await run(`pm2 delete ${pm2Name} 2>/dev/null || true`, beDir, log);
+      await run(`PORT=${port} pm2 start ${entry} --name ${pm2Name} 2>&1 || true`, beDir, log);
       log.push(`Backend (node) started on port ${port}`);
     } else {
       log.push("No backend entry file found — skipping backend launch");
@@ -820,7 +821,7 @@ export async function deployAppSession(
   }
 
   // ── 7. Reload nginx ──────────────────────────────────────────────────────────
-  run("nginx -t && nginx -s reload", "/", log);
+  await run("nginx -t && nginx -s reload", "/", log);
 
   // ── 8. Update DB session status ──────────────────────────────────────────────
   const liveUrl = `${SANDBOX_DOMAIN}/apps/${slug}/`;
@@ -904,8 +905,8 @@ export async function rebuildSandboxApp(slug: string): Promise<DeployResult> {
 
   // Scaffold, scan deps, configure Tailwind, build
   scaffoldViteProject(feDir, slug, log);
-  scanAndInstallMissingDeps(feDir, log);
-  detectAndConfigureTailwind(feDir, log);
+  await scanAndInstallMissingDeps(feDir, log);
+  await detectAndConfigureTailwind(feDir, log);
 
   const findViteBin = (dir: string): string => {
     const candidates = [
@@ -918,7 +919,7 @@ export async function rebuildSandboxApp(slug: string): Promise<DeployResult> {
   };
 
   const actualVite = findViteBin(feDir);
-  const buildOut = run(`${actualVite} build 2>&1`, feDir, log);
+  const buildOut = await run(`${actualVite} build 2>&1`, feDir, log);
 
   const distDir = existsSync(join(feDir, "dist")) ? join(feDir, "dist")
                 : existsSync(join(feDir, "build")) ? join(feDir, "build")
@@ -930,7 +931,7 @@ export async function rebuildSandboxApp(slug: string): Promise<DeployResult> {
   }
 
   log.push("Build succeeded — reloading nginx");
-  run("nginx -s reload 2>&1 || true", appDir, log);
+  await run("nginx -s reload 2>&1 || true", appDir, log);
 
   const liveUrl = `https://sandbox.sirius-ai.live/apps/${slug}/`;
   log.push(`Rebuilt and live at: ${liveUrl}`);
