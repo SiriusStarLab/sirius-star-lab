@@ -668,37 +668,6 @@ export async function deployAppSession(
     }
   };
 
-  if (hasFrontendDir) {
-    const feDir1 = join(appDir, "frontend");
-    tryBuildFrontend(feDir1);
-    if (distDir) patchBrowserRouterBasename(feDir1, slug);
-  } else if (hasClientDir) {
-    const feDir2 = join(appDir, "client");
-    tryBuildFrontend(feDir2);
-    if (distDir) patchBrowserRouterBasename(feDir2, slug);
-  } else if (hasRootSrc || hasRootPkg) {
-    // Root-level app — could be frontend or fullstack
-    const hasServerCode = existsSync(join(appDir, "src", "server.ts")) ||
-                          existsSync(join(appDir, "src", "server.js")) ||
-                          existsSync(join(appDir, "server.js")) ||
-                          existsSync(join(appDir, "server.ts"));
-    const hasFrontCode = existsSync(join(appDir, "src", "App.tsx")) ||
-                         existsSync(join(appDir, "src", "App.jsx")) ||
-                         existsSync(join(appDir, "src", "main.tsx")) ||
-                         existsSync(join(appDir, "src", "main.jsx")) ||
-                         existsSync(join(appDir, "src", "index.tsx")) ||
-                         existsSync(join(appDir, "src", "index.jsx")) ||
-                         existsSync(join(appDir, "index.html"));
-
-    if (hasFrontCode && !hasServerCode) {
-      tryBuildFrontend(appDir);
-      if (distDir) patchBrowserRouterBasename(appDir, slug);
-    } else if (hasFrontCode && hasServerCode) {
-      tryBuildFrontend(appDir);
-      if (distDir) patchBrowserRouterBasename(appDir, slug);
-    }
-  }
-
   // ── 4. Backend (optional) ────────────────────────────────────────────────────
   let backendPort: number | undefined;
 
@@ -725,16 +694,9 @@ export async function deployAppSession(
       run(`npx tsx ${entry} --version 2>&1 || true`, beDir, log);
       const pm2Name = `sirius-app-${beSlug}`;
       run(`pm2 delete ${pm2Name} 2>/dev/null || true`, beDir, log);
-      const SAFE_ENV_KEYS = [
-      "DATABASE_URL","OPENAI_API_KEY","AI_INTEGRATIONS_OPENAI_API_KEY",
-      "AI_INTEGRATIONS_OPENAI_BASE_URL","AI_INTEGRATIONS_OPENROUTER_API_KEY",
-      "AI_INTEGRATIONS_OPENROUTER_BASE_URL","SESSION_SECRET","OPENAI_BASE_URL",
-      "STRIPE_SECRET_KEY","STRIPE_PUBLISHABLE_KEY","STRIPE_WEBHOOK_SECRET",
-    ];
-    const envVarPairs = SAFE_ENV_KEYS
-      .filter(k => process.env[k])
-      .map(k => `${k}="${(process.env[k] || "").replace(/"/g, '\\"')}"`).join(" ");
-    const envVars = `PORT=${port} NODE_ENV=production ${envVarPairs}`; run(`${envVars} pm2 start ${entry} --name ${pm2Name} --interpreter=$(which npx) --interpreter-args=tsx 2>&1 || ${envVars} pm2 start ${entry} --name ${pm2Name} 2>&1 || true`, beDir, log);
+      // Each sandbox app gets its own SQLite DB — never leak Sirius credentials
+    const dbPath = 'file:' + appDir + '/data.db';
+    const envVars = 'PORT=' + port + ' NODE_ENV=production DATABASE_URL="' + dbPath + '" SESSION_SECRET="sandbox-secret-' + beSlug + '"'; run(`${envVars} pm2 start ${entry} --name ${pm2Name} --interpreter=$(which npx) --interpreter-args=tsx 2>&1 || ${envVars} pm2 start ${entry} --name ${pm2Name} 2>&1 || true`, beDir, log);
       log.push(`Backend (tsx) attempted on port ${port}`);
     } else if (entry) {
       const pm2Name = `sirius-app-${beSlug}`;
@@ -746,6 +708,46 @@ export async function deployAppSession(
       backendPort = undefined;
     }
   };
+
+  if (hasFrontendDir) {
+    const feDir1 = join(appDir, "frontend");
+    tryBuildFrontend(feDir1);
+    if (distDir) patchBrowserRouterBasename(feDir1, slug);
+  } else if (hasClientDir) {
+    const feDir2 = join(appDir, "client");
+    tryBuildFrontend(feDir2);
+    if (distDir) patchBrowserRouterBasename(feDir2, slug);
+  } else if (hasRootSrc || hasRootPkg) {
+    // Root-level app — could be frontend or fullstack
+    const hasServerCode = existsSync(join(appDir, "src", "server.ts")) ||
+                          existsSync(join(appDir, "src", "server.js")) ||
+                          existsSync(join(appDir, "server.js")) ||
+                          existsSync(join(appDir, "server.ts")) ||
+                          existsSync(join(appDir, "index.ts")) ||
+                          existsSync(join(appDir, "index.js"));
+    const hasFrontCode = existsSync(join(appDir, "src", "App.tsx")) ||
+                         existsSync(join(appDir, "src", "App.jsx")) ||
+                         existsSync(join(appDir, "src", "main.tsx")) ||
+                         existsSync(join(appDir, "src", "main.jsx")) ||
+                         existsSync(join(appDir, "src", "index.tsx")) ||
+                         existsSync(join(appDir, "src", "index.jsx")) ||
+                         existsSync(join(appDir, "index.html"));
+
+    if (hasFrontCode && !hasServerCode) {
+      tryBuildFrontend(appDir);
+      if (distDir) patchBrowserRouterBasename(appDir, slug);
+    } else if (hasFrontCode && hasServerCode) {
+      tryBuildFrontend(appDir);
+      if (distDir) patchBrowserRouterBasename(appDir, slug);
+      // Full-stack: launch Express backend so /api/ routes work
+      tryLaunchBackend(appDir, slug);
+    } else if (hasServerCode && !hasFrontCode) {
+      // Backend-only app — just launch it
+      tryLaunchBackend(appDir, slug);
+    }
+  }
+
+
 
   if (hasBackendDir) {
     const beDir = existsSync(join(appDir, "backend")) ? join(appDir, "backend") : join(appDir, "server");

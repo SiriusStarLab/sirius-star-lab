@@ -308,7 +308,22 @@ ${contextFiles ? `## Key existing files — READ CAREFULLY before writing. Your 
 5. ERROR HANDLING — every async function needs try/catch. Every API route returns consistent JSON: { data } on success, { error: string, code: string } on failure with correct HTTP status codes.
 6. INPUT VALIDATION — every API route validates its request body/params with zod before processing. Never trust raw input.
 7. NO FAKE DATA IN PRODUCTION CODE — no Math.random() for IDs, no hardcoded "lorem ipsum", no placeholder arrays that pretend to be real data.
-8. AUTH ON PROTECTED ROUTES — any route that touches user data must go through auth middleware.`;
+8. AUTH ON PROTECTED ROUTES — any route that touches user data must go through auth middleware.
+## DEPLOYMENT ENVIRONMENT — READ BEFORE WRITING ANY CODE:
+This app deploys to a Linux sandbox with Node.js 22. You have:
+- SQLite via better-sqlite3 (file-based, no server needed). Use this for ALL data storage.
+  DATABASE_URL=file:./data.db is set automatically.
+  Schema init: run CREATE TABLE IF NOT EXISTS at startup in src/db/migrate.ts
+- PORT env var is set automatically (do NOT hardcode a port)
+- Express for backend. Frontend API calls use /apps/{slug}/api/ prefix in production.
+- tsx to run TypeScript directly (no compile step needed for backend)
+- NO Docker, NO GitHub Actions, NO PostgreSQL, NO Redis, NO external services.
+- better-sqlite3 package must be in package.json dependencies (it will be npm installed).
+
+The agent MUST generate a src/server.ts (or server.ts) as the Express backend entry point.
+The agent MUST generate src/main.tsx as the Vite frontend entry point.
+Both coexist in the same package.json. Vite builds the frontend; tsx runs the backend.
+`;
 
   const prompts: Record<string, string> = {
     architect: `${base}
@@ -316,7 +331,7 @@ ${contextFiles ? `## Key existing files — READ CAREFULLY before writing. Your 
 Your role: System Architect
 Output ALL of these files — each must be complete and production-ready:
 
-1. package.json — include EVERY dependency the full app will need across all layers (frontend + backend + database + testing + monitoring). Think ahead to what each agent will need. Scripts must include: dev, build, start, test, lint, typecheck, db:push, db:migrate, db:seed
+1. package.json — include EVERY dependency: react, react-dom, react-router-dom, lucide-react, clsx for frontend; express, cors, helmet, better-sqlite3, bcryptjs, jsonwebtoken, zod, uuid for backend; vite, @vitejs/plugin-react, tsx, @types/* for dev. Scripts: { "dev": "vite", "build": "vite build", "start": "tsx src/server.ts", "db:init": "tsx src/db/migrate.ts" }. NO Drizzle, NO Prisma, NO PostgreSQL dependencies, NO Docker dependencies.
 2. index.html — ROOT LEVEL Vite entry. ALWAYS include this: <!DOCTYPE html><html><head><meta charset="UTF-8"/><title>App</title></head><body><div id="root"></div><script type="module" src="/src/main.tsx"></script></body></html>
 3. tsconfig.json — strict mode: { "strict": true, "noUncheckedIndexedAccess": true, "exactOptionalPropertyTypes": true }
 3. .env.example — EVERY environment variable with a description comment and safe example value
@@ -370,32 +385,34 @@ Every route must call next(err) on caught errors — never res.json() inside a c
     database: `${base}
 
 Your role: Database Agent
+You are building a SQLite database using better-sqlite3. NO Drizzle, NO Prisma, NO PostgreSQL.
 Output COMPLETE implementations for ALL of these:
 
-- src/db/schema.ts — complete schema: ALL tables with proper column types (not text for everything), createdAt/updatedAt on every table, explicit indexes on all FKs and commonly queried columns, unique constraints where needed, all relations defined
-- src/db/index.ts — DB client singleton with connection pooling and startup connection check
-- drizzle.config.ts (or prisma/schema.prisma) — complete ORM config pointing to DATABASE_URL from env
-- src/db/migrate.ts — migration runner script
-- src/db/seed.ts — realistic seed data using actual domain-appropriate values (proper names, real-looking emails, sensible dates — not "Test User 1" or random strings)
+- src/db/schema.ts — TypeScript file exporting: (1) interface for each entity, (2) SQL string constant for each CREATE TABLE IF NOT EXISTS statement. Use INTEGER PRIMARY KEY for auto-increment IDs, TEXT NOT NULL for required strings, REAL for decimals, INTEGER for booleans (0/1). Include created_at and updated_at (TEXT, ISO timestamps) on every table.
+- src/db/index.ts — DB singleton: import Database from "better-sqlite3"; const dbFile = (process.env.DATABASE_URL || "file:./data.db").replace("file:",""); const db = new Database(dbFile); db.pragma("journal_mode = WAL"); db.pragma("foreign_keys = ON"); export default db;
+- src/db/migrate.ts — imports db from ./index, imports all SQL constants from ./schema, runs each CREATE TABLE IF NOT EXISTS statement: db.exec(createUsersSQL); db.exec(createPostsSQL); etc. Export default function migrate() that runs all of these. Call this from server.ts before app.listen().
+- src/db/seed.ts — imports db and migrate, runs migrate() first, checks if data already exists (SELECT COUNT(*) FROM table), inserts realistic test data using db.prepare().run(). Realistic names, emails, dates — not "Test User 1".
+- src/db/queries.ts — typed query functions for every CRUD operation using db.prepare(). Return types match the TypeScript interfaces. Example: function getUserById(id: number): User | undefined { return db.prepare("SELECT * FROM users WHERE id = ?").get(id) as User | undefined; }
 
-Schema rules:
-- Use uuid or serial primary keys consistently across all tables
-- All foreign key columns must have explicit ON DELETE behaviour (CASCADE or RESTRICT)
-- Enum types for status/role columns rather than free-text strings
-- No nullable columns unless the business logic genuinely requires null`,
+Schema rules (SQLite/better-sqlite3):
+- INTEGER PRIMARY KEY for auto-increment (SQLite ROWID alias)
+- TEXT NOT NULL for required strings, TEXT for nullable strings
+- REAL for decimal numbers, INTEGER for booleans (0/1) and timestamps
+- FOREIGN KEY(col) REFERENCES other_table(id) ON DELETE CASCADE
+- CREATE INDEX IF NOT EXISTS idx_table_col ON table(col) for frequently queried columns
+- No ORM abstractions — raw SQL with prepared statements only`,
 
     integration: `${base}
 
 Your role: Integration Agent
 Output COMPLETE implementations for ALL of these — every file must actually work:
 
-- docker-compose.yml — full local dev stack: app service + database + any other required services (Redis, etc.). Every service has a health check. App service depends_on DB with condition: service_healthy. Ports, env vars, and volume mounts are all correct and consistent with the rest of the codebase.
-- Dockerfile — multi-stage build: (1) builder stage installs deps + builds, (2) production stage copies only dist + node_modules. Runs as non-root user. HEALTHCHECK instruction included.
-- .dockerignore — excludes node_modules, .env, dist, .git
-- .github/workflows/ci.yml — runs on push/PR: checkout → setup-node → install → typecheck → lint → test → build
-- .github/workflows/deploy.yml — runs on push to main: build Docker image → push to registry → deploy to production (use Railway/Fly.io/Render based on what fits the stack)
-- scripts/setup.sh — #!/bin/bash + set -euo pipefail. Steps: check prerequisites, install deps, copy .env.example → .env with a notice, run migrations, seed DB, print "Ready — run pnpm dev"
-- DEPLOYMENT.md — step-by-step production deployment with exact commands, required env vars table, rollback instructions`,
+- src/middleware/auth.ts — JWT auth middleware: verify Authorization: Bearer <token> header, attach req.user = { id, email, role }, return 401 if missing/invalid. Export authenticateToken and optionalAuth.
+- src/middleware/validate.ts — Zod validation middleware factory: validateBody(schema) returns Express middleware that calls next() on success or res.status(400).json({ error }) on failure.
+- src/middleware/rateLimit.ts — simple in-memory rate limiter: Map<ip, {count, resetAt}>. 100 req/min per IP for API routes, 10/min for auth routes. Returns 429 with Retry-After header.
+- src/lib/auth.ts — helper functions: hashPassword(pwd), comparePassword(pwd, hash), generateToken(payload), verifyToken(token). Use bcryptjs and jsonwebtoken.
+- src/lib/errors.ts — AppError class extending Error with statusCode and code fields. Exported error factory functions: notFound(), unauthorized(), forbidden(), validationError(), conflict().
+- README.md — how to run locally (npm install && npm run db:init && npm run dev), env vars table, API endpoint list with request/response examples`,
 
     monitoring: `${base}
 
@@ -499,14 +516,14 @@ Respond ONLY with valid JSON:
     { "path": "src/index.ts", "description": "Application entry point" }
   ],
   "packages": {
-    "dependencies": ["react", "express", "drizzle-orm", "zod"],
+    "dependencies": ["react", "express", "better-sqlite3", "bcryptjs", "jsonwebtoken", "zod"],
     "devDependencies": ["typescript", "vite", "vitest", "@types/node"]
   },
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "test": "vitest",
-    "db:push": "drizzle-kit push"
+    "db:init": "tsx src/db/migrate.ts"
   }
 }`
       }],
@@ -1004,7 +1021,7 @@ async function searchDocsForAgent(agentId: string, techStack: string, appName: s
     architect: `${techStack} project structure best practices ${new Date().getFullYear()}`,
     frontend: `${techStack.split("+")[0]?.trim()} component patterns routing ${new Date().getFullYear()}`,
     backend: `${techStack.split("+")[1]?.trim() || "Node.js"} API REST authentication middleware ${new Date().getFullYear()}`,
-    database: `${techStack.includes("Prisma") ? "Prisma" : techStack.includes("Drizzle") ? "Drizzle ORM" : "PostgreSQL"} schema relations ${new Date().getFullYear()}`,
+    database: `better-sqlite3 SQLite schema prepared statements ${new Date().getFullYear()}`,
     integration: `Docker CI/CD GitHub Actions deploy ${techStack} ${new Date().getFullYear()}`,
     monitoring: `Node.js application monitoring health check logging best practices ${new Date().getFullYear()}`,
   };
@@ -1068,7 +1085,7 @@ router.post("/lab/build-app", authMiddleware, async (req: Request, res: Response
         architect: `${techStack} architecture patterns ${new Date().getFullYear()}`,
         frontend: `${techStack.split("+")[0]?.trim()} UI components ${new Date().getFullYear()}`,
         backend: `REST API ${techStack} auth middleware ${new Date().getFullYear()}`,
-        database: `${techStack.includes("Prisma") ? "Prisma ORM" : "Drizzle ORM"} schema ${new Date().getFullYear()}`,
+        database: `better-sqlite3 SQLite Node.js ${new Date().getFullYear()}`,
         integration: `Docker GitHub Actions ${techStack} deploy ${new Date().getFullYear()}`,
         monitoring: `Node.js observability health checks ${new Date().getFullYear()}`,
       }[agent.id] || `${techStack} ${new Date().getFullYear()}`;
