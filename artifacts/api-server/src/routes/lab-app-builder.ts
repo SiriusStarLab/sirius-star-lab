@@ -314,15 +314,27 @@ ${contextFiles ? `## Key existing files — READ CAREFULLY before writing. Your 
 ## DEPLOYMENT ENVIRONMENT — READ BEFORE WRITING ANY CODE:
 This app deploys to a Linux sandbox with Node.js 22. You have:
 - SQLite via better-sqlite3 (file-based, no server needed). Use this for ALL data storage.
-  DATABASE_URL=file:./data.db is set automatically.
-  Schema init: run CREATE TABLE IF NOT EXISTS at startup in src/db/migrate.ts
-- PORT env var is set automatically (do NOT hardcode a port)
-- Express for backend. Frontend API calls use /apps/{slug}/api/ prefix in production.
-- tsx to run TypeScript directly (no compile step needed for backend)
+  DATABASE_URL is set automatically to file:/path/to/data.db.
+  Run CREATE TABLE IF NOT EXISTS at startup — no migration framework needed.
+- PORT env var is set automatically (NEVER hardcode a port). Listen with: app.listen(parseInt(process.env.PORT || '3000'))
+- Express for backend. tsx to run TypeScript directly (no separate compile step for backend).
 - NO Docker, NO GitHub Actions, NO PostgreSQL, NO Redis, NO external services.
-- better-sqlite3 package must be in package.json dependencies (it will be npm installed).
+- better-sqlite3 must be in package.json dependencies (it will be npm installed automatically).
 
-The agent MUST generate a src/server.ts (or server.ts) as the Express backend entry point.
+## CRITICAL ROUTING MODEL — get this wrong and nothing works:
+nginx sits in front. It strips the /apps/<slug>/ prefix BEFORE proxying to your backend.
+This means:
+  - Register backend routes as /api/notes, /api/users — WITHOUT any /apps/<slug>/ prefix
+  - nginx proxies: /apps/<slug>/api/ → http://localhost:PORT/api/
+  - nginx serves static files: /apps/<slug>/ → dist/ directory (your Express must NOT serve static files)
+  - Frontend API calls: use import.meta.env.BASE_URL + 'api/' as the base (BASE_URL = /apps/<slug>/)
+    e.g. fetch(import.meta.env.BASE_URL + 'api/notes') works in both dev (proxied) and prod (nginx)
+  - Do NOT add /apps/<slug>/ to Express routes. Do NOT serve static files from Express.
+  - Your Express server only handles API routes. Example:
+      app.get('/api/notes', (req, res) => { ... })  ✅ CORRECT
+      app.get('/apps/my-app/api/notes', ...)         ❌ WRONG - nginx already stripped that
+
+The agent MUST generate src/server.ts as the Express backend entry point (API routes only).
 The agent MUST generate src/main.tsx as the Vite frontend entry point.
 Both coexist in the same package.json. Vite builds the frontend; tsx runs the backend.
 `;
