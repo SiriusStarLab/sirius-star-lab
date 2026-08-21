@@ -122,8 +122,22 @@ Rules:
     if (!raw) return;
 
     const parsed = extractJson(raw);
-    const newFacts: string[] = Array.isArray(parsed.new_facts) ? parsed.new_facts : [];
-    const removeFacts: string[] = Array.isArray(parsed.remove_facts) ? parsed.remove_facts : [];
+    // Safely normalize a raw AI fact entry — accepts strings or objects with text/fact fields,
+    // discards anything that cannot be resolved to a non-empty string.
+    function normalizeFact(entry: unknown): string | null {
+      if (typeof entry === "string") return entry.trim() || null;
+      if (entry && typeof entry === "object") {
+        const obj = entry as Record<string, unknown>;
+        const val = obj.text ?? obj.fact ?? obj.content ?? obj.value;
+        if (typeof val === "string") return val.trim() || null;
+      }
+      return null; // discard malformed entries
+    }
+
+    const rawNewFacts = Array.isArray(parsed.new_facts) ? parsed.new_facts : [];
+    const rawRemoveFacts = Array.isArray(parsed.remove_facts) ? parsed.remove_facts : [];
+    const newFacts: string[] = rawNewFacts.map(normalizeFact).filter((f: string | null): f is string => f !== null);
+    const removeFacts: string[] = rawRemoveFacts.map(normalizeFact).filter((f: string | null): f is string => f !== null);
 
     // Start with all existing lines, drop outdated ones
     let merged = existingLines.filter(line =>

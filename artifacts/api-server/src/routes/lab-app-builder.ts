@@ -435,7 +435,6 @@ router.post("/lab/app-builder/interpret", authMiddleware, async (req: Request, r
   try {
     const result = await openai.chat.completions.create({
       model: "anthropic/claude-sonnet-4-6",
-      response_format: { type: "json_object" },
       messages: [
         {
           role: "system",
@@ -450,7 +449,8 @@ router.post("/lab/app-builder/interpret", authMiddleware, async (req: Request, r
     });
 
     const raw = result.choices[0]?.message?.content || "{}";
-    const parsed = JSON.parse(raw);
+    const clean = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+    const parsed = JSON.parse(clean);
     res.json(parsed);
   } catch (err: any) {
     console.error("[AppBuilder/interpret]", err?.message);
@@ -620,7 +620,6 @@ router.post("/lab/app-builder/plan", authMiddleware, async (req: Request, res: R
   try {
     const result = await openai.chat.completions.create({
       model: "anthropic/claude-sonnet-4-6",
-      response_format: { type: "json_object" },
       messages: [
         {
           role: "system",
@@ -635,7 +634,8 @@ router.post("/lab/app-builder/plan", authMiddleware, async (req: Request, res: R
     });
 
     const raw = result.choices[0]?.message?.content || "{}";
-    const parsed = JSON.parse(raw);
+    const clean = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+    const parsed = JSON.parse(clean);
     res.json(parsed);
   } catch (err: any) {
     console.error("[AppBuilder/plan]", err?.message);
