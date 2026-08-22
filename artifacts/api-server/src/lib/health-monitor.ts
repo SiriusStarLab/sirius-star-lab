@@ -6,6 +6,7 @@ import { stat, statfs } from "node:fs/promises";
 import { sendTelegramMessage } from "./telegram.js";
 import { openai } from "@workspace/ai-client";
 import { sendAlertEmail } from "./alert-delivery.js";
+import { startOperationalReporting } from "./operational-reporting.js";
 
 export interface CheckResult {
   name: string;
@@ -82,6 +83,41 @@ async function checkOpenRouter(): Promise<CheckResult> {
     return { name: "openrouter", status: "warn", latencyMs: ms, detail: `HTTP ${res.status}` };
   } catch (e: any) {
     return { name: "openrouter", status: "fail", latencyMs: Date.now() - t, detail: e.message };
+  }
+}
+
+async function checkAiUsage(): Promise<CheckResult> {
+  const key = process.env["OPENROUTER_API_KEY"] || process.env["AI_INTEGRATIONS_OPENAI_API_KEY"];
+  if (!key) return { name: "ai_usage", status: "warn", detail: "No AI usage key configured" };
+
+  const t = Date.now();
+  try {
+    const base = process.env["OPENROUTER_BASE_URL"] || "https://openrouter.ai/api/v1";
+    const response = await fetch(`${base}/key`, {
+      headers: { Authorization: `Bearer ${key}` },
+      signal: AbortSignal.timeout(8000),
+    });
+    const latencyMs = Date.now() - t;
+    if (!response.ok) {
+      return { name: "ai_usage", status: "warn", latencyMs, detail: `AI usage endpoint HTTP ${response.status}` };
+    }
+
+    const payload = await response.json() as { data?: { usage?: number; limit?: number | null } };
+    const usage = Number(payload.data?.usage);
+    const limit = payload.data?.limit == null ? null : Number(payload.data.limit);
+    if (!Number.isFinite(usage)) {
+      return { name: "ai_usage", status: "warn", latencyMs, detail: "AI provider returned no usage value" };
+    }
+    if (limit && Number.isFinite(limit)) {
+      const ratio = usage / limit;
+      const detail = `AI usage $${usage.toFixed(2)} of $${limit.toFixed(2)} limit`;
+      if (ratio >= 0.9) return { name: "ai_usage", status: "fail", latencyMs, detail };
+      if (ratio >= 0.75) return { name: "ai_usage", status: "warn", latencyMs, detail };
+      return { name: "ai_usage", status: "ok", latencyMs, detail };
+    }
+    return { name: "ai_usage", status: "ok", latencyMs, detail: `AI usage $${usage.toFixed(2)}; no provider limit reported` };
+  } catch (error: any) {
+    return { name: "ai_usage", status: "warn", latencyMs: Date.now() - t, detail: error?.message || "AI usage probe failed" };
   }
 }
 
@@ -498,6 +534,7 @@ export async function runHealthCheck(): Promise<HealthReport> {
   const checks = await Promise.all([
     checkDatabase(),
     checkOpenRouter(),
+    checkAiUsage(),
     checkStripeGateway(),
     checkPaymentIntegrity(),
     checkBackupFreshness(),
@@ -583,6 +620,7 @@ export async function runHealthCheck(): Promise<HealthReport> {
       "payment_integrity",
       "backup_freshness",
       "infrastructure",
+      "ai_usage",
     ];
     for (const c of warnChecks.filter(c => criticalWarnChecks.includes(c.name))) {
       await sendAlert(
@@ -622,5 +660,6 @@ export function startHealthMonitor(intervalMinutes = 10) {
   // First check after 25 seconds (let server fully boot)
   setTimeout(() => runHealthCheck().catch(e => console.error("[HealthMonitor] Error:", e)), 25_000);
   setInterval(() => runHealthCheck().catch(e => console.error("[HealthMonitor] Error:", e)), intervalMinutes * 60 * 1000);
+  startOperationalReporting(() => getLastReport());
   console.log(`[HealthMonitor] 🛡️ Patrol started — checking every ${intervalMinutes} minutes`);
 }
