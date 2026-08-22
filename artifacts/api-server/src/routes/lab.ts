@@ -7633,6 +7633,8 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
     let roundCount = 0;
     let finalText = "";
 
+    let consecutiveToolErrors = 0; // circuit breaker: stop after 3 back-to-back failures
+    let circuitBroken = false;
     while (roundCount < MAX_TOOL_ROUNDS) {
       roundCount++;
       const isLastRound = roundCount >= MAX_TOOL_ROUNDS;
@@ -7743,8 +7745,23 @@ Today: ${new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeri
           : "";
         sendEvent({ type: "action", tool: tc.name, label: meta.label, detail, color: meta.color, icon: meta.icon, result });
         toolResults.push({ role: "tool" as const, tool_call_id: tc.id, content: result });
+        // Circuit breaker: count consecutive errors
+        const isToolError = result.startsWith("Error:") || result.startsWith("❌") || result.includes("failed:") || result.includes("FAILED") || result.includes("timed out");
+        if (isToolError) {
+          consecutiveToolErrors++;
+          if (consecutiveToolErrors >= 3) {
+            circuitBroken = true;
+            const cbMsg = `\n\n⚠️ I hit 3 consecutive tool failures and stopped to avoid looping. Last error: ${result.slice(0, 300)}\n\nTry rephrasing or check system status.`;
+            sendEvent({ type: "text", delta: cbMsg });
+            finalText = cbMsg;
+            break;
+          }
+        } else {
+          consecutiveToolErrors = 0;
+        }
       }
 
+      if (circuitBroken) break; // circuit breaker tripped — stop the outer loop
       // Append this round to the message history and loop
       loopMessages = [
         ...loopMessages,

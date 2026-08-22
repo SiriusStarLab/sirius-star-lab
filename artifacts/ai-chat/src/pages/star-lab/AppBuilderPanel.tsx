@@ -18,6 +18,23 @@ import {
 } from 'lucide-react';
 import { getApiBase } from '@/lib/api-base';
 
+function preprocessImageUrls(content: string): string {
+  let result = content;
+  result = result.replace(
+    /URL:\s*(https?:\/\/\S+\.(png|jpg|jpeg|gif|webp|bmp|svg)(\?\S*)?)/gi,
+    (_, url) => `\n\n![Generated image](${url})\n\n`
+  );
+  result = result.replace(
+    /Saved to:\s*\/opt\/sirius\/artifacts\/api-server\/public\/renders\/([\w.\-]+)/gi,
+    (_, filename) => `\n\n![Generated image](https://sirius-ai.live/api/lab/renders/${filename})\n\n`
+  );
+  result = result.replace(
+    /(?<!\()(https?:\/\/[^\s)\]"']+\.(png|jpg|jpeg|gif|webp|bmp|svg)([?#][^\s)\]"']*)?)/gi,
+    (url) => `\n\n![Generated image](${url})\n\n`
+  );
+  return result;
+}
+
 
 // ── App Builder — 6-Phase Autonomous Agent System ────────────────────────────
 
@@ -111,14 +128,12 @@ export function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed, onViewP
   const [deployLogs, setDeployLogs] = useState<Array<{ level: string; step: string; message: string; ts: string }>>([]);
   const [deployRunning, setDeployRunning] = useState(false);
   const [deployDone, setDeployDone] = useState<{ packageReady?: boolean; fileCount?: number; url?: string; appName: string } | null>(null);
-  const [sandboxUrl, setSandboxUrl] = useState<string | null>(null);
-  const [deployingToSandbox, setDeployingToSandbox] = useState(false);
-  const [sandboxLog, setSandboxLog] = useState<string[]>([]);
-  const [promoUrl, setPromoUrl] = useState<string | null>(null);
-  const [promoting, setPromoting] = useState(false);
-  const [sandboxOpen, setSandboxOpen] = useState(true);
   const deployRef = useRef<HTMLDivElement>(null);
   const [builtProjectId, setBuiltProjectId] = useState<number | null>(null);
+
+  // Live preview
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   // Checkpoints — per-agent file snapshots for rollback
   type BuildCheckpoint = {
@@ -269,6 +284,9 @@ export function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed, onViewP
   // Whether the full auto-pipeline is active (interpret → plan → build, hands-free)
   const [pipelineActive, setPipelineActive] = useState(false);
   const [pipelineStep, setPipelineStep] = useState<string>("");
+  // Auto-deploy result — set once the pipeline save+deploy completes
+  const [liveUrl, setLiveUrl] = useState<string | null>(null);
+  const [autoDeploying, setAutoDeploying] = useState(false);
 
   const scrollToBottom = () => {
     setTimeout(() => { outputRef.current?.scrollTo({ top: outputRef.current.scrollHeight, behavior: "smooth" }); }, 50);
@@ -536,14 +554,39 @@ export function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed, onViewP
     setPipelineStep("");
 
     // ── Step 3→9: Build (auto-chains through scaffold, test, debug, learn) ──
-    await handleBuild(interpretedReqs);
+    setLiveUrl(null);
+    const builtFiles = await handleBuild(interpretedReqs);
+
+    // ── Auto-deploy to sandbox once the build finishes ───────────────────────
+    if (interpretedReqs && Object.keys(builtFiles).length > 0) {
+      setAutoDeploying(true);
+      try {
+        const sRes = await fetch(`${API}lab/app-builder/sessions/save`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+          body: JSON.stringify({ appName: interpretedReqs.appName, files: builtFiles, status: "done", pin }),
+        });
+        const saved = await safeJson(sRes);
+        if (saved?.id) {
+          await fetch(`${API}lab/app-builder/sessions/${saved.id}/deploy`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-lab-pin": pin },
+            body: JSON.stringify({ pin }),
+          });
+          const slug = interpretedReqs.appName
+            .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
+          setLiveUrl(`https://sandbox.sirius-ai.live/apps/${slug}/`);
+        }
+      } catch { /* non-fatal — build is already done */ }
+      setAutoDeploying(false);
+    }
   };
 
   // Phase 3: Execute build — accepts optional reqsOverride so auto-pipeline
   // can pass live data rather than relying on React state propagation timing
-  const handleBuild = async (reqsOverride?: typeof reqs) => {
+  const handleBuild = async (reqsOverride?: typeof reqs): Promise<Record<string, string>> => {
     const activeReqs = reqsOverride ?? reqs;
-    if (!activeReqs) return;
+    if (!activeReqs) return {};
     setPhase(4); setError(""); setBuildLog("");
     setAgents(BUILDER_AGENTS.map(a => ({ ...a })));
     setAllFiles({});
@@ -561,8 +604,8 @@ export function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed, onViewP
         method: "POST", headers: { "Content-Type": "application/json", "x-lab-pin": pin },
         body: JSON.stringify({ appName: activeReqs.appName, description: activeReqs.summary, appType: activeReqs.appType, techStack: activeReqs.techStack, features: activeReqs.coreFeatures, pin }),
       });
-      if (!res.body) { setError("Build stream unavailable — please try again."); return; }
-      if (!res.ok) { setError(`Build failed (${res.status}) — please try again.`); return; }
+      if (!res.body) { setError("Build stream unavailable — please try again."); return {}; }
+      if (!res.ok) { setError(`Build failed (${res.status}) — please try again.`); return {}; }
       const reader = res.body.getReader();
       const dec = new TextDecoder();
       let buf = "";
@@ -616,7 +659,7 @@ export function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed, onViewP
       }
     } catch (e: any) {
       setError(e.message || "Build failed — please try again.");
-      return;
+      return {};
     }
 
     if (Object.keys(collectedFiles).length > 0) {
@@ -629,6 +672,7 @@ export function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed, onViewP
         setBuildQueue(rest);
       }
     }
+    return collectedFiles;
   };
 
   // Phase 4 (UI 5): Self-Test
@@ -727,6 +771,37 @@ export function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed, onViewP
     a.href = url; a.download = `${reqs?.appName?.replace(/\s+/g, "-").toLowerCase() || "app"}-source.txt`;
     a.click(); URL.revokeObjectURL(url);
   };
+
+  // Live preview — inline local CSS/JS into index.html and open as a blob URL
+  const handlePreview = useCallback(() => {
+    const htmlKey = Object.keys(allFiles).find(k =>
+      k === "index.html" || k.endsWith("/index.html") || k.endsWith(".html")
+    );
+    if (!htmlKey) { setPreviewOpen(false); return; }
+
+    let html = allFiles[htmlKey];
+
+    // Inline local CSS (leave CDN/absolute links alone)
+    html = html.replace(/<link[^>]*href=["']([^"']+\.css)["'][^>]*\/?>/gi, (match, href) => {
+      if (/^https?:\/\/|^\/\//.test(href)) return match;
+      const base = href.replace(/^\.\//, "").split("/").pop()!;
+      const key = Object.keys(allFiles).find(k => k.endsWith(base));
+      return key ? `<style>\n${allFiles[key]}\n</style>` : match;
+    });
+    // Inline local JS (leave CDN/absolute links alone)
+    html = html.replace(/<script([^>]*)\bsrc=["']([^"']+\.js)["']([^>]*)><\/script>/gi, (match, pre, src, post) => {
+      if (/^https?:\/\/|^\/\//.test(src)) return match;
+      const base = src.replace(/^\.\//, "").split("/").pop()!;
+      const key = Object.keys(allFiles).find(k => k.endsWith(base));
+      return key ? `<script${pre}${post}>\n${allFiles[key]}\n</script>` : match;
+    });
+
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    const blob = new Blob([html], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    setPreviewUrl(url);
+    setPreviewOpen(true);
+  }, [allFiles, previewUrl]);
 
   const severityColor = (s: string) =>
     s === "Critical" ? "hsl(0,80%,50%)" : s === "High" ? "hsl(25,90%,55%)" :
@@ -917,109 +992,6 @@ export function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed, onViewP
     } finally { setDeployRunning(false); }
   };
 
-  // ── Deploy to Sandbox ───────────────────────────────────────────────────────
-  const handleDeployToSandbox = async () => {
-    if (deployingToSandbox) return;
-    setDeployingToSandbox(true);
-    setSandboxUrl(null);
-    setPromoUrl(null);
-    setSandboxLog(["Preparing deploy..."]);
-
-    // Auto-save session first if we don't have a sessionId yet
-    let activeSessionId = sessionId;
-    if (!activeSessionId) {
-      setSandboxLog(["Auto-saving session before deploy..."]);
-      try {
-        const base = API.endsWith("/") ? API : API + "/";
-        const body = {
-          pin, sessionId: null,
-          appName: reqs?.appName || "Untitled App",
-          status: "building",
-          phase,
-          requirements: reqs,
-          plan,
-          files: allFiles,
-          bugs,
-          architectLog: architectMessages,
-          buildQueue,
-          thinkingLog,
-          buildLog,
-        };
-        const saveRes = await fetch(`${base}lab/app-builder/sessions/save`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-lab-pin": pin },
-          body: JSON.stringify(body),
-        });
-        const saveData = await saveRes.json();
-        if (saveData.id) {
-          setSessionId(saveData.id);
-          activeSessionId = saveData.id;
-          setSandboxLog(["Session saved. Deploying to sandbox.sirius-ai.live..."]);
-        } else {
-          setSandboxLog(["Failed to auto-save session: " + (saveData.error || "unknown error")]);
-          setDeployingToSandbox(false);
-          return;
-        }
-      } catch (e: any) {
-        setSandboxLog(["Auto-save failed: " + e.message]);
-        setDeployingToSandbox(false);
-        return;
-      }
-    } else {
-      setSandboxLog(["Deploying to sandbox.sirius-ai.live..."]);
-    }
-    setSandboxUrl(null);
-    setPromoUrl(null);
-    const base = API.endsWith("/") ? API : API + "/";
-    try {
-      const res = await fetch(`${base}lab/app-builder/sessions/${activeSessionId}/deploy`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-lab-pin": pin },
-      });
-      const data = await res.json();
-      if (data.ok === false || res.status >= 400) {
-        setSandboxLog(["Deploy failed: " + (data.error || "unknown error")]);
-      } else {
-        setSandboxLog(["Deployed! Fetching sandbox URL..."]);
-        const slug = (reqs?.appName || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
-        const appsRes = await fetch(`${base}lab/app-builder/deployed`, { headers: { "x-lab-pin": pin } });
-        const appsData = await appsRes.json();
-        const match = (appsData.apps || []).find((a: any) => a.slug === slug);
-        const url = match?.sandboxUrl || `https://sandbox.sirius-ai.live/apps/${slug}/`;
-        setSandboxUrl(url);
-        setSandboxLog(["App is live on sandbox"]);
-      }
-    } catch (e: any) {
-      setSandboxLog(["Error: " + e.message]);
-    } finally {
-      setDeployingToSandbox(false);
-    }
-  };
-
-  const handlePromote = async () => {
-    if (!sandboxUrl || promoting) return;
-    setPromoting(true);
-    const slug = sandboxUrl.replace(/.*\/apps\//, "").replace(/\/$/, "");
-    const base = API.endsWith("/") ? API : API + "/";
-    try {
-      const res = await fetch(`${base}lab/app-builder/apps/${slug}/promote`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-lab-pin": pin },
-      });
-      const data = await res.json();
-      if (data.ok) {
-        setPromoUrl(data.url);
-        setSandboxLog(prev => [...prev, "Promoted to production: " + data.url]);
-      } else {
-        setSandboxLog(prev => [...prev, "Promote failed: " + (data.error || "unknown error")]);
-      }
-    } catch (e: any) {
-      setSandboxLog(prev => [...prev, "Error: " + e.message]);
-    } finally {
-      setPromoting(false);
-    }
-  };
-
   // ── Ghostwriter ─────────────────────────────────────────────────────────────
   const handleGhostwrite = async (instruction: string) => {
     if (!instruction.trim() || !activeFile || ghostLoading) return;
@@ -1184,6 +1156,32 @@ export function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed, onViewP
 
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-hidden" style={{ position: "relative" }}>
+      {/* Live URL banner — shown after auto-deploy completes */}
+      {(liveUrl || autoDeploying) && (
+        <div className="flex-shrink-0 flex items-center gap-3 px-5 py-3 mx-4 mt-3 rounded-xl"
+          style={{ background: "hsla(155,70%,45%,0.08)", border: "1px solid hsla(155,70%,45%,0.25)" }}>
+          {autoDeploying ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" style={{ color: "hsl(155,70%,40%)" }} />
+              <p className="text-sm font-medium" style={{ color: "hsl(155,60%,35%)" }}>Deploying to sandbox — takes ~2 minutes…</p>
+            </>
+          ) : (
+            <>
+              <span className="text-lg flex-shrink-0">🚀</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold mb-0.5" style={{ color: "hsl(155,60%,35%)" }}>Your app is live</p>
+                <a href={liveUrl!} target="_blank" rel="noopener noreferrer"
+                  className="text-xs font-mono truncate block" style={{ color: "hsl(193,100%,35%)" }}>{liveUrl}</a>
+              </div>
+              <a href={liveUrl!} target="_blank" rel="noopener noreferrer"
+                className="flex-shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold"
+                style={{ background: "hsl(155,70%,45%)", color: "white" }}>
+                <Globe className="w-3.5 h-3.5" /> Open
+              </a>
+            </>
+          )}
+        </div>
+      )}
       {/* Header */}
       <div className="flex-shrink-0 px-6 pt-5 pb-4" style={{ borderBottom: "1px solid rgba(15,23,42,0.08)" }}>
         <div className="flex items-center justify-between mb-4">
@@ -2207,6 +2205,61 @@ export function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed, onViewP
                     <p className="text-sm" style={{ color: "rgba(15,23,42,0.5)" }}>{Object.keys(allFiles).length} files built · tested · debugged</p>
                   </div>
 
+                  {/* Live Preview */}
+                  {(() => {
+                    const hasHtml = Object.keys(allFiles).some(k => k.endsWith(".html"));
+                    return (
+                      <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(15,23,42,0.1)" }}>
+                        <div className="flex items-center justify-between px-4 py-3" style={{ background: "hsl(220,15%,16%)" }}>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm">👁️</span>
+                            <span className="text-xs font-semibold" style={{ color: "rgba(255,255,255,0.8)" }}>Live Preview</span>
+                            {previewOpen && previewUrl && (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: "hsla(193,100%,40%,0.3)", color: "hsl(193,100%,70%)" }}>● Live</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {previewOpen && previewUrl && (
+                              <button onClick={() => window.open(previewUrl, "_blank", "noopener")}
+                                className="flex items-center gap-1 px-2 py-1 rounded text-[11px]"
+                                style={{ background: "hsla(255,255,255,0.08)", color: "rgba(255,255,255,0.6)" }}>
+                                <ExternalLink className="w-3 h-3" /> Open in tab
+                              </button>
+                            )}
+                            {hasHtml ? (
+                              <button
+                                onClick={() => { if (!previewOpen) { handlePreview(); } else { setPreviewOpen(false); } }}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                                style={{ background: previewOpen ? "hsla(0,80%,50%,0.15)" : "hsl(193,100%,40%)", color: previewOpen ? "hsl(0,80%,65%)" : "white" }}>
+                                {previewOpen ? <><EyeOff className="w-3 h-3" /> Hide</> : <><Eye className="w-3 h-3" /> Preview App</>}
+                              </button>
+                            ) : (
+                              <span className="text-[11px] px-2 py-1 rounded" style={{ background: "hsla(255,255,255,0.06)", color: "rgba(255,255,255,0.35)" }}>
+                                Needs build step
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {previewOpen && previewUrl && (
+                          <div style={{ background: "#fff" }}>
+                            <iframe
+                              src={previewUrl}
+                              title="App Preview"
+                              className="w-full"
+                              style={{ height: 480, border: "none", display: "block" }}
+                              sandbox="allow-scripts allow-forms allow-modals allow-popups"
+                            />
+                          </div>
+                        )}
+                        {!hasHtml && (
+                          <div className="px-4 py-3 text-[11px]" style={{ background: "hsl(220,15%,11%)", color: "rgba(255,255,255,0.35)" }}>
+                            This app uses React/Node.js and needs a build environment to run. Download the source code to run locally, or deploy to Vercel/Railway for a live URL.
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
                   {/* Step 9: Deploy Pipeline */}
                   <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(15,23,42,0.1)" }}>
                     <div className="flex items-center justify-between px-4 py-3" style={{ background: "hsl(220,15%,16%)" }}>
@@ -2266,77 +2319,6 @@ export function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed, onViewP
                   {/* Quick-deploy targets */}
                   <div>
                     <p className="text-[10px] font-semibold uppercase tracking-wide mb-2" style={{ color: "rgba(15,23,42,0.4)" }}>Or deploy manually to</p>
-                  {/* Sandbox Deploy */}
-                  <div className="mt-4 rounded-xl overflow-hidden" style={{ border: "1px solid rgba(0,212,255,0.25)", background: "rgba(0,12,30,0.5)" }}>
-                    <div className="flex items-center justify-between px-4 py-3" style={{ background: "rgba(0,212,255,0.07)", borderBottom: "1px solid rgba(0,212,255,0.12)" }}>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm">🌐</span>
-                        <span className="text-xs font-semibold" style={{ color: "rgba(0,212,255,0.9)" }}>Deploy to Sandbox</span>
-                        {sandboxUrl && <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: "rgba(0,212,255,0.15)", color: "rgba(0,212,255,0.7)" }}>live</span>}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {sandboxUrl && (
-                          <div className="flex items-center gap-1.5">
-                            <button onClick={() => setSandboxOpen(o => !o)}
-                              className="text-[10px] px-2 py-1 rounded-lg"
-                              style={{ background: "rgba(0,212,255,0.1)", color: "rgba(0,212,255,0.7)" }}>
-                              {sandboxOpen ? "Hide preview" : "Show preview"}
-                            </button>
-                            <button onClick={() => { setSandboxUrl(null); handleDeployToSandbox(); }}
-                              disabled={deployingToSandbox}
-                              className="text-[10px] px-2 py-1 rounded-lg disabled:opacity-40"
-                              style={{ background: "rgba(255,165,0,0.15)", color: "rgba(255,165,0,0.9)" }}>
-                              {deployingToSandbox ? "Rebuilding…" : "🔄 Rebuild"}
-                            </button>
-                          </div>
-                        )}
-                        {!sandboxUrl && (
-                          <button onClick={handleDeployToSandbox} disabled={deployingToSandbox || !sessionId}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-40"
-                            style={{ background: "hsl(193,100%,35%)", color: "white" }}>
-                            {deployingToSandbox ? "⏳ Deploying…" : "🚀 Deploy to Sandbox"}
-                          </button>
-                        )}
-                        {sandboxUrl && !promoUrl && (
-                          <button onClick={handlePromote} disabled={promoting}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-40"
-                            style={{ background: "hsl(45,90%,45%)", color: "white" }}>
-                            {promoting ? "Promoting…" : "⭐ Promote to Production"}
-                          </button>
-                        )}
-                        {promoUrl && (
-                          <a href={promoUrl} target="_blank" rel="noopener noreferrer"
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
-                            style={{ background: "hsl(130,60%,40%)", color: "white" }}>
-                            ✅ Live in Production
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                    {sandboxLog.length > 0 && (
-                      <div className="px-4 py-2 space-y-0.5">
-                        {sandboxLog.map((l, i) => <p key={i} className="text-[11px] font-mono" style={{ color: "rgba(0,212,255,0.6)" }}>{l}</p>)}
-                      </div>
-                    )}
-                    {sandboxUrl && sandboxOpen && (
-                      <div>
-                        <div className="px-4 py-2 flex items-center gap-2" style={{ borderTop: "1px solid rgba(0,212,255,0.1)" }}>
-                          <span className="text-[11px] font-mono truncate" style={{ color: "rgba(0,212,255,0.5)" }}>{sandboxUrl}</span>
-                          <a href={sandboxUrl} target="_blank" rel="noopener noreferrer"
-                            className="flex-shrink-0 text-[10px] px-2 py-1 rounded-lg"
-                            style={{ background: "rgba(0,212,255,0.1)", color: "rgba(0,212,255,0.7)" }}>
-                            Open ↗
-                          </a>
-                        </div>
-                        <div style={{ height: 480, borderTop: "1px solid rgba(0,212,255,0.1)" }}>
-                          <iframe src={sandboxUrl} title="Sandbox preview"
-                            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
-                            style={{ width: "100%", height: "100%", border: "none", background: "#fff" }} />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
                     <div className="grid grid-cols-2 gap-2">
                       {[
                         { icon: "▲", label: "Vercel", color: "hsl(0,0%,10%)", url: "https://vercel.com/new" },
@@ -2737,7 +2719,7 @@ export function AppBuilderPanel({ pin, preloadPrompt, onPreloadConsumed, onViewP
                         <span className="text-[10px] font-semibold" style={{ color: "hsl(45,80%,40%)" }}>Architect · Extended Thinking</span>
                       </div>
                       <div className="rounded-xl p-3 text-xs leading-relaxed" style={{ background: "hsla(45,90%,50%,0.06)", border: "1px solid hsla(45,90%,50%,0.15)", color: "rgba(15,23,42,0.75)" }}>
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{preprocessImageUrls(msg.content)}</ReactMarkdown>
                         {architectLoading && i === architectMessages.length - 1 && <span className="inline-block w-1 h-3 ml-1 animate-pulse rounded" style={{ background: "hsl(45,90%,50%)" }} />}
                       </div>
                     </div>
