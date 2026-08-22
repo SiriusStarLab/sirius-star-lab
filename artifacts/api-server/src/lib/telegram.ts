@@ -20,6 +20,7 @@ export async function sendTelegramMessage(text: string, chatId?: string): Promis
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ chat_id: target, text, parse_mode: "Markdown" }),
+      signal: AbortSignal.timeout(8000),
     });
     const data = await res.json() as any;
     if (!data.ok) return { ok: false, error: data.description };

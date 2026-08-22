@@ -2,6 +2,7 @@ import { db, siriusErrors, siriusNotifications } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { sendTelegramMessage } from "./telegram.js";
 import { sendAlertEmail } from "./alert-delivery.js";
+import { getSiriusConfigValue, setSiriusConfigValue } from "./sirius-automation.js";
 import type { HealthReport } from "./health-monitor.js";
 
 type ReportPeriod = "daily" | "weekly";
@@ -16,6 +17,16 @@ interface AggregateSignals {
 }
 
 let started = false;
+let reportInFlight = false;
+const REPORT_POLL_MS = 15 * 60 * 1000;
+const REPORT_STATE_KEYS: Record<ReportPeriod, string> = {
+  daily: "monitoring_last_daily_report_at",
+  weekly: "monitoring_last_weekly_report_at",
+};
+const REPORT_INTERVALS: Record<ReportPeriod, number> = {
+  daily: 24 * 60 * 60 * 1000,
+  weekly: 7 * 24 * 60 * 60 * 1000,
+};
 
 async function collectSignals(hours: number): Promise<AggregateSignals> {
   const errorRows = await db.execute(sql`
@@ -81,7 +92,7 @@ async function buildReport(period: ReportPeriod, report: HealthReport | null): P
   ].join("\n");
 }
 
-async function deliverReport(period: ReportPeriod, report: HealthReport | null): Promise<void> {
+async function deliverReport(period: ReportPeriod, report: HealthReport | null): Promise<boolean> {
   try {
     const text = await buildReport(period, report);
     const subject = `Sirius ${period} operational summary`;
@@ -101,15 +112,42 @@ async function deliverReport(period: ReportPeriod, report: HealthReport | null):
       sentEmail: email.ok,
     } as any);
     console.log(`[OperationalReporting] ${period} summary delivered — email=${email.ok} telegram=${telegram.ok}`);
+    return true;
   } catch (error: any) {
     console.error(`[OperationalReporting] ${period} summary failed:`, error?.message || error);
+    return false;
+  }
+}
+
+async function isDue(period: ReportPeriod): Promise<boolean> {
+  const last = await getSiriusConfigValue(REPORT_STATE_KEYS[period]);
+  if (!last) return true;
+  const timestamp = Date.parse(last);
+  return !Number.isFinite(timestamp) || Date.now() - timestamp >= REPORT_INTERVALS[period];
+}
+
+async function runDueReports(getHealthReport: () => HealthReport | null): Promise<void> {
+  if (reportInFlight) return;
+  reportInFlight = true;
+  try {
+    for (const period of ["daily", "weekly"] as const) {
+      if (!(await isDue(period))) continue;
+      const delivered = await deliverReport(period, getHealthReport());
+      if (delivered) await setSiriusConfigValue(REPORT_STATE_KEYS[period], new Date().toISOString());
+    }
+  } finally {
+    reportInFlight = false;
   }
 }
 
 export function startOperationalReporting(getHealthReport: () => HealthReport | null): void {
   if (started) return;
   started = true;
-  setInterval(() => deliverReport("daily", getHealthReport()), 24 * 60 * 60 * 1000);
-  setInterval(() => deliverReport("weekly", getHealthReport()), 7 * 24 * 60 * 60 * 1000);
+  setTimeout(() => runDueReports(getHealthReport).catch((error) => {
+    console.error("[OperationalReporting] Scheduler failed:", error?.message || error);
+  }), 60_000);
+  setInterval(() => runDueReports(getHealthReport).catch((error) => {
+    console.error("[OperationalReporting] Scheduler failed:", error?.message || error);
+  }), REPORT_POLL_MS);
   console.log("[OperationalReporting] Daily and weekly summaries scheduled");
 }

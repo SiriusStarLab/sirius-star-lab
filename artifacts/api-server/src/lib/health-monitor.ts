@@ -58,6 +58,25 @@ export function getHistory(): HealthReport[] { return [...history]; }
 
 // ── Individual Checks ──────────────────────────────────────────────────────────
 
+function getOpenRouterConfig(): { key: string; base: string } | { error: string } {
+  const key = process.env["OPENROUTER_API_KEY"];
+  if (!key) return { error: "OPENROUTER_API_KEY is not configured" };
+
+  const base = process.env["OPENROUTER_BASE_URL"] || "https://openrouter.ai/api/v1";
+  try {
+    const parsed = new URL(base);
+    const isOpenRouter = parsed.protocol === "https:" && parsed.hostname === "openrouter.ai";
+    const isLocalRouter = (parsed.hostname === "127.0.0.1" || parsed.hostname === "localhost")
+      && (parsed.protocol === "http:" || parsed.protocol === "https:");
+    if (!isOpenRouter && !isLocalRouter) {
+      return { error: "OPENROUTER_BASE_URL is not an approved OpenRouter or local router URL" };
+    }
+    return { key, base: base.replace(/\/+$/, "") };
+  } catch {
+    return { error: "OPENROUTER_BASE_URL is invalid" };
+  }
+}
+
 async function checkDatabase(): Promise<CheckResult> {
   const t = Date.now();
   try {
@@ -70,12 +89,11 @@ async function checkDatabase(): Promise<CheckResult> {
 
 async function checkOpenRouter(): Promise<CheckResult> {
   const t = Date.now();
-  const key = process.env["OPENROUTER_API_KEY"] || process.env["AI_INTEGRATIONS_OPENAI_API_KEY"];
-  if (!key) return { name: "openrouter", status: "warn", detail: "No API key configured" };
+  const config = getOpenRouterConfig();
+  if ("error" in config) return { name: "openrouter", status: "warn", detail: config.error };
   try {
-    const orBase = process.env["OPENROUTER_BASE_URL"] || "https://openrouter.ai/api/v1";
-    const res = await fetch(`${orBase}/models`, {
-      headers: { Authorization: `Bearer ${key}` },
+    const res = await fetch(`${config.base}/models`, {
+      headers: { Authorization: `Bearer ${config.key}` },
       signal: AbortSignal.timeout(8000),
     });
     const ms = Date.now() - t;
@@ -87,14 +105,12 @@ async function checkOpenRouter(): Promise<CheckResult> {
 }
 
 async function checkAiUsage(): Promise<CheckResult> {
-  const key = process.env["OPENROUTER_API_KEY"] || process.env["AI_INTEGRATIONS_OPENAI_API_KEY"];
-  if (!key) return { name: "ai_usage", status: "warn", detail: "No AI usage key configured" };
-
   const t = Date.now();
+  const config = getOpenRouterConfig();
+  if ("error" in config) return { name: "ai_usage", status: "warn", detail: config.error };
   try {
-    const base = process.env["OPENROUTER_BASE_URL"] || "https://openrouter.ai/api/v1";
-    const response = await fetch(`${base}/key`, {
-      headers: { Authorization: `Bearer ${key}` },
+    const response = await fetch(`${config.base}/key`, {
+      headers: { Authorization: `Bearer ${config.key}` },
       signal: AbortSignal.timeout(8000),
     });
     const latencyMs = Date.now() - t;
@@ -572,7 +588,13 @@ export async function runHealthCheck(): Promise<HealthReport> {
 
     const failedChecks = checks.filter(c => c.status === "fail");
     const warnChecks = checks.filter(c => c.status === "warn");
-    const fingerprint = issues.join("|");
+    // Fingerprints intentionally exclude mutable details such as usage dollars,
+    // latency, and error text so one sustained incident stays one incident.
+    const fingerprint = checks
+      .filter((check) => check.status !== "ok")
+      .map((check) => `${check.name}:${check.status}`)
+      .sort()
+      .join("|");
     const shouldNotify = fingerprint !== lastIncidentFingerprint || Date.now() - lastIncidentAt >= INCIDENT_COOLDOWN_MS;
     let aiSummary = lastAiSummary;
     let emailDelivered = false;
